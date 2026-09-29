@@ -34,18 +34,9 @@ func newSymonSidebar(config *ConfigManager) *symonSidebar {
 	return &symonSidebar{config: config, visible: config.SymonSidebarVisible()}
 }
 
-// width returns the sidebar's width for a terminal width: zero when hidden
-// or when the charts would not fit beside it.
-func (sb *symonSidebar) width(terminalWidth int) int {
-	if !sb.visible {
-		return 0
-	}
-	w, _ := fitSidebarWidths(terminalWidth, expandedSidebarWidth(terminalWidth, false, 0), 0)
-	return w
-}
-
-// View renders the sidebar with its right border.
-func (sb *symonSidebar) View(width, height int, latest map[string]float64) string {
+// View renders the sidebar with its right border, highlighted while the
+// border is being dragged.
+func (sb *symonSidebar) View(width, height int, latest map[string]float64, dragging bool) string {
 	contentWidth := sidebarContentWidth(width)
 
 	lines := sb.hostLines(contentWidth)
@@ -65,6 +56,9 @@ func (sb *symonSidebar) View(width, height int, latest map[string]float64) strin
 		Height(height).
 		MaxHeight(height).
 		Render(strings.Join(lines, "\n"))
+	if dragging {
+		return leftSidebarBorderHighlightStyle.Render(block)
+	}
 	return leftSidebarBorderStyle.Render(block)
 }
 

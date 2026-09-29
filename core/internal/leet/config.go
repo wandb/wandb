@@ -112,6 +112,7 @@ type Config struct {
 	RunLayout       LayoutOverrides `json:"run_layout,omitzero"       leet:"-"`
 	WorkspaceLayout LayoutOverrides `json:"workspace_layout,omitzero" leet:"-"`
 	InspectorLayout LayoutOverrides `json:"inspector_layout,omitzero" leet:"-"`
+	SymonLayout     LayoutOverrides `json:"symon_layout,omitzero"     leet:"-"`
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
@@ -389,6 +390,7 @@ func (cm *ConfigManager) normalizeConfig() {
 	normalizeLayoutOverrides(&cm.config.RunLayout)
 	normalizeLayoutOverrides(&cm.config.WorkspaceLayout)
 	normalizeLayoutOverrides(&cm.config.InspectorLayout)
+	normalizeLayoutOverrides(&cm.config.SymonLayout)
 }
 
 func isChartGuides(guides string) bool {
@@ -652,6 +654,19 @@ func (cm *ConfigManager) InspectorLayout() LayoutOverrides {
 func (cm *ConfigManager) SetInspectorLayout(o LayoutOverrides) error {
 	normalizeLayoutOverrides(&o)
 	return cm.set(func(c *Config) { c.InspectorLayout = o })
+}
+
+// SymonLayout returns the standalone system monitor's layout overrides.
+func (cm *ConfigManager) SymonLayout() LayoutOverrides {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonLayout
+}
+
+// SetSymonLayout sets and persists the standalone system monitor's layout overrides.
+func (cm *ConfigManager) SetSymonLayout(o LayoutOverrides) error {
+	normalizeLayoutOverrides(&o)
+	return cm.set(func(c *Config) { c.SymonLayout = o })
 }
 
 // Path returns the on-disk config path.
