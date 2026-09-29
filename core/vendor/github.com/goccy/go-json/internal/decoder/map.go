@@ -2,8 +2,6 @@ package decoder
 
 import (
 	"reflect"
-	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/goccy/go-json/internal/errors"
@@ -11,127 +9,116 @@ import (
 )
 
 type mapDecoder struct {
-	mapType   reflect.Type
-	keyType   reflect.Type
-	valueType reflect.Type
-	// mapTypePtr, keyPtrType and valuePtrType are the type descriptors of the map, of *K and of *V.
-	mapTypePtr   unsafe.Pointer
-	keyPtrType   unsafe.Pointer
-	valuePtrType unsafe.Pointer
-	// isStringAnyMap is whether the map is a map[string]interface{}, which is decoded without reflect.
-	isStringAnyMap bool
-	keyDecoder     Decoder
-	valueDecoder   Decoder
-	// keyUnsupported is set for a map whose keys encoding/json of the Go version doesn't decode ( see
-	// mapKeySupported ): an object is a type error.
-	keyUnsupported bool
-	structName     string
-	fieldName      string
-	// temps holds the zero values which the key and the value of an entry are decoded into ( see mapTemps ).
-	temps sync.Pool
-	// lastLen is the number of the entries of the object which the decoder decoded last, up to maxMapSizeHint,
-	// which a new map is made for: the objects of a kind often have a number of entries. It is only a hint, for
-	// any goroutine.
-	lastLen atomic.Int32
+	mapType                 *runtime.Type
+	keyType                 *runtime.Type
+	valueType               *runtime.Type
+	canUseAssignFaststrType bool
+	keyDecoder              Decoder
+	valueDecoder            Decoder
+	structName              string
+	fieldName               string
 }
 
-// maxMapSizeHint is the largest number of the entries which a new map is made for ( see lastLen ).
-const maxMapSizeHint = 64
-
-// mapTemps are the zero values of the key and of the value of a map, into which the key and the value of every
-// entry are decoded, which reflect.Value.SetMapIndex copies into the map, and which are zeroed after it: a
-// decoder keeps them in a pool, so that a map is decoded without allocating them.
-type mapTemps struct {
-	k, v   unsafe.Pointer
-	kv, vv reflect.Value
-}
-
-func newMapDecoder(mapType reflect.Type, keyType reflect.Type, keyDec Decoder, valueType reflect.Type, valueDec Decoder, structName, fieldName string) *mapDecoder {
-	_, isIfaceValue := valueDec.(*interfaceDecoder)
-	d := &mapDecoder{
-		mapType:        mapType,
-		keyDecoder:     keyDec,
-		keyType:        keyType,
-		valueType:      valueType,
-		mapTypePtr:     runtime.TypePtr(mapType),
-		keyPtrType:     ptrTypeOf(keyType),
-		valuePtrType:   ptrTypeOf(valueType),
-		isStringAnyMap: mapType == interfaceMapType && isIfaceValue,
-		valueDecoder:   valueDec,
-		keyUnsupported: !mapKeySupported(keyType, keyDec),
-		structName:     structName,
-		fieldName:      fieldName,
+func newMapDecoder(mapType *runtime.Type, keyType *runtime.Type, keyDec Decoder, valueType *runtime.Type, valueDec Decoder, structName, fieldName string) *mapDecoder {
+	return &mapDecoder{
+		mapType:                 mapType,
+		keyDecoder:              keyDec,
+		keyType:                 keyType,
+		canUseAssignFaststrType: canUseAssignFaststrType(keyType, valueType),
+		valueType:               valueType,
+		valueDecoder:            valueDec,
+		structName:              structName,
+		fieldName:               fieldName,
 	}
-	d.temps.New = func() any {
-		t := &mapTemps{k: newValue(keyType), v: newValue(valueType)}
-		t.kv, t.vv = valueAt(d.keyPtrType, t.k), valueAt(d.valuePtrType, t.v)
-		return t
+}
+
+const (
+	mapMaxElemSize = 128
+)
+
+// See detail: https://github.com/goccy/go-json/pull/283
+func canUseAssignFaststrType(key *runtime.Type, value *runtime.Type) bool {
+	indirectElem := value.Size() > mapMaxElemSize
+	if indirectElem {
+		return false
 	}
-	return d
+	return key.Kind() == reflect.String
 }
 
-// mapValue returns the reflect.Value of the map m.
-func (d *mapDecoder) mapValue(m unsafe.Pointer) reflect.Value {
-	// A map is a pointer in an interface value.
-	return reflect.ValueOf(*(*any)(unsafe.Pointer(&emptyInterface{typ: d.mapTypePtr, ptr: m})))
+//go:linkname makemap reflect.makemap
+func makemap(*runtime.Type, int) unsafe.Pointer
+
+//nolint:golint
+//go:linkname mapassign_faststr runtime.mapassign_faststr
+//go:noescape
+func mapassign_faststr(t *runtime.Type, m unsafe.Pointer, s string) unsafe.Pointer
+
+//go:linkname mapassign reflect.mapassign
+//go:noescape
+func mapassign(t *runtime.Type, m unsafe.Pointer, k, v unsafe.Pointer)
+
+func (d *mapDecoder) mapassign(t *runtime.Type, m, k, v unsafe.Pointer) {
+	if d.canUseAssignFaststrType {
+		mapV := mapassign_faststr(t, m, *(*string)(k))
+		typedmemmove(d.valueType, mapV, v)
+	} else {
+		mapassign(t, m, k, v)
+	}
 }
 
-// decodeEntries decodes the entries of the object from cursor into the map, whose keys and values are decoded into
-// k and v, as Decode does, but the entries whose keys are of another type ( see errMapKeyType ), which are dropped.
-// If afterKey is set, cursor is after the key of such an entry, whose value is decoded first. It is a function of
-// its own, so that Decode keeps the size it had: such a key is rare.
-//
-//go:noinline
-func (d *mapDecoder) decodeEntries(ctx *RuntimeContext, cursor, depth int64, p, mapValue, k, v unsafe.Pointer, afterKey bool) (int64, error) {
-	buf := ctx.Buf
-	mv := d.mapValue(mapValue)
-	kv := valueAt(d.keyPtrType, k)
-	vv := valueAt(d.valuePtrType, v)
+func (d *mapDecoder) DecodeStream(s *Stream, depth int64, p unsafe.Pointer) error {
+	depth++
+	if depth > maxDecodeNestingDepth {
+		return errors.ErrExceededMaxDepth(s.char(), s.cursor)
+	}
+
+	switch s.skipWhiteSpace() {
+	case 'n':
+		if err := nullBytes(s); err != nil {
+			return err
+		}
+		**(**unsafe.Pointer)(unsafe.Pointer(&p)) = nil
+		return nil
+	case '{':
+	default:
+		return errors.ErrExpected("{ character for map value", s.totalOffset())
+	}
+	mapValue := *(*unsafe.Pointer)(p)
+	if mapValue == nil {
+		mapValue = makemap(d.mapType, 0)
+	}
+	s.cursor++
+	if s.skipWhiteSpace() == '}' {
+		*(*unsafe.Pointer)(p) = mapValue
+		s.cursor++
+		return nil
+	}
 	for {
-		drop := afterKey
-		if !afterKey {
-			keyCursor, err := d.keyDecoder.Decode(ctx, cursor, depth, k)
-			if err != nil && err != errMapKeyType {
-				return 0, err
-			}
-			drop = err != nil
-			cursor = keyCursor
+		k := unsafe_New(d.keyType)
+		if err := d.keyDecoder.DecodeStream(s, depth, k); err != nil {
+			return err
 		}
-		afterKey = false
-		cursor = skipWhiteSpace(buf, cursor)
-		if buf[cursor] != ':' {
-			return 0, errors.ErrExpected("colon after object key", cursor)
+		s.skipWhiteSpace()
+		if !s.equalChar(':') {
+			return errors.ErrExpected("colon after object key", s.totalOffset())
 		}
-		valueCursor, err := d.valueDecoder.Decode(ctx, cursor+1, depth, v)
-		if err != nil {
-			return 0, err
+		s.cursor++
+		v := unsafe_New(d.valueType)
+		if err := d.valueDecoder.DecodeStream(s, depth, v); err != nil {
+			return err
 		}
-		if !drop {
-			mv.SetMapIndex(kv, vv)
-		}
-		kv.SetZero()
-		vv.SetZero()
-		cursor = skipWhiteSpace(buf, valueCursor)
-		if buf[cursor] == '}' {
+		d.mapassign(d.mapType, mapValue, k, v)
+		s.skipWhiteSpace()
+		if s.equalChar('}') {
 			**(**unsafe.Pointer)(unsafe.Pointer(&p)) = mapValue
-			return cursor + 1, nil
+			s.cursor++
+			return nil
 		}
-		if buf[cursor] != ',' {
-			return 0, errors.ErrExpected("comma after object value", cursor)
+		if !s.equalChar(',') {
+			return errors.ErrExpected("comma after object value", s.totalOffset())
 		}
-		cursor++
+		s.cursor++
 	}
-}
-
-// decodeOther skips the value at cursor, which is not an object: a value of another kind is a type error, and
-// anything else a syntax error. It is a function of its own, so that Decode keeps the size it had.
-//
-//go:noinline
-func (d *mapDecoder) decodeOther(ctx *RuntimeContext, cursor, depth int64) (int64, error) {
-	if isOtherValue(ctx.Buf[cursor], objectValue) {
-		return ctx.skipTypeError(cursor, depth, d.mapType)
-	}
-	return 0, errors.ErrExpected("{ character for map value", cursor)
 }
 
 func (d *mapDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe.Pointer) (int64, error) {
@@ -156,52 +143,23 @@ func (d *mapDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe.P
 		return cursor, nil
 	case '{':
 	default:
-		return d.decodeOther(ctx, cursor, depth-1)
-	}
-	if d.keyUnsupported {
-		return ctx.unsupportedMapKeys(d, cursor, depth-1, p)
-	}
-	if d.isStringAnyMap {
-		m := *(*map[string]any)(p)
-		if m == nil {
-			m, c, err := decodeNewStringAnyMap(ctx, d.valueDecoder.(*interfaceDecoder), cursor, depth)
-			if err != nil {
-				return 0, err
-			}
-			*(*map[string]any)(p) = m
-			return c, nil
-		}
-		c, err := decodeStringAnyMap(ctx, d.valueDecoder.(*interfaceDecoder), m, cursor, depth)
-		if err != nil {
-			return 0, err
-		}
-		return c, nil
+		return 0, errors.ErrExpected("{ character for map value", cursor)
 	}
 	cursor++
 	cursor = skipWhiteSpace(buf, cursor)
 	mapValue := *(*unsafe.Pointer)(p)
 	if mapValue == nil {
-		// made for the number of the entries of the last object, which an object of the kind is likely to have
-		mapValue = reflect.MakeMapWithSize(d.mapType, int(d.lastLen.Load())).UnsafePointer()
+		mapValue = makemap(d.mapType, 0)
 	}
 	if buf[cursor] == '}' {
 		**(**unsafe.Pointer)(unsafe.Pointer(&p)) = mapValue
 		cursor++
 		return cursor, nil
 	}
-	// The key and the value of every entry are decoded into the same zero values ( see mapTemps ), which go back
-	// to the pool when the object ends: after an error, they may have values, and are left to the collector.
-	t := d.temps.Get().(*mapTemps)
-	k, v, kv, vv := t.k, t.v, t.kv, t.vv
-	mv := d.mapValue(mapValue)
-	n := int32(0)
 	for {
+		k := unsafe_New(d.keyType)
 		keyCursor, err := d.keyDecoder.Decode(ctx, cursor, depth, k)
 		if err != nil {
-			if err == errMapKeyType {
-				// a key of another type: the rest of the object is decoded by decodeEntries
-				return d.decodeEntries(ctx, keyCursor, depth, p, mapValue, k, v, true)
-			}
 			return 0, err
 		}
 		cursor = skipWhiteSpace(buf, keyCursor)
@@ -209,19 +167,15 @@ func (d *mapDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe.P
 			return 0, errors.ErrExpected("colon after object key", cursor)
 		}
 		cursor++
+		v := unsafe_New(d.valueType)
 		valueCursor, err := d.valueDecoder.Decode(ctx, cursor, depth, v)
 		if err != nil {
 			return 0, err
 		}
-		mv.SetMapIndex(kv, vv)
-		kv.SetZero()
-		vv.SetZero()
-		n++
+		d.mapassign(d.mapType, mapValue, k, v)
 		cursor = skipWhiteSpace(buf, valueCursor)
 		if buf[cursor] == '}' {
 			**(**unsafe.Pointer)(unsafe.Pointer(&p)) = mapValue
-			d.temps.Put(t)
-			d.lastLen.Store(min(n, maxMapSizeHint))
 			cursor++
 			return cursor, nil
 		}

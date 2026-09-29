@@ -512,9 +512,9 @@ func (n *PathIndexAllNode) Field(fieldName string) (PathNode, bool, error) {
 func (n *PathIndexAllNode) Get(src, dst reflect.Value) error {
 	switch src.Type().Kind() {
 	case reflect.Array, reflect.Slice:
-		var arr []any
+		var arr []interface{}
 		for i := 0; i < src.Len(); i++ {
-			var v any
+			var v interface{}
 			rv := reflect.ValueOf(&v)
 			if n.child != nil {
 				if err := n.child.Get(src.Index(i), rv); err != nil {
@@ -573,23 +573,23 @@ func (n *PathRecursiveNode) Index(_ int) (PathNode, bool, error) {
 	return n, true, nil
 }
 
-func valueToSliceValue(v any) []any {
+func valueToSliceValue(v interface{}) []interface{} {
 	rv := reflect.ValueOf(v)
-	ret := []any{}
+	ret := []interface{}{}
 	if rv.Type().Kind() == reflect.Slice || rv.Type().Kind() == reflect.Array {
 		for i := 0; i < rv.Len(); i++ {
 			ret = append(ret, rv.Index(i).Interface())
 		}
 		return ret
 	}
-	return []any{v}
+	return []interface{}{v}
 }
 
 func (n *PathRecursiveNode) Get(src, dst reflect.Value) error {
 	if n.child == nil {
 		return fmt.Errorf("failed to get by recursive path ..%s", n.selector)
 	}
-	var arr []any
+	var arr []interface{}
 	switch src.Type().Kind() {
 	case reflect.Map:
 		iter := src.MapRange()
@@ -603,12 +603,12 @@ func (n *PathRecursiveNode) Get(src, dst reflect.Value) error {
 				return err
 			}
 			if found {
-				var v any
+				var v interface{}
 				rv := reflect.ValueOf(&v)
 				_ = child.Get(iter.Value(), rv)
 				arr = append(arr, valueToSliceValue(v)...)
 			} else {
-				var v any
+				var v interface{}
 				rv := reflect.ValueOf(&v)
 				_ = n.Get(iter.Value(), rv)
 				if v != nil {
@@ -627,12 +627,12 @@ func (n *PathRecursiveNode) Get(src, dst reflect.Value) error {
 				return err
 			}
 			if found {
-				var v any
+				var v interface{}
 				rv := reflect.ValueOf(&v)
 				_ = child.Get(src.Field(i), rv)
 				arr = append(arr, valueToSliceValue(v)...)
 			} else {
-				var v any
+				var v interface{}
 				rv := reflect.ValueOf(&v)
 				_ = n.Get(src.Field(i), rv)
 				if v != nil {
@@ -644,7 +644,7 @@ func (n *PathRecursiveNode) Get(src, dst reflect.Value) error {
 		return nil
 	case reflect.Array, reflect.Slice:
 		for i := 0; i < src.Len(); i++ {
-			var v any
+			var v interface{}
 			rv := reflect.ValueOf(&v)
 			_ = n.Get(src.Index(i), rv)
 			if v != nil {

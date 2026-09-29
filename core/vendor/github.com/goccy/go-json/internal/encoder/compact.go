@@ -2,7 +2,6 @@ package encoder
 
 import (
 	"bytes"
-	stderrors "errors"
 	"fmt"
 	"strconv"
 	"unsafe"
@@ -243,9 +242,7 @@ func compactNumber(dst, src []byte, cursor int64) ([]byte, int64, error) {
 		break
 	}
 	num := src[start:cursor]
-	// ParseFloat is used only to validate the syntax. A number out of the range of float64 is valid JSON,
-	// and it is written as it is, as encoding/json does.
-	if _, err := strconv.ParseFloat(*(*string)(unsafe.Pointer(&num)), 64); err != nil && !stderrors.Is(err, strconv.ErrRange) {
+	if _, err := strconv.ParseFloat(*(*string)(unsafe.Pointer(&num)), 64); err != nil {
 		return nil, 0, err
 	}
 	dst = append(dst, num...)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/goccy/go-json/internal/decoder"
 	"github.com/goccy/go-json/internal/encoder"
 )
 
@@ -167,38 +166,34 @@ type UnmarshalerContext interface {
 // JSON cannot represent cyclic data structures and Marshal does not
 // handle them. Passing cyclic structures to Marshal will result in
 // an infinite recursion.
-func Marshal(v any) ([]byte, error) {
+func Marshal(v interface{}) ([]byte, error) {
 	return MarshalWithOption(v)
 }
 
-// MarshalNoEscape returns the JSON encoding of v.
-//
-// Deprecated: Use Marshal. MarshalNoEscape used to keep v from escaping to the heap, but the encoder refers to v
-// by its address, which is not updated when the stack of the goroutine is copied while v is being encoded.
-// A value left on the stack was then read from the freed stack, so MarshalNoEscape is now the same as Marshal.
-func MarshalNoEscape(v any) ([]byte, error) {
-	return marshal(v)
+// MarshalNoEscape returns the JSON encoding of v and doesn't escape v.
+func MarshalNoEscape(v interface{}) ([]byte, error) {
+	return marshalNoEscape(v)
 }
 
 // MarshalContext returns the JSON encoding of v with context.Context and EncodeOption.
-func MarshalContext(ctx context.Context, v any, optFuncs ...EncodeOptionFunc) ([]byte, error) {
+func MarshalContext(ctx context.Context, v interface{}, optFuncs ...EncodeOptionFunc) ([]byte, error) {
 	return marshalContext(ctx, v, optFuncs...)
 }
 
 // MarshalWithOption returns the JSON encoding of v with EncodeOption.
-func MarshalWithOption(v any, optFuncs ...EncodeOptionFunc) ([]byte, error) {
+func MarshalWithOption(v interface{}, optFuncs ...EncodeOptionFunc) ([]byte, error) {
 	return marshal(v, optFuncs...)
 }
 
 // MarshalIndent is like Marshal but applies Indent to format the output.
 // Each JSON element in the output will begin on a new line beginning with prefix
 // followed by one or more copies of indent according to the indentation nesting.
-func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
+func MarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	return MarshalIndentWithOption(v, prefix, indent)
 }
 
 // MarshalIndentWithOption is like Marshal but applies Indent to format the output with EncodeOption.
-func MarshalIndentWithOption(v any, prefix, indent string, optFuncs ...EncodeOptionFunc) ([]byte, error) {
+func MarshalIndentWithOption(v interface{}, prefix, indent string, optFuncs ...EncodeOptionFunc) ([]byte, error) {
 	return marshalIndent(v, prefix, indent, optFuncs...)
 }
 
@@ -275,29 +270,23 @@ func MarshalIndentWithOption(v any, prefix, indent string, optFuncs ...EncodeOpt
 // invalid UTF-16 surrogate pairs are not treated as an error.
 // Instead, they are replaced by the Unicode replacement
 // character U+FFFD.
-func Unmarshal(data []byte, v any) error {
+func Unmarshal(data []byte, v interface{}) error {
 	return unmarshal(data, v)
 }
 
 // UnmarshalContext parses the JSON-encoded data and stores the result
 // in the value pointed to by v. If you implement the UnmarshalerContext interface,
 // call it with ctx as an argument.
-func UnmarshalContext(ctx context.Context, data []byte, v any, optFuncs ...DecodeOptionFunc) error {
-	return unmarshalContext(ctx, data, v, optFuncs...)
+func UnmarshalContext(ctx context.Context, data []byte, v interface{}, optFuncs ...DecodeOptionFunc) error {
+	return unmarshalContext(ctx, data, v)
 }
 
-func UnmarshalWithOption(data []byte, v any, optFuncs ...DecodeOptionFunc) error {
+func UnmarshalWithOption(data []byte, v interface{}, optFuncs ...DecodeOptionFunc) error {
 	return unmarshal(data, v, optFuncs...)
 }
 
-// UnmarshalNoEscape parses the JSON-encoded data and stores the result in the value pointed to by v.
-//
-// Deprecated: Use UnmarshalOf, which lets the value stay on the stack of the caller. UnmarshalNoEscape used to
-// keep v from escaping to the heap, but the decoder refers to v by its address, which is not updated when the
-// stack of the goroutine is copied while v is being decoded, so UnmarshalNoEscape is now the same as
-// UnmarshalWithOption.
-func UnmarshalNoEscape(data []byte, v any, optFuncs ...DecodeOptionFunc) error {
-	return unmarshal(data, v, optFuncs...)
+func UnmarshalNoEscape(data []byte, v interface{}, optFuncs ...DecodeOptionFunc) error {
+	return unmarshalNoEscape(data, v, optFuncs...)
 }
 
 // A Token holds a value of one of these types:
@@ -349,7 +338,7 @@ func Indent(dst *bytes.Buffer, src []byte, prefix, indent string) error {
 // escaping within <script> tags, so an alternative JSON encoding must
 // be used.
 func HTMLEscape(dst *bytes.Buffer, src []byte) {
-	var v any
+	var v interface{}
 	dec := NewDecoder(bytes.NewBuffer(src))
 	dec.UseNumber()
 	if err := dec.Decode(&v); err != nil {
@@ -361,11 +350,16 @@ func HTMLEscape(dst *bytes.Buffer, src []byte) {
 
 // Valid reports whether data is a valid JSON encoding.
 func Valid(data []byte) bool {
-	// the input is checked by the grammar in the buffer of a context, which is followed by the nul byte
-	ctx := decoder.TakeRuntimeContext()
-	valid := decoder.Valid(ctx.SetInput(data))
-	decoder.ReleaseRuntimeContext(ctx)
-	return valid
+	var v interface{}
+	decoder := NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&v)
+	if err != nil {
+		return false
+	}
+	if !decoder.More() {
+		return true
+	}
+	return decoder.InputOffset() >= int64(len(data))
 }
 
 func init() {

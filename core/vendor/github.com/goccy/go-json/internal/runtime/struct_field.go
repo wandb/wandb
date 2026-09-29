@@ -33,11 +33,8 @@ type StructTag struct {
 	Key         string
 	IsTaggedKey bool
 	IsOmitEmpty bool
-	// IsOmitZero is whether the field has the omitzero option, which encoding/json has from Go 1.24: it is
-	// false with an older Go, whose encoding/json ignores the option.
-	IsOmitZero bool
-	IsString   bool
-	Field      reflect.StructField
+	IsString    bool
+	Field       reflect.StructField
 }
 
 type StructTags []*StructTag
@@ -85,8 +82,6 @@ func StructTagFromField(field reflect.StructField) *StructTag {
 			switch opt {
 			case "omitempty":
 				st.IsOmitEmpty = true
-			case "omitzero":
-				st.IsOmitZero = omitZeroOption
 			case "string":
 				st.IsString = true
 			}

@@ -2,45 +2,106 @@ package decoder
 
 import (
 	"fmt"
-	"reflect"
 	"unsafe"
 
 	"github.com/goccy/go-json/internal/errors"
+	"github.com/goccy/go-json/internal/runtime"
 )
 
 type arrayDecoder struct {
-	elemType reflect.Type
-	// arrayPtrType is the type descriptor of the pointer to the array.
-	arrayPtrType unsafe.Pointer
+	elemType     *runtime.Type
 	size         uintptr
 	valueDecoder Decoder
 	alen         int
 	structName   string
 	fieldName    string
-	// typ is the type of the array, which the type errors report.
-	typ reflect.Type
+	zeroValue    unsafe.Pointer
 }
 
-func newArrayDecoder(dec Decoder, arrayType reflect.Type, structName, fieldName string) *arrayDecoder {
-	elemType := arrayType.Elem()
+func newArrayDecoder(dec Decoder, elemType *runtime.Type, alen int, structName, fieldName string) *arrayDecoder {
+	// workaround to avoid checkptr errors. cannot use `*(*unsafe.Pointer)(unsafe_New(elemType))` directly.
+	zeroValuePtr := unsafe_New(elemType)
+	zeroValue := **(**unsafe.Pointer)(unsafe.Pointer(&zeroValuePtr))
 	return &arrayDecoder{
-		typ:          arrayType,
 		valueDecoder: dec,
 		elemType:     elemType,
-		arrayPtrType: ptrTypeOf(arrayType),
 		size:         elemType.Size(),
-		alen:         arrayType.Len(),
+		alen:         alen,
 		structName:   structName,
 		fieldName:    fieldName,
+		zeroValue:    zeroValue,
 	}
 }
 
-// zeroFrom sets the elements of the array at p from idx to the end to their zero value,
-// as encoding/json does for the elements the JSON array has not.
-func (d *arrayDecoder) zeroFrom(p unsafe.Pointer, idx int) {
-	if idx < d.alen {
-		valueAt(d.arrayPtrType, p).Slice(idx, d.alen).Clear()
+func (d *arrayDecoder) DecodeStream(s *Stream, depth int64, p unsafe.Pointer) error {
+	depth++
+	if depth > maxDecodeNestingDepth {
+		return errors.ErrExceededMaxDepth(s.char(), s.cursor)
 	}
+
+	for {
+		switch s.char() {
+		case ' ', '\n', '\t', '\r':
+		case 'n':
+			if err := nullBytes(s); err != nil {
+				return err
+			}
+			return nil
+		case '[':
+			idx := 0
+			s.cursor++
+			if s.skipWhiteSpace() == ']' {
+				for idx < d.alen {
+					*(*unsafe.Pointer)(unsafe.Pointer(uintptr(p) + uintptr(idx)*d.size)) = d.zeroValue
+					idx++
+				}
+				s.cursor++
+				return nil
+			}
+			for {
+				if idx < d.alen {
+					if err := d.valueDecoder.DecodeStream(s, depth, unsafe.Pointer(uintptr(p)+uintptr(idx)*d.size)); err != nil {
+						return err
+					}
+				} else {
+					if err := s.skipValue(depth); err != nil {
+						return err
+					}
+				}
+				idx++
+				switch s.skipWhiteSpace() {
+				case ']':
+					for idx < d.alen {
+						*(*unsafe.Pointer)(unsafe.Pointer(uintptr(p) + uintptr(idx)*d.size)) = d.zeroValue
+						idx++
+					}
+					s.cursor++
+					return nil
+				case ',':
+					s.cursor++
+					continue
+				case nul:
+					if s.read() {
+						s.cursor++
+						continue
+					}
+					goto ERROR
+				default:
+					goto ERROR
+				}
+			}
+		case nul:
+			if s.read() {
+				continue
+			}
+			goto ERROR
+		default:
+			goto ERROR
+		}
+		s.cursor++
+	}
+ERROR:
+	return errors.ErrUnexpectedEndOfJSON("array", s.totalOffset())
 }
 
 func (d *arrayDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe.Pointer) (int64, error) {
@@ -66,13 +127,16 @@ func (d *arrayDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe
 			cursor++
 			cursor = skipWhiteSpace(buf, cursor)
 			if buf[cursor] == ']' {
-				d.zeroFrom(p, idx)
+				for idx < d.alen {
+					*(*unsafe.Pointer)(unsafe.Pointer(uintptr(p) + uintptr(idx)*d.size)) = d.zeroValue
+					idx++
+				}
 				cursor++
 				return cursor, nil
 			}
 			for {
 				if idx < d.alen {
-					c, err := d.valueDecoder.Decode(ctx, cursor, depth, unsafe.Add(p, uintptr(idx)*d.size))
+					c, err := d.valueDecoder.Decode(ctx, cursor, depth, unsafe.Pointer(uintptr(p)+uintptr(idx)*d.size))
 					if err != nil {
 						return 0, err
 					}
@@ -88,7 +152,10 @@ func (d *arrayDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe
 				cursor = skipWhiteSpace(buf, cursor)
 				switch buf[cursor] {
 				case ']':
-					d.zeroFrom(p, idx)
+					for idx < d.alen {
+						*(*unsafe.Pointer)(unsafe.Pointer(uintptr(p) + uintptr(idx)*d.size)) = d.zeroValue
+						idx++
+					}
 					cursor++
 					return cursor, nil
 				case ',':
@@ -99,20 +166,9 @@ func (d *arrayDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe
 				}
 			}
 		default:
-			return d.decodeOther(ctx, cursor, depth-1)
+			return 0, errors.ErrUnexpectedEndOfJSON("array", cursor)
 		}
 	}
-}
-
-// decodeOther skips the value at cursor, which is not an array: a value of another kind is a type error, and
-// anything else a syntax error. It is a function of its own, so that Decode keeps the size it had.
-//
-//go:noinline
-func (d *arrayDecoder) decodeOther(ctx *RuntimeContext, cursor, depth int64) (int64, error) {
-	if isOtherValue(ctx.Buf[cursor], arrayValue) {
-		return ctx.skipTypeError(cursor, depth, d.typ)
-	}
-	return 0, errors.ErrUnexpectedEndOfJSON("array", cursor)
 }
 
 func (d *arrayDecoder) DecodePath(ctx *RuntimeContext, cursor, depth int64) ([][]byte, int64, error) {

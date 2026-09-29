@@ -1,38 +1,96 @@
 package decoder
 
 import (
+	"bytes"
 	"encoding"
 	"fmt"
-	"reflect"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/goccy/go-json/internal/errors"
 	"github.com/goccy/go-json/internal/runtime"
 )
 
 type unmarshalTextDecoder struct {
-	typ        reflect.Type
+	typ        *runtime.Type
 	structName string
 	fieldName  string
-	// nullSetsZero is set for a value which null sets to its zero value ( see textUnmarshalerNullSetsZero ): null
-	// leaves any other value as it is, and is not given to UnmarshalText.
-	nullSetsZero bool
 }
 
-func newUnmarshalTextDecoder(typ reflect.Type, structName, fieldName string) *unmarshalTextDecoder {
+func newUnmarshalTextDecoder(typ *runtime.Type, structName, fieldName string) *unmarshalTextDecoder {
 	return &unmarshalTextDecoder{
-		typ:          typ,
-		structName:   structName,
-		fieldName:    fieldName,
-		nullSetsZero: textUnmarshalerNullSetsZero(typ.Elem().Kind()),
+		typ:        typ,
+		structName: structName,
+		fieldName:  fieldName,
+	}
+}
+
+func (d *unmarshalTextDecoder) annotateError(cursor int64, err error) {
+	switch e := err.(type) {
+	case *errors.UnmarshalTypeError:
+		e.Struct = d.structName
+		e.Field = d.fieldName
+	case *errors.SyntaxError:
+		e.Offset = cursor
 	}
 }
 
 var (
 	nullbytes = []byte(`null`)
 )
+
+func (d *unmarshalTextDecoder) DecodeStream(s *Stream, depth int64, p unsafe.Pointer) error {
+	s.skipWhiteSpace()
+	start := s.cursor
+	if err := s.skipValue(depth); err != nil {
+		return err
+	}
+	src := s.buf[start:s.cursor]
+	if len(src) > 0 {
+		switch src[0] {
+		case '[':
+			return &errors.UnmarshalTypeError{
+				Value:  "array",
+				Type:   runtime.RType2Type(d.typ),
+				Offset: s.totalOffset(),
+			}
+		case '{':
+			return &errors.UnmarshalTypeError{
+				Value:  "object",
+				Type:   runtime.RType2Type(d.typ),
+				Offset: s.totalOffset(),
+			}
+		case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			return &errors.UnmarshalTypeError{
+				Value:  "number",
+				Type:   runtime.RType2Type(d.typ),
+				Offset: s.totalOffset(),
+			}
+		case 'n':
+			if bytes.Equal(src, nullbytes) {
+				*(*unsafe.Pointer)(p) = nil
+				return nil
+			}
+		}
+	}
+	dst := make([]byte, len(src))
+	copy(dst, src)
+
+	if b, ok := unquoteBytes(dst); ok {
+		dst = b
+	}
+	v := *(*interface{})(unsafe.Pointer(&emptyInterface{
+		typ: d.typ,
+		ptr: p,
+	}))
+	if err := v.(encoding.TextUnmarshaler).UnmarshalText(dst); err != nil {
+		d.annotateError(s.cursor, err)
+		return err
+	}
+	return nil
+}
 
 func (d *unmarshalTextDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, p unsafe.Pointer) (int64, error) {
 	buf := ctx.Buf
@@ -43,26 +101,44 @@ func (d *unmarshalTextDecoder) Decode(ctx *RuntimeContext, cursor, depth int64, 
 		return 0, err
 	}
 	src := buf[start:end]
-	switch c := src[0]; {
-	case c == 'n':
-		if d.nullSetsZero {
-			reflect.NewAt(d.typ.Elem(), p).Elem().SetZero()
+	if len(src) > 0 {
+		switch src[0] {
+		case '[':
+			return 0, &errors.UnmarshalTypeError{
+				Value:  "array",
+				Type:   runtime.RType2Type(d.typ),
+				Offset: start,
+			}
+		case '{':
+			return 0, &errors.UnmarshalTypeError{
+				Value:  "object",
+				Type:   runtime.RType2Type(d.typ),
+				Offset: start,
+			}
+		case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			return 0, &errors.UnmarshalTypeError{
+				Value:  "number",
+				Type:   runtime.RType2Type(d.typ),
+				Offset: start,
+			}
+		case 'n':
+			if bytes.Equal(src, nullbytes) {
+				*(*unsafe.Pointer)(p) = nil
+				return end, nil
+			}
 		}
-		return end, nil
-	case c != '"':
-		// a value of another kind than a string, which is a type error
-		return ctx.textUnmarshalerKindError(start, depth, d.typ)
 	}
 
 	if s, ok := unquoteBytes(src); ok {
 		src = s
 	}
-	v := *(*any)(unsafe.Pointer(&emptyInterface{
-		typ: runtime.TypePtr(d.typ),
+	v := *(*interface{})(unsafe.Pointer(&emptyInterface{
+		typ: d.typ,
 		ptr: *(*unsafe.Pointer)(unsafe.Pointer(&p)),
 	}))
 	if err := v.(encoding.TextUnmarshaler).UnmarshalText(src); err != nil {
-		return ctx.methodError(cursor, end, err, d.structName, d.fieldName)
+		d.annotateError(cursor, err)
+		return 0, err
 	}
 	return end, nil
 }
