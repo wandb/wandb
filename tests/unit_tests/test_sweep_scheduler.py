@@ -1,11 +1,23 @@
+"""Unit tests of Optimizer implementations, in pure Python.
+
+No wandb-core process, IPC connection or backend is involved: each
+Optimizer is exercised directly through its ask/tell interface. For the
+Python-and-Go integration tests, see
+tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
+"""
+
 from __future__ import annotations
 
 import abc
+import importlib.util
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler import client as scheduler_client
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     RunConfig,
@@ -13,6 +25,11 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunWithMetrics,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
+
+HAS_AX = importlib.util.find_spec("ax") is not None
+requires_ax = pytest.mark.skipif(
+    not HAS_AX, reason="ax-platform requires Python >= 3.11"
+)
 
 SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
     "name": "test-sweep-grid-hyperband",
@@ -23,15 +40,28 @@ SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
 }
 
 
-def make_scheduler_grid_sweep() -> SweepInfo:
-    """Return the `SweepInfo` of a grid sweep with hyperband early termination."""
+def make_scheduler_grid_sweep(config: dict[str, Any] | None = None) -> SweepInfo:
+    """Return the `SweepInfo` of a grid sweep with hyperband early termination.
+
+    Args:
+        config: An override for the sweep's config.
+    """
     return SweepInfo(
         id="test_sweep",
         name="test_sweep",
         entity="test_entity",
         project="test_project",
-        config=SCHEDULER_GRID_SWEEP_CONFIG,
+        config=SCHEDULER_GRID_SWEEP_CONFIG if config is None else config,
     )
+
+
+MULTI_OBJECTIVE_SWEEP_CONFIG: dict[str, Any] = {
+    "metrics": [
+        {"name": "loss", "goal": "minimize"},
+        {"name": "accuracy", "goal": "maximize"},
+    ],
+    "parameters": {"x": {"min": 0.0, "max": 1.0}},
+}
 
 
 def make_run(
@@ -206,6 +236,142 @@ class OptimizerAcceptanceTests(abc.ABC):
         assert self.prune(optimizer, [pruned_id], [runs[0]]) == []
 
 
+class MultiObjectiveOptimizerAcceptanceTests(abc.ABC):
+    """Contract tests every Optimizer that accepts `metrics` must satisfy.
+
+    A multi-objective sweep declares a goal per metric, so a run's result
+    counts only once every objective is in, and no pruner ranking a single
+    value can judge the runs producing them.
+    """
+
+    RESULT = {"loss": 0.25, "accuracy": 0.9}
+
+    @pytest.fixture
+    def sweep(self) -> SweepInfo:
+        return make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_SWEEP_CONFIG)
+
+    @abc.abstractmethod
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        """Return an Optimizer searching `sweep`'s two objectives."""
+        ...
+
+    @abc.abstractmethod
+    def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
+        """Return the objective values of each result the optimizer recorded.
+
+        Ordered as recorded, with None for a run it declined to score.
+
+        Args:
+            optimizer: The optimizer under test.
+        """
+        ...
+
+    def finish(
+        self, optimizer: Optimizer, suggestion: RunSuggestion, summary: dict[str, Any]
+    ) -> None:
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.FINISHED, summary=summary),
+        )
+
+    @pytest.mark.parametrize(
+        ("summary", "recorded"),
+        [
+            ({"loss": 0.25, "accuracy": 0.9}, [[0.25, 0.9]]),
+            ({"loss": 0.25}, [None]),
+        ],
+        ids=["every_objective", "missing_an_objective"],
+    )
+    def test_a_result_counts_only_with_every_objective(
+        self,
+        optimizer: Optimizer,
+        summary: dict[str, Any],
+        recorded: list[list[Any] | None],
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        self.finish(optimizer, suggestion, summary)
+
+        assert self.recorded_objectives(optimizer) == recorded
+
+    def test_the_search_continues_after_a_result(self, optimizer: Optimizer) -> None:
+        """Nothing is left in flight, so the next ask must propose a run."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        self.finish(optimizer, suggestion, self.RESULT)
+
+        assert optimizer.ask_n_runs(1)
+
+    def test_warm_start_records_every_objective(self, optimizer: Optimizer) -> None:
+        existing = RunSuggestion(
+            config=RunConfig.from_values({"x": 0.25}), run_id="prior"
+        )
+
+        optimizer.tell_existing_finished_run(
+            make_run(existing, state=RunState.FINISHED, summary=self.RESULT)
+        )
+
+        assert self.recorded_objectives(optimizer) == [[0.25, 0.9]]
+
+    def test_pruning_never_stops_a_run(self, optimizer: Optimizer) -> None:
+        """Pruners rank one value, so they cannot judge a Pareto front."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = make_run(
+            suggestion,
+            state=RunState.RUNNING,
+            summary={"loss": 9.0, "accuracy": 0.1},
+            history=[{"loss": 9.0, "accuracy": 0.1, "_step": 0}],
+        )
+        optimizer.tell_run(suggestion.run_id, run)
+
+        assert optimizer.prune_runs([suggestion.run_id], [run]) == []
+
+
+class TestObjectiveMetrics:
+    """The base Optimizer reads its objectives from `metric` or `metrics`."""
+
+    def make_optimizer(self, config: dict[str, Any]) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+        return WandbOptimizer(sweep=make_scheduler_grid_sweep(config=config))
+
+    @pytest.mark.parametrize(
+        ("config", "names", "goals"),
+        [
+            (SCHEDULER_GRID_SWEEP_CONFIG, ["loss"], ["minimize"]),
+            (
+                MULTI_OBJECTIVE_SWEEP_CONFIG,
+                ["loss", "accuracy"],
+                ["minimize", "maximize"],
+            ),
+        ],
+        ids=["metric", "metrics"],
+    )
+    def test_names_and_goals_keep_the_declaration_order(
+        self, config: dict[str, Any], names: list[str], goals: list[str]
+    ) -> None:
+        optimizer = self.make_optimizer(config)
+
+        assert optimizer.metric_names() == names
+        assert optimizer.metric_goals() == goals
+
+    @pytest.mark.parametrize(
+        ("summary", "values"),
+        [
+            ({"loss": 1.0, "accuracy": 0.5}, [1.0, 0.5]),
+            ({"loss": 1.0}, None),
+            ({}, None),
+        ],
+        ids=["every_objective", "missing_an_objective", "nothing_logged"],
+    )
+    def test_objective_values_needs_every_objective(
+        self, summary: dict[str, Any], values: list[Any] | None
+    ) -> None:
+        optimizer = self.make_optimizer(MULTI_OBJECTIVE_SWEEP_CONFIG)
+
+        assert optimizer.objective_values(summary) == values
+
+
 class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
     @pytest.fixture
     def optimizer(self, sweep: SweepInfo) -> Optimizer:
@@ -220,3 +386,368 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
         optimizer.forget_run(first_run.run_id)
         again = next(iter(optimizer.ask_n_runs(1)))
         assert again.config["param1"].value == first_value
+
+
+class TestRunSchedulerInit:
+    def test_server_response_error_becomes_wandb_error(self, monkeypatch):
+        """A raw ServerResponseError must not escape `run_scheduler`.
+
+        The CLI only knows to report `wandb.Error` failures cleanly, so
+        errors from wandb-core's init round trip must be wrapped.
+        """
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.mailbox.mailbox_handle import ServerResponseError
+        from wandb.sdk.sweeps.scheduler import client
+
+        monkeypatch.setattr(
+            client.wbauth, "authenticate_session", lambda **kwargs: True
+        )
+
+        singleton = MagicMock()
+        singleton.asyncer.run.side_effect = ServerResponseError("sweep not found")
+        monkeypatch.setattr(client.wandb_setup, "singleton", lambda: singleton)
+
+        with pytest.raises(wandb.Error, match="failed to initialize"):
+            client.run_scheduler(
+                entity="e",
+                project="p",
+                sweep_id="s",
+                make_optimizer=lambda sweep: None,
+                batch_size=1,
+                poll_interval=10,
+            )
+
+
+class TestSchedulerHostOffMainThread:
+    def test_sigint_handler_is_optional(self) -> None:
+        """The host must work off the main thread, where signal cannot.
+
+        Only the main thread may install a signal handler, and
+        `run_scheduler` is an ordinary function a caller may run in a
+        worker.
+        """
+        import concurrent.futures
+
+        from wandb.sdk.sweeps.scheduler.client import _install_sigint_handler
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            handler = pool.submit(
+                _install_sigint_handler, None, None, "scheduler-0"
+            ).result()
+
+        assert handler is None
+
+
+def _make_sequential_sampler(optuna_module: Any) -> Any:
+    """A deterministic sampler cycling a categorical param's choices in order.
+
+    Real optuna samplers pick randomly (or per some search strategy), but the
+    shared acceptance tests -- written against `WandbOptimizer`'s
+    deterministic grid search -- assert an exact suggestion order.
+    """
+
+    class _SequentialSampler(optuna_module.samplers.BaseSampler):
+        def infer_relative_search_space(self, study: Any, trial: Any) -> dict:
+            return {}
+
+        def sample_relative(self, study: Any, trial: Any, search_space: dict) -> dict:
+            return {}
+
+        def sample_independent(
+            self, study: Any, trial: Any, param_name: str, param_distribution: Any
+        ) -> Any:
+            choices = list(param_distribution.choices)
+            seen = sum(
+                1
+                for t in study.get_trials(deepcopy=False)
+                if t.number != trial.number and param_name in t.params
+            )
+            return choices[seen % len(choices)]
+
+    return _SequentialSampler()
+
+
+class OptunaOptimizerAcceptanceTests(OptimizerAcceptanceTests):
+    """Shared setup for the Optuna optimizer flavors."""
+
+    # optuna's MedianPruner judges a running trial against the completed
+    # trials' median (6.0 here) rather than ranking running trials
+    # against each other, so the kept run's loss must sit below it.
+    better_running_loss = 5.0
+
+    @pytest.fixture
+    def study(self) -> Any:
+        import optuna
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        return optuna.create_study(
+            direction="minimize",
+            sampler=_make_sequential_sampler(optuna),
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=0, n_warmup_steps=0),
+        )
+
+
+class TestOptunaDeclarativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        distributions = {
+            "param1": optuna.distributions.CategoricalDistribution([1, 2, 3])
+        }
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+
+class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaImperativeOptimizer
+
+        def trial_constructor(trial: Any) -> dict[str, Any]:
+            return {"param1": trial.suggest_categorical("param1", [1, 2, 3])}
+
+        return OptunaImperativeOptimizer(study, trial_constructor, sweep)
+
+
+class TestOptunaMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import (
+            OptunaDeclarativeOptimizer,
+            create_study_from_sweep_config,
+        )
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        study = create_study_from_sweep_config(MULTI_OBJECTIVE_SWEEP_CONFIG)
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+    def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
+        """A trial optuna was told nothing for has no values of its own."""
+        return [
+            list(trial.values) if trial.values is not None else None
+            for trial in optimizer.study.get_trials(deepcopy=False)
+        ]
+
+
+class TerminatorContractTests(abc.ABC):
+    """`should_terminate_sweep` must delegate to the caller's terminator."""
+
+    @abc.abstractmethod
+    def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
+        """Build an optimizer with `terminator`.
+
+        Returns:
+            The optimizer and the argument its terminator is called with.
+        """
+        ...
+
+    def test_no_terminator_never_terminates(self) -> None:
+        optimizer, _ = self.make_optimizer()
+        assert optimizer.should_terminate_sweep() is False
+
+    @pytest.mark.parametrize("verdict", [True, False])
+    def test_delegates_to_the_configured_terminator(self, verdict: bool) -> None:
+        from unittest.mock import MagicMock
+
+        terminator = MagicMock(return_value=verdict)
+        optimizer, callback_arg = self.make_optimizer(terminator)
+
+        assert optimizer.should_terminate_sweep() is verdict
+        terminator.assert_called_once_with(callback_arg)
+
+
+class TestOptunaOptimizerTermination(TerminatorContractTests):
+    def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        study = optuna.create_study(direction="minimize")
+        distributions = {"param1": optuna.distributions.IntDistribution(1, 3)}
+        optimizer = OptunaDeclarativeOptimizer(
+            study, distributions, make_scheduler_grid_sweep(), terminator
+        )
+        return optimizer, study
+
+
+def _sequential_ax_generation_strategy(param_name: str, values: list[Any]) -> Any:
+    """A deterministic generation strategy cycling a choice param's values.
+
+    Ax's real generation strategies pick via Sobol/BoTorch, which the shared
+    acceptance tests -- written against `WandbOptimizer`'s deterministic grid
+    search -- don't assume.
+    """
+    from ax.generation_strategy.external_generation_node import ExternalGenerationNode
+    from ax.generation_strategy.generation_strategy import GenerationStrategy
+
+    class _SequentialNode(ExternalGenerationNode):
+        def __init__(self) -> None:
+            super().__init__(name="Sequential", should_deduplicate=False)
+            self._next_index = 0
+
+        def update_generator_state(self, experiment: Any, data: Any) -> None:
+            self._next_index = len(experiment.trials)
+
+        def get_next_candidate(self, pending_parameters: list[Any]) -> dict[str, Any]:
+            value = values[self._next_index % len(values)]
+            self._next_index += 1
+            return {param_name: value}
+
+    return GenerationStrategy(name="Sequential", nodes=[_SequentialNode()])
+
+
+@requires_ax
+class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
+    """Ax has a single optimizer flavor -- no define-by-run counterpart."""
+
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from ax.early_stopping.strategies import PercentileEarlyStoppingStrategy
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
+        client.set_generation_strategy(
+            _sequential_ax_generation_strategy("param1", [1, 2, 3])
+        )
+        client.set_early_stopping_strategy(PercentileEarlyStoppingStrategy())
+        return AxOptimizer(client, sweep)
+
+    def prune(
+        self,
+        optimizer: Optimizer,
+        run_ids: Sequence[str],
+        runs: Sequence[RunWithMetrics],
+    ) -> Sequence[str]:
+        """Stub Ax's statistical early-stopping verdict to flag run one."""
+        from unittest.mock import patch
+
+        with patch.object(
+            optimizer.client,
+            "should_stop_trial_early",
+            side_effect=lambda trial_index: trial_index == int(run_ids[0]),
+        ):
+            return optimizer.prune_runs(run_ids, runs)
+
+
+@requires_ax
+class TestAxMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        return AxOptimizer(create_default_client(MULTI_OBJECTIVE_SWEEP_CONFIG), sweep)
+
+    def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
+        """Ax scores a completed trial only; a failed one holds no result."""
+        from wandb.sdk.sweeps.scheduler.ax import _experiment
+
+        experiment = _experiment(optimizer.client)
+        data = experiment.lookup_data().df
+        recorded: list[list[Any] | None] = []
+        for trial_index, trial in sorted(experiment.trials.items()):
+            if not trial.status.is_completed:
+                recorded.append(None)
+                continue
+            rows = data[data["trial_index"] == trial_index]
+            recorded.append(
+                [
+                    rows[rows["metric_name"] == name]["mean"].iloc[-1]
+                    for name in optimizer.metric_names()
+                ]
+            )
+        return recorded
+
+
+@requires_ax
+class TestAxOptimizerTermination(TerminatorContractTests):
+    def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
+        return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
+
+
+class TestLoadSourceObject:
+    def test_loads_named_function(self, tmp_path: Path) -> None:
+        source = tmp_path / "source.py"
+        source.write_text("def configure():\n    return 42\n", encoding="utf-8")
+
+        loaded = scheduler_client.load_source_object(str(source), "configure")
+
+        assert loaded() == 42
+
+    def test_empty_source_raises(self) -> None:
+        with pytest.raises(ValueError, match="scheduler.source.*'configure'"):
+            scheduler_client.load_source_object("", "configure")
+
+    def test_missing_attribute_raises(self, tmp_path: Path) -> None:
+        source = tmp_path / "source.py"
+        source.write_text("OTHER = 1\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="has no attribute 'configure'"):
+            scheduler_client.load_source_object(str(source), "configure")
+
+
+class TestLoadOptimizerConfig:
+    def test_returns_bare_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        optimizer = object()
+        configure = MagicMock(return_value=optimizer)
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", "engine.Optimizer"
+        )
+
+        assert loaded is optimizer
+        assert terminator is None
+
+    def test_returns_optimizer_and_terminator(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        optimizer = object()
+        terminator = MagicMock(return_value=True)
+        configure = MagicMock(return_value=(optimizer, terminator))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, loaded_terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", "engine.Optimizer"
+        )
+
+        assert loaded is optimizer
+        assert loaded_terminator is terminator
+
+    def test_returns_only_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        optimizer = object()
+        configure = MagicMock(return_value=(optimizer, None))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", "engine.Optimizer"
+        )
+
+        assert loaded is optimizer
+        assert terminator is None
+
+    def test_non_callable_terminator_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        configure = MagicMock(return_value=(object(), "not-callable"))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        with pytest.raises(ValueError, match="terminator.*Callable"):
+            scheduler_client.load_optimizer_config(
+                "optimizer.py", "configure", "engine.Optimizer"
+            )

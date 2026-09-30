@@ -953,7 +953,6 @@ func (f *factoryFixture) startSession(t *testing.T) (
 
 	factory := scheduler.NewTaskResolverFactory(observability.NewNoOpLogger())
 	return factory(
-		context.Background(),
 		t.Context(),
 		&spb.SweepSchedulerClientInitRequest{
 			Entity:              "test-entity",

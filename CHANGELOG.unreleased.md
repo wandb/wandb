@@ -24,6 +24,12 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
 - System metrics now include PCIe throughput (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`) for NVIDIA GPUs older than Hopper (@dmitryduev in https://github.com/wandb/wandb/pull/12989)
 - System metrics now include each GPU's cumulative energy consumption in joules as `gpu.N.energyJoules`, for NVIDIA and AMD GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/12991)
+- System metrics now include `proc.cpu.throttledPercent`, the percentage of CPU scheduler periods in which the container's CPU limit throttled the run (@dmitryduev in https://github.com/wandb/wandb/pull/13001)
+- System metrics now include `proc.memory.oomKills`, how many processes in the run's container the out-of-memory killer has killed since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13002)
+- System metrics now include `network.tcpRetransmits`, the number of TCP segments retransmitted since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13003)
+- System metrics can include the CPU and memory used by W&B's own background processes, as `wandb.cpu` and `wandb.memory.rssMB`. They are on by default in development and release-candidate versions and off otherwise; turn them on with the `x_stats_self_usage` setting (@dmitryduev in https://github.com/wandb/wandb/pull/13004, https://github.com/wandb/wandb/pull/13038)
+- Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
+- `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
 
 ### Changed
 
@@ -48,3 +54,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `Run.scan_history(keys=...)` no longer fails with `403 Forbidden` on W&B deployments that store run history in Amazon S3 (@dmitryduev in https://github.com/wandb/wandb/pull/12930)
 - Per-process GPU metrics (`gpu.process.*`) are logged again for NVIDIA GPUs used by the process that called `wandb.init()`. Since v0.18.2, they were logged only when a subprocess used the GPU (@dmitryduev in https://github.com/wandb/wandb/pull/12978)
 - NVIDIA PCIe and NVLink throughput system metrics from GPM (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`, `gpu.N.nvlinkTxBytes`, `gpu.N.nvlinkRxBytes`) are now reported in bytes per second as their names say. They were in mebibytes per second (@dmitryduev in https://github.com/wandb/wandb/pull/12988)
+- `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
