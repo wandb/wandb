@@ -316,6 +316,28 @@ class TestMixedTypeChoices:
         trial = _experiment(optimizer.client).trials[0]
         assert trial.arm.parameters == {"p": "3.0", "x": 0.5}
 
+    def test_warm_start_prefers_the_value_of_the_same_type(self) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"p": {"values": [1, 1.0, "a"]}},
+        }
+        optimizer = AxOptimizer(
+            create_default_client(config),
+            make_scheduler_grid_sweep(config=config),
+        )
+        run = RunWithMetrics(
+            config=RunConfig.from_values({"p": 1.0}),
+            state=RunState.FINISHED,
+            wandb_run_id="old-run",
+            summary_metrics={"loss": 0.5},
+            history_metrics=[],
+        )
+
+        optimizer.tell_existing_finished_run(run)
+
+        trial = _experiment(optimizer.client).trials[0]
+        assert trial.arm.parameters == {"p": "1.0"}
+
     @pytest.mark.parametrize(
         "parameter",
         [
@@ -334,9 +356,12 @@ class TestMixedTypeChoices:
         [
             [None, 1],
             [{"a": 1}, {"a": 2}],
+            [True, 2],
+            [True, 1],
+            [float("nan"), "a"],
         ],
     )
-    def test_none_and_dict_choices_are_supported(self, values: list) -> None:
+    def test_mixed_choices_reach_runs_with_their_type(self, values: list) -> None:
         got = _suggested_values({"values": values})
 
         assert all((type(v), v) in [(type(c), c) for c in values] for v in got)
