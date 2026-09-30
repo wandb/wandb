@@ -119,6 +119,9 @@ type Scheduler struct {
 	// scheduled; reported on the next task.
 	discards []string
 
+	// enqueued holds pending updates for runs enqueued since the last task.
+	enqueued []*spb.SweepSchedulerServerRunUpdate
+
 	// lastPruneCandidates is the candidate set offered by the latest
 	// generation task; prune ids outside it are ignored.
 	lastPruneCandidates map[string]bool
@@ -287,7 +290,7 @@ func (s *Scheduler) cancelOnStop(ctx context.Context, cancel context.CancelFunc)
 	}
 }
 
-// Step implements TaskResolver: apply the result, debounce, and compute the next task.
+// Step implements TaskResolver: apply the result and compute the next task.
 func (s *Scheduler) Step(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
@@ -305,10 +308,22 @@ func (s *Scheduler) Step(
 		return s.warmStartStep(ctx)
 	}
 
-	if done := s.sleep(ctx); done != nil {
-		return done
+	switch {
+	case ctx.Err() != nil:
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
+	case s.sleepTime() > 0 && len(s.enqueued) > 0:
+		return s.reportTask()
+	default:
+		return s.generationStep(ctx)
 	}
-	return s.generationStep(ctx)
+}
+
+// reportTask reports the runs just enqueued as pending, without polling.
+func (s *Scheduler) reportTask() *spb.SweepSchedulerServerNextTaskResponse {
+	enqueued := s.enqueued
+	s.enqueued = nil
+	return s.generationTask(enqueued, nil, 0)
 }
 
 // sleepTime is the poll interval plus slowdown left since the latest poll.
