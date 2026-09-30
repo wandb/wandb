@@ -4,11 +4,13 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 import wandb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.sweep_info import SweepInfo
+
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -313,6 +315,47 @@ class Optimizer(ABC):
         return False
 
 
+def convert_parameters(
+    parameters: object,
+    convert: Callable[[str, dict[str, Any]], _T],
+) -> dict[str, _T]:
+    """Convert each spec in a sweep config's `parameters` block.
+
+    Args:
+        parameters: The sweep config's `parameters` value.
+        convert: Converts one parameter's name and spec for an engine.
+
+    Returns:
+        The converted specs, keyed by parameter name.
+
+    Raises:
+        ValueError: If the block or a spec is malformed, naming the
+            parameter at fault.
+    """
+    if not isinstance(parameters, dict):
+        raise ValueError(  # noqa: TRY004
+            "The sweep config's parameters must map each parameter name to"
+            f" its spec, not {parameters!r}."
+        )
+    converted: dict[str, _T] = {}
+    for name, spec in parameters.items():
+        if not isinstance(spec, dict):
+            raise ValueError(  # noqa: TRY004
+                f"parameters.{name} must be a mapping such as"
+                f" `{{min: 0, max: 1}}`, not {spec!r}."
+            )
+        try:
+            converted[name] = convert(name, spec)
+        except KeyError as e:
+            raise ValueError(
+                f"parameters.{name} is missing {e.args[0]!r}, which its"
+                " distribution requires."
+            ) from None
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"parameters.{name} is invalid: {e}") from e
+    return converted
+
+
 def make_optimizer(sweep: SweepInfo) -> Optimizer:
     """Build the optimizer for the engine a scheduler-enabled sweep names.
 
@@ -325,7 +368,12 @@ def make_optimizer(sweep: SweepInfo) -> Optimizer:
     """
     # Each engine module is imported lazily so a missing engine dependency
     # only fails sweeps that use it.
-    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
+    scheduler_config: object = sweep.config.get("scheduler") or {}
+    if not isinstance(scheduler_config, dict):
+        raise wandb.Error(
+            "The sweep config's scheduler must be a mapping with an engine key,"
+            f" such as `scheduler: {{engine: optuna}}`, not {scheduler_config!r}."
+        )
     engine: str | None = scheduler_config.get("engine")
     if engine == "wandb":
         from wandb.sdk.sweeps.scheduler.wandb import build_wandb_optimizer

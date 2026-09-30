@@ -217,16 +217,45 @@ def load_source_object(source: str, name: str) -> Any:
             f"scheduler.source must name the python file that defines "
             f"{name!r}, but is missing or empty."
         )
+    if not pathlib.Path(source).is_file():
+        raise ValueError(
+            f"scheduler.source file {source} does not exist; run the scheduler"
+            " from the directory that contains it."
+        )
     module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
     spec = importlib.util.spec_from_file_location(module_name, source)
     if spec is None or spec.loader is None:
         raise ValueError(f"Could not import source file: {source}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as e:
+        # The user's own module failed; its error is theirs to fix.
+        raise ValueError(
+            f"Importing scheduler.source file {source} failed: {type(e).__name__}: {e}"
+        ) from e
     try:
         return getattr(module, name)
     except AttributeError:
         raise ValueError(f"{source} has no attribute {name!r}") from None
+
+
+def scheduler_setting(scheduler_config: dict[str, Any], key: str) -> str | None:
+    """Return a string setting from a sweep's scheduler config.
+
+    Args:
+        scheduler_config: The sweep config's `scheduler` block.
+        key: The setting's key, such as `optimizer` or `source`.
+
+    Raises:
+        ValueError: If the setting is present but not a string.
+    """
+    value = scheduler_config.get(key)
+    if value is not None and not isinstance(value, str):
+        raise ValueError(
+            f"scheduler.{key} must be a string, not {type(value).__name__}."
+        )
+    return value
 
 
 def load_optimizer_config(

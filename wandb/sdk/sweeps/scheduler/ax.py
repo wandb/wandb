@@ -9,13 +9,14 @@ from typing_extensions import override
 import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
-from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
+from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, scheduler_setting
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    convert_parameters,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -61,7 +62,18 @@ def _choice_config(name: str, values: list[Any]) -> Any:
     A single-value list becomes a fixed parameter (Ax collapses it to one). W&B
     categoricals carry no order; declaring `is_ordered` explicitly also silences
     Ax's "is_ordered not specified" warning.
+
+    Raises:
+        ValueError: If `values` is empty or holds a non-scalar value.
     """
+    if not values:
+        raise ValueError("values must list at least one value.")
+    for value in values:
+        if not isinstance(value, (bool, int, float, str)):
+            raise ValueError(  # noqa: TRY004
+                "Ax only supports numbers, strings and booleans in values,"
+                f" not {value!r}."
+            )
     return ax.ChoiceParameterConfig(
         name=name,
         values=values,
@@ -70,21 +82,19 @@ def _choice_config(name: str, values: list[Any]) -> Any:
     )
 
 
-def _infer_distribution_name(name: str, parameter: dict[str, Any]) -> str:
+def _infer_distribution_name(parameter: dict[str, Any]) -> str:
     """Return the sweep distribution W&B infers when the spec names none."""
     if "min" not in parameter or "max" not in parameter:
-        raise ValueError(
-            f"Cannot infer an Ax parameter from sweep parameter {name!r}: {parameter!r}"
-        )
+        raise ValueError("set its distribution, or both min and max.")
     lo, hi = parameter["min"], parameter["max"]
     return "int_uniform" if _is_int(lo) and _is_int(hi) else "uniform"
 
 
 def _choice_config_for(name: str, parameter: dict[str, Any]) -> Any:
     """Build a choice config from a `values` list or a lone `value`."""
-    if "values" in parameter:
-        return _choice_config(name, list(parameter["values"]))
-    return _choice_config(name, [parameter["value"]])
+    if "value" in parameter and "values" not in parameter:
+        return _choice_config(name, [parameter["value"]])
+    return _choice_config(name, list(parameter["values"]))
 
 
 def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
@@ -103,7 +113,7 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
         return _choice_config_for(name, parameter)
 
     # Without an explicit distribution, W&B infers one from min/max.
-    dist = parameter.get("distribution") or _infer_distribution_name(name, parameter)
+    dist = parameter.get("distribution") or _infer_distribution_name(parameter)
 
     if dist in ("categorical", "constant"):
         return _choice_config_for(name, parameter)
@@ -132,6 +142,8 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
 
     if dist == "q_uniform":
         lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
+        if q <= 0:
+            raise ValueError(f"q must be positive, not {q!r}.")
         parameter_type: Literal["int", "float"] = (
             "int" if _is_int(lo) and _is_int(hi) and _is_int(q) else "float"
         )
@@ -148,9 +160,9 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
         q = parameter.get("q", 1)
         if not _is_int(q) or int(q) != 1:
             raise ValueError(
-                f"Sweep parameter {name!r} uses q_log_uniform_values with q={q!r}; "
-                "Ax cannot combine a log scale with a step, so only q=1 (a log-scale "
-                "int range) is supported."
+                f"q_log_uniform_values with q={q!r} is not supported; Ax cannot "
+                "combine a log scale with a step, so only q=1 (a log-scale int "
+                "range) is supported."
             )
         return ax.RangeParameterConfig(
             name=name,
@@ -160,8 +172,7 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
         )
 
     raise ValueError(
-        f"Sweep distribution {dist!r} for parameter {name!r} has no Ax equivalent "
-        "and cannot be converted."
+        f"Sweep distribution {dist!r} has no Ax equivalent and cannot be converted."
     )
 
 
@@ -170,9 +181,7 @@ def sweep_config_to_search_space(config: dict[str, Any]) -> list[Any]:
     return sweep_parameters_to_search_space(config.get("parameters", {}))
 
 
-def sweep_parameters_to_search_space(
-    parameters: dict[str, Any],
-) -> list[Any]:
+def sweep_parameters_to_search_space(parameters: object) -> list[Any]:
     """Convert a sweep config's `parameters` block into an Ax search space.
 
     Returns the list of `RangeParameterConfig` / `ChoiceParameterConfig` objects
@@ -181,10 +190,11 @@ def sweep_parameters_to_search_space(
         client.configure_experiment(
             parameters=sweep_parameters_to_search_space(config["parameters"]),
         )
+
+    Raises:
+        ValueError: If the block or a spec can't be converted.
     """
-    return [
-        sweep_parameter_to_parameter(name, spec) for name, spec in parameters.items()
-    ]
+    return list(convert_parameters(parameters, sweep_parameter_to_parameter).values())
 
 
 def sweep_config_to_metrics(config: dict[str, Any]) -> list[Any]:
@@ -196,7 +206,7 @@ def sweep_config_to_metrics(config: dict[str, Any]) -> list[Any]:
     metrics = config.get("metrics")
     if metrics is not None:
         return [sweep_objective_to_metric(objective) for objective in metrics]
-    return [sweep_objective_to_metric(config.get("metric", {}))]
+    return [sweep_objective_to_metric(config.get("metric") or {})]
 
 
 def sweep_objective_to_metric(objective: dict[str, Any]) -> Any:
@@ -213,7 +223,8 @@ def sweep_objective_to_metric(objective: dict[str, Any]) -> Any:
 
     if "name" not in objective:
         raise ValueError(
-            "Sweep config has no metric name; cannot build the Ax objective."
+            "Sweep config has no metric name; set metric.name to the metric to"
+            " optimize."
         )
     return MapMetric(
         name=objective["name"],
@@ -228,10 +239,13 @@ def _experiment(client: ax.Client) -> Any:
     so read the private attribute (trying both names Ax has used) and fail
     clearly if the client hasn't been configured yet.
     """
-    for attr in ("_experiment", "_maybe_experiment"):
-        experiment = getattr(client, attr, None)
-        if experiment is not None:
-            return experiment
+    # Ax's `_experiment` property asserts, so prefer the nullable attribute.
+    missing = object()
+    experiment = getattr(client, "_maybe_experiment", missing)
+    if experiment is missing:
+        experiment = getattr(client, "_experiment", None)
+    if experiment is not None:
+        return experiment
     raise ValueError(
         "The Ax client has no configured experiment; call configure_experiment "
         "(and configure_optimization) first."
@@ -602,20 +616,24 @@ def build_ax_optimizer(
     that receives the client after each generation and finishes the sweep by
     returning `True`.
     """
-    optimizer_name: str = scheduler_config.get("optimizer", "")
-    source: str = scheduler_config.get("source", "")
+    from ax.exceptions.core import AxError
 
     if scheduler_config.get("search_space") is not None:
         wandb.termwarn("search_space config is not supported by the Ax engine.")
-    terminator = None
-    if optimizer_name:
-        try:
+    try:
+        optimizer_name = scheduler_setting(scheduler_config, "optimizer")
+        source = scheduler_setting(scheduler_config, "source") or ""
+        terminator = None
+        if optimizer_name:
             client, terminator = load_optimizer_config(
                 source, optimizer_name, ax.Client
             )
-        except ValueError as e:
-            raise wandb.Error(str(e)) from e
-    else:
-        client = create_default_client(sweep.config)
-
-    return AxOptimizer(client, sweep, terminator)
+        else:
+            client = create_default_client(sweep.config)
+        # Constructing validates the client against the sweep's metric.
+        return AxOptimizer(client, sweep, terminator)
+    except ValueError as e:
+        raise wandb.Error(str(e)) from e
+    except AxError as e:
+        # Ax validates parameter configs only when the experiment is built.
+        raise wandb.Error(f"Ax rejected the sweep config: {e}") from e

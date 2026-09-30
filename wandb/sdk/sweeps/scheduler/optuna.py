@@ -12,13 +12,18 @@ from typing_extensions import override
 import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
-from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, load_source_object
+from wandb.sdk.sweeps.scheduler.client import (
+    load_optimizer_config,
+    load_source_object,
+    scheduler_setting,
+)
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    convert_parameters,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -94,9 +99,7 @@ def _is_int(value: Any) -> bool:
 def _infer_distribution_name(parameter: dict[str, Any]) -> str:
     """Return the sweep distribution W&B infers when the spec names none."""
     if "min" not in parameter or "max" not in parameter:
-        raise ValueError(
-            f"Cannot infer an optuna distribution from sweep parameter: {parameter!r}"
-        )
+        raise ValueError("set its distribution, or both min and max.")
     lo, hi = parameter["min"], parameter["max"]
     return "int_uniform" if _is_int(lo) and _is_int(hi) else "uniform"
 
@@ -105,9 +108,9 @@ def _categorical_distribution(
     parameter: dict[str, Any],
 ) -> optuna.distributions.BaseDistribution:
     """Build a categorical distribution from `values` or a lone `value`."""
-    if "values" in parameter:
-        return optuna.distributions.CategoricalDistribution(list(parameter["values"]))
-    return optuna.distributions.CategoricalDistribution([parameter["value"]])
+    if "value" in parameter and "values" not in parameter:
+        return optuna.distributions.CategoricalDistribution([parameter["value"]])
+    return optuna.distributions.CategoricalDistribution(list(parameter["values"]))
 
 
 def sweep_parameter_to_distribution(
@@ -193,15 +196,18 @@ def sweep_parameter_to_distribution(
 
 
 def search_space_from_sweep_config(
-    parameters: dict[str, Any],
+    parameters: object,
 ) -> dict[str, optuna.distributions.BaseDistribution]:
     """Convert a sweep config's `parameters` block into an optuna search space.
 
     Maps each `name -> spec` entry onto a `name -> distribution` entry.
+
+    Raises:
+        ValueError: If the block or a spec can't be converted.
     """
-    return {
-        name: sweep_parameter_to_distribution(spec) for name, spec in parameters.items()
-    }
+    return convert_parameters(
+        parameters, lambda _, spec: sweep_parameter_to_distribution(spec)
+    )
 
 
 class OptunaOptimizer(Optimizer):
@@ -760,10 +766,6 @@ def build_optuna_optimizer(
     that receives the study after each generation and finishes the sweep by
     returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
     """
-    optimizer_name: str = scheduler_config.get("optimizer", "")
-    search_space_name: str | None = scheduler_config.get("search_space")
-    source: str = scheduler_config.get("source", "")
-
     # `search_space` picks how the parameter space is defined: when given,
     # the loaded function is the define-by-run trial constructor; otherwise
     # a declarative parameter space is derived from the sweep's
@@ -772,6 +774,9 @@ def build_optuna_optimizer(
     search_space = None
     distributions = None
     try:
+        optimizer_name = scheduler_setting(scheduler_config, "optimizer")
+        search_space_name = scheduler_setting(scheduler_config, "search_space")
+        source = scheduler_setting(scheduler_config, "source") or ""
         if search_space_name is not None:
             search_space = load_trial_constructor(source, search_space_name)
         else:
@@ -785,16 +790,16 @@ def build_optuna_optimizer(
             )
         else:
             study = create_study_from_sweep_config(sweep.config)
+        # Constructing validates the study against the sweep's metric.
+        return make_optimizer(
+            study,
+            sweep,
+            OptunaOptions(
+                study=study,
+                distributions=distributions,
+                search_space=search_space,
+                terminator=terminator,
+            ),
+        )
     except ValueError as e:
         raise wandb.Error(str(e)) from e
-
-    return make_optimizer(
-        study,
-        sweep,
-        OptunaOptions(
-            study=study,
-            distributions=distributions,
-            search_space=search_space,
-            terminator=terminator,
-        ),
-    )

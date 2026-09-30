@@ -255,6 +255,52 @@ class TestBuildOptunaSchedulerOptimizer:
 
         assert "returns a dict of parameter values" in str(error.value)
 
+    @pytest.mark.parametrize(
+        "parameters, problem",
+        [
+            ({"x": {"distribution": "int_uniform", "min": 1}}, "missing 'max'"),
+            ({"x": {"distribution": "categorical"}}, "missing 'values'"),
+            ({"x": {"max": 1.0}}, "set its distribution, or both min and max"),
+            ({"x": 5}, "parameters.x must be a mapping"),
+            (None, "parameters must map"),
+        ],
+        ids=["no-max", "no-values", "no-min", "not-a-mapping", "null"],
+    )
+    def test_a_bad_parameter_is_a_wandb_error(
+        self, parameters: object, problem: str
+    ) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": parameters,
+            "scheduler": {"engine": "optuna"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(wandb.Error, match=problem):
+            build_optuna_optimizer(sweep, config["scheduler"])
+
+    def test_a_mismatched_study_is_a_wandb_error(self, tmp_path) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "import optuna\n"
+            "def configure():\n"
+            "    return optuna.create_study(direction='maximize')\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "optimizer": "configure",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(wandb.Error, match="create the study with direction"):
+            build_optuna_optimizer(sweep, config["scheduler"])
+
 
 class TestExhaustibleSampler:
     """A finite sampler must finish the sweep instead of re-running the grid.

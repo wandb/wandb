@@ -834,6 +834,79 @@ class TestLoadSourceObject:
         with pytest.raises(ValueError, match="has no attribute 'configure'"):
             scheduler_client.load_source_object(str(source), "configure")
 
+    def test_missing_file_raises(self, tmp_path: Path) -> None:
+        source = tmp_path / "missing.py"
+
+        with pytest.raises(ValueError, match="scheduler.source file .* not exist"):
+            scheduler_client.load_source_object(str(source), "configure")
+
+    @pytest.mark.parametrize(
+        "text, problem",
+        [
+            ("def configure(:\n", "SyntaxError"),
+            ("import definitely_not_a_module\n", "ModuleNotFoundError"),
+        ],
+        ids=["syntax-error", "import-error"],
+    )
+    def test_failed_import_raises(
+        self, tmp_path: Path, text: str, problem: str
+    ) -> None:
+        source = tmp_path / "source.py"
+        source.write_text(text, encoding="utf-8")
+
+        with pytest.raises(ValueError, match=f"Importing scheduler.source.*{problem}"):
+            scheduler_client.load_source_object(str(source), "configure")
+
+
+class TestSchedulerSetting:
+    def test_returns_a_string_or_none(self) -> None:
+        config = {"optimizer": "configure"}
+
+        assert scheduler_client.scheduler_setting(config, "optimizer") == "configure"
+        assert scheduler_client.scheduler_setting(config, "source") is None
+
+    def test_non_string_raises(self) -> None:
+        with pytest.raises(ValueError, match="scheduler.optimizer must be a string"):
+            scheduler_client.scheduler_setting({"optimizer": 5}, "optimizer")
+
+
+class TestConvertParameters:
+    @pytest.mark.parametrize(
+        "parameters, problem",
+        [
+            (None, "parameters must map each parameter name"),
+            ({"x": 5}, "parameters.x must be a mapping"),
+            ({"x": {"min": 0}}, "parameters.x is missing 'max'"),
+            ({"x": {"min": 0, "max": "a"}}, "parameters.x is invalid: bad max"),
+        ],
+        ids=["not-a-mapping", "spec-not-a-mapping", "missing-key", "bad-value"],
+    )
+    def test_malformed_parameters_name_the_parameter(
+        self, parameters: object, problem: str
+    ) -> None:
+        from wandb.sdk.sweeps.scheduler.optimizer import convert_parameters
+
+        def convert(name: str, spec: dict[str, Any]) -> float:
+            if not isinstance(spec["max"], float):
+                raise ValueError("bad max")  # noqa: TRY004
+            return spec["max"]
+
+        with pytest.raises(ValueError, match=problem):
+            convert_parameters(parameters, convert)
+
+
+class TestMakeOptimizer:
+    def test_scheduler_that_is_not_a_mapping_is_rejected(self) -> None:
+        import wandb
+        from wandb.sdk.sweeps.scheduler.optimizer import make_optimizer
+
+        sweep = make_scheduler_grid_sweep(
+            config={**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": "optuna"}
+        )
+
+        with pytest.raises(wandb.Error, match="scheduler must be a mapping"):
+            make_optimizer(sweep)
+
 
 class _Engine:
     """Stands in for an engine's optimizer type, like optuna.Study."""

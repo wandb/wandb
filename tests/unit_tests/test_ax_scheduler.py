@@ -10,6 +10,7 @@ import pytest
 pytest.importorskip("ax")
 
 import ax as ax_module
+import wandb
 from ax.api.client import Client
 from ax.exceptions.core import DataRequiredError, OptimizationComplete
 from ax.exceptions.generation_strategy import MaxParallelismReachedException
@@ -197,6 +198,91 @@ class TestBuildAxSchedulerOptimizer:
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
+
+    @pytest.mark.parametrize(
+        "config, problem",
+        [
+            (
+                {"parameters": {"x": {"distribution": "categorical"}}},
+                "parameters.x is missing 'values'",
+            ),
+            (
+                {"parameters": {"x": {"values": [None, 1]}}},
+                "parameters.x is invalid: .*not None",
+            ),
+            (
+                {"parameters": {"x": {"values": [{"a": 1}]}}},
+                "parameters.x is invalid: .*not {'a': 1}",
+            ),
+            (
+                {
+                    "parameters": {
+                        "x": {"distribution": "q_uniform", "min": 0, "max": 4, "q": 0}
+                    }
+                },
+                "parameters.x is invalid: q must be positive",
+            ),
+            ({"parameters": {"x": {"min": 2.0, "max": 1.0}}}, "Upper bound of x"),
+            ({"parameters": None}, "parameters must map"),
+            ({"metric": None}, "set metric.name"),
+        ],
+        ids=[
+            "no-values",
+            "none-value",
+            "dict-value",
+            "zero-q",
+            "inverted-bounds",
+            "null-parameters",
+            "null-metric",
+        ],
+    )
+    def test_a_bad_sweep_config_is_a_wandb_error(
+        self, config: dict[str, Any], problem: str
+    ) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"min": 0.0, "max": 1.0}},
+            **config,
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(wandb.Error, match=problem):
+            build_ax_optimizer(sweep, {"engine": "ax"})
+
+    @pytest.mark.parametrize(
+        "factory, problem",
+        [
+            ("Client()", "no configured experiment"),
+            (
+                "make_client('loss')",
+                "direction 'maximize' for 'loss' does not match",
+            ),
+        ],
+        ids=["unconfigured", "goal-mismatch"],
+    )
+    def test_a_mismatched_client_is_a_wandb_error(
+        self, tmp_path, factory: str, problem: str
+    ) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "from ax.api.client import Client\n"
+            "from ax import RangeParameterConfig\n"
+            "def make_client(objective):\n"
+            "    client = Client()\n"
+            "    client.configure_experiment(parameters=[RangeParameterConfig(\n"
+            "        name='x', bounds=(0.0, 1.0), parameter_type='float')])\n"
+            "    client.configure_optimization(objective=objective)\n"
+            "    return client\n"
+            f"def configure():\n    return {factory}\n",
+            encoding="utf-8",
+        )
+        scheduler = {"engine": "ax", "source": str(source), "optimizer": "configure"}
+        sweep = make_scheduler_grid_sweep(
+            config={**DEFAULT_CONFIG, "scheduler": scheduler}
+        )
+
+        with pytest.raises(wandb.Error, match=problem):
+            build_ax_optimizer(sweep, scheduler)
 
 
 class TestUnparseableMetricName:
