@@ -77,69 +77,67 @@ func TestToRecords(t *testing.T) {
 		name      string
 		input     *spb.HistoryItem
 		wantJSON  string
-		wantTyped *spb.HistoryValue
+		wantTyped *spb.HistoryItem
 	}{
 		{
 			name:      "none",
 			input:     &spb.HistoryItem{Key: "none", ValueJson: "null"},
 			wantJSON:  "null",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_None{}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_None{}},
 		},
 		{
 			name:      "boolean zero value",
 			input:     &spb.HistoryItem{Key: "boolean", ValueJson: "false"},
 			wantJSON:  "false",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Boolean{Boolean: false}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{Boolean: false}},
 		},
 		{
 			name:      "maximum integer",
 			input:     &spb.HistoryItem{Key: "integer", ValueJson: "9223372036854775807"},
 			wantJSON:  "9223372036854775807",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Integer{Integer: math.MaxInt64}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{Integer: math.MaxInt64}},
 		},
 		{
-			name:     "minimum integer",
-			input:    &spb.HistoryItem{Key: "integer", ValueJson: "-9223372036854775808"},
-			wantJSON: "-9223372036854775808",
-			wantTyped: &spb.HistoryValue{
-				Value: &spb.HistoryValue_Integer{Integer: math.MinInt64},
-			},
+			name:      "minimum integer",
+			input:     &spb.HistoryItem{Key: "integer", ValueJson: "-9223372036854775808"},
+			wantJSON:  "-9223372036854775808",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{Integer: math.MinInt64}},
 		},
 		{
 			name:      "integral float",
 			input:     &spb.HistoryItem{Key: "float", ValueJson: "1.0"},
 			wantJSON:  "1",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Number{Number: 1.0}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: 1.0}},
 		},
 		{
 			name:      "zero float",
 			input:     &spb.HistoryItem{Key: "float", ValueJson: "0.0"},
 			wantJSON:  "0",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Number{Number: 0}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: 0}},
 		},
 		{
 			name:      "NaN",
 			input:     &spb.HistoryItem{Key: "float", ValueJson: "NaN"},
 			wantJSON:  "NaN",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Number{Number: math.NaN()}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: math.NaN()}},
 		},
 		{
 			name:      "positive infinity",
 			input:     &spb.HistoryItem{Key: "float", ValueJson: "Infinity"},
 			wantJSON:  "Infinity",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Number{Number: math.Inf(1)}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: math.Inf(1)}},
 		},
 		{
 			name:      "negative infinity",
 			input:     &spb.HistoryItem{Key: "float", ValueJson: "-Infinity"},
 			wantJSON:  "-Infinity",
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Number{Number: math.Inf(-1)}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: math.Inf(-1)}},
 		},
 		{
 			name:      "empty text",
 			input:     &spb.HistoryItem{Key: "text", ValueJson: `""`},
 			wantJSON:  `""`,
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Text{Text: ""}},
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Text{Text: ""}},
 		},
 		{
 			name: "nested array with an object",
@@ -148,7 +146,7 @@ func TestToRecords(t *testing.T) {
 				ValueJson: `[1, {"two": 2}, null]`,
 			},
 			wantJSON: `[1,{"two":2},null]`,
-			wantTyped: &spb.HistoryValue{Value: &spb.HistoryValue_Json{
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 				Json: `[1,{"two":2},null]`,
 			}},
 		},
@@ -175,7 +173,12 @@ func TestToRecords(t *testing.T) {
 					assert.Nil(t, record.Value)
 					continue
 				}
-				assert.True(t, proto.Equal(test.wantTyped, record.Value))
+				want := &spb.HistoryItem{
+					NestedKey: wantPath,
+					ValueJson: test.wantJSON,
+					Value:     test.wantTyped.Value,
+				}
+				assert.True(t, proto.Equal(want, record), "got %v", record)
 			}
 		})
 	}

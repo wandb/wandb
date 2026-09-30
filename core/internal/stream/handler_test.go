@@ -807,9 +807,9 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 				return
 			}
 
-			assert.IsType(t, &spb.HistoryValue_Number{}, byKey["metric"].Value.Value)
-			assert.IsType(t, &spb.HistoryValue_Integer{}, byKey["_step"].Value.Value)
-			assert.IsType(t, &spb.HistoryValue_Number{}, byKey["_runtime"].Value.Value)
+			assert.IsType(t, &spb.HistoryItem_Number{}, byKey["metric"].Value)
+			assert.IsType(t, &spb.HistoryItem_Integer{}, byKey["_step"].Value)
+			assert.IsType(t, &spb.HistoryItem_Number{}, byKey["_runtime"].Value)
 		})
 	}
 }
