@@ -217,7 +217,7 @@ class SchedulerTaskExchange:
             self._is_warm_starting = True
             term.termlog("Loading run state from the backend.")
         page_size = len(task.finished_runs) + len(task.active_runs)
-        term.termlog(f"Loading run state: processing {page_size} runs in this page.")
+        term.termlog(f"Processing {page_size} runs in this page.")
 
         for data in task.finished_runs:
             try:
