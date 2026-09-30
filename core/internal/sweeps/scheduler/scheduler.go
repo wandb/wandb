@@ -313,6 +313,8 @@ func (s *Scheduler) Step(
 		return s.doneTask(
 			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
 	case s.sleepTime() > 0 && len(s.enqueued) > 0:
+		// do not delay reporting enqueued runs by the poll interval
+		// client will receive generation task on second roundtrip
 		return s.reportTask()
 	default:
 		return s.generationStep(ctx)
