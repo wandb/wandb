@@ -217,12 +217,18 @@ def load_source_object(source: str, name: str) -> Any:
             f"scheduler.source must name the python file that defines "
             f"{name!r}, but is missing or empty."
         )
-    if not pathlib.Path(source).is_file():
+    path = pathlib.Path(source)
+    if path.exists() and not path.is_file():
         raise ValueError(
-            f"scheduler.source file {source} does not exist; run the scheduler"
-            " from the directory that contains it."
+            f"scheduler.source {source} is not a file; set it to the python"
+            f" file that defines {name!r}."
         )
-    module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
+    if not path.exists():
+        hint = ""
+        if not path.is_absolute():
+            hint = "; run the scheduler from the directory that contains it"
+        raise ValueError(f"scheduler.source file {source} does not exist{hint}.")
+    module_name = f"wandb_sweep_source_{path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, source)
     if spec is None or spec.loader is None:
         raise ValueError(f"Could not import source file: {source}")

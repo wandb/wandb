@@ -225,6 +225,8 @@ class TestBuildAxSchedulerOptimizer:
             ({"parameters": {"x": {"min": 2.0, "max": 1.0}}}, "Upper bound of x"),
             ({"parameters": None}, "parameters must map"),
             ({"metric": None}, "set metric.name"),
+            ({"metric": "username"}, "metric must be a mapping"),
+            ({"metrics": [None]}, r"metrics\[0\] .*must be a mapping"),
         ],
         ids=[
             "no-values",
@@ -234,6 +236,8 @@ class TestBuildAxSchedulerOptimizer:
             "inverted-bounds",
             "null-parameters",
             "null-metric",
+            "string-metric",
+            "null-in-metrics",
         ],
     )
     def test_a_bad_sweep_config_is_a_wandb_error(

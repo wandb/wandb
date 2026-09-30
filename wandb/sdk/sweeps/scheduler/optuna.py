@@ -23,6 +23,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    check_sweep_metrics,
     convert_parameters,
     is_terminal_state,
 )
@@ -774,6 +775,7 @@ def build_optuna_optimizer(
     search_space = None
     distributions = None
     try:
+        check_sweep_metrics(sweep.config)
         optimizer_name = scheduler_setting(scheduler_config, "optimizer")
         search_space_name = scheduler_setting(scheduler_config, "search_space")
         source = scheduler_setting(scheduler_config, "source") or ""

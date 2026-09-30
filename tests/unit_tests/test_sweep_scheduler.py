@@ -834,11 +834,25 @@ class TestLoadSourceObject:
         with pytest.raises(ValueError, match="has no attribute 'configure'"):
             scheduler_client.load_source_object(str(source), "configure")
 
-    def test_missing_file_raises(self, tmp_path: Path) -> None:
+    def test_missing_absolute_file_raises_without_cwd_hint(
+        self, tmp_path: Path
+    ) -> None:
         source = tmp_path / "missing.py"
 
-        with pytest.raises(ValueError, match="scheduler.source file .* not exist"):
+        with pytest.raises(ValueError, match="not exist\\.$"):
             scheduler_client.load_source_object(str(source), "configure")
+
+    def test_missing_relative_file_suggests_the_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        with pytest.raises(ValueError, match="not exist; run the scheduler from"):
+            scheduler_client.load_source_object("missing.py", "configure")
+
+    def test_directory_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="is not a file"):
+            scheduler_client.load_source_object(str(tmp_path), "configure")
 
     @pytest.mark.parametrize(
         "text, problem",
@@ -893,6 +907,39 @@ class TestConvertParameters:
 
         with pytest.raises(ValueError, match=problem):
             convert_parameters(parameters, convert)
+
+
+class TestCheckSweepMetrics:
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {},
+            {"metric": None},
+            {"metric": {"name": "loss"}},
+            {"metrics": [{"name": "loss"}, {"name": "acc"}]},
+        ],
+        ids=["none", "null-metric", "metric", "metrics"],
+    )
+    def test_accepts_mappings(self, config: dict[str, Any]) -> None:
+        from wandb.sdk.sweeps.scheduler.optimizer import check_sweep_metrics
+
+        check_sweep_metrics(config)
+
+    @pytest.mark.parametrize(
+        "config, problem",
+        [
+            ({"metric": "loss"}, "metric must be a mapping"),
+            ({"metric": ["loss"]}, "metric must be a mapping"),
+            ({"metrics": "loss"}, "metrics must be a list of mappings"),
+            ({"metrics": [{"name": "a"}, None]}, r"metrics\[1\] .*must be a mapping"),
+        ],
+        ids=["string-metric", "list-metric", "string-metrics", "null-in-metrics"],
+    )
+    def test_rejects_non_mappings(self, config: dict[str, Any], problem: str) -> None:
+        from wandb.sdk.sweeps.scheduler.optimizer import check_sweep_metrics
+
+        with pytest.raises(ValueError, match=problem):
+            check_sweep_metrics(config)
 
 
 class TestMakeOptimizer:

@@ -356,6 +356,39 @@ def convert_parameters(
     return converted
 
 
+def check_sweep_metrics(config: dict[str, Any]) -> None:
+    """Check that a sweep config's `metric` or `metrics` blocks are mappings.
+
+    Args:
+        config: The sweep config.
+
+    Raises:
+        ValueError: If `metrics` is not a list of mappings, or `metric` is
+            set but not a mapping.
+    """
+    example = "`{name: loss, goal: minimize}`"
+    metrics = config.get("metrics")
+    if metrics is None:
+        metric = config.get("metric")
+        if metric and not isinstance(metric, dict):
+            raise ValueError(
+                f"The sweep config's metric must be a mapping such as {example},"
+                f" not {metric!r}."
+            )
+        return
+    if not isinstance(metrics, list):
+        raise ValueError(  # noqa: TRY004
+            "The sweep config's metrics must be a list of mappings such as"
+            f" {example}, not {metrics!r}."
+        )
+    for i, metric in enumerate(metrics):
+        if not isinstance(metric, dict):
+            raise ValueError(  # noqa: TRY004
+                f"metrics[{i}] in the sweep config must be a mapping such as"
+                f" {example}, not {metric!r}."
+            )
+
+
 def make_optimizer(sweep: SweepInfo) -> Optimizer:
     """Build the optimizer for the engine a scheduler-enabled sweep names.
 

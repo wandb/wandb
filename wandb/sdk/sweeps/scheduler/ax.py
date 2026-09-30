@@ -16,6 +16,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    check_sweep_metrics,
     convert_parameters,
     is_terminal_state,
 )
@@ -621,6 +622,7 @@ def build_ax_optimizer(
     if scheduler_config.get("search_space") is not None:
         wandb.termwarn("search_space config is not supported by the Ax engine.")
     try:
+        check_sweep_metrics(sweep.config)
         optimizer_name = scheduler_setting(scheduler_config, "optimizer")
         source = scheduler_setting(scheduler_config, "source") or ""
         terminator = None

@@ -279,6 +279,28 @@ class TestBuildOptunaSchedulerOptimizer:
         with pytest.raises(wandb.Error, match=problem):
             build_optuna_optimizer(sweep, config["scheduler"])
 
+    @pytest.mark.parametrize(
+        "objective, problem",
+        [
+            ({"metric": "loss"}, "metric must be a mapping"),
+            ({"metric": ["loss"]}, "metric must be a mapping"),
+            ({"metrics": [None]}, r"metrics\[0\] .*must be a mapping"),
+        ],
+        ids=["string", "list", "null-in-metrics"],
+    )
+    def test_a_bad_metric_is_a_wandb_error(
+        self, objective: dict[str, Any], problem: str
+    ) -> None:
+        config = {
+            "parameters": {"x": {"min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "optuna"},
+            **objective,
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(wandb.Error, match=problem):
+            build_optuna_optimizer(sweep, config["scheduler"])
+
     def test_a_mismatched_study_is_a_wandb_error(self, tmp_path) -> None:
         source = tmp_path / "optimizer.py"
         source.write_text(
