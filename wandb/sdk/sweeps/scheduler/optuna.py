@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from typing_extensions import override
 
@@ -47,6 +48,13 @@ _TRIAL_OUTCOME_VERB: dict[optuna.trial.TrialState, str] = {
 _logger = logging.getLogger("optuna.wandb_scheduler")
 
 TrialConstructor: TypeAlias = Callable[["optuna.Trial"], dict[str, Any]]
+
+# Appended to every search_space error.
+# TODO: link to documentation with search_space examples.
+_SEARCH_SPACE_REQUIREMENT = (
+    "scheduler.search_space must name a function that takes an optuna.Trial"
+    " and returns a dict of parameter values."
+)
 TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
 
 # optuna's `Study.stop` refuses to run outside an `optimize()` loop, so a
@@ -646,6 +654,51 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         self.tell_run(self._ask_suggestion().run_id, data)
 
 
+def load_trial_constructor(source: str, name: str) -> TrialConstructor:
+    """Load a define-by-run trial constructor and check its type.
+
+    Args:
+        source: The Python file that defines the constructor.
+        name: The constructor's name in `source`.
+
+    Raises:
+        ValueError: If `name` is not a callable that takes one trial and
+            returns a dict.
+    """
+    constructor = load_source_object(source, name)
+
+    # check search_space is a function
+    if not callable(constructor):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} is {type(constructor).__name__}, not a"
+            f" function. {_SEARCH_SPACE_REQUIREMENT}"
+        )
+    try:
+        inspect.signature(constructor).bind(object())
+    except TypeError:
+        raise ValueError(
+            f"{name!r} in {source} does not accept a single trial argument."
+            f" {_SEARCH_SPACE_REQUIREMENT}"
+        ) from None
+
+    # Hide optuna's INFO line for the throwaway study.
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    try:
+        trial = optuna.create_study().ask()
+    finally:
+        optuna.logging.set_verbosity(verbosity)
+
+    # create a trial on the throwaway study, check the return type
+    params: object = constructor(trial)
+    if not isinstance(params, Mapping):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} returned {type(params).__name__}, not a"
+            f" dict. {_SEARCH_SPACE_REQUIREMENT}"
+        )
+    return cast(TrialConstructor, constructor)
+
+
 # ---------------------------------------------------------------------------
 # Optimizer construction.
 #
@@ -720,7 +773,7 @@ def build_optuna_optimizer(
     distributions = None
     try:
         if search_space_name is not None:
-            search_space = load_source_object(source, search_space_name)
+            search_space = load_trial_constructor(source, search_space_name)
         else:
             distributions = search_space_from_sweep_config(
                 sweep.config.get("parameters", {})
