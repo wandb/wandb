@@ -57,6 +57,10 @@ def _value_type(values: list[Any]) -> Literal["bool", "int", "float", "str"]:
 
 def _is_mixed(values: list[Any]) -> bool:
     """Whether Ax must hold `values` as text though not all are strings."""
+    # Ax would read a bool listed with numbers as a number.
+    has_bool = any(isinstance(v, bool) for v in values)
+    if has_bool and not all(isinstance(v, bool) for v in values):
+        return True
     return _value_type(values) == "str" and not all(isinstance(v, str) for v in values)
 
 
@@ -66,6 +70,8 @@ def _check_distinct_text(name: str, values: list[Any]) -> None:
     for value in values:
         text = str(value)
         other = seen.setdefault(text, value)
+        if other is value:
+            continue
         if type(other) is not type(value) or other != value:
             raise ValueError(
                 f"Sweep parameter {name!r} lists {other!r} and {value!r}, "
@@ -436,7 +442,12 @@ class AxOptimizer(Optimizer):
         choices = self._mixed_choices.get(name)
         if choices is None:
             return python_type(value)
-        # A JSON round trip may turn 3.0 into 3, so match by equality.
+        exact = next(
+            (c for c in choices if type(c) is type(value) and c == value), None
+        )
+        if exact is not None:
+            return str(exact)
+        # A JSON round trip may turn 3.0 into 3, so fall back to equality.
         match = next(
             (
                 c
