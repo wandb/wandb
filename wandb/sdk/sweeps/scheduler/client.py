@@ -115,7 +115,11 @@ def run_scheduler(
         project=project,
         config=yaml.safe_load(init_response.sweep_config) or {},
     )
-    optimizer = make_optimizer(sweep)
+    try:
+        optimizer = make_optimizer(sweep)
+    except wandb.Error as e:
+        term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
+        raise
     exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
 
     previous_handler = _install_sigint_handler(
