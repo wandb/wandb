@@ -22,6 +22,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     create_default_client,
     sweep_parameter_to_parameter,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import RunConfig, RunWithMetrics
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
@@ -197,6 +198,51 @@ class TestBuildAxSchedulerOptimizer:
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
+
+
+MIXED_CHOICE_VALUES = [1, "two", 3.0, True]
+MIXED_CHOICE_CONFIG = {
+    "metric": {"name": "loss", "goal": "minimize"},
+    "parameters": {"p": {"values": MIXED_CHOICE_VALUES}},
+}
+
+
+class TestMixedTypeChoices:
+    """Ax stores mixed-type values as text; runs still get the originals."""
+
+    @pytest.fixture
+    def optimizer(self) -> AxOptimizer:
+        return AxOptimizer(
+            create_default_client(MIXED_CHOICE_CONFIG),
+            make_scheduler_grid_sweep(config=MIXED_CHOICE_CONFIG),
+        )
+
+    def test_suggestions_keep_the_sweep_values(self, optimizer: AxOptimizer) -> None:
+        suggestions = optimizer.ask_n_runs(8)
+
+        for suggestion in suggestions:
+            value = suggestion.config["p"].value
+            assert (type(value), value) in [(type(v), v) for v in MIXED_CHOICE_VALUES]
+
+    def test_warm_start_matches_a_json_collapsed_value(
+        self, optimizer: AxOptimizer
+    ) -> None:
+        run = RunWithMetrics(
+            config=RunConfig.from_values({"p": 3}),
+            state=RunState.FINISHED,
+            wandb_run_id="old-run",
+            summary_metrics={"loss": 0.5},
+            history_metrics=[],
+        )
+
+        optimizer.tell_existing_finished_run(run)
+
+        trial = _experiment(optimizer.client).trials[0]
+        assert trial.arm.parameters == {"p": "3.0"}
+
+    def test_values_with_the_same_text_are_rejected(self) -> None:
+        with pytest.raises(ValueError, match="cannot tell apart"):
+            sweep_parameter_to_parameter("p", {"values": [1, "1"]})
 
 
 class TestUnparseableMetricName:

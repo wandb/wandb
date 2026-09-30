@@ -55,13 +55,36 @@ def _value_type(values: list[Any]) -> Literal["bool", "int", "float", "str"]:
     return "str"
 
 
+def _is_mixed(values: list[Any]) -> bool:
+    """Whether Ax must hold `values` as text though not all are strings."""
+    return _value_type(values) == "str" and not all(isinstance(v, str) for v in values)
+
+
+def _check_distinct_text(name: str, values: list[Any]) -> None:
+    """Raise if two different values would become the same Ax string."""
+    seen: dict[str, Any] = {}
+    for value in values:
+        text = str(value)
+        other = seen.setdefault(text, value)
+        if type(other) is not type(value) or other != value:
+            raise ValueError(
+                f"Sweep parameter {name!r} lists {other!r} and {value!r}, "
+                "which the Ax engine cannot tell apart because it stores "
+                "mixed-type values as text. Remove one of them."
+            )
+
+
 def _choice_config(name: str, values: list[Any]) -> Any:
     """Build an Ax `ChoiceParameterConfig` from W&B `values`.
 
     A single-value list becomes a fixed parameter (Ax collapses it to one). W&B
     categoricals carry no order; declaring `is_ordered` explicitly also silences
-    Ax's "is_ordered not specified" warning.
+    Ax's "is_ordered not specified" warning. Ax needs one type per parameter,
+    so mixed-type values are passed as strings; `AxOptimizer` maps them back.
     """
+    if _is_mixed(values):
+        _check_distinct_text(name, values)
+        values = [str(v) for v in values]
     return ax.ChoiceParameterConfig(
         name=name,
         values=values,
@@ -187,6 +210,18 @@ def sweep_parameters_to_search_space(
     ]
 
 
+def _mixed_choices(parameters: dict[str, Any]) -> dict[str, list[Any]]:
+    """Return the sweep values of each categorical that mixes types."""
+    return {
+        name: list(spec["values"])
+        for name, spec in parameters.items()
+        if isinstance(spec, dict)
+        and spec.get("distribution") in (None, "categorical")
+        and isinstance(spec.get("values"), list)
+        and _is_mixed(spec["values"])
+    }
+
+
 def sweep_config_to_metrics(config: dict[str, Any]) -> list[Any]:
     """Return the Ax metrics to optimize for a sweep config's objectives.
 
@@ -288,6 +323,7 @@ class AxOptimizer(Optimizer):
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
+        self._mixed_choices = _mixed_choices(sweep.config.get("parameters", {}))
         super().__init__(sweep)
 
     @override
@@ -377,11 +413,37 @@ class AxOptimizer(Optimizer):
             return []
         return [
             RunSuggestion(
-                config=RunConfig.from_values(dict(parameters)),
+                config=RunConfig.from_values(self._from_ax_values(parameters)),
                 run_id=str(trial_index),
             )
             for trial_index, parameters in trials.items()
         ]
+
+    def _from_ax_values(self, parameters: Any) -> dict[str, Any]:
+        """Map Ax's text for mixed-type choices back to the sweep's values."""
+        values = dict(parameters)
+        for name, choices in self._mixed_choices.items():
+            if name in values:
+                values[name] = next(
+                    (c for c in choices if str(c) == values[name]), values[name]
+                )
+        return values
+
+    def _to_ax_value(self, name: str, value: Any, python_type: type) -> Any:
+        """Cast a run's config value to the type Ax declared for `name`."""
+        choices = self._mixed_choices.get(name)
+        if choices is None:
+            return python_type(value)
+        # A JSON round trip may turn 3.0 into 3, so match by equality.
+        match = next(
+            (
+                c
+                for c in choices
+                if c == value and isinstance(c, bool) == isinstance(value, bool)
+            ),
+            value,
+        )
+        return str(match)
 
     @override
     def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
@@ -527,7 +589,7 @@ class AxOptimizer(Optimizer):
         if not all(name in config for name in parameters):
             return None
         return {
-            name: parameter.python_type(config[name])
+            name: self._to_ax_value(name, config[name], parameter.python_type)
             for name, parameter in parameters.items()
         }
 
