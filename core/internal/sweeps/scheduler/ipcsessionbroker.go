@@ -35,47 +35,45 @@ type TaskResolverFactory func(
 	logger *observability.CoreLogger,
 ) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error)
 
-var _ TaskResolverFactory = NewTaskResolverFactory()
+var _ TaskResolverFactory = NewTaskResolver
 
-// NewTaskResolverFactory returns the factory the session broker uses
+// NewTaskResolver is the TaskResolverFactory the session broker uses
 // to start scheduler sessions.
-func NewTaskResolverFactory() TaskResolverFactory {
-	return func(
-		reqCtx context.Context,
-		req *spb.SweepSchedulerClientInitRequest,
-		sweepAPI SweepAPI,
-		logger *observability.CoreLogger,
-	) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
-		if err := sweepAPI.CheckLocalSchedulerSupported(reqCtx); err != nil {
-			return nil, nil, err
-		}
-
-		facts, err := sweepAPI.FetchSweep(reqCtx)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		cfg, err := parseSweepConfig(facts.Config)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		scheduler := NewScheduler(SchedulerParams{
-			API:          sweepAPI,
-			Logger:       logger,
-			SweepNodeID:  facts.NodeID,
-			MetricKeys:   cfg.metricKeys(),
-			BatchSize:    int(req.BatchSize),
-			RunCap:       cfg.RunCap,
-			PollInterval: secondsToDuration(req.PollIntervalSeconds),
-		})
-
-		return scheduler, &spb.SweepSchedulerServerInitResponse{
-			SweepConfig:       facts.Config,
-			DisplayName:       facts.DisplayName,
-			ControllerRunName: facts.ControllerRunName,
-		}, nil
+func NewTaskResolver(
+	reqCtx context.Context,
+	req *spb.SweepSchedulerClientInitRequest,
+	sweepAPI SweepAPI,
+	logger *observability.CoreLogger,
+) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
+	if err := sweepAPI.CheckLocalSchedulerSupported(reqCtx); err != nil {
+		return nil, nil, err
 	}
+
+	facts, err := sweepAPI.FetchSweep(reqCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cfg, err := parseSweepConfig(facts.Config)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	scheduler := NewScheduler(SchedulerParams{
+		API:          sweepAPI,
+		Logger:       logger,
+		SweepNodeID:  facts.NodeID,
+		MetricKeys:   cfg.metricKeys(),
+		BatchSize:    int(req.BatchSize),
+		RunCap:       cfg.RunCap,
+		PollInterval: secondsToDuration(req.PollIntervalSeconds),
+	})
+
+	return scheduler, &spb.SweepSchedulerServerInitResponse{
+		SweepConfig:       facts.Config,
+		DisplayName:       facts.DisplayName,
+		ControllerRunName: facts.ControllerRunName,
+	}, nil
 }
 
 // IPCSessionBroker tracks the scheduler sessions of one server process.
@@ -103,9 +101,7 @@ type session struct {
 }
 
 // NewIPCSessionBroker creates a new IPCSessionBroker.
-func NewIPCSessionBroker(
-	factory TaskResolverFactory,
-) *IPCSessionBroker {
+func NewIPCSessionBroker(factory TaskResolverFactory) *IPCSessionBroker {
 	return &IPCSessionBroker{
 		factory:  factory,
 		sessions: make(map[string]*session),
