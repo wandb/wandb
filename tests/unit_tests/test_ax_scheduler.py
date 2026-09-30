@@ -278,6 +278,17 @@ class TestMultiObjective:
             AxOptimizer(client, sweep)
 
 
+def test_an_outcome_constraint_on_an_undeclared_metric_is_rejected(
+    sweep: SweepInfo,
+) -> None:
+    """The scheduler never reports `acc`, so Ax could never use the constraint."""
+    client = make_client()
+    client.configure_optimization(objective="-loss", outcome_constraints=["acc >= 0.5"])
+
+    with pytest.raises(ValueError, match="does not declare: 'acc'"):
+        AxOptimizer(client, sweep)
+
+
 class TestRouteLibraryLogs:
     """Ax's records reach the handler the scheduler routes them to."""
 
