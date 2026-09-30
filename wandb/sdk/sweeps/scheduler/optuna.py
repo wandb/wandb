@@ -463,11 +463,11 @@ class OptunaOptimizer(Optimizer):
 
         state = self.trial_state(data.state)
         if state == optuna.trial.TrialState.COMPLETE:
-            values = self.objective_values(data.summary_metrics)
+            values = self.final_objective_values(data)
             if values is None:
                 # A run that finished without every objective taught the
                 # search nothing; record a failure rather than telling the
-                # study a missing value.
+                # study a missing or unusable value.
                 self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
             elif self._is_multi_objective:
                 self._tell_study(trial, values, state=state)

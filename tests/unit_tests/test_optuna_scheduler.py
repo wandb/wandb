@@ -366,6 +366,38 @@ class TestIntermediateReporting:
             optimizer.tell_run(suggestion.run_id, run)
 
 
+class TestUnusableObjectiveValue:
+    """A finished run whose objective isn't a number fails its trial."""
+
+    @pytest.mark.parametrize(
+        ("loss", "problem"),
+        [
+            (float("nan"), "NaN"),
+            ({"min": 0.1}, "a dict"),
+            ("0.5", "not a number"),
+        ],
+        ids=["nan", "dict", "string"],
+    )
+    def test_fails_the_trial_and_warns(
+        self, sweep: SweepInfo, loss: Any, problem: str, mock_wandb_log
+    ) -> None:
+        study = optuna.create_study(direction="minimize")
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.FINISHED, summary={"loss": loss}),
+        )
+
+        assert study.trials[-1].state == optuna.trial.TrialState.FAIL
+        mock_wandb_log.assert_warned(
+            f"Run wandb-run-id finished with metric 'loss' = {loss!r},"
+            f" which is {problem}"
+        )
+
+
 class TestRouteLibraryLogs:
     """Optuna's records reach the handler the scheduler routes them to."""
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import numbers
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -93,6 +95,17 @@ def is_terminal_state(state: RunState) -> bool:
         RunState.KILLED,
         RunState.PREEMPTED,
     )
+
+
+def _objective_value_problem(value: Any) -> str | None:
+    """Describe why a summary value can't be an objective, or None if it can."""
+    if isinstance(value, dict):
+        return "a dict, as a define_metric summary such as 'min' stores"
+    if not isinstance(value, numbers.Real):
+        return "not a number"
+    if math.isnan(value):
+        return "NaN"
+    return None
 
 
 class Optimizer(ABC):
@@ -258,6 +271,31 @@ class Optimizer(ABC):
         if any(value is None for value in values):
             return None
         return values
+
+    def final_objective_values(self, data: RunWithMetrics) -> list[Any] | None:
+        """Return a finished run's objective values, or None if unusable.
+
+        Warns about each objective whose summary value is present but is not
+        a number or is NaN, since the search libraries reject such values.
+
+        Args:
+            data: The finished run.
+        """
+        values = self.objective_values(data.summary_metrics)
+        if values is None:
+            return None
+        has_unusable = False
+        for name, value in zip(self.metric_names(), values, strict=True):
+            problem = _objective_value_problem(value)
+            if problem is None:
+                continue
+            has_unusable = True
+            wandb.termwarn(
+                f"Run {data.wandb_run_id} finished with metric {name!r} ="
+                f" {value!r}, which is {problem}, so it is recorded as failed."
+                f" Make the run's summary value for {name!r} a number."
+            )
+        return None if has_unusable else values
 
     @property
     def sweep_name(self) -> str:
