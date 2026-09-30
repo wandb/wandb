@@ -53,6 +53,7 @@ type RetryableClient interface {
 type clientImpl struct {
 	retryableHTTP RetryableClient // underlying HTTP client
 	logger        *slog.Logger    // never nil
+	traceStarter  httplayers.TraceStarter
 }
 
 type ClientOptions struct {
@@ -108,6 +109,9 @@ type ClientOptions struct {
 	// request for retry
 	PrepareRetry func(*http.Request) error
 
+	// TraceStarter starts a child span for each HTTP attempt.
+	TraceStarter httplayers.TraceStarter
+
 	Logger *slog.Logger
 
 	// PreRetryLayers specifies additional functionality to the HTTP client
@@ -150,6 +154,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 	return &clientImpl{
 		retryableHTTP: retryableHTTP,
 		logger:        opts.Logger,
+		traceStarter:  opts.TraceStarter,
 	}
 }
 
@@ -172,5 +177,6 @@ func newRoundTripper(opts ClientOptions) http.RoundTripper {
 		// Add the User-Agent header only if it's not set by a preceding layer.
 		httplayers.DefaultHeaders(userAgentHeader),
 		opts.PreRetryLayers,
+		httplayers.TraceRequests(opts.TraceStarter),
 	))
 }

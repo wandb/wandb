@@ -488,6 +488,7 @@ func newSweepAPIFromSettings(
 		&observability.Peeker{},
 		clientSettings,
 		clientSettings.GetExtraHTTPHeaders(),
+		nil, /*traceStarter*/
 	)
 
 	return NewSweepAPI(

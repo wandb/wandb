@@ -65,15 +65,13 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 	telemetryProxy := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		s,
-		"wandb-core",
+		serviceName,
 	)
-	logger := observability.NewCoreLogger(
-		slog.Default(),
-		analytics.NewTelemetryRecorder(
-			telemetryProxy,
-			analytics.NewTelemetryContext(),
-		),
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
 	)
+	logger := observability.NewCoreLogger(slog.Default(), telemetryRecorder)
 
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
@@ -83,6 +81,7 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 		&observability.Peeker{},
 		s,
 		s.GetExtraHTTPHeaders(),
+		telemetryRecorder,
 	)
 
 	fileTransferClient := newFileTransferClient(

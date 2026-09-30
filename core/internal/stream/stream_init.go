@@ -11,6 +11,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"golang.org/x/time/rate"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -71,6 +72,7 @@ func NewGraphQLClient(
 	logger *observability.CoreLogger,
 	peeker *observability.Peeker,
 	s *settings.Settings,
+	traceStarter httplayers.TraceStarter,
 ) graphql.Client {
 	if s.IsOffline() {
 		return nil
@@ -100,6 +102,7 @@ func NewGraphQLClient(
 		peeker,
 		s,
 		extraHeaders,
+		traceStarter,
 	)
 }
 
@@ -112,6 +115,7 @@ func NewFileStream(
 	logger *observability.CoreLogger,
 	peeker api.Peeker,
 	s *settings.Settings,
+	traceStarter httplayers.TraceStarter,
 ) filestream.FileStream {
 	if s.IsOffline() {
 		return nil
@@ -133,6 +137,7 @@ func NewFileStream(
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
 		RetryWaitMax:       filestream.DefaultRetryWaitMax,
 		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
+		TraceStarter:       traceStarter,
 		Proxy:              s.GetProxyFn(),
 		ProxyConnectHeader: s.GetProxyConnectHeader(),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
@@ -229,5 +234,16 @@ func NewFileTransferManager(
 			FileTransfers:     fileTransfers,
 			FileTransferStats: fileTransferStats,
 		},
+	)
+}
+
+// NewOtelTraceStarter returns the httplayers.TraceStarter
+// which traces outbound HTTP requests to the backend.
+func NewOtelTraceStarter(
+	otelProxy *analytics.OpenTelemetryProxy,
+) httplayers.TraceStarter {
+	return analytics.NewTelemetryRecorder(
+		otelProxy,
+		analytics.NewTelemetryContext(),
 	)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -27,14 +28,14 @@ import (
 
 // Injectors from wire.go:
 
-func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger) *RunSyncerFactory {
+func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger, traceStarter httplayers.TraceStarter) *RunSyncerFactory {
 	wandbOperations := wboperation.NewOperations()
 	printer := providePrinter()
 	wbBaseURL := stream.BaseURLFromSettings(logger, settings2)
 	clientID := sharedmode.RandomClientID()
 	credentialProvider := stream.CredentialsFromSettings(logger, settings2)
 	peeker := &observability.Peeker{}
-	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2)
+	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2, traceStarter)
 	featureProvider := featurechecker.New(client, logger)
 	runHandle := runhandle.New()
 	recordParserFactory := &stream.RecordParserFactory{
@@ -94,6 +95,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
 		Stats:                   stats,
+		TraceStarter:            traceStarter,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   logger,

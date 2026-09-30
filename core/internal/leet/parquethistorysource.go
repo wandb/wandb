@@ -148,6 +148,7 @@ func InitializeParquetHistorySource(
 			logger,
 			&observability.Peeker{},
 			s,
+			nil, /*traceStarter*/
 		)
 		httpClient := api.NewClient(api.ClientOptions{
 			RetryMax:        3,

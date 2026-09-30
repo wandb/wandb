@@ -50,6 +50,7 @@ var streamProviders = wire.NewSet(
 	monitor.SystemMonitorProviders,
 	NewFileTransferManager,
 	NewGraphQLClient,
+	NewOtelTraceStarter,
 	provideFileWatcher,
 	providePrinter,
 	RecordParserProviders,

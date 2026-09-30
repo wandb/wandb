@@ -36,7 +36,8 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}
-	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2)
+	traceStarter := NewOtelTraceStarter(openTelemetryProxy)
+	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2, traceStarter)
 	featureProvider := featurechecker.New(client, coreLogger)
 	runHandle := runhandle.New()
 	flowControlFactory := &FlowControlFactory{
@@ -118,6 +119,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
 		Stats:                   stats,
+		TraceStarter:            traceStarter,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
@@ -139,6 +141,7 @@ var streamProviders = wire.NewSet(
 	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, fileStreamStatsProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
 	NewGraphQLClient,
+	NewOtelTraceStarter,
 	provideFileWatcher,
 	providePrinter,
 	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,

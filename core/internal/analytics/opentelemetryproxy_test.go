@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otellogapi "go.opentelemetry.io/otel/log"
+	traceapi "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
@@ -638,4 +639,33 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 	})
 	require.True(t, ok)
 	assert.Equal(t, "ssh", render.Attributes["execution_context"])
+}
+
+func TestTelemetryRecorder_RecordsSpan(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	// create a parent span that is sampled to force the child span to be sampled
+	traceID, err := traceapi.TraceIDFromHex("11111111111111111111111111111111")
+	require.NoError(t, err)
+	parentSpanID, err := traceapi.SpanIDFromHex("1111111111111111")
+	require.NoError(t, err)
+	parent := traceapi.NewSpanContext(traceapi.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     parentSpanID,
+		TraceFlags: traceapi.FlagsSampled,
+		Remote:     true,
+	})
+
+	_, span := recorder.StartSpan(
+		traceapi.ContextWithRemoteSpanContext(t.Context(), parent),
+		"wandb.core.request",
+	)
+	span.End()
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	_, ok := proxy.FindSpan("wandb.core.request")
+	assert.True(t, ok, "expected the span to be recorded in telemetry")
 }

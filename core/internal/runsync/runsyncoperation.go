@@ -77,6 +77,7 @@ func (f *RunSyncOperationFactory) New(
 		factory := InjectRunSyncerFactory(
 			MakeSyncSettings(globalSettings, userPath),
 			op.logger.With([]any{"sync_path", userPath}, nil),
+			telemetryRecorder,
 		)
 
 		op.syncers = append(op.syncers,

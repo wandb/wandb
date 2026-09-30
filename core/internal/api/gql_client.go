@@ -22,6 +22,7 @@ func NewGQLClient(
 	peeker Peeker,
 	s *settings.Settings,
 	extraHeaders http.Header,
+	traceStarter httplayers.TraceStarter,
 ) graphql.Client {
 	// TODO: This is used for the service account feature to associate the run
 	// with the specified user. Note that we are using environment variables
@@ -45,6 +46,7 @@ func NewGQLClient(
 		RetryWaitMin:       DefaultRetryWaitMin,
 		RetryWaitMax:       DefaultRetryWaitMax,
 		NonRetryTimeout:    DefaultNonRetryTimeout,
+		TraceStarter:       traceStarter,
 		Proxy:              s.GetProxyFn(),
 		ProxyConnectHeader: s.GetProxyConnectHeader(),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),

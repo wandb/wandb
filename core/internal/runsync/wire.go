@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -24,6 +25,7 @@ import (
 func InjectRunSyncerFactory(
 	settings *settings.Settings,
 	logger *observability.CoreLogger,
+	traceStarter httplayers.TraceStarter,
 ) *RunSyncerFactory {
 	wire.Build(runSyncerFactoryBindings)
 	return &RunSyncerFactory{}
