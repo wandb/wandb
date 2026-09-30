@@ -266,11 +266,15 @@ class TestRouteLibraryLogs:
     """Ax's records reach the handler the scheduler routes them to."""
 
     def test_captures_first_trial_generation(
-        self, client: Client, sweep: SweepInfo, caplog: pytest.LogCaptureFixture
+        self,
+        client: Client,
+        sweep: SweepInfo,
+        caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
     ) -> None:
         optimizer = AxOptimizer(client, sweep)
 
-        optimizer.route_library_logs(caplog.handler)
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
         optimizer.ask_n_runs(1)
 
         assert any(

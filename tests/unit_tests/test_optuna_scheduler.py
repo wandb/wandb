@@ -340,8 +340,9 @@ class TestRouteLibraryLogs:
         self,
         optimizer: OptunaDeclarativeOptimizer,
         caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
     ) -> None:
-        optimizer.route_library_logs(caplog.handler)
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
         optuna.create_study(study_name="routed-study")
 
         assert any(
@@ -353,8 +354,9 @@ class TestRouteLibraryLogs:
         self,
         optimizer: OptunaDeclarativeOptimizer,
         caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
     ) -> None:
-        optimizer.route_library_logs(caplog.handler)
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
         suggestion = optimizer.ask_n_runs(1)[0]
         optimizer.tell_run(
             suggestion.run_id,
