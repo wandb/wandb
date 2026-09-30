@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -27,7 +28,7 @@ import (
 
 // Injectors from wire.go:
 
-func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger) *RunSyncerFactory {
+func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger, traceStarter httplayers.TraceStarter) *RunSyncerFactory {
 	wandbOperations := wboperation.NewOperations()
 	printer := providePrinter()
 	wbBaseURL := stream.BaseURLFromSettings(logger, settings2)
@@ -93,6 +94,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
+		TraceStarter:            traceStarter,
 		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{

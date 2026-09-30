@@ -118,7 +118,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
-		traceStarter:            traceStarter,
+		TraceStarter:            traceStarter,
 		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{

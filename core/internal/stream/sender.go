@@ -67,7 +67,7 @@ type SenderFactory struct {
 	Mailbox                 *mailbox.Mailbox
 	HistoryStepTracker      *HistoryStepTracker
 
-	traceStarter httplayers.TraceStarter
+	TraceStarter httplayers.TraceStarter
 	Stats        *filestreamstats.Stats
 }
 
@@ -175,7 +175,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.Logger,
 			f.Peeker,
 			f.Settings,
-			f.traceStarter,
+			f.TraceStarter,
 		)
 	}
 	return f.NewWithFileStream(runWork, fileStream)
