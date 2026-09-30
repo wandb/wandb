@@ -56,6 +56,19 @@ are grown over many PRs that patch on functionality.
 
 Never ignore the complexity lint.
 
+### Handle errors once
+
+Either handle an error or return it / raise it, but not both.
+
+This is a common best practice whose main purpose is to avoid double-logging an
+error, which makes logs less useful. If you follow this rule, then if you catch
+an error, you can expect that it hasn't already been logged. If you don't follow
+the rule, it's easy to double-log by accident, like after refactoring a function
+that didn't log an error to start logging.
+
+Another reason to do this is that higher level code can add more context to
+an error and make it more useful.
+
 ## Python style
 
 ### Keep your hands to yourself
@@ -78,3 +91,31 @@ because that is meaningless.
 Do not try to add "private" parameters to public functions to use them in
 internal code. Fix the dependency instead: public functions should depend on
 internal code, not the other way around.
+
+## Go style
+
+### References
+
+There is a lot of good advice here: https://github.com/uber-go/guide/blob/master/style.md
+
+### Enhance errors with `fmt.Errorf()`
+
+Go doesn't have stack traces, so to add context to an error, you wrap it
+using `fmt.Errorf()` like so:
+
+```go
+if err != nil {
+	return fmt.Errorf("filestream: error constructing request: %v", err)
+}
+```
+
+In this repository, we use `%v`, not `%w` to wrap an error. Use `%w` only
+if callers are expected to use `errors.Is()` to check the error type, which
+is rare, or if your function transparently wraps another function, which is even
+more rare.
+
+You may want to prefix the error message with `packagename:`, which produces
+something similar to a stacktrace when an error bubbles up through many layers
+of functions. Whether you do this depends on how the function is used. The only
+rule is to think about whether the resulting errors will be readable and
+concise.
