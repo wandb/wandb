@@ -343,6 +343,131 @@ class TestImperativeWarmStart:
         assert [trial.values[0] for trial in trials] == [1.0, 2.0]
 
 
+def _optimizer_trial(trial: optuna.Trial) -> dict[str, Any]:
+    optimizer = trial.suggest_categorical("optimizer", ["sgd", "adam"])
+    if optimizer == "sgd":
+        return {"optimizer": optimizer, "lr": trial.suggest_float("lr", 0.0, 1.0)}
+    return {"optimizer": optimizer, "layers": trial.suggest_int("layers", 1, 4)}
+
+
+def _warm_start(optimizer, config: dict[str, Any], *, is_active: bool) -> None:
+    if is_active:
+        optimizer.tell_existing_active_run(
+            Run(
+                config=RunConfig.from_values(config),
+                state=RunState.RUNNING,
+                wandb_run_id="wandb-run-id",
+            )
+        )
+        return
+    optimizer.tell_existing_finished_run(
+        RunWithMetrics(
+            config=RunConfig.from_values(config),
+            state=RunState.FINISHED,
+            wandb_run_id="wandb-run-id",
+            summary_metrics={"loss": 0.5},
+            history_metrics=[],
+        )
+    )
+
+
+@pytest.mark.parametrize("is_active", [False, True], ids=["finished", "active"])
+class TestWarmStartValidation:
+    """Warm start rejects a run whose config does not fit the search space."""
+
+    @pytest.fixture
+    def declarative(self, sweep: SweepInfo) -> OptunaDeclarativeOptimizer:
+        distributions = {
+            "lr": optuna.distributions.FloatDistribution(1e-5, 1e-1, log=True),
+            "layers": optuna.distributions.IntDistribution(1, 4),
+            "optimizer": optuna.distributions.CategoricalDistribution(["sgd", "adam"]),
+        }
+        return OptunaDeclarativeOptimizer(
+            optuna.create_study(direction="minimize"), distributions, sweep
+        )
+
+    @pytest.fixture
+    def imperative(self, sweep: SweepInfo) -> OptunaImperativeOptimizer:
+        return OptunaImperativeOptimizer(
+            optuna.create_study(direction="minimize"), _optimizer_trial, sweep
+        )
+
+    @pytest.mark.parametrize(
+        ("config", "error"),
+        [
+            ({"lr": 0.01, "layers": 2}, "no value for .* 'optimizer'"),
+            (
+                {"lr": "0.01", "layers": 2, "optimizer": "sgd"},
+                "sets 'lr' to '0.01'.* a number from 1e-05 to 0.1",
+            ),
+            (
+                {"lr": 0.5, "layers": 2, "optimizer": "sgd"},
+                "sets 'lr' to 0.5.* a number from 1e-05 to 0.1",
+            ),
+            (
+                {"lr": 0.01, "layers": 2.5, "optimizer": "sgd"},
+                "sets 'layers' to 2.5.* an integer from 1 to 4",
+            ),
+            (
+                {"lr": 0.01, "layers": 2, "optimizer": "rmsprop"},
+                r"sets 'optimizer' to 'rmsprop'.* one of \['sgd', 'adam'\]",
+            ),
+        ],
+        ids=["missing", "string", "out-of-range", "non-integer", "not-a-choice"],
+    )
+    def test_declarative_rejects_the_run(
+        self, declarative, is_active: bool, config: dict[str, Any], error: str
+    ) -> None:
+        with pytest.raises(ValueError, match=error):
+            _warm_start(declarative, config, is_active=is_active)
+
+        assert declarative.study.get_trials(deepcopy=False) == []
+
+    def test_declarative_records_values_in_the_distribution_type(
+        self, declarative, is_active: bool
+    ) -> None:
+        """JSON turns a float like 1.0 into 1, which must not reach the study."""
+        declarative.distributions["lr"] = optuna.distributions.FloatDistribution(
+            0.0, 2.0
+        )
+
+        _warm_start(
+            declarative,
+            {"lr": 1, "layers": 2, "optimizer": "sgd"},
+            is_active=is_active,
+        )
+
+        [trial] = declarative.study.get_trials(deepcopy=False)
+        assert type(trial.params["lr"]) is float
+
+    @pytest.mark.parametrize(
+        ("config", "error"),
+        [
+            ({"unrelated": 1}, "no value for .* 'optimizer'"),
+            ({"optimizer": "sgd"}, "no value for .* 'lr'"),
+            ({"optimizer": "adam", "layers": "2"}, "sets 'layers' to '2'"),
+            ({"optimizer": "rmsprop"}, "sets 'optimizer' to 'rmsprop'"),
+        ],
+        ids=["unrelated", "missing-branch-param", "string", "not-a-choice"],
+    )
+    def test_imperative_rejects_the_run(
+        self, imperative, is_active: bool, config: dict[str, Any], error: str
+    ) -> None:
+        with pytest.raises(ValueError, match=error):
+            _warm_start(imperative, config, is_active=is_active)
+
+        assert imperative.study.get_trials(deepcopy=False) == []
+
+    def test_imperative_accepts_the_run_branch(
+        self, imperative, is_active: bool
+    ) -> None:
+        """Parameters of the branch the run did not take are not required."""
+        _warm_start(imperative, {"optimizer": "adam", "layers": 3}, is_active=is_active)
+
+        [trial] = imperative.study.get_trials(deepcopy=False)
+        assert trial.params == {"optimizer": "adam", "layers": 3}
+
+
 class TestIntermediateReporting:
     """Single-objective sweeps report intermediate values for pruning."""
 

@@ -196,6 +196,123 @@ def search_space_from_sweep_config(
     }
 
 
+def _run_param_value(
+    name: str,
+    config: dict[str, Any],
+    distribution: optuna.distributions.BaseDistribution,
+) -> Any:
+    """Return a prior run's value for one search space parameter.
+
+    The value is converted to the distribution's type: a run's config
+    round-trips through JSON, which turns a float like `1.0` into `1`.
+
+    Raises:
+        ValueError: If the config has no value for the parameter, or the
+            value is not one the distribution can produce.
+    """
+    if name not in config:
+        raise ValueError(
+            f"The run's config has no value for search space parameter {name!r}."
+        )
+    value = config[name]
+
+    if isinstance(distribution, optuna.distributions.CategoricalDistribution):
+        try:
+            index = distribution.to_internal_repr(value)
+        except ValueError:
+            raise ValueError(
+                f"The run's config sets {name!r} to {value!r}, but the search "
+                f"space expects one of {list(distribution.choices)!r}."
+            ) from None
+        return distribution.to_external_repr(index)
+
+    if not isinstance(
+        distribution,
+        (optuna.distributions.FloatDistribution, optuna.distributions.IntDistribution),
+    ):
+        return value
+
+    is_int_distribution = isinstance(distribution, optuna.distributions.IntDistribution)
+    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+    # NaN fails the range comparison, so it is rejected here too.
+    is_valid = (
+        is_number
+        and distribution.low <= value <= distribution.high
+        and (not is_int_distribution or float(value).is_integer())
+    )
+    if not is_valid:
+        expected = "an integer" if is_int_distribution else "a number"
+        raise ValueError(
+            f"The run's config sets {name!r} to {value!r}, but the search space "
+            f"expects {expected} from {distribution.low} to {distribution.high}."
+        )
+    return distribution.to_external_repr(distribution.to_internal_repr(value))
+
+
+class _WarmStartTrial(optuna.trial.FixedTrial):
+    """Replays a prior run's config through a define-by-run constructor.
+
+    Each suggestion is checked before the constructor sees it, so a config
+    that lacks a parameter or holds an invalid value fails with a message
+    naming the parameter, and `run_params` holds only valid values.
+    """
+
+    @override
+    def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__(config)
+        self._config = config
+        self.run_params: dict[str, Any] = {}
+
+    def _check(
+        self,
+        name: str,
+        distribution: optuna.distributions.BaseDistribution,
+    ) -> None:
+        """Record the run's value for a parameter, or raise if it is invalid."""
+        self.run_params[name] = _run_param_value(name, self._config, distribution)
+
+    @override
+    def suggest_float(
+        self,
+        name: str,
+        low: float,
+        high: float,
+        *,
+        step: float | None = None,
+        log: bool = False,
+    ) -> float:
+        self._check(
+            name,
+            optuna.distributions.FloatDistribution(low, high, log=log, step=step),
+        )
+        return super().suggest_float(name, low, high, step=step, log=log)
+
+    @override
+    def suggest_int(
+        self,
+        name: str,
+        low: int,
+        high: int,
+        *,
+        step: int = 1,
+        log: bool = False,
+    ) -> int:
+        self._check(
+            name,
+            optuna.distributions.IntDistribution(low, high, log=log, step=step),
+        )
+        return super().suggest_int(name, low, high, step=step, log=log)
+
+    @override
+    def suggest_categorical(
+        self,
+        name: str,
+        choices: Sequence[optuna.distributions.CategoricalChoiceType],
+    ) -> optuna.distributions.CategoricalChoiceType:
+        self._check(name, optuna.distributions.CategoricalDistribution(choices))
+        return super().suggest_categorical(name, choices)
+
+
 class OptunaOptimizer(Optimizer):
     """Base `Optimizer` driving a W&B sweep from an optuna study.
 
@@ -308,6 +425,19 @@ class OptunaOptimizer(Optimizer):
     @abstractmethod
     def _ask_suggestion(self) -> RunSuggestion:
         """Ask the study for one trial and describe it as a run to start."""
+        ...
+
+    @abstractmethod
+    def _warm_start_params(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Return a prior run's value for each search space parameter.
+
+        Args:
+            config: The run's flat config.
+
+        Raises:
+            ValueError: If the config does not set every parameter to a value
+                the search space can produce.
+        """
         ...
 
     def _track(self, trial: optuna.Trial, params: dict[str, Any]) -> RunSuggestion:
@@ -531,8 +661,12 @@ class OptunaOptimizer(Optimizer):
 
         Returns:
             The trial number to track the run by.
+
+        Raises:
+            ValueError: If the run's config does not set every search space
+                parameter to a value the space can produce.
         """
-        self.study.enqueue_trial(data.config.flat_dict())
+        self.study.enqueue_trial(self._warm_start_params(data.config.flat_dict()))
         # Asks directly rather than through ask_n_runs: the enqueued params
         # are fixed, so they cost the search nothing and an exhausted space
         # must still adopt the run rather than leave it untracked.
@@ -564,12 +698,22 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         return self._track(trial, trial.params)
 
     @override
+    def _warm_start_params(self, config: dict[str, Any]) -> dict[str, Any]:
+        return {
+            name: _run_param_value(name, config, distribution)
+            for name, distribution in self.distributions.items()
+        }
+
+    @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Warm-start the study by recording a run as a historical trial.
 
         The flat search space is known up front, so add_trial() is the lightest
-        faithful path — no extra ask(). Runs whose config doesn't cover the
-        search space are skipped (create_trial requires an exact param match).
+        faithful path — no extra ask().
+
+        Raises:
+            ValueError: If the run's config does not set every search space
+                parameter to a value the space can produce.
         """
         if not is_terminal_state(data.state):
             return
@@ -579,10 +723,7 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
             values = self.objective_values(data.summary_metrics)
             if values is None:
                 return  # finished but never logged every objective metric
-        config = data.config.flat_dict()
-        if not all(name in config for name in self.distributions):
-            return
-        params = {name: config[name] for name in self.distributions}
+        params = self._warm_start_params(data.config.flat_dict())
         self.study.add_trial(
             optuna.trial.create_trial(
                 params=params,
@@ -620,12 +761,23 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         return self._track(trial, self.trial_constructor(trial))
 
     @override
+    def _warm_start_params(self, config: dict[str, Any]) -> dict[str, Any]:
+        # A replay finds the run's branch without adding a trial to the study.
+        replay = _WarmStartTrial(config)
+        self.trial_constructor(replay)
+        return replay.run_params
+
+    @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Warm-start the study by replaying a run through the constructor.
 
         Enqueuing the run's params makes the next ask() take the same (possibly
         conditional) branch, so the recreated trial's distributions match the
         run; tell_run then finalizes it on the study.
+
+        Raises:
+            ValueError: If the run's config does not set every search space
+                parameter to a value the space can produce.
         """
         if not is_terminal_state(data.state):
             return
@@ -640,7 +792,7 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         # skipped enqueue would leave ask() free to sample a fresh point that
         # then gets told this run's result -- teaching the study a value the
         # params never produced. Repeated params are a faithful warm start.
-        self.study.enqueue_trial(data.config.flat_dict())
+        self.study.enqueue_trial(self._warm_start_params(data.config.flat_dict()))
         # Asks directly rather than through ask_n_runs, as the enqueued params
         # are fixed and so cost an exhausted space nothing.
         self.tell_run(self._ask_suggestion().run_id, data)
