@@ -106,6 +106,62 @@ class TestAskNRuns:
         with patch.object(client, "get_next_trials", side_effect=error):
             assert optimizer.ask_n_runs(2) == expected
 
+    def test_batch_larger_than_the_space_returns_the_points_left(
+        self, sweep: SweepInfo
+    ) -> None:
+        client = Client()
+        client.configure_experiment(
+            parameters=[
+                ax_module.ChoiceParameterConfig(
+                    name="p", values=[1, 2, 3], parameter_type="int", is_ordered=False
+                ),
+            ]
+        )
+        client.configure_optimization(objective="-loss")
+        optimizer = AxOptimizer(client, sweep)
+
+        suggestions = optimizer.ask_n_runs(4)
+
+        assert suggestions is not None
+        values = sorted(s.config.flat_dict()["p"] for s in suggestions)
+        assert values == [1, 2, 3]
+
+    @pytest.mark.parametrize(
+        "single_ask_error",
+        [
+            pytest.param(OptimizationComplete("done"), id="exhausted"),
+            pytest.param(DataRequiredError("need data"), id="declined"),
+        ],
+    )
+    def test_retries_singly_after_a_failed_batch(
+        self,
+        client: Client,
+        sweep: SweepInfo,
+        single_ask_error: Exception,
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        responses = [OptimizationComplete("batch"), {0: {"x": 0.5}}]
+        with patch.object(
+            client,
+            "get_next_trials",
+            side_effect=[*responses, single_ask_error],
+        ):
+            suggestions = optimizer.ask_n_runs(3)
+
+        assert suggestions is not None
+        assert [s.run_id for s in suggestions] == ["0"]
+
+    def test_declines_when_a_single_ask_needs_data(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        with patch.object(
+            client,
+            "get_next_trials",
+            side_effect=[OptimizationComplete("batch"), DataRequiredError("x")],
+        ):
+            assert optimizer.ask_n_runs(3) is None
+
     def test_propagates_unexpected_errors(
         self, client: Client, sweep: SweepInfo
     ) -> None:
