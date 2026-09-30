@@ -95,6 +95,14 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
+def _is_numpy_bool_scalar(value: Any) -> bool:
+    """Whether `value` is a numpy bool, which is not a bool subclass."""
+    # A bool array has the same dtype, but bool() of it is ambiguous.
+    return (
+        getattr(value, "dtype", None) == "bool" and getattr(value, "shape", None) == ()
+    )
+
+
 def call_terminator(terminator: Callable[[Any], Any], target: Any) -> bool:
     """Run a sweep's terminator and check that it answered True or False.
 
@@ -112,8 +120,7 @@ def call_terminator(terminator: Callable[[Any], Any], target: Any) -> bool:
             "The terminator returned by the scheduler.optimizer function"
             f" raised {type(e).__name__}: {e}"
         ) from e
-    # numpy.bool_ is not a bool subclass; library terminators may return it.
-    if not isinstance(is_done, bool) and getattr(is_done, "dtype", None) != "bool":
+    if not isinstance(is_done, bool) and not _is_numpy_bool_scalar(is_done):
         raise ValueError(
             "The terminator returned by the scheduler.optimizer function"
             f" returned {is_done!r}; it must return True or False"

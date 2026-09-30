@@ -100,9 +100,9 @@ def _config_json(suggestion: RunSuggestion) -> str:
             json.dumps(value)
         except (TypeError, ValueError) as e:
             raise ValueError(
-                f"Parameter {name!r} has a {type(value).__name__} value, which"
-                " can't be saved to a run's config; use a plain int, float,"
-                " str, bool, list or dict"
+                f"Parameter {name!r} is a {type(value).__name__}, which can't"
+                " be saved to a run's config; use a plain int, float, str,"
+                " bool, list or dict"
             ) from e
     raise ValueError(f"The run config can't be saved: {error}") from error
 

@@ -4,7 +4,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from typing_extensions import override
 
@@ -311,6 +311,15 @@ class OptunaOptimizer(Optimizer):
         """Ask the study for one trial and describe it as a run to start."""
         ...
 
+    def _ask_replay(self, config: dict[str, Any]) -> RunSuggestion:
+        """Ask for a trial fixed to a prior run's config.
+
+        Subclasses may override this to check the config against their
+        search space.
+        """
+        self.study.enqueue_trial(config)
+        return self._ask_suggestion()
+
     def _track(self, trial: optuna.Trial, params: dict[str, Any]) -> RunSuggestion:
         """Keep a live trial and describe it to the scheduler.
 
@@ -535,11 +544,10 @@ class OptunaOptimizer(Optimizer):
         Returns:
             The trial number to track the run by.
         """
-        self.study.enqueue_trial(data.config.flat_dict())
         # Asks directly rather than through ask_n_runs: the enqueued params
         # are fixed, so they cost the search nothing and an exhausted space
         # must still adopt the run rather than leave it untracked.
-        return self._ask_suggestion().run_id
+        return self._ask_replay(data.config.flat_dict()).run_id
 
 
 class OptunaDeclarativeOptimizer(OptunaOptimizer):
@@ -572,6 +580,28 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         return self._track(trial, trial.params)
 
     @override
+    def _ask_replay(self, config: dict[str, Any]) -> RunSuggestion:
+        """Ask for a trial fixed to a prior run's config, if it fits."""
+        self._check_fits_space(config)
+        return super()._ask_replay(config)
+
+    def _check_fits_space(self, config: dict[str, Any]) -> None:
+        """Check each of the config's sweep parameters against its distribution.
+
+        Raises:
+            ValueError: If a parameter's value is outside its distribution.
+        """
+        for name, distribution in self.distributions.items():
+            if name not in config:
+                continue
+            try:
+                distribution.to_internal_repr(config[name])
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
+                ) from e
+
+    @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Warm-start the study by recording a run as a historical trial.
 
@@ -591,13 +621,7 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         if not all(name in config for name in self.distributions):
             return
         params = {name: config[name] for name in self.distributions}
-        for name, distribution in self.distributions.items():
-            try:
-                distribution.to_internal_repr(params[name])
-            except (TypeError, ValueError) as e:
-                raise ValueError(
-                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
-                ) from e
+        self._check_fits_space(params)
         self.study.add_trial(
             optuna.trial.create_trial(
                 params=params,
@@ -638,7 +662,50 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
             raise ValueError(
                 f"The scheduler.search_space function raised {type(e).__name__}: {e}"
             ) from e
-        return self._track(trial, params)
+        return self._track(trial, _search_space_params(params))
+
+    @override
+    def _ask_replay(self, config: dict[str, Any]) -> RunSuggestion:
+        """Ask for a trial fixed to a prior run's config.
+
+        Raises:
+            ValueError: If the config doesn't fit the search space, or the
+                search_space function raises while replaying it.
+            TypeError: If the search_space function doesn't return a dict.
+        """
+        # Never skip_if_exists: two prior runs can share a config, and a
+        # skipped enqueue would leave ask() free to sample a fresh point that
+        # then gets told this run's result -- teaching the study a value the
+        # params never produced. Repeated params are a faithful warm start.
+        self.study.enqueue_trial(config)
+        trial = self.study.ask()
+        try:
+            params = self.trial_constructor(trial)
+        except Exception as e:
+            name = self._rejected_parameter(config)
+            if name is not None:
+                raise ValueError(
+                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
+                ) from e
+            raise ValueError(
+                f"The scheduler.search_space function raised {type(e).__name__}"
+                f" replaying a prior run's config: {e}"
+            ) from e
+        return self._track(trial, _search_space_params(params))
+
+    def _rejected_parameter(self, config: dict[str, Any]) -> str | None:
+        """Name the config parameter the search_space function fails on.
+
+        Replays the config on a FixedTrial, which leaves the study untouched,
+        and records the name of the suggestion that raises.
+        """
+        recorder = _SuggestionRecorder(optuna.trial.FixedTrial(config))
+        try:
+            self.trial_constructor(cast("optuna.Trial", recorder))
+        except Exception:
+            if recorder.last_name in config:
+                return recorder.last_name
+        return None
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
@@ -657,14 +724,43 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
             and self.objective_values(data.summary_metrics) is None
         ):
             return
-        # Never skip_if_exists: two prior runs can share a config, and a
-        # skipped enqueue would leave ask() free to sample a fresh point that
-        # then gets told this run's result -- teaching the study a value the
-        # params never produced. Repeated params are a faithful warm start.
-        self.study.enqueue_trial(data.config.flat_dict())
         # Asks directly rather than through ask_n_runs, as the enqueued params
         # are fixed and so cost an exhausted space nothing.
-        self.tell_run(self._ask_suggestion().run_id, data)
+        self.tell_run(self._ask_replay(data.config.flat_dict()).run_id, data)
+
+
+def _search_space_params(params: Any) -> dict[str, Any]:
+    """Check that a search_space function returned a dict.
+
+    Raises:
+        TypeError: If `params` is not a dict.
+    """
+    if isinstance(params, dict):
+        return params
+    kind = "None" if params is None else f"a {type(params).__name__}"
+    raise TypeError(
+        f"The scheduler.search_space function returned {kind}; it must"
+        " return a dict mapping parameter names to values"
+    )
+
+
+class _SuggestionRecorder:
+    """Wraps a trial to remember the last parameter name it was asked for."""
+
+    def __init__(self, trial: optuna.trial.BaseTrial) -> None:
+        self._trial = trial
+        self.last_name: str | None = None
+
+    def __getattr__(self, attr: str) -> Any:
+        value = getattr(self._trial, attr)
+        if not attr.startswith("suggest_"):
+            return value
+
+        def suggest(*args: Any, **kwargs: Any) -> Any:
+            self.last_name = kwargs.get("name", args[0] if args else None)
+            return value(*args, **kwargs)
+
+        return suggest
 
 
 # ---------------------------------------------------------------------------

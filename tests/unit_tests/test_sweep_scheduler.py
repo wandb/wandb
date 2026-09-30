@@ -640,6 +640,21 @@ class TestTaskErrors:
                 "releasing runs that were never scheduled",
             ),
             (
+                "prune_runs",
+                sspb.SweepSchedulerServerGenerationTask(
+                    updates=[
+                        sspb.SweepSchedulerServerRunUpdate(
+                            run=sspb.SweepSchedulerServerRunData(
+                                optimizer_run_id="0",
+                                state=sspb.SWEEP_RUN_STATE_RUNNING,
+                            )
+                        )
+                    ],
+                    prune_candidates=["0"],
+                ),
+                "checking runs for early stopping",
+            ),
+            (
                 "should_terminate_sweep",
                 sspb.SweepSchedulerServerGenerationTask(),
                 "checking whether to end the sweep",
@@ -676,7 +691,7 @@ class TestTaskErrors:
             optimizer, sspb.SweepSchedulerServerGenerationTask(ask_up_to=1)
         )
 
-        assert "Parameter 'x' has a float32 value" in message
+        assert "Parameter 'x' is a float32, which can't be saved" in message
 
     def test_optimizer_error_does_not_promise_a_resume(self) -> None:
         done = sspb.SweepSchedulerServerDoneTask(
@@ -819,6 +834,14 @@ class TerminatorContractTests(abc.ABC):
         optimizer, _ = self.make_optimizer(lambda target: np.bool_(True))
 
         assert optimizer.should_terminate_sweep() is True
+
+    def test_rejects_a_numpy_bool_array(self) -> None:
+        import numpy as np
+
+        optimizer, _ = self.make_optimizer(lambda target: np.array([True, False]))
+
+        with pytest.raises(ValueError, match="it must return True or False"):
+            optimizer.should_terminate_sweep()
 
     def test_non_bool_verdict_names_the_terminator(self) -> None:
         optimizer, _ = self.make_optimizer(lambda target: "no")

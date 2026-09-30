@@ -362,6 +362,50 @@ class TestUserErrors:
         with pytest.raises(ValueError, match="Parameter 'b' does not fit"):
             optimizer.tell_existing_finished_run(run)
 
+    def test_adopting_names_a_parameter_outside_the_space(self, study, sweep) -> None:
+        distributions = {"b": optuna.distributions.CategoricalDistribution(["x", "y"])}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+        run = Run(
+            config=RunConfig.from_values({"b": "zzz"}),
+            state=RunState.RUNNING,
+            wandb_run_id="wandb-run-id",
+        )
+
+        with pytest.raises(ValueError, match="Parameter 'b' does not fit"):
+            optimizer.tell_existing_active_run(run)
+        assert study.trials == []
+
+    @pytest.mark.parametrize("state", [RunState.FINISHED, RunState.RUNNING])
+    def test_replay_names_a_parameter_outside_the_space(
+        self, study, sweep, state: RunState
+    ) -> None:
+        def search_space(trial: optuna.Trial) -> dict[str, Any]:
+            return {"bs": trial.suggest_categorical("bs", [16, 32])}
+
+        optimizer = OptunaImperativeOptimizer(study, search_space, sweep)
+        run = RunWithMetrics(
+            config=RunConfig.from_values({"bs": 99}),
+            state=state,
+            wandb_run_id="wandb-run-id",
+            summary_metrics={"loss": 1.0},
+            history_metrics=[],
+        )
+
+        with pytest.raises(ValueError, match="Parameter 'bs' does not fit"):
+            if state == RunState.FINISHED:
+                optimizer.tell_existing_finished_run(run)
+            else:
+                optimizer.tell_existing_active_run(run)
+
+    @pytest.mark.parametrize("value", [[1], None])
+    def test_names_a_search_space_function_not_returning_a_dict(
+        self, study, sweep, value: Any
+    ) -> None:
+        optimizer = OptunaImperativeOptimizer(study, lambda trial: value, sweep)
+
+        with pytest.raises(TypeError, match="search_space function returned .*dict"):
+            optimizer.ask_n_runs(1)
+
     def test_names_a_study_that_cannot_sample_the_parameters(self, sweep) -> None:
         study = optuna.create_study(
             direction="minimize", sampler=optuna.samplers.BruteForceSampler()
