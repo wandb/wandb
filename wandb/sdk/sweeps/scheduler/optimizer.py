@@ -248,6 +248,17 @@ class Optimizer(ABC):
         """The name of the sweep this optimizer searches."""
         return self._sweep.name
 
+    @property
+    def engine(self) -> str:
+        """The search engine named in the sweep's scheduler config.
+
+        Returns:
+            The `scheduler.engine` value, or `wandb` when the sweep
+            does not name one.
+        """
+        scheduler = self._sweep.config.get("scheduler") or {}
+        return str(scheduler.get("engine") or "wandb")
+
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
         """Return True if the run should be pruned.
 
