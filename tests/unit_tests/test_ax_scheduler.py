@@ -203,8 +203,26 @@ class TestBuildAxSchedulerOptimizer:
 MIXED_CHOICE_VALUES = [1, "two", 3.0, True]
 MIXED_CHOICE_CONFIG = {
     "metric": {"name": "loss", "goal": "minimize"},
-    "parameters": {"p": {"values": MIXED_CHOICE_VALUES}},
+    "parameters": {
+        "p": {"values": MIXED_CHOICE_VALUES},
+        "x": {"min": 0.0, "max": 1.0},
+    },
 }
+
+
+def _suggested_values(parameter: dict) -> list:
+    """Return the values of `p` in suggestions from a sweep with `parameter`."""
+    config = {
+        "metric": {"name": "loss", "goal": "minimize"},
+        "parameters": {"p": parameter, "x": {"min": 0.0, "max": 1.0}},
+    }
+    optimizer = AxOptimizer(
+        create_default_client(config),
+        make_scheduler_grid_sweep(config=config),
+    )
+    suggestions = optimizer.ask_n_runs(4)
+    assert suggestions
+    return [suggestion.config["p"].value for suggestion in suggestions]
 
 
 class TestMixedTypeChoices:
@@ -220,6 +238,7 @@ class TestMixedTypeChoices:
     def test_suggestions_keep_the_sweep_values(self, optimizer: AxOptimizer) -> None:
         suggestions = optimizer.ask_n_runs(8)
 
+        assert suggestions
         for suggestion in suggestions:
             value = suggestion.config["p"].value
             assert (type(value), value) in [(type(v), v) for v in MIXED_CHOICE_VALUES]
@@ -228,7 +247,7 @@ class TestMixedTypeChoices:
         self, optimizer: AxOptimizer
     ) -> None:
         run = RunWithMetrics(
-            config=RunConfig.from_values({"p": 3}),
+            config=RunConfig.from_values({"p": 3, "x": 0.5}),
             state=RunState.FINISHED,
             wandb_run_id="old-run",
             summary_metrics={"loss": 0.5},
@@ -238,7 +257,32 @@ class TestMixedTypeChoices:
         optimizer.tell_existing_finished_run(run)
 
         trial = _experiment(optimizer.client).trials[0]
-        assert trial.arm.parameters == {"p": "3.0"}
+        assert trial.arm.parameters == {"p": "3.0", "x": 0.5}
+
+    @pytest.mark.parametrize(
+        "parameter",
+        [
+            {"value": [64, 128]},
+            {"distribution": "constant", "value": [64, 128]},
+        ],
+    )
+    def test_constant_list_reaches_runs_as_a_list(self, parameter: dict) -> None:
+        assert all(v == [64, 128] for v in _suggested_values(parameter))
+
+    def test_constant_none_reaches_runs_as_none(self) -> None:
+        assert all(v is None for v in _suggested_values({"value": None}))
+
+    @pytest.mark.parametrize(
+        "values",
+        [
+            [None, 1],
+            [{"a": 1}, {"a": 2}],
+        ],
+    )
+    def test_none_and_dict_choices_are_supported(self, values: list) -> None:
+        got = _suggested_values({"values": values})
+
+        assert all((type(v), v) in [(type(c), c) for c in values] for v in got)
 
     def test_values_with_the_same_text_are_rejected(self) -> None:
         with pytest.raises(ValueError, match="cannot tell apart"):
