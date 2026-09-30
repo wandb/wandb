@@ -95,6 +95,32 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
+def call_terminator(terminator: Callable[[Any], Any], target: Any) -> bool:
+    """Run a sweep's terminator and check that it answered True or False.
+
+    Args:
+        terminator: The terminator from the `scheduler.optimizer` function.
+        target: The study or client the terminator judges.
+
+    Raises:
+        ValueError: If the terminator raises or returns a non-bool.
+    """
+    try:
+        is_done = terminator(target)
+    except Exception as e:
+        raise ValueError(
+            "The terminator returned by the scheduler.optimizer function"
+            f" raised {type(e).__name__}: {e}"
+        ) from e
+    # numpy.bool_ is not a bool subclass; library terminators may return it.
+    if not isinstance(is_done, bool) and getattr(is_done, "dtype", None) != "bool":
+        raise ValueError(
+            "The terminator returned by the scheduler.optimizer function"
+            f" returned {is_done!r}; it must return True or False"
+        )
+    return bool(is_done)
+
+
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 

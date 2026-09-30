@@ -9,16 +9,19 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import asyncio
 import importlib.util
 import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
+from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange, describe_done
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     RunConfig,
@@ -582,6 +585,114 @@ class TestSchedulerHostOffMainThread:
         assert handler is None
 
 
+class _OneTaskService:
+    """Serves one task and then Done, keeping the result reported for it."""
+
+    def __init__(self, task: sspb.SweepSchedulerServerNextTaskResponse) -> None:
+        self.results: list[sspb.SweepSchedulerClientTaskResult] = []
+        self._responses = [
+            task,
+            sspb.SweepSchedulerServerNextTaskResponse(
+                done=sspb.SweepSchedulerServerDoneTask()
+            ),
+        ]
+
+    async def sweep_scheduler_next_task(
+        self,
+        scheduler_id: str,
+        result: sspb.SweepSchedulerClientTaskResult | None,
+    ) -> MagicMock:
+        if result is not None:
+            self.results.append(result)
+        handle = MagicMock()
+        handle.wait_async = AsyncMock(return_value=self._responses.pop(0))
+        return handle
+
+
+def _generation_error(
+    optimizer: MagicMock,
+    generation: sspb.SweepSchedulerServerGenerationTask,
+) -> str:
+    """Run one generation task and return the error message it reported."""
+    service = _OneTaskService(
+        sspb.SweepSchedulerServerNextTaskResponse(generation=generation)
+    )
+    exchange = SchedulerTaskExchange(service, "scheduler-0", optimizer)
+
+    asyncio.run(exchange.run())
+
+    (result,) = service.results
+    assert result.WhichOneof("result") == "error"
+    return result.error.message
+
+
+class TestTaskErrors:
+    """A failed task names the scheduler step that raised."""
+
+    @pytest.mark.parametrize(
+        ("hook", "generation", "step"),
+        [
+            (
+                "forget_run",
+                sspb.SweepSchedulerServerGenerationTask(
+                    discarded_optimizer_run_ids=["0"]
+                ),
+                "releasing runs that were never scheduled",
+            ),
+            (
+                "should_terminate_sweep",
+                sspb.SweepSchedulerServerGenerationTask(),
+                "checking whether to end the sweep",
+            ),
+            (
+                "ask_n_runs",
+                sspb.SweepSchedulerServerGenerationTask(ask_up_to=1),
+                "generating new runs",
+            ),
+        ],
+    )
+    def test_names_the_failing_step(
+        self,
+        hook: str,
+        generation: sspb.SweepSchedulerServerGenerationTask,
+        step: str,
+    ) -> None:
+        optimizer = MagicMock(spec=Optimizer)
+        optimizer.should_terminate_sweep.return_value = False
+        getattr(optimizer, hook).side_effect = RuntimeError("boom")
+
+        assert _generation_error(optimizer, generation) == f"{step} failed: boom"
+
+    def test_names_a_parameter_json_cannot_hold(self) -> None:
+        import numpy as np
+
+        optimizer = MagicMock(spec=Optimizer)
+        optimizer.should_terminate_sweep.return_value = False
+        optimizer.ask_n_runs.return_value = [
+            RunSuggestion(config={"lr": 0.1, "x": np.float32(0.5)}, run_id="0")
+        ]
+
+        message = _generation_error(
+            optimizer, sspb.SweepSchedulerServerGenerationTask(ask_up_to=1)
+        )
+
+        assert "Parameter 'x' has a float32 value" in message
+
+    def test_optimizer_error_does_not_promise_a_resume(self) -> None:
+        done = sspb.SweepSchedulerServerDoneTask(
+            reason=sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR,
+            message="boom",
+        )
+
+        message, is_error = describe_done(done)
+
+        assert is_error
+        assert message == (
+            "the optimizer failed; fix the error and rerun the scheduler"
+            " to resume the sweep (boom)"
+        )
+
+
 def _make_sequential_sampler(optuna_module: Any) -> Any:
     """A deterministic sampler cycling a categorical param's choices in order.
 
@@ -701,6 +812,25 @@ class TerminatorContractTests(abc.ABC):
 
         assert optimizer.should_terminate_sweep() is verdict
         terminator.assert_called_once_with(callback_arg)
+
+    def test_accepts_a_numpy_bool(self) -> None:
+        import numpy as np
+
+        optimizer, _ = self.make_optimizer(lambda target: np.bool_(True))
+
+        assert optimizer.should_terminate_sweep() is True
+
+    def test_non_bool_verdict_names_the_terminator(self) -> None:
+        optimizer, _ = self.make_optimizer(lambda target: "no")
+
+        with pytest.raises(ValueError, match="terminator .* returned 'no'"):
+            optimizer.should_terminate_sweep()
+
+    def test_raising_terminator_is_named(self) -> None:
+        optimizer, _ = self.make_optimizer(MagicMock(side_effect=KeyError("k")))
+
+        with pytest.raises(ValueError, match="terminator .* raised KeyError"):
+            optimizer.should_terminate_sweep()
 
 
 class TestOptunaOptimizerTermination(TerminatorContractTests):

@@ -18,6 +18,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    call_terminator,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -344,7 +345,9 @@ class OptunaOptimizer(Optimizer):
         `terminator` is supplied via `OptunaOptions`; the default is `None`,
         which never terminates early.
         """
-        return self._terminator is not None and self._terminator(self.study)
+        if self._terminator is None:
+            return False
+        return call_terminator(self._terminator, self.study)
 
     @override
     def validate_sweep_objective(self) -> None:
@@ -560,7 +563,12 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
     @override
     def _ask_suggestion(self) -> RunSuggestion:
         """Sample one trial from the declared distributions."""
-        trial = self.study.ask(self.distributions)
+        try:
+            trial = self.study.ask(self.distributions)
+        except ValueError as e:
+            raise ValueError(
+                f"The Optuna study could not sample the sweep's parameters: {e}"
+            ) from e
         return self._track(trial, trial.params)
 
     @override
@@ -583,6 +591,13 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         if not all(name in config for name in self.distributions):
             return
         params = {name: config[name] for name in self.distributions}
+        for name, distribution in self.distributions.items():
+            try:
+                distribution.to_internal_repr(params[name])
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
+                ) from e
         self.study.add_trial(
             optuna.trial.create_trial(
                 params=params,
@@ -616,8 +631,14 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
     def _ask_suggestion(self) -> RunSuggestion:
         """Sample one trial, running the constructor to define its params."""
         trial = self.study.ask()
-        # A define-by-run constructor returns the flat {param: value} mapping.
-        return self._track(trial, self.trial_constructor(trial))
+        try:
+            # A define-by-run constructor returns the flat {param: value} map.
+            params = self.trial_constructor(trial)
+        except Exception as e:
+            raise ValueError(
+                f"The scheduler.search_space function raised {type(e).__name__}: {e}"
+            ) from e
+        return self._track(trial, params)
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:

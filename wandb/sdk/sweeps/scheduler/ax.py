@@ -16,6 +16,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    call_terminator,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -320,7 +321,9 @@ class AxOptimizer(Optimizer):
         `terminator` comes from the sweep's `scheduler.optimizer` function;
         the default is `None`, which never terminates early.
         """
-        return self._terminator is not None and self._terminator(self.client)
+        if self._terminator is None:
+            return False
+        return call_terminator(self._terminator, self.client)
 
     @override
     def validate_sweep_objective(self) -> None:
@@ -526,10 +529,15 @@ class AxOptimizer(Optimizer):
         parameters = _experiment(self.client).search_space.parameters
         if not all(name in config for name in parameters):
             return None
-        return {
-            name: parameter.python_type(config[name])
-            for name, parameter in parameters.items()
-        }
+        params = {}
+        for name, parameter in parameters.items():
+            try:
+                params[name] = parameter.python_type(config[name])
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
+                ) from e
+        return params
 
 
 # ---------------------------------------------------------------------------

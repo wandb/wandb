@@ -9,10 +9,11 @@ following poll.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 import traceback
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
@@ -23,6 +24,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
     RunConfig,
+    RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
 )
@@ -75,6 +77,34 @@ def _to_run_with_metrics(
         summary_metrics=json.loads(data.summary_json or "{}"),
         history_metrics=json.loads(data.history_json or "[]"),
     )
+
+
+@contextlib.contextmanager
+def _failing_step(step: str) -> Iterator[None]:
+    """Prefix an error with the scheduler step that raised it."""
+    try:
+        yield
+    except Exception as e:
+        raise RuntimeError(f"{step} failed: {e}") from e
+
+
+def _config_json(suggestion: RunSuggestion) -> str:
+    """Serialize a suggestion's config, naming a value JSON cannot hold."""
+    config = suggestion.config.flat_dict()
+    try:
+        return json.dumps(config)
+    except (TypeError, ValueError) as e:
+        error = e
+    for name, value in config.items():
+        try:
+            json.dumps(value)
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                f"Parameter {name!r} has a {type(value).__name__} value, which"
+                " can't be saved to a run's config; use a plain int, float,"
+                " str, bool, list or dict"
+            ) from e
+    raise ValueError(f"The run config can't be saved: {error}") from error
 
 
 def _log_run(run: Run) -> None:
@@ -267,8 +297,9 @@ class SchedulerTaskExchange:
         self._drop_enqueued(task.discarded_optimizer_run_ids, task.updates)
         self._track_state_changes(task.updates)
 
-        for run_id in task.discarded_optimizer_run_ids:
-            self._optimizer.forget_run(run_id)
+        with _failing_step("releasing runs that were never scheduled"):
+            for run_id in task.discarded_optimizer_run_ids:
+                self._optimizer.forget_run(run_id)
 
         told: dict[str, RunWithMetrics] = {}
         for update in task.updates:
@@ -289,20 +320,23 @@ class SchedulerTaskExchange:
         # optimizer cannot judge a run it failed to ingest.
         candidates = [run_id for run_id in task.prune_candidates if run_id in told]
         if candidates:
-            result.prune.extend(
-                self._optimizer.prune_runs(
-                    candidates, [told[run_id] for run_id in candidates]
+            with _failing_step("checking runs for early stopping"):
+                result.prune.extend(
+                    self._optimizer.prune_runs(
+                        candidates, [told[run_id] for run_id in candidates]
+                    )
                 )
-            )
             for run_id in result.prune:
                 term.termlog(
                     f"Requesting early stop of run {told[run_id].wandb_run_id}."
                 )
 
-        result.terminate = self._optimizer.should_terminate_sweep()
+        with _failing_step("checking whether to end the sweep"):
+            result.terminate = self._optimizer.should_terminate_sweep()
 
         if task.ask_up_to > 0 and not result.terminate:
-            self._execute_ask(task.ask_up_to, result)
+            with _failing_step("generating new runs"):
+                self._execute_ask(task.ask_up_to, result)
 
         return result
 
@@ -336,7 +370,7 @@ class SchedulerTaskExchange:
         await_enqueue: dict[str, str] = {}
         for suggestion in suggestions:
             run_id = str(suggestion.run_id)
-            config_json = json.dumps(suggestion.config.flat_dict())
+            config_json = _config_json(suggestion)
             result.suggestions.append(
                 sspb.SweepSchedulerClientRunSuggestion(
                     optimizer_run_id=run_id,
@@ -373,7 +407,8 @@ def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:
             True,
         ),
         sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR: (
-            "the optimizer failed; the sweep can be resumed",
+            "the optimizer failed; fix the error and rerun the scheduler"
+            " to resume the sweep",
             True,
         ),
         sspb.SweepSchedulerServerDoneTask.REASON_SHUTDOWN: (

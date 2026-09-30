@@ -343,6 +343,44 @@ class TestImperativeWarmStart:
         assert [trial.values[0] for trial in trials] == [1.0, 2.0]
 
 
+class TestUserErrors:
+    """Errors from the user's study or functions say where they came from."""
+
+    def test_warm_start_names_a_parameter_outside_the_space(self, sweep) -> None:
+        distributions = {"b": optuna.distributions.CategoricalDistribution(["x", "y"])}
+        optimizer = OptunaDeclarativeOptimizer(
+            optuna.create_study(direction="minimize"), distributions, sweep
+        )
+        run = RunWithMetrics(
+            config=RunConfig.from_values({"b": "zzz"}),
+            state=RunState.FINISHED,
+            wandb_run_id="wandb-run-id",
+            summary_metrics={"loss": 1.0},
+            history_metrics=[],
+        )
+
+        with pytest.raises(ValueError, match="Parameter 'b' does not fit"):
+            optimizer.tell_existing_finished_run(run)
+
+    def test_names_a_study_that_cannot_sample_the_parameters(self, sweep) -> None:
+        study = optuna.create_study(
+            direction="minimize", sampler=optuna.samplers.BruteForceSampler()
+        )
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+        with pytest.raises(ValueError, match="study could not sample"):
+            optimizer.ask_n_runs(1)
+
+    def test_names_a_failing_search_space_function(self, study, sweep) -> None:
+        optimizer = OptunaImperativeOptimizer(
+            study, MagicMock(side_effect=KeyError("k")), sweep
+        )
+
+        with pytest.raises(ValueError, match="search_space function raised KeyError"):
+            optimizer.ask_n_runs(1)
+
+
 class TestIntermediateReporting:
     """Single-objective sweeps report intermediate values for pruning."""
 

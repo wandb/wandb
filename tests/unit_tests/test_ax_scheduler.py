@@ -22,6 +22,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     create_default_client,
     sweep_parameter_to_parameter,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import RunSuggestion
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
@@ -115,6 +116,21 @@ class TestAskNRuns:
             pytest.raises(RuntimeError, match="boom"),
         ):
             optimizer.ask_n_runs(2)
+
+
+class TestWarmStart:
+    def test_names_a_parameter_outside_the_space(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        run = make_run(
+            RunSuggestion(config={"x": "abc"}, run_id=""),
+            state=RunState.FINISHED,
+            summary={"loss": 1.0},
+        )
+
+        with pytest.raises(ValueError, match="Parameter 'x' does not fit"):
+            optimizer.tell_existing_finished_run(run)
 
 
 class TestForgetRun:
