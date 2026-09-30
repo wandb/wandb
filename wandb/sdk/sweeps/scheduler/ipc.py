@@ -228,13 +228,9 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termlog(
-                    f"Run {data.wandb_run_id} recorded with optimizer as errored."
-                )
+                term.termlog(f"Run {data.wandb_run_id} loaded as ERRORED.")
             else:
-                term.termlog(
-                    f"Run {data.wandb_run_id} recorded with optimizer as finished."
-                )
+                term.termlog(f"Run {data.wandb_run_id} loaded as FINISHED.")
 
         for data in task.active_runs:
             try:
@@ -245,11 +241,9 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termlog(
-                    f"Run {data.wandb_run_id} recorded with optimizer as errored."
-                )
+                term.termlog(f"Run {data.wandb_run_id} loaded as ERRORED.")
                 continue
-            term.termlog(f"Run {data.wandb_run_id} recorded with optimizer as running.")
+            term.termlog(f"Run {data.wandb_run_id} loaded as RUNNING.")
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)
 
