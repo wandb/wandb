@@ -196,6 +196,9 @@ def search_space_from_sweep_config(
     }
 
 
+_STEP_TOLERANCE = 1e-8
+
+
 def _run_param_value(
     name: str,
     config: dict[str, Any],
@@ -232,21 +235,48 @@ def _run_param_value(
     ):
         return value
 
-    is_int_distribution = isinstance(distribution, optuna.distributions.IntDistribution)
-    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
-    # NaN fails the range comparison, so it is rejected here too.
-    is_valid = (
-        is_number
-        and distribution.low <= value <= distribution.high
-        and (not is_int_distribution or float(value).is_integer())
-    )
-    if not is_valid:
-        expected = "an integer" if is_int_distribution else "a number"
+    if not _is_in_range_distribution(value, distribution):
         raise ValueError(
             f"The run's config sets {name!r} to {value!r}, but the search space "
-            f"expects {expected} from {distribution.low} to {distribution.high}."
+            f"expects {_describe_range_distribution(distribution)}."
         )
     return distribution.to_external_repr(distribution.to_internal_repr(value))
+
+
+def _is_in_range_distribution(
+    value: Any,
+    distribution: optuna.distributions.FloatDistribution
+    | optuna.distributions.IntDistribution,
+) -> bool:
+    """Whether a numeric distribution can produce the value."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    # NaN fails the range comparison, so it is rejected here too.
+    if not distribution.low <= value <= distribution.high:
+        return False
+
+    step = distribution.step
+    if isinstance(distribution, optuna.distributions.IntDistribution):
+        return float(value).is_integer() and (value - distribution.low) % step == 0
+    if step is None:
+        return True
+    k = (value - distribution.low) / step
+    # Matches the tolerance of Optuna's own FloatDistribution check.
+    return abs(k - round(k)) < _STEP_TOLERANCE
+
+
+def _describe_range_distribution(
+    distribution: optuna.distributions.FloatDistribution
+    | optuna.distributions.IntDistribution,
+) -> str:
+    """Describe the values a numeric distribution produces, for an error."""
+    bounds = f"from {distribution.low} to {distribution.high}"
+    if isinstance(distribution, optuna.distributions.IntDistribution):
+        if distribution.step == 1:
+            return f"an integer {bounds}"
+    elif distribution.step is None:
+        return f"a number {bounds}"
+    return f"a multiple of {distribution.step} {bounds}"
 
 
 class _WarmStartTrial(optuna.trial.FixedTrial):
@@ -258,10 +288,16 @@ class _WarmStartTrial(optuna.trial.FixedTrial):
     """
 
     @override
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], study: optuna.Study) -> None:
         super().__init__(config)
         self._config = config
+        self._study = study
         self.run_params: dict[str, Any] = {}
+
+    @property
+    def study(self) -> optuna.Study:
+        """The study being warm-started, as on a real `optuna.Trial`."""
+        return self._study
 
     def _check(
         self,
@@ -763,8 +799,19 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
     @override
     def _warm_start_params(self, config: dict[str, Any]) -> dict[str, Any]:
         # A replay finds the run's branch without adding a trial to the study.
-        replay = _WarmStartTrial(config)
-        self.trial_constructor(replay)
+        replay = _WarmStartTrial(config, self.study)
+        try:
+            self.trial_constructor(replay)
+        except AttributeError as e:
+            if e.obj is not replay:
+                raise
+            function_name = getattr(self.trial_constructor, "__name__", "")
+            raise ValueError(
+                f"The `scheduler.search_space` function {function_name!r} uses"
+                f" `trial.{e.name}`, which is unavailable when warm-starting"
+                f" from a prior run. Remove `trial.{e.name}` from the function"
+                " to warm-start from prior runs."
+            ) from None
         return replay.run_params
 
     @override

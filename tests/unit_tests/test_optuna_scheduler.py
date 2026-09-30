@@ -346,7 +346,8 @@ class TestImperativeWarmStart:
 def _optimizer_trial(trial: optuna.Trial) -> dict[str, Any]:
     optimizer = trial.suggest_categorical("optimizer", ["sgd", "adam"])
     if optimizer == "sgd":
-        return {"optimizer": optimizer, "lr": trial.suggest_float("lr", 0.0, 1.0)}
+        lr = trial.suggest_float("lr", 0.0, 1.0, step=0.25)
+        return {"optimizer": optimizer, "lr": lr}
     return {"optimizer": optimizer, "layers": trial.suggest_int("layers", 1, 4)}
 
 
@@ -423,6 +424,39 @@ class TestWarmStartValidation:
 
         assert declarative.study.get_trials(deepcopy=False) == []
 
+    @pytest.mark.parametrize(
+        ("distribution", "value", "error"),
+        [
+            (
+                optuna.distributions.FloatDistribution(0.0, 1.0, step=0.3),
+                0.5,
+                "sets 'p' to 0.5.* a multiple of 0.3 from 0.0 to 0.9",
+            ),
+            (
+                optuna.distributions.IntDistribution(0, 10, step=3),
+                4,
+                "sets 'p' to 4.* a multiple of 3 from 0 to 9",
+            ),
+        ],
+        ids=["float-step", "int-step"],
+    )
+    def test_declarative_rejects_off_step_values(
+        self,
+        sweep: SweepInfo,
+        is_active: bool,
+        distribution: optuna.distributions.BaseDistribution,
+        value: float,
+        error: str,
+    ) -> None:
+        optimizer = OptunaDeclarativeOptimizer(
+            optuna.create_study(direction="minimize"), {"p": distribution}, sweep
+        )
+
+        with pytest.raises(ValueError, match=error):
+            _warm_start(optimizer, {"p": value}, is_active=is_active)
+
+        assert optimizer.study.get_trials(deepcopy=False) == []
+
     def test_declarative_records_values_in_the_distribution_type(
         self, declarative, is_active: bool
     ) -> None:
@@ -447,8 +481,18 @@ class TestWarmStartValidation:
             ({"optimizer": "sgd"}, "no value for .* 'lr'"),
             ({"optimizer": "adam", "layers": "2"}, "sets 'layers' to '2'"),
             ({"optimizer": "rmsprop"}, "sets 'optimizer' to 'rmsprop'"),
+            (
+                {"optimizer": "sgd", "lr": 0.3},
+                "sets 'lr' to 0.3.* a multiple of 0.25 from 0.0 to 1.0",
+            ),
         ],
-        ids=["unrelated", "missing-branch-param", "string", "not-a-choice"],
+        ids=[
+            "unrelated",
+            "missing-branch-param",
+            "string",
+            "not-a-choice",
+            "off-step",
+        ],
     )
     def test_imperative_rejects_the_run(
         self, imperative, is_active: bool, config: dict[str, Any], error: str
@@ -466,6 +510,41 @@ class TestWarmStartValidation:
 
         [trial] = imperative.study.get_trials(deepcopy=False)
         assert trial.params == {"optimizer": "adam", "layers": 3}
+
+    def test_imperative_reads_the_study(
+        self, sweep: SweepInfo, is_active: bool
+    ) -> None:
+        def search_space(trial: optuna.Trial) -> dict[str, Any]:
+            assert trial.study.directions == [optuna.study.StudyDirection.MINIMIZE]
+            return {"x": trial.suggest_float("x", 0.0, 1.0)}
+
+        optimizer = OptunaImperativeOptimizer(
+            optuna.create_study(direction="minimize"), search_space, sweep
+        )
+
+        _warm_start(optimizer, {"x": 0.5}, is_active=is_active)
+
+        [trial] = optimizer.study.get_trials(deepcopy=False)
+        assert trial.params == {"x": 0.5}
+
+    def test_imperative_rejects_unsupported_trial_attribute(
+        self, sweep: SweepInfo, is_active: bool
+    ) -> None:
+        def search_space(trial: optuna.Trial) -> dict[str, Any]:
+            _ = trial.relative_params
+            return {"x": trial.suggest_float("x", 0.0, 1.0)}
+
+        optimizer = OptunaImperativeOptimizer(
+            optuna.create_study(direction="minimize"), search_space, sweep
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="function 'search_space' uses `trial.relative_params`",
+        ):
+            _warm_start(optimizer, {"x": 0.5}, is_active=is_active)
+
+        assert optimizer.study.get_trials(deepcopy=False) == []
 
 
 class TestIntermediateReporting:
