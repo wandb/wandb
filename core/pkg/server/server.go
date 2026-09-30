@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/monitor"
-	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
@@ -117,17 +116,12 @@ type ServerParams struct {
 func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
-	sweepSchedLogger := observability.NewCoreLogger(slog.Default(), nil)
-
 	return &Server{
-		serverLifetimeCtx: serverLifetimeCtx,
-		stopServer:        stopServer,
-		streamMux:         stream.NewStreamMux(),
-		runSyncManager:    runsync.NewRunSyncManager(),
-		sweepSchedBroker: scheduler.NewIPCSessionBroker(
-			scheduler.NewTaskResolverFactory(sweepSchedLogger),
-			sweepSchedLogger,
-		),
+		serverLifetimeCtx:  serverLifetimeCtx,
+		stopServer:         stopServer,
+		streamMux:          stream.NewStreamMux(),
+		runSyncManager:     runsync.NewRunSyncManager(),
+		sweepSchedBroker:   scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
 		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
 		connectionsWG:      sync.WaitGroup{},
 		parentPID:          params.ParentPID,

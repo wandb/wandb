@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import abc
 import importlib.util
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,18 @@ def make_run(
         summary_metrics=summary,
         history_metrics=history or [],
     )
+
+
+def logger_state() -> dict[str, tuple[int, frozenset[logging.Handler]]]:
+    """Return every existing logger's level and handlers, by name."""
+    loggers = [logging.getLogger()] + [
+        logger
+        for logger in logging.Logger.manager.loggerDict.values()
+        if isinstance(logger, logging.Logger)
+    ]
+    return {
+        logger.name: (logger.level, frozenset(logger.handlers)) for logger in loggers
+    }
 
 
 class OptimizerAcceptanceTests(abc.ABC):
@@ -156,6 +169,17 @@ class OptimizerAcceptanceTests(abc.ABC):
         self, optimizer: Optimizer
     ) -> None:
         assert optimizer.prune_runs([], []) == []
+
+    def test_restore_library_logs_undoes_routing(
+        self, optimizer: Optimizer, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        before = logger_state()
+
+        restore = optimizer.route_library_logs(caplog.handler)
+        restore()
+
+        after = logger_state()
+        assert {name: after[name] for name in before} == before
 
     # The better running run's final loss. Low enough that the pruner
     # under test spares that run; subclasses lower it for stricter
@@ -370,6 +394,124 @@ class TestObjectiveMetrics:
         optimizer = self.make_optimizer(MULTI_OBJECTIVE_SWEEP_CONFIG)
 
         assert optimizer.objective_values(summary) == values
+
+
+class TestSweepSchedulerCli:
+    """Tests for the `wandb sweep-scheduler` command's option handling."""
+
+    @pytest.fixture
+    def run_scheduler_mock(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
+        from wandb.sdk.sweeps.scheduler import client
+
+        mock = MagicMock(
+            return_value=(
+                sspb.SweepSchedulerServerDoneTask(
+                    reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED
+                ),
+                False,
+            )
+        )
+        monkeypatch.setattr(client, "run_scheduler", mock)
+        return mock
+
+    @pytest.fixture
+    def api(self, monkeypatch):
+        """An API with no default entity or project of its own."""
+        from unittest.mock import MagicMock
+
+        import wandb
+
+        api = MagicMock()
+        api.settings = {"entity": None, "project": None}
+        monkeypatch.setattr(wandb, "Api", lambda *a, **k: api)
+        return api
+
+    def invoke(self, *args: str):
+        from click.testing import CliRunner
+        from wandb.cli import cli
+
+        return CliRunner().invoke(cli.sweep_scheduler, args, catch_exceptions=False)
+
+    @pytest.mark.parametrize(
+        ("argv", "expected_error"),
+        [
+            (("--batch-size", "0", "e/p/s"), "--batch-size must be at least 1"),
+            # A bad sweep path must fail loudly, like the other validations.
+            (("a/b/c/d",), "Expected sweep_id in form of"),
+            (("bare-sweep-id",), "--entity and --project"),
+        ],
+        ids=["nonpositive_batch_size", "malformed_sweep_id", "no_entity_or_project"],
+    )
+    def test_bad_arguments_are_rejected(
+        self, api, run_scheduler_mock, argv, expected_error
+    ):
+        result = self.invoke(*argv)
+
+        assert result.exit_code == 1
+        assert expected_error in result.output
+        run_scheduler_mock.assert_not_called()
+
+    def test_forwards_options_to_host(self, api, run_scheduler_mock):
+        result = self.invoke("--batch-size", "4", "--poll-interval", "7", "e/p/s")
+
+        assert result.exit_code == 0
+        kwargs = run_scheduler_mock.call_args.kwargs
+        assert kwargs["entity"] == "e"
+        assert kwargs["project"] == "p"
+        assert kwargs["sweep_id"] == "s"
+        assert kwargs["batch_size"] == 4
+        assert kwargs["poll_interval"] == 7.0
+
+    def test_wandb_engine_builds_wandb_optimizer(self, api, run_scheduler_mock):
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+        result = self.invoke("e/p/s")
+        assert result.exit_code == 0
+
+        make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
+        wandb_engine = SweepInfo(
+            id="s",
+            name="s",
+            entity="e",
+            project="p",
+            config={
+                **SCHEDULER_GRID_SWEEP_CONFIG,
+                "scheduler": {"engine": "wandb"},
+            },
+        )
+        optimizer = make_optimizer(wandb_engine)
+        assert isinstance(optimizer, WandbOptimizer)
+
+    @pytest.mark.parametrize(
+        ("config", "expected_error"),
+        [
+            ({}, "Unsupported engine: None"),
+            ({"scheduler": {"engine": "genetic"}}, "Unsupported engine: genetic"),
+        ],
+        ids=["no_engine", "unknown_engine"],
+    )
+    def test_unsupported_engine_rejected(
+        self, api, run_scheduler_mock, config, expected_error
+    ):
+        result = self.invoke("e/p/s")
+        assert result.exit_code == 0
+
+        make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
+        sweep = SweepInfo(id="s", name="s", entity="e", project="p", config=config)
+        with pytest.raises(Exception, match=expected_error):
+            make_optimizer(sweep)
+
+    def test_scheduler_failure_exits_nonzero(self, api, run_scheduler_mock):
+        import wandb
+
+        run_scheduler_mock.side_effect = wandb.Error("the sweep was deleted")
+
+        result = self.invoke("e/p/s")
+
+        assert result.exit_code == 1
 
 
 class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
@@ -607,12 +749,14 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
 
     @pytest.fixture
     def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from ax.early_stopping.strategies import PercentileEarlyStoppingStrategy
         from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
         client.set_generation_strategy(
             _sequential_ax_generation_strategy("param1", [1, 2, 3])
         )
+        client.set_early_stopping_strategy(PercentileEarlyStoppingStrategy())
         return AxOptimizer(client, sweep)
 
     def prune(

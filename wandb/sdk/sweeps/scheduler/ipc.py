@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import traceback
+from collections.abc import Iterable
 
+from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
@@ -21,6 +24,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     Run,
     RunConfig,
     RunWithMetrics,
+    is_terminal_state,
 )
 
 
@@ -73,6 +77,10 @@ def _to_run_with_metrics(
     )
 
 
+def _log_run(run: Run) -> None:
+    term.termlog(f"Run {run.wandb_run_id} loaded as {run.state.name.lower()}.")
+
+
 class SchedulerTaskExchange:
     """Long-polls wandb-core for optimizer tasks and reports results."""
 
@@ -85,6 +93,14 @@ class SchedulerTaskExchange:
         self._service = service
         self._id = scheduler_id
         self._optimizer = optimizer
+
+        # Unresolved suggestions (no update or discard yet), by config JSON.
+        self._await_enqueue: dict[str, str] = {}
+
+        self._is_warm_starting = False
+
+        # Each run's last reported state, so only transitions are logged.
+        self._seen_states: dict[str, RunState] = {}
 
     async def run(self) -> sspb.SweepSchedulerServerDoneTask:
         """Exchange tasks until the scheduler is done.
@@ -121,6 +137,54 @@ class SchedulerTaskExchange:
             result = await asyncio.to_thread(self._execute, response)
             result.task_seq = response.task_seq
 
+    def _drop_enqueued(
+        self,
+        discarded: Iterable[str],
+        updates: Iterable[sspb.SweepSchedulerServerRunUpdate],
+    ) -> None:
+        """Report the fate of suggestions sent with earlier results.
+
+        A discarded suggestion was never scheduled. An enqueued one is named
+        by the W&B run id it first appears under in an update, and waits
+        until then.
+        """
+        if not self._await_enqueue:
+            return
+
+        dropped = set(discarded)
+        wandb_run_ids = {
+            update.run.optimizer_run_id: update.run.wandb_run_id for update in updates
+        }
+        for run_id, config_json in list(self._await_enqueue.items()):
+            if run_id in dropped:
+                term.termwarn(f"Run with config {config_json} was deleted.")
+            elif run_id in wandb_run_ids:
+                term.termlog(
+                    f"Enqueued run {wandb_run_ids[run_id]} with config {config_json}."
+                )
+            else:
+                continue
+            del self._await_enqueue[run_id]
+
+    def _track_state_changes(
+        self,
+        updates: Iterable[sspb.SweepSchedulerServerRunUpdate],
+    ) -> None:
+        """Report run-state transitions as the backend sees them.
+
+        A run's terminal update is its last, so the run is forgotten after it.
+        """
+        for update in updates:
+            run_id = update.run.optimizer_run_id
+            state = _run_state_from_proto(update.run.state)
+            if is_terminal_state(state):
+                self._seen_states.pop(run_id, None)
+            elif self._seen_states.get(run_id) == state:
+                continue
+            else:
+                self._seen_states[run_id] = state
+            term.termlog(f"Run {update.run.wandb_run_id} is {state.name.lower()}.")
+
     def _execute(
         self,
         response: sspb.SweepSchedulerServerNextTaskResponse,
@@ -153,28 +217,44 @@ class SchedulerTaskExchange:
     ) -> sspb.SweepSchedulerClientWarmStartResult:
         result = sspb.SweepSchedulerClientWarmStartResult()
 
+        if not self._is_warm_starting:
+            self._is_warm_starting = True
+            term.termlog("Loading run state from the backend.")
+        page_size = len(task.finished_runs) + len(task.active_runs)
+        term.termlog(f"Processing {page_size} runs in this page.")
+
         for data in task.finished_runs:
+            run = _to_run_with_metrics(data)
+            _log_run(run)
             try:
-                self._optimizer.tell_existing_finished_run(_to_run_with_metrics(data))
+                self._optimizer.tell_existing_finished_run(run)
             except Exception as e:
                 result.skipped.append(
                     sspb.SweepSchedulerClientSkippedRun(
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
+                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
 
         for data in task.active_runs:
+            run = _to_run(data)
+            _log_run(run)
             try:
-                run_id = self._optimizer.tell_existing_active_run(_to_run(data))
+                run_id = self._optimizer.tell_existing_active_run(run)
             except Exception as e:
                 result.skipped.append(
                     sspb.SweepSchedulerClientSkippedRun(
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
+                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
                 continue
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)
+
+        if not task.has_more:
+            self._is_warm_starting = False
+            term.termlog("Finished loading run state.")
 
         return result
 
@@ -183,6 +263,9 @@ class SchedulerTaskExchange:
         task: sspb.SweepSchedulerServerGenerationTask,
     ) -> sspb.SweepSchedulerClientGenerationResult:
         result = sspb.SweepSchedulerClientGenerationResult()
+
+        self._drop_enqueued(task.discarded_optimizer_run_ids, task.updates)
+        self._track_state_changes(task.updates)
 
         for run_id in task.discarded_optimizer_run_ids:
             self._optimizer.forget_run(run_id)
@@ -211,6 +294,10 @@ class SchedulerTaskExchange:
                     candidates, [told[run_id] for run_id in candidates]
                 )
             )
+            for run_id in result.prune:
+                term.termlog(
+                    f"Requesting early stop of run {told[run_id].wandb_run_id}."
+                )
 
         result.terminate = self._optimizer.should_terminate_sweep()
 
@@ -224,7 +311,13 @@ class SchedulerTaskExchange:
         ask_up_to: int,
         result: sspb.SweepSchedulerClientGenerationResult,
     ) -> None:
+        engine = self._optimizer.engine
+        term.termlog(f"{engine} optimizer is generating {ask_up_to} new runs")
+        started = time.perf_counter()
         suggestions = self._optimizer.ask_n_runs(ask_up_to)
+        elapsed = time.perf_counter() - started
+        generated = 0 if suggestions is None else len(suggestions)
+        term.termlog(f"{engine} optimizer generated {generated} runs in {elapsed:.2f}s")
 
         if suggestions is None:
             result.ask_outcome = (
@@ -240,13 +333,19 @@ class SchedulerTaskExchange:
         result.ask_outcome = (
             sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_SUGGESTED
         )
+        await_enqueue: dict[str, str] = {}
         for suggestion in suggestions:
+            run_id = str(suggestion.run_id)
+            config_json = json.dumps(suggestion.config.flat_dict())
             result.suggestions.append(
                 sspb.SweepSchedulerClientRunSuggestion(
-                    optimizer_run_id=str(suggestion.run_id),
-                    config_json=json.dumps(suggestion.config.flat_dict()),
+                    optimizer_run_id=run_id,
+                    config_json=config_json,
                 )
             )
+            await_enqueue[run_id] = config_json
+
+        self._await_enqueue.update(await_enqueue)
 
 
 def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:

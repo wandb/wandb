@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from typing_extensions import override
 import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, load_source_object
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
@@ -34,6 +36,15 @@ else:
         required="wandb[optuna] is required to use the Optuna sweep scheduler. "
         "Please run `pip install wandb[optuna]`.",
     )
+
+_TRIAL_OUTCOME_VERB: dict[optuna.trial.TrialState, str] = {
+    optuna.trial.TrialState.COMPLETE: "finished",
+    optuna.trial.TrialState.PRUNED: "pruned",
+    optuna.trial.TrialState.FAIL: "failed",
+}
+
+# Optuna's ask/tell API logs nothing on tell, so the optimizer logs outcomes.
+_logger = logging.getLogger("optuna.wandb_scheduler")
 
 TrialConstructor: TypeAlias = Callable[["optuna.Trial"], dict[str, Any]]
 TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
@@ -215,6 +226,27 @@ class OptunaOptimizer(Optimizer):
 
         super().__init__(sweep)
 
+    @override
+    def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
+        """Swap optuna's default stderr handler for `handler`.
+
+        Uses optuna's public logging switches: the "optuna" logger stops
+        propagation, so it alone sees every record the library emits.
+        """
+        library_logger = logging.getLogger("optuna")
+        verbosity = optuna.logging.get_verbosity()
+        optuna.logging.disable_default_handler()
+        library_logger.addHandler(handler)
+        if verbosity > logging.INFO:
+            optuna.logging.set_verbosity(logging.INFO)
+
+        def restore() -> None:
+            library_logger.removeHandler(handler)
+            optuna.logging.set_verbosity(verbosity)
+            optuna.logging.enable_default_handler()
+
+        return restore
+
     @property
     def _is_multi_objective(self) -> bool:
         """Whether the study optimizes more than one objective."""
@@ -251,6 +283,13 @@ class OptunaOptimizer(Optimizer):
             if _STOP_OUTSIDE_OPTIMIZE_LOOP not in str(e):
                 raise
             self._stop_requested = True
+        _logger.info(
+            "Trial %d %s%s and parameters: %s.",
+            trial.number,
+            _TRIAL_OUTCOME_VERB.get(state, state.name.lower()),
+            f" with value: {values}" if values is not None else "",
+            trial.params,
+        )
 
     def _search_is_exhausted(self) -> bool:
         """Whether the study has no unexplored point left to propose.
@@ -654,4 +693,55 @@ def make_optimizer(
     assert options.search_space is not None  # guaranteed by the check above
     return OptunaImperativeOptimizer(
         study, options.search_space, sweep, options.terminator
+    )
+
+
+def build_optuna_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> OptunaOptimizer:
+    """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
+
+    `scheduler.optimizer` names a zero-argument function in
+    `scheduler.source`. The function may return either an Optuna `Study` or
+    a `(Study, terminator)` tuple. A terminator is a one-argument function
+    that receives the study after each generation and finishes the sweep by
+    returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
+    """
+    optimizer_name: str = scheduler_config.get("optimizer", "")
+    search_space_name: str | None = scheduler_config.get("search_space")
+    source: str = scheduler_config.get("source", "")
+
+    # `search_space` picks how the parameter space is defined: when given,
+    # the loaded function is the define-by-run trial constructor; otherwise
+    # a declarative parameter space is derived from the sweep's
+    # `parameters`. Independently, `optimizer` names a study factory to
+    # call instead of building the study from the config.
+    search_space = None
+    distributions = None
+    try:
+        if search_space_name is not None:
+            search_space = load_source_object(source, search_space_name)
+        else:
+            distributions = search_space_from_sweep_config(
+                sweep.config.get("parameters", {})
+            )
+        terminator = None
+        if optimizer_name:
+            study, terminator = load_optimizer_config(
+                source, optimizer_name, "optuna.study.Study"
+            )
+        else:
+            study = create_study_from_sweep_config(sweep.config)
+    except ValueError as e:
+        raise wandb.Error(str(e)) from e
+
+    return make_optimizer(
+        study,
+        sweep,
+        OptunaOptions(
+            study=study,
+            distributions=distributions,
+            search_space=search_space,
+            terminator=terminator,
+        ),
     )

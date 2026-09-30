@@ -18,6 +18,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
     _experiment,
     _experiment_objectives,
+    build_ax_optimizer,
     create_default_client,
     sweep_parameter_to_parameter,
 )
@@ -128,6 +129,19 @@ class TestForgetRun:
         mark_failed.assert_called_once_with(trial_index=7)
 
 
+class TestPruneRun:
+    def test_a_client_without_an_early_stopping_strategy_never_prunes(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = make_run(suggestion, state=RunState.RUNNING, summary={})
+        with patch.object(client, "should_stop_trial_early") as should_stop:
+            assert optimizer.prune_run(suggestion.run_id, run) is False
+
+        should_stop.assert_not_called()
+
+
 class TestCreateDefaultClient:
     def test_configures_experiment_and_optimization_from_config(self) -> None:
         config = {
@@ -168,6 +182,21 @@ class TestCreateDefaultClient:
     def test_metric_without_a_name_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="no metric name"):
             create_default_client({"metric": {"goal": "minimize"}, "parameters": {}})
+
+
+class TestBuildAxSchedulerOptimizer:
+    def test_builds_a_default_client(self) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "ax"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, AxOptimizer)
+        assert optimizer.should_terminate_sweep() is False
 
 
 class TestUnparseableMetricName:
@@ -247,3 +276,24 @@ class TestMultiObjective:
 
         with pytest.raises(ValueError, match="disagree on the objectives"):
             AxOptimizer(client, sweep)
+
+
+class TestRouteLibraryLogs:
+    """Ax's records reach the handler the scheduler routes them to."""
+
+    def test_captures_first_trial_generation(
+        self,
+        client: Client,
+        sweep: SweepInfo,
+        caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
+        optimizer.ask_n_runs(1)
+
+        assert any(
+            record.name.startswith("ax.") and "trial 0" in record.getMessage()
+            for record in caplog.records
+        )

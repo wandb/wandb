@@ -1051,6 +1051,11 @@ def sweep(
 
     styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
     wandb.termlog(f"Run sweep agent with: {styled_path}")
+    if config is not None and config.get("scheduler") is not None:
+        styled_scheduler = click.style(
+            f"wandb sweep-scheduler {sweep_path}", fg="yellow"
+        )
+        wandb.termlog(f"Run scheduler with: {styled_scheduler}")
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -1944,7 +1949,7 @@ def scheduler(
 
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
-            "process_context": "sweep_scheduler",
+            "process_context": "launch_scheduler",
         }
     )
     wandb.termlog("Starting a Launch Scheduler 🚀")
@@ -1972,6 +1977,101 @@ def scheduler(
     except Exception as e:
         telemetry_recorder.exception(e)
         raise
+
+
+@cli.command(
+    name="sweep-scheduler",
+    context_settings=CONTEXT,
+    help="Run a local scheduler that suggests a sweep's runs (Experimental).",
+)
+@click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
+@click.option("--project", "-p", default=None, help="Project that owns the sweep.")
+@click.option(
+    "--batch-size",
+    default=10,
+    type=int,
+    help="Number of runs to keep in flight at once.",
+)
+@click.option(
+    "--poll-interval",
+    default=10.0,
+    type=float,
+    help="Seconds to wait between polls of the sweep's runs.",
+)
+@click.argument("sweep_id")
+@display_error
+def sweep_scheduler(
+    entity: str | None,
+    project: str | None,
+    batch_size: int,
+    poll_interval: float,
+    sweep_id: str,
+) -> None:
+    """Drive a scheduler-enabled sweep locally using external search engines.
+
+    A scheduler-enabled sweep must have been previously created with the config
+    `scheduler: {engine: wandb}` (or `optuna`/`ax`). This CLI will then attempt
+    to maintain `batch_size` runs in flight at once, and poll the sweep's runs
+    every `poll_interval` seconds. The CLI may be stopped and restarted at any
+    time, and will resume the sweep from the last known state.
+
+    **Do not** run multiple instances of this CLI for the same sweep. It will
+    cause duplicate runs to be generated as multiple instances will not know
+    the other's runs.
+
+    If the `source` field is used in the scheduler config, this command must be
+    run in a directory containing the Python file referenced by `source`.
+
+    The optional `optimizer` field in the sweep scheduler config must name a
+    function that returns the client for the search engine (Optuna `Study` or
+    Ax `Client`). This client **must not** be persisted to disk, as it will be
+    re-created on each restart. This custom function may be used to configure
+    the engine's sampler and pruner.
+    """
+    from wandb.sdk.sweeps.scheduler import client
+    from wandb.sdk.sweeps.scheduler.optimizer import make_optimizer
+
+    if batch_size < 1:
+        wandb.termerror("--batch-size must be at least 1")
+        sys.exit(1)
+
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "sweep_scheduler",
+        }
+    )
+
+    # Resolve the sweep the user already created with `wandb sweep`.
+    # `run_scheduler` authenticates the session itself, so the defaults are
+    # all this needs the API for.
+    api = wandb.Api()
+    parts = dict(entity=entity, project=project, name=sweep_id)
+    err = sweep_utils.parse_sweep_id(parts)
+    if err:
+        raise ClickException(err)
+    entity = parts.get("entity") or entity or api.settings["entity"]
+    project = parts.get("project") or project or api.settings["project"]
+    sweep_id = parts.get("name") or sweep_id
+    if not entity or not project:
+        raise ClickException(
+            "Pass the sweep as entity/project/sweep_id or provide "
+            "--entity and --project."
+        )
+
+    wandb.termlog(f"Starting sweep scheduler for {sweep_id} 🧹")
+    try:
+        client.run_scheduler(
+            entity=entity,
+            project=project,
+            sweep_id=sweep_id,
+            make_optimizer=make_optimizer,
+            batch_size=batch_size,
+            poll_interval=poll_interval,
+        )
+    except wandb.Error as e:
+        # run_scheduler already explained the failure.
+        telemetry_recorder.exception(e)
+        sys.exit(1)
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs.")
