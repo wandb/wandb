@@ -229,7 +229,7 @@ class TestUnusableObjectiveValue:
         [
             (float("nan"), "NaN"),
             ({"min": 0.1}, "a dict"),
-            ("0.5", "not a number"),
+            ("0.5", "a string, not a number"),
         ],
         ids=["nan", "dict", "string"],
     )

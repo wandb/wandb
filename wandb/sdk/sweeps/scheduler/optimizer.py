@@ -97,15 +97,30 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
-def _objective_value_problem(value: Any) -> str | None:
-    """Describe why a summary value can't be an objective, or None if it can."""
+def _objective_value_problem(name: str, value: Any) -> tuple[str, str] | None:
+    """Describe why a value can't be objective `name`, and how to fix it.
+
+    Returns:
+        The problem and its fix, or None if the value is usable.
+    """
     if isinstance(value, dict):
-        return "a dict, as a define_metric summary such as 'min' stores"
+        return (
+            "a dict, as a define_metric summary such as 'min' stores",
+            f"Log {name!r} as a number without a define_metric summary"
+            ' such as summary="min".',
+        )
+    if isinstance(value, str):
+        return "a string, not a number", f"Log {name!r} as a number."
     if not isinstance(value, numbers.Real):
-        return "not a number"
+        return "not a number", f"Log {name!r} as a number."
     if math.isnan(value):
-        return "NaN"
+        return "NaN", f"Log a value for {name!r} that isn't NaN."
     return None
+
+
+def is_usable_objective_value(value: Any) -> bool:
+    """Return whether the search libraries accept `value` as an objective."""
+    return isinstance(value, numbers.Real) and not math.isnan(value)
 
 
 class Optimizer(ABC):
@@ -286,14 +301,15 @@ class Optimizer(ABC):
             return None
         has_unusable = False
         for name, value in zip(self.metric_names(), values, strict=True):
-            problem = _objective_value_problem(value)
-            if problem is None:
+            problem_and_fix = _objective_value_problem(name, value)
+            if problem_and_fix is None:
                 continue
+            problem, fix = problem_and_fix
             has_unusable = True
             wandb.termwarn(
                 f"Run {data.wandb_run_id} finished with metric {name!r} ="
                 f" {value!r}, which is {problem}, so it is recorded as failed."
-                f" Make the run's summary value for {name!r} a number."
+                f" {fix}"
             )
         return None if has_unusable else values
 

@@ -19,6 +19,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
+    is_usable_objective_value,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -456,7 +457,8 @@ class OptunaOptimizer(Optimizer):
                 if step <= last:
                     continue
                 value = self.metric_value(row)
-                if value is not None:
+                # Skips a missing value, and those trial.report rejects.
+                if is_usable_objective_value(value):
                     trial.report(value, step=step)
                     last = step
             self._last_reported_step[run_id] = last
@@ -570,19 +572,22 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         The flat search space is known up front, so add_trial() is the lightest
         faithful path — no extra ask(). Runs whose config doesn't cover the
         search space are skipped (create_trial requires an exact param match).
+        A finished run whose objective isn't a number is recorded as failed.
         """
         if not is_terminal_state(data.state):
             return
-        trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
-        values = None
-        if trial_state == optuna.trial.TrialState.COMPLETE:
-            values = self.objective_values(data.summary_metrics)
-            if values is None:
-                return  # finished but never logged every objective metric
         config = data.config.flat_dict()
         if not all(name in config for name in self.distributions):
             return
         params = {name: config[name] for name in self.distributions}
+        trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
+        values = None
+        if trial_state == optuna.trial.TrialState.COMPLETE:
+            if self.objective_values(data.summary_metrics) is None:
+                return  # finished but never logged every objective metric
+            values = self.final_objective_values(data)
+            if values is None:
+                trial_state = optuna.trial.TrialState.FAIL
         self.study.add_trial(
             optuna.trial.create_trial(
                 params=params,
