@@ -215,9 +215,9 @@ class SchedulerTaskExchange:
 
         if not self._is_warm_starting:
             self._is_warm_starting = True
-            term.termlog("Starting warm start from the sweep's existing runs.")
+            term.termlog("Loading run state from the backend.")
         page_size = len(task.finished_runs) + len(task.active_runs)
-        term.termlog(f"Warm start: processing {page_size} runs in this page.")
+        term.termlog(f"Loading run state: processing {page_size} runs in this page.")
 
         for data in task.finished_runs:
             try:
@@ -255,7 +255,7 @@ class SchedulerTaskExchange:
 
         if not task.has_more:
             self._is_warm_starting = False
-            term.termlog("Finished warm start.")
+            term.termlog("Finished loading run state.")
 
         return result
 
