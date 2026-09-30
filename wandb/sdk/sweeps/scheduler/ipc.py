@@ -77,6 +77,10 @@ def _to_run_with_metrics(
     )
 
 
+def _log_run(run: Run) -> None:
+    term.termlog(f"Run {run.wandb_run_id} loaded as {run.state.name.lower()}.")
+
+
 class SchedulerTaskExchange:
     """Long-polls wandb-core for optimizer tasks and reports results."""
 
@@ -133,7 +137,7 @@ class SchedulerTaskExchange:
             result = await asyncio.to_thread(self._execute, response)
             result.task_seq = response.task_seq
 
-    def _log_enqueued(
+    def _drop_enqueued(
         self,
         discarded: Iterable[str],
         updates: Iterable[sspb.SweepSchedulerServerRunUpdate],
@@ -162,7 +166,7 @@ class SchedulerTaskExchange:
                 continue
             del self._await_enqueue[run_id]
 
-    def _log_state_changes(
+    def _track_state_changes(
         self,
         updates: Iterable[sspb.SweepSchedulerServerRunUpdate],
     ) -> None:
@@ -220,30 +224,31 @@ class SchedulerTaskExchange:
         term.termlog(f"Processing {page_size} runs in this page.")
 
         for data in task.finished_runs:
+            run = _to_run_with_metrics(data)
+            _log_run(run)
             try:
-                self._optimizer.tell_existing_finished_run(_to_run_with_metrics(data))
+                self._optimizer.tell_existing_finished_run(run)
             except Exception as e:
                 result.skipped.append(
                     sspb.SweepSchedulerClientSkippedRun(
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termlog(f"Run {data.wandb_run_id} loaded as ERRORED.")
-            else:
-                term.termlog(f"Run {data.wandb_run_id} loaded as FINISHED.")
+                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
 
         for data in task.active_runs:
+            run = _to_run(data)
+            _log_run(run)
             try:
-                run_id = self._optimizer.tell_existing_active_run(_to_run(data))
+                run_id = self._optimizer.tell_existing_active_run(run)
             except Exception as e:
                 result.skipped.append(
                     sspb.SweepSchedulerClientSkippedRun(
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termlog(f"Run {data.wandb_run_id} loaded as ERRORED.")
+                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
                 continue
-            term.termlog(f"Run {data.wandb_run_id} loaded as RUNNING.")
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)
 
@@ -259,8 +264,8 @@ class SchedulerTaskExchange:
     ) -> sspb.SweepSchedulerClientGenerationResult:
         result = sspb.SweepSchedulerClientGenerationResult()
 
-        self._log_enqueued(task.discarded_optimizer_run_ids, task.updates)
-        self._log_state_changes(task.updates)
+        self._drop_enqueued(task.discarded_optimizer_run_ids, task.updates)
+        self._track_state_changes(task.updates)
 
         for run_id in task.discarded_optimizer_run_ids:
             self._optimizer.forget_run(run_id)
@@ -340,7 +345,6 @@ class SchedulerTaskExchange:
             )
             await_enqueue[run_id] = config_json
 
-        # Logged once their fate is known; see _log_enqueued.
         self._await_enqueue.update(await_enqueue)
 
 
