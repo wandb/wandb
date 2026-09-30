@@ -410,7 +410,9 @@ class AxOptimizer(Optimizer):
                 self._finalized.add(trial_index)
                 return
             self.client.complete_trial(
-                trial_index=trial_index, raw_data=self._raw_data(values)
+                trial_index=trial_index,
+                raw_data=self._raw_data(values),
+                progression=data.summary_metrics.get("_step"),
             )
         else:  # FAILED / CRASHED / KILLED / PREEMPTED
             self.client.mark_trial_failed(trial_index=trial_index)
