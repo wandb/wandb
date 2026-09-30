@@ -781,7 +781,8 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
 			handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
-				XHistoryValueEncoding:     wrapperspb.String(test.encoding),
+				XHistoryValueEncoding: wrapperspb.String(test.encoding),
+				// skip summary records so we only get a history record
 				XServerSideDerivedSummary: wrapperspb.Bool(true),
 			})
 
@@ -803,13 +804,11 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 					assert.Nil(t, item.Value)
 				}
 			}
-			if !test.wantTyped {
-				return
+			if test.wantTyped {
+				assert.IsType(t, &spb.HistoryItem_Number{}, byKey["metric"].Value)
+				assert.IsType(t, &spb.HistoryItem_Integer{}, byKey["_step"].Value)
+				assert.IsType(t, &spb.HistoryItem_Number{}, byKey["_runtime"].Value)
 			}
-
-			assert.IsType(t, &spb.HistoryItem_Number{}, byKey["metric"].Value)
-			assert.IsType(t, &spb.HistoryItem_Integer{}, byKey["_step"].Value)
-			assert.IsType(t, &spb.HistoryItem_Number{}, byKey["_runtime"].Value)
 		})
 	}
 }
