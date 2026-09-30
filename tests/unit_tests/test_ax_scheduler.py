@@ -13,6 +13,7 @@ import ax as ax_module
 from ax.api.client import Client
 from ax.exceptions.core import DataRequiredError, OptimizationComplete
 from ax.exceptions.generation_strategy import MaxParallelismReachedException
+from wandb.errors import Error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
@@ -27,6 +28,7 @@ from wandb.sdk.sweeps.sweep_info import SweepInfo
 from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
 
 DEFAULT_CONFIG = {"metric": {"name": "loss", "goal": "minimize"}, "parameters": {}}
+X_PARAMETERS = {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}}
 
 
 def make_client() -> Client:
@@ -171,7 +173,7 @@ class TestCreateDefaultClient:
         self, name: str, goal: str, minimize: bool
     ) -> None:
         """Names Ax's objective parser mangles or rejects survive verbatim."""
-        config = {"metric": {"name": name, "goal": goal}, "parameters": {}}
+        config = {"metric": {"name": name, "goal": goal}, "parameters": X_PARAMETERS}
 
         client = create_default_client(config)
 
@@ -181,7 +183,31 @@ class TestCreateDefaultClient:
 
     def test_metric_without_a_name_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="no metric name"):
-            create_default_client({"metric": {"goal": "minimize"}, "parameters": {}})
+            create_default_client(
+                {"metric": {"goal": "minimize"}, "parameters": X_PARAMETERS}
+            )
+
+    @pytest.mark.parametrize(
+        "parameters",
+        [{}, None],
+        ids=["empty", "null"],
+    )
+    def test_missing_parameters_are_rejected(self, parameters: Any) -> None:
+        config = {"metric": {"name": "loss"}, "parameters": parameters}
+
+        with pytest.raises(ValueError, match="parameters block is missing"):
+            create_default_client(config)
+
+    def test_an_empty_metrics_list_falls_back_to_metric(self) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "maximize"},
+            "metrics": [],
+            "parameters": X_PARAMETERS,
+        }
+
+        client = create_default_client(config)
+
+        assert _experiment_objectives(client) == [("loss", False)]
 
 
 class TestBuildAxSchedulerOptimizer:
@@ -197,6 +223,13 @@ class TestBuildAxSchedulerOptimizer:
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
+
+    def test_a_sweep_without_parameters_is_a_build_error(self) -> None:
+        config = {"metric": {"name": "loss"}, "scheduler": {"engine": "ax"}}
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(Error, match="scheduler.optimizer"):
+            build_ax_optimizer(sweep, config["scheduler"])
 
 
 class TestUnparseableMetricName:

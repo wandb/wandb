@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import optuna
 import pytest
+from wandb.errors import Error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
 from wandb.sdk.sweeps.scheduler.optuna import (
@@ -172,6 +173,13 @@ class TestCreateStudyFromSweepConfig:
 
         assert [d.name.lower() for d in study.directions] == directions
 
+    def test_an_empty_metrics_list_falls_back_to_metric(self) -> None:
+        config = {"metric": {"name": "loss", "goal": "maximize"}, "metrics": []}
+
+        study = create_study_from_sweep_config(config)
+
+        assert [d.name.lower() for d in study.directions] == ["maximize"]
+
     def test_the_study_never_prunes(self) -> None:
         study = create_study_from_sweep_config({"metric": {"name": "loss"}})
 
@@ -215,6 +223,24 @@ class TestBuildOptunaSchedulerOptimizer:
         optimizer = build_optuna_optimizer(sweep, config["scheduler"])
 
         assert isinstance(optimizer, OptunaImperativeOptimizer)
+
+    @pytest.mark.parametrize(
+        "parameters",
+        [{}, None],
+        ids=["empty", "null"],
+    )
+    def test_a_declarative_sweep_without_parameters_is_rejected(
+        self, parameters: Any
+    ) -> None:
+        config = {
+            "metric": {"name": "loss"},
+            "parameters": parameters,
+            "scheduler": {"engine": "optuna"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(Error, match="scheduler.search_space"):
+            build_optuna_optimizer(sweep, config["scheduler"])
 
 
 class TestExhaustibleSampler:

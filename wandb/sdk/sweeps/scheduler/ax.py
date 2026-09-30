@@ -166,8 +166,19 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
 
 
 def sweep_config_to_search_space(config: dict[str, Any]) -> list[Any]:
-    """Convert a sweep config's `parameters` block into an Ax search space."""
-    return sweep_parameters_to_search_space(config.get("parameters", {}))
+    """Convert a sweep config's `parameters` block into an Ax search space.
+
+    Raises:
+        ValueError: If the block is missing or empty.
+    """
+    parameters = config.get("parameters")
+    if not parameters:
+        raise ValueError(
+            "The sweep config's parameters block is missing or empty; declare"
+            " at least one parameter, or set scheduler.optimizer to a function"
+            " that returns a configured Ax Client."
+        )
+    return sweep_parameters_to_search_space(parameters)
 
 
 def sweep_parameters_to_search_space(
@@ -194,7 +205,7 @@ def sweep_config_to_metrics(config: dict[str, Any]) -> list[Any]:
     single-objective one in `metric`.
     """
     metrics = config.get("metrics")
-    if metrics is not None:
+    if metrics:
         return [sweep_objective_to_metric(objective) for objective in metrics]
     return [sweep_objective_to_metric(config.get("metric", {}))]
 
@@ -616,6 +627,9 @@ def build_ax_optimizer(
         except ValueError as e:
             raise wandb.Error(str(e)) from e
     else:
-        client = create_default_client(sweep.config)
+        try:
+            client = create_default_client(sweep.config)
+        except ValueError as e:
+            raise wandb.Error(str(e)) from e
 
     return AxOptimizer(client, sweep, terminator)

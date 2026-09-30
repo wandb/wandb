@@ -237,14 +237,14 @@ class Optimizer(ABC):
         in `metric`.
         """
         metrics = self._sweep.config.get("metrics")
-        if metrics is not None:
+        if metrics:
             return [metric["name"] for metric in metrics if "name" in metric]
         return [self.metric_key()]
 
     def metric_goals(self) -> list[str]:
         """Return the sweep's objective goals, ordered as `metric_names`."""
         metrics = self._sweep.config.get("metrics")
-        if metrics is None:
+        if not metrics:
             metrics = [self._sweep.config.get("metric") or {}]
         return [str(metric.get("goal", "minimize")).lower() for metric in metrics]
 

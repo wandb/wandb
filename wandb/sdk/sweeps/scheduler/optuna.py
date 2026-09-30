@@ -196,6 +196,22 @@ def search_space_from_sweep_config(
     }
 
 
+def required_sweep_parameters(config: dict[str, Any]) -> dict[str, Any]:
+    """Return a sweep config's `parameters` block for a declarative search.
+
+    Raises:
+        ValueError: If the block is missing or empty.
+    """
+    parameters = config.get("parameters")
+    if not parameters:
+        raise ValueError(
+            "The sweep config's parameters block is missing or empty; declare"
+            " at least one parameter, or set scheduler.search_space to a"
+            " define-by-run function."
+        )
+    return parameters
+
+
 class OptunaOptimizer(Optimizer):
     """Base `Optimizer` driving a W&B sweep from an optuna study.
 
@@ -359,7 +375,7 @@ class OptunaOptimizer(Optimizer):
         the source of truth.
         """
         metrics = self._sweep.config.get("metrics")
-        if metrics is not None:
+        if metrics:
             if len(self.study.directions) != len(metrics):
                 raise ValueError(
                     f"Study has {len(self.study.directions)} objectives but the "
@@ -659,14 +675,14 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
 def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     """Build an optuna study from a sweep config's metric objective(s).
 
-    When `config["metrics"]` is set, a multi-objective study is created with
-    `directions=` derived from each entry's `goal` (default `"minimize"`).
+    When `config["metrics"]` is non-empty, a multi-objective study is created
+    with `directions=` derived from each entry's `goal` (default `"minimize"`).
     Otherwise a single-objective study is created from
     `config["metric"]["goal"]`.
     """
     metrics = config.get("metrics")
     pruner = optuna.pruners.NopPruner()
-    if metrics is not None:
+    if metrics:
         directions = [str(metric.get("goal", "minimize")).lower() for metric in metrics]
         return optuna.create_study(directions=directions, pruner=pruner)
     goal = (config.get("metric") or {}).get("goal", "minimize")
@@ -723,7 +739,7 @@ def build_optuna_optimizer(
             search_space = load_source_object(source, search_space_name)
         else:
             distributions = search_space_from_sweep_config(
-                sweep.config.get("parameters", {})
+                required_sweep_parameters(sweep.config)
             )
         terminator = None
         if optimizer_name:
