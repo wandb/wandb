@@ -165,6 +165,7 @@ class TestCreateDefaultClient:
             ("1_loss", "minimize", True),
             ("acc %", "minimize", True),
             ("accuracy", "maximize", False),
+            ("accuracy", "MAXIMIZE", False),
         ],
     )
     def test_objective_keeps_the_metric_name_and_goal(
@@ -275,6 +276,14 @@ class TestMultiObjective:
         sweep = make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_CONFIG)
 
         with pytest.raises(ValueError, match="disagree on the objectives"):
+            AxOptimizer(client, sweep)
+
+    def test_a_mismatched_direction_names_the_objective_to_set(self) -> None:
+        client = make_client()
+        client.configure_optimization(objective="loss, accuracy")
+        sweep = make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_CONFIG)
+
+        with pytest.raises(ValueError, match=r"objective='-loss, accuracy'"):
             AxOptimizer(client, sweep)
 
 

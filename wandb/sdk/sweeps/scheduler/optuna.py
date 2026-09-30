@@ -19,6 +19,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
+    metric_goal,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -365,9 +366,7 @@ class OptunaOptimizer(Optimizer):
                     f"Study has {len(self.study.directions)} objectives but the "
                     f"sweep config declares {len(metrics)} metrics."
                 )
-            sweep_directions = [
-                str(metric.get("goal", "minimize")).lower() for metric in metrics
-            ]
+            sweep_directions = [metric_goal(metric) for metric in metrics]
             study_directions = [d.name.lower() for d in self.study.directions]
             if study_directions != sweep_directions:
                 raise ValueError(
@@ -392,7 +391,7 @@ class OptunaOptimizer(Optimizer):
             )
 
         metric = self._sweep.config.get("metric") or {}
-        goal = str(metric.get("goal", "minimize")).lower()
+        goal = metric_goal(metric)
         study_direction = self.study.direction.name.lower()
         if study_direction != goal:
             raise ValueError(
@@ -667,9 +666,9 @@ def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     metrics = config.get("metrics")
     pruner = optuna.pruners.NopPruner()
     if metrics is not None:
-        directions = [str(metric.get("goal", "minimize")).lower() for metric in metrics]
+        directions = [metric_goal(metric) for metric in metrics]
         return optuna.create_study(directions=directions, pruner=pruner)
-    goal = (config.get("metric") or {}).get("goal", "minimize")
+    goal = metric_goal(config.get("metric") or {})
     return optuna.create_study(direction=goal, pruner=pruner)
 
 

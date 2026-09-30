@@ -17,6 +17,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
+    metric_goal,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -217,7 +218,7 @@ def sweep_objective_to_metric(objective: dict[str, Any]) -> Any:
         )
     return MapMetric(
         name=objective["name"],
-        lower_is_better=objective.get("goal") != "maximize",
+        lower_is_better=metric_goal(objective) != "maximize",
     )
 
 
@@ -263,6 +264,17 @@ def _experiment_objectives(client: ax.Client) -> list[tuple[str, bool]]:
     if not weights:
         raise ValueError("The Ax experiment's objective covers no metric.")
     return [(name, weight < 0) for name, weight in weights]
+
+
+def _objective_expression(names: list[str], goals: list[str]) -> str:
+    """Return the `configure_optimization` objective matching the sweep goals.
+
+    Ax minimizes a metric written with a leading `-` and maximizes one without.
+    """
+    return ", ".join(
+        f"-{name}" if goal != "maximize" else name
+        for name, goal in zip(names, goals, strict=True)
+    )
 
 
 class AxOptimizer(Optimizer):
@@ -340,10 +352,12 @@ class AxOptimizer(Optimizer):
         ):
             goal = "minimize" if minimize else "maximize"
             if goal != sweep_goal:
+                expression = _objective_expression(sweep_names, sweep_goals)
                 raise ValueError(
-                    f"Ax objective direction {goal!r} for {metric_name!r} does not "
-                    f"match the sweep metric goal {sweep_goal!r}; set the experiment "
-                    f"objective to {sweep_goal!r}."
+                    f"The Ax client's objective {goal}s {metric_name!r}, but the "
+                    f"sweep config's metric goal is {sweep_goal!r}; configure the "
+                    f"client with objective={expression!r}, or call "
+                    "configure_sweep_objective(client, config)."
                 )
             if metric_name != sweep_name:
                 raise ValueError(

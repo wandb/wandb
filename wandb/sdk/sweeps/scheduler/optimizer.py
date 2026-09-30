@@ -95,6 +95,11 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
+def metric_goal(metric: dict[str, Any]) -> str:
+    """Return a sweep metric's goal, lowercased; the default is `"minimize"`."""
+    return str(metric.get("goal", "minimize")).lower()
+
+
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
@@ -246,7 +251,7 @@ class Optimizer(ABC):
         metrics = self._sweep.config.get("metrics")
         if metrics is None:
             metrics = [self._sweep.config.get("metric") or {}]
-        return [str(metric.get("goal", "minimize")).lower() for metric in metrics]
+        return [metric_goal(metric) for metric in metrics]
 
     def objective_values(self, metrics: dict[str, Any]) -> list[Any] | None:
         """Return a run's objective values, or None if any of them is missing.

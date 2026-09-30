@@ -153,6 +153,7 @@ class TestCreateStudyFromSweepConfig:
         ("objective", "directions"),
         [
             ({"metric": {"name": "loss", "goal": "maximize"}}, ["maximize"]),
+            ({"metric": {"name": "loss", "goal": "MAXIMIZE"}}, ["maximize"]),
             (
                 {
                     "metrics": [
@@ -163,7 +164,7 @@ class TestCreateStudyFromSweepConfig:
                 ["minimize", "maximize"],
             ),
         ],
-        ids=["metric", "metrics"],
+        ids=["metric", "metric_uppercase", "metrics"],
     )
     def test_creates_a_direction_per_declared_objective(
         self, objective: dict[str, Any], directions: list[str]
