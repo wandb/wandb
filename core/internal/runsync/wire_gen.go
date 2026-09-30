@@ -35,7 +35,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 	clientID := sharedmode.RandomClientID()
 	credentialProvider := stream.CredentialsFromSettings(logger, settings2)
 	peeker := &observability.Peeker{}
-	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2)
+	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2, traceStarter)
 	featureProvider := featurechecker.New(client, logger)
 	runHandle := runhandle.New()
 	recordParserFactory := &stream.RecordParserFactory{
@@ -94,8 +94,8 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
-		TraceStarter:            traceStarter,
 		Stats:                   stats,
+		TraceStarter:            traceStarter,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   logger,

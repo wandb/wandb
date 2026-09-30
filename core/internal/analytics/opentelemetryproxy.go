@@ -57,7 +57,7 @@ const (
 
 	// rootTraceSampleRate is the fraction of spans that get sampled.
 	rootTraceSampleRate     = 0.01
-	traceMaxQueueSize       = 2048
+	traceMaxQueueSize       = 512
 	traceMaxExportBatchSize = 512
 
 	// unitSeconds, unitBytes and unitCount are the UCUM unit strings for the
@@ -70,7 +70,7 @@ const (
 	UnitCount        = "1"
 )
 
-var noopTracer = noop.NewTracerProvider().Tracer("wandb-analytics")
+var noopTracer = noop.NewTracerProvider().Tracer("NoOp")
 
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
 //
@@ -321,35 +321,6 @@ func (r *TelemetryRecorder) IncrementCounter(
 	r.AddToCounter(ctx, name, 1, lowCardinalityAttributes)
 }
 
-// StartSpan starts recording an OpenTelemetry span.
-func (r *TelemetryRecorder) StartSpan(
-	ctx context.Context,
-	name string,
-	options ...traceapi.SpanStartOption,
-) (context.Context, traceapi.Span) {
-	if r == nil {
-		return noopTracer.Start(ctx, name, options...)
-	}
-	return r.root.startSpan(ctx, name, options...)
-}
-
-// RecordDuration records a duration histogram metric in seconds with the
-// telemetry context's low-cardinality attributes.
-func (r *TelemetryRecorder) RecordDuration(
-	ctx context.Context,
-	name string,
-	delta int64,
-	lowCardinalityAttributes *LowCardinalityAttributes,
-) {
-	if r == nil {
-		return
-	}
-	mergedLowCardinalityAttributes := r.telemetryContext.
-		lowCardinalityAttributes.
-		merge(lowCardinalityAttributes)
-	r.root.addToCounter(ctx, name, delta, mergedLowCardinalityAttributes)
-}
-
 // AddCounter increases a counter metric by delta with the telemetry
 // context's low-cardinality attributes.
 func (r *TelemetryRecorder) AddToCounter(
@@ -361,6 +332,7 @@ func (r *TelemetryRecorder) AddToCounter(
 	if r == nil {
 		return
 	}
+
 	mergedLowCardinalityAttributes := r.telemetryContext.
 		lowCardinalityAttributes.
 		merge(lowCardinalityAttributes)
@@ -572,6 +544,18 @@ func (r *TelemetryRecorder) ErrorLog(
 		logAttributes,
 		otellogapi.SeverityError,
 	)
+}
+
+// StartSpan starts recording an OpenTelemetry span.
+func (r *TelemetryRecorder) StartSpan(
+	ctx context.Context,
+	name string,
+	options ...traceapi.SpanStartOption,
+) (context.Context, traceapi.Span) {
+	if r == nil {
+		return noopTracer.Start(ctx, name, options...)
+	}
+	return r.root.startSpan(ctx, name, options...)
 }
 
 // OpenTelemetryProxy sends telemetry signals through the W&B backend proxy.
@@ -857,7 +841,9 @@ func (o *OpenTelemetryProxy) setupTraces(
 	return oteltrace.NewTracerProvider(
 		oteltrace.WithResource(res),
 		oteltrace.WithSampler(
-			// ParentBased sampler always samples a span whose parent is sampled.
+			// ParentBased sampler always samples a span
+			// whose parent is being sampled,
+			//
 			// Otherwise a span is sampled based on rootTraceSampleRate.
 			oteltrace.ParentBased(
 				oteltrace.TraceIDRatioBased(rootTraceSampleRate),
@@ -979,9 +965,11 @@ func (o *OpenTelemetryProxy) defineHistogram(
 	if o == nil {
 		return nil
 	}
+
 	if _, defined := o.histograms.Load(name); defined {
 		return fmt.Errorf("analytics: %q is already defined", name)
 	}
+
 	histogram, err := o.meterProvider.Meter(o.serviceName).Float64Histogram(
 		name,
 		otelmetric.WithUnit(unit),
@@ -991,6 +979,7 @@ func (o *OpenTelemetryProxy) defineHistogram(
 	if err != nil {
 		return fmt.Errorf("analytics: defining %q: %w", name, err)
 	}
+
 	o.histograms.Store(name, histogramCacheEntry{histogram, unit})
 	return nil
 }
@@ -1004,6 +993,7 @@ func (o *OpenTelemetryProxy) histogram(
 		entry := cached.(histogramCacheEntry)
 		return entry.histogram, entry.unit, true
 	}
+
 	return nil, "", false
 }
 

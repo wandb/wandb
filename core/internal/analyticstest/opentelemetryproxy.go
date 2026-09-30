@@ -277,56 +277,6 @@ func (s *OpenTelemetryProxyTest) addLogs(body []byte) error {
 	return nil
 }
 
-func (s *OpenTelemetryProxyTest) addTraces(body []byte) error {
-	var request coltracepb.ExportTraceServiceRequest
-	if err := proto.Unmarshal(body, &request); err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, resourceSpans := range request.GetResourceSpans() {
-		for _, scopeSpans := range resourceSpans.GetScopeSpans() {
-			for _, otlpSpan := range scopeSpans.GetSpans() {
-				eventNames := make([]string, 0, len(otlpSpan.GetEvents()))
-				for _, event := range otlpSpan.GetEvents() {
-					eventNames = append(eventNames, event.GetName())
-				}
-				var parentSpanID traceapi.SpanID
-				if parentBytes := otlpSpan.GetParentSpanId(); len(
-					parentBytes,
-				) == len(
-					parentSpanID,
-				) {
-					parentSpanID = traceapi.SpanID(parentBytes)
-				}
-				s.spans = append(s.spans, Span{
-					Name:         otlpSpan.GetName(),
-					TraceID:      traceapi.TraceID(otlpSpan.GetTraceId()),
-					SpanID:       traceapi.SpanID(otlpSpan.GetSpanId()),
-					ParentSpanID: parentSpanID,
-					Attributes:   keyValuesToMap(otlpSpan.GetAttributes()),
-					StatusCode:   statusCode(otlpSpan.GetStatus().GetCode()),
-					Status:       otlpSpan.GetStatus().GetMessage(),
-					EventNames:   eventNames,
-				})
-			}
-		}
-	}
-	return nil
-}
-
-func statusCode(code tracepb.Status_StatusCode) codes.Code {
-	switch code {
-	case tracepb.Status_STATUS_CODE_ERROR:
-		return codes.Error
-	case tracepb.Status_STATUS_CODE_OK:
-		return codes.Ok
-	default:
-		return codes.Unset
-	}
-}
-
 func (s *OpenTelemetryProxyTest) addMetrics(body []byte) error {
 	var request colmetricspb.ExportMetricsServiceRequest
 	if err := proto.Unmarshal(body, &request); err != nil {
@@ -383,4 +333,54 @@ func keyValuesToMap(keyValues []*commonpb.KeyValue) map[string]string {
 		attributes[keyValue.GetKey()] = keyValue.GetValue().GetStringValue()
 	}
 	return attributes
+}
+
+func (s *OpenTelemetryProxyTest) addTraces(body []byte) error {
+	var request coltracepb.ExportTraceServiceRequest
+	if err := proto.Unmarshal(body, &request); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, resourceSpans := range request.GetResourceSpans() {
+		for _, scopeSpans := range resourceSpans.GetScopeSpans() {
+			for _, otlpSpan := range scopeSpans.GetSpans() {
+				eventNames := make([]string, 0, len(otlpSpan.GetEvents()))
+				for _, event := range otlpSpan.GetEvents() {
+					eventNames = append(eventNames, event.GetName())
+				}
+				var parentSpanID traceapi.SpanID
+				if parentBytes := otlpSpan.GetParentSpanId(); len(
+					parentBytes,
+				) == len(
+					parentSpanID,
+				) {
+					parentSpanID = traceapi.SpanID(parentBytes)
+				}
+				s.spans = append(s.spans, Span{
+					Name:         otlpSpan.GetName(),
+					TraceID:      traceapi.TraceID(otlpSpan.GetTraceId()),
+					SpanID:       traceapi.SpanID(otlpSpan.GetSpanId()),
+					ParentSpanID: parentSpanID,
+					Attributes:   keyValuesToMap(otlpSpan.GetAttributes()),
+					StatusCode:   statusCode(otlpSpan.GetStatus().GetCode()),
+					Status:       otlpSpan.GetStatus().GetMessage(),
+					EventNames:   eventNames,
+				})
+			}
+		}
+	}
+	return nil
+}
+
+func statusCode(code tracepb.Status_StatusCode) codes.Code {
+	switch code {
+	case tracepb.Status_STATUS_CODE_ERROR:
+		return codes.Error
+	case tracepb.Status_STATUS_CODE_OK:
+		return codes.Ok
+	default:
+		return codes.Unset
+	}
 }

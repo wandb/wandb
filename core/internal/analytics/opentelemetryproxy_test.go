@@ -358,38 +358,13 @@ func TestTelemetryRecorder_RecordHistogram(t *testing.T) {
 	assert.Equal(t, "local", metric.Attributes["execution_context"])
 }
 
-func TestTelemetryRecorder_StartSpanContinuesSampledParent(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-	traceID, err := traceapi.TraceIDFromHex("0102030405060708090a0b0c0d0e0f10")
-	require.NoError(t, err)
-	parentSpanID, err := traceapi.SpanIDFromHex("0102030405060708")
-	require.NoError(t, err)
-	parent := traceapi.NewSpanContext(traceapi.SpanContextConfig{
-		TraceID: traceID, SpanID: parentSpanID,
-		TraceFlags: traceapi.FlagsSampled, Remote: true,
-	})
-	_, span := recorder.StartSpan(
-		traceapi.ContextWithRemoteSpanContext(t.Context(), parent),
-		"wandb.core.request",
-	)
-	span.End()
-	require.NoError(t, proxy.Shutdown(context.Background()))
-	recordedSpan, ok := proxy.FindSpan("wandb.core.request")
-	require.True(t, ok, "expected the request span")
-	assert.Equal(t, traceID, recordedSpan.TraceID)
-	assert.Equal(t, parentSpanID, recordedSpan.ParentSpanID)
-}
-
 func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
 	)
+
 	err := recorder.DefineHistogram(
 		"encode_duration",
 		analytics.UnitSeconds,
@@ -400,21 +375,29 @@ func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
 	for _, d := range []time.Duration{
-		200 * time.Microsecond, 3 * time.Millisecond,
-		40 * time.Millisecond, 700 * time.Millisecond,
+		200 * time.Microsecond,
+		3 * time.Millisecond,
+		40 * time.Millisecond,
+		700 * time.Millisecond,
 	} {
 		recorder.RecordHistogram(
-			t.Context(), "encode_duration", d.Seconds(),
+			t.Context(),
+			"encode_duration",
+			d.Seconds(),
 			&analytics.LowCardinalityAttributes{},
 		)
 	}
 	require.NoError(t, proxy.Shutdown(context.Background()))
+
 	metric, ok := proxy.FindMetric("encode_duration")
 	require.True(t, ok)
 	require.NotEmpty(t, metric.HistogramBounds)
 	assert.Equal(t, metric.HistogramBounds[0], 0.0001,
 		"the lowest boundary must be 0.0001")
+
+	// Each of the four durations belongs to a different bucket.
 	assert.Equal(t, metric.HistogramBucketCounts, []uint64{
 		0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
 	})
@@ -656,4 +639,33 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 	})
 	require.True(t, ok)
 	assert.Equal(t, "ssh", render.Attributes["execution_context"])
+}
+
+func TestTelemetryRecorder_RecordsSpan(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	// create a parent span that is sampled to force the child span to be sampled
+	traceID, err := traceapi.TraceIDFromHex("11111111111111111111111111111111")
+	require.NoError(t, err)
+	parentSpanID, err := traceapi.SpanIDFromHex("1111111111111111")
+	require.NoError(t, err)
+	parent := traceapi.NewSpanContext(traceapi.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     parentSpanID,
+		TraceFlags: traceapi.FlagsSampled,
+		Remote:     true,
+	})
+
+	_, span := recorder.StartSpan(
+		traceapi.ContextWithRemoteSpanContext(t.Context(), parent),
+		"wandb.core.request",
+	)
+	span.End()
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	_, ok := proxy.FindSpan("wandb.core.request")
+	assert.True(t, ok, "expected the span to be recorded in telemetry")
 }

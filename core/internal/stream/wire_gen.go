@@ -36,7 +36,8 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}
-	client := NewTracedGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2, openTelemetryProxy)
+	traceStarter := NewOtelTraceStarter(openTelemetryProxy)
+	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2, traceStarter)
 	featureProvider := featurechecker.New(client, coreLogger)
 	runHandle := runhandle.New()
 	flowControlFactory := &FlowControlFactory{
@@ -98,7 +99,6 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Settings:     settings2,
 	}
 	historyStepTracker := NewHistoryStepTracker(coreLogger, runHandle)
-	traceStarter := NewOtelTraceStarter(openTelemetryProxy)
 	senderFactory := &SenderFactory{
 		BaseURL:                 wbBaseURL,
 		ClientID:                clientID,
@@ -118,8 +118,8 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
-		TraceStarter:            traceStarter,
 		Stats:                   stats,
+		TraceStarter:            traceStarter,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
@@ -140,8 +140,8 @@ var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings,
 	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, fileStreamStatsProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
+	NewGraphQLClient,
 	NewOtelTraceStarter,
-	NewTracedGraphQLClient,
 	provideFileWatcher,
 	providePrinter,
 	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,

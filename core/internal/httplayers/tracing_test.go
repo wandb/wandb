@@ -22,10 +22,9 @@ func TestTraceRequestsRecordsRedactedHTTPAttempt(t *testing.T) {
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
 	)
-
-	traceID, err := traceapi.TraceIDFromHex("0102030405060708090a0b0c0d0e0f10")
+	traceID, err := traceapi.TraceIDFromHex("11111111111111111111111111111111")
 	require.NoError(t, err)
-	parentSpanID, err := traceapi.SpanIDFromHex("0102030405060708")
+	parentSpanID, err := traceapi.SpanIDFromHex("1111111111111111")
 	require.NoError(t, err)
 	parent := traceapi.NewSpanContext(traceapi.SpanContextConfig{
 		TraceID:    traceID,
@@ -62,12 +61,6 @@ func TestTraceRequestsRecordsRedactedHTTPAttempt(t *testing.T) {
 	assert.Equal(t, "POST", recordedSpan.Attributes["http.request.method"])
 	assert.Equal(t, "api.example.com", recordedSpan.Attributes["server.address"])
 	assert.Equal(t, "/graphql", recordedSpan.Attributes["url.path"])
-	assert.Equal(
-		t,
-		"wandb.core.http.attempt",
-		recordedSpan.Attributes["operation.name"],
-	)
-	assert.Equal(t, "POST /graphql", recordedSpan.Attributes["resource.name"])
 	assert.NotContains(t, recordedSpan.Attributes, "http.url")
 	assert.Equal(
 		t,

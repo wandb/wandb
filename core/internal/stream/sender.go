@@ -66,9 +66,8 @@ type SenderFactory struct {
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 	HistoryStepTracker      *HistoryStepTracker
-
-	TraceStarter httplayers.TraceStarter
-	Stats        *filestreamstats.Stats
+	Stats                   *filestreamstats.Stats
+	TraceStarter            httplayers.TraceStarter
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.

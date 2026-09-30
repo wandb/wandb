@@ -62,66 +62,10 @@ func CredentialsFromSettings(
 	return credentialProvider
 }
 
-// NewOtelTraceStarter returns the httplayers.TraceStarter that roots spans
-// for outbound HTTP requests to the backend using the run's OpenTelemetry
-// proxy.
+// NewGraphQLClient creates a new GraphQL client.
 //
-// It is not used to propagate tracing across the handler/sender pipeline.
-func NewOtelTraceStarter(
-	otelProxy *analytics.OpenTelemetryProxy,
-) httplayers.TraceStarter {
-	return analytics.NewTelemetryRecorder(
-		otelProxy,
-		analytics.NewTelemetryContext(),
-	)
-}
-
-// NewGraphQLClient creates a GraphQL client without tracing.
+// If the offline setting is true, it returns nil.
 func NewGraphQLClient(
-	baseURL api.WBBaseURL,
-	clientID sharedmode.ClientID,
-	credentialProvider api.CredentialProvider,
-	logger *observability.CoreLogger,
-	peeker *observability.Peeker,
-	s *settings.Settings,
-) graphql.Client {
-	return newGraphQLClient(
-		baseURL,
-		clientID,
-		credentialProvider,
-		logger,
-		peeker,
-		s,
-		nil,
-	)
-}
-
-// NewTracedGraphQLClient creates a GraphQL client whose HTTP attempts are
-// children of the supplied W&B telemetry context.
-func NewTracedGraphQLClient(
-	baseURL api.WBBaseURL,
-	clientID sharedmode.ClientID,
-	credentialProvider api.CredentialProvider,
-	logger *observability.CoreLogger,
-	peeker *observability.Peeker,
-	s *settings.Settings,
-	otelProxy *analytics.OpenTelemetryProxy,
-) graphql.Client {
-	return newGraphQLClient(
-		baseURL,
-		clientID,
-		credentialProvider,
-		logger,
-		peeker,
-		s,
-		analytics.NewTelemetryRecorder(
-			otelProxy,
-			analytics.NewTelemetryContext(),
-		),
-	)
-}
-
-func newGraphQLClient(
 	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
 	credentialProvider api.CredentialProvider,
@@ -290,5 +234,16 @@ func NewFileTransferManager(
 			FileTransfers:     fileTransfers,
 			FileTransferStats: fileTransferStats,
 		},
+	)
+}
+
+// NewOtelTraceStarter returns the httplayers.TraceStarter
+// which traces outbound HTTP requests to the backend.
+func NewOtelTraceStarter(
+	otelProxy *analytics.OpenTelemetryProxy,
+) httplayers.TraceStarter {
+	return analytics.NewTelemetryRecorder(
+		otelProxy,
+		analytics.NewTelemetryContext(),
 	)
 }
