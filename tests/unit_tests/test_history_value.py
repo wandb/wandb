@@ -13,11 +13,11 @@ INT64_MAX = 2**63 - 1
 INT64_MIN = -(2**63)
 
 
-def make_typed_value(value: Any) -> pb.HistoryValue:
+def make_typed_value(value: Any) -> pb.HistoryItem:
     """Return the typed form of one logged value."""
     item = pb.HistoryItem(key="k")
     set_history_value(item, value, json_form=False, typed_form=True)
-    return item.value
+    return item
 
 
 @pytest.mark.parametrize(
@@ -98,8 +98,8 @@ def test_unicode(value, field, expected):
         typed_form=True,
     )
 
-    assert item.value.WhichOneof("value") == field
-    assert getattr(item.value, field) == expected
+    assert item.WhichOneof("value") == field
+    assert getattr(item, field) == expected
     assert item.value_json == ""
     item.SerializeToString()
 
@@ -146,7 +146,7 @@ def test_json_form_is_shared_with_the_json_case():
     item = pb.HistoryItem(key="k")
     set_history_value(item, {"a": 1}, json_form=True, typed_form=True)
 
-    assert item.value.json == item.value_json
+    assert item.json == item.value_json
 
 
 def test_neither_form_leaves_the_item_empty():
@@ -154,7 +154,7 @@ def test_neither_form_leaves_the_item_empty():
     set_history_value(item, 1, json_form=False, typed_form=False)
 
     assert item.value_json == ""
-    assert not item.HasField("value")
+    assert not item.WhichOneof("value")
 
 
 def test_json_form_only_does_not_set_the_typed_value():
@@ -162,7 +162,7 @@ def test_json_form_only_does_not_set_the_typed_value():
     set_history_value(item, 1, json_form=True, typed_form=False)
 
     assert item.value_json == "1"
-    assert not item.HasField("value")
+    assert not item.WhichOneof("value")
 
 
 def test_typed_form_only_does_not_set_the_json_value():
@@ -170,7 +170,7 @@ def test_typed_form_only_does_not_set_the_json_value():
     set_history_value(item, 1, json_form=False, typed_form=True)
 
     assert item.value_json == ""
-    assert item.value.WhichOneof("value") == "integer"
+    assert item.WhichOneof("value") == "integer"
 
 
 def partial_history_items(record_q) -> dict[str, pb.HistoryItem]:
@@ -202,10 +202,9 @@ def test_publish_partial_history_honors_the_setting(
 
     item = partial_history_items(record_q)["loss"]
     assert bool(item.value_json) is want_json
-    assert item.HasField("value") is want_typed
     if want_typed:
-        assert item.value.WhichOneof("value") == "number"
-        assert item.value.number == 0.5
+        assert item.WhichOneof("value") == "number"
+        assert item.number == 0.5
 
 
 def test_publish_partial_history_defaults_to_json_only(mock_run, record_q):
@@ -215,4 +214,4 @@ def test_publish_partial_history_defaults_to_json_only(mock_run, record_q):
 
     item = partial_history_items(record_q)["loss"]
     assert item.value_json == "0.5"
-    assert not item.HasField("value")
+    assert not item.WhichOneof("value")
