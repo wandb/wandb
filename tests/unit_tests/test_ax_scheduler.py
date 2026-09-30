@@ -18,6 +18,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
     _experiment,
     _experiment_objectives,
+    build_ax_optimizer,
     create_default_client,
     sweep_parameter_to_parameter,
 )
@@ -185,8 +186,6 @@ class TestCreateDefaultClient:
 
 class TestBuildAxSchedulerOptimizer:
     def test_builds_a_default_client(self) -> None:
-        from wandb.cli import cli
-
         config = {
             "metric": {"name": "loss", "goal": "minimize"},
             "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
@@ -194,7 +193,7 @@ class TestBuildAxSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = cli._build_ax_scheduler_optimizer(sweep, config["scheduler"])
+        optimizer = build_ax_optimizer(sweep, config["scheduler"])
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
