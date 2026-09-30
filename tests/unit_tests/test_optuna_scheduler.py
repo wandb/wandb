@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import optuna
 import pytest
+import wandb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
 from wandb.sdk.sweeps.scheduler.optuna import (
@@ -215,6 +216,44 @@ class TestBuildOptunaSchedulerOptimizer:
         optimizer = build_optuna_optimizer(sweep, config["scheduler"])
 
         assert isinstance(optimizer, OptunaImperativeOptimizer)
+
+    @pytest.mark.parametrize(
+        "definition, problem",
+        [
+            ("define_by_run = 3\n", "is int, not a function"),
+            (
+                "def define_by_run():\n    return {}\n",
+                "does not accept a single trial argument",
+            ),
+            (
+                "def define_by_run(trial):\n"
+                "    trial.suggest_float('lr', 0.0, 1.0)\n"
+                "    return list(trial.params.items())\n",
+                "returned list, not a dict",
+            ),
+        ],
+        ids=["not-callable", "no-trial-argument", "returns-non-dict"],
+    )
+    def test_rejects_a_search_space_of_the_wrong_type(
+        self, tmp_path, definition: str, problem: str
+    ) -> None:
+        source = tmp_path / "search_space.py"
+        source.write_text(definition, encoding="utf-8")
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "search_space": "define_by_run",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(wandb.Error, match=problem) as error:
+            build_optuna_optimizer(sweep, config["scheduler"])
+
+        assert "returns a dict of parameter values" in str(error.value)
 
 
 class TestExhaustibleSampler:
