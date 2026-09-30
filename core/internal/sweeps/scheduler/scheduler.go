@@ -96,6 +96,9 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
+	// lastPoll is when the latest backend poll of the sweep started.
+	lastPoll time.Time
+
 	runCap           int
 	finishedRunCount int
 
@@ -284,8 +287,7 @@ func (s *Scheduler) cancelOnStop(ctx context.Context, cancel context.CancelFunc)
 	}
 }
 
-// Step implements TaskResolver: apply the previous task's result, wait one
-// poll interval, and compute the next task.
+// Step implements TaskResolver: apply the result, debounce, and compute the next task.
 func (s *Scheduler) Step(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
@@ -309,8 +311,12 @@ func (s *Scheduler) Step(
 	return s.generationStep(ctx)
 }
 
-// sleep waits one poll interval plus the failure slowdown, returning a
-// Done task if ctx is cancelled (session end or Stop) while waiting.
+// sleepTime is the poll interval plus slowdown left since the latest poll.
+func (s *Scheduler) sleepTime() time.Duration {
+	return s.pollInterval + s.api.Slowdown() - s.clock.Now().Sub(s.lastPoll)
+}
+
+// sleep waits out sleepTime, or returns a Done task if ctx ends (session end or Stop).
 func (s *Scheduler) sleep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
@@ -319,7 +325,7 @@ func (s *Scheduler) sleep(
 			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
 	}
 
-	fire, stopTimer := s.clock.NewTimer(s.pollInterval + s.api.Slowdown())
+	fire, stopTimer := s.clock.NewTimer(s.sleepTime())
 	defer stopTimer()
 
 	select {

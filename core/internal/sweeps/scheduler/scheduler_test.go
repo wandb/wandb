@@ -29,11 +29,15 @@ type fakeClock struct {
 	// waiting, when non-nil, holds every timer open and announces it
 	// here, so a test can act while the loop is inside its wait.
 	waiting chan struct{}
+
+	// requested records every timer's duration, in order.
+	requested []time.Duration
 }
 
 func (c *fakeClock) Now() time.Time { return c.now }
 
-func (c *fakeClock) NewTimer(time.Duration) (<-chan time.Time, func()) {
+func (c *fakeClock) NewTimer(d time.Duration) (<-chan time.Time, func()) {
+	c.requested = append(c.requested, d)
 	if c.waiting != nil {
 		c.waiting <- struct{}{}
 		return make(chan time.Time), func() {}
@@ -424,12 +428,16 @@ func TestStopDuringTheWaitExitsWithoutTransitioningTheSweep(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 
+	// The first generation after warm start does not wait.
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
 	// Held open, so the loop is provably inside the wait when it stops.
 	fixture.clock.waiting = make(chan struct{}, 1)
 
 	done := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
 	go func() {
-		done <- fixture.scheduler.Step(context.Background(), warmResult(nil))
+		done <- fixture.scheduler.Step(context.Background(), emptyIterResult())
 	}()
 
 	schedulertest.Receive(t, fixture.clock.waiting)
@@ -440,10 +448,43 @@ func TestStopDuringTheWaitExitsWithoutTransitioningTheSweep(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		task.GetDone().Reason)
-	assert.Empty(t, fixture.requestsFor("SweepConfig"),
+	assert.Len(t, fixture.requestsFor("SweepConfig"), 1,
 		"a stop during the wait must not go on to poll")
 	assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
 		"a stop must not transition the sweep")
+}
+
+func TestFirstGenerationAfterWarmStartDoesNotWait(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	fixture.stubIdlePoll("RUNNING")
+	task := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, task.GetGeneration())
+	assert.EqualValues(t, 1, task.GetGeneration().AskUpTo)
+	require.Len(t, fixture.clock.requested, 1)
+	assert.LessOrEqual(t, fixture.clock.requested[0], time.Duration(0))
+}
+
+func TestWaitCountsFromTheLastPoll(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{
+		PollInterval: 10 * time.Second,
+	})
+	fixture.warmTo(t)
+	running := pollJSON("RUNNING", false, "",
+		testRun{name: "run-a", state: "running"},
+	)
+	fixture.stubPoll(running)
+	fixture.step(t, warmResult(map[string]string{"run-a": "opt-a"}))
+
+	// Time the optimizer spent on the task counts toward the wait.
+	fixture.clock.now = fixture.clock.now.Add(3 * time.Second)
+	fixture.stubPoll(running)
+	fixture.step(t, emptyIterResult())
+
+	require.Len(t, fixture.clock.requested, 2)
+	assert.Equal(t, 7*time.Second, fixture.clock.requested[1])
 }
 
 func TestSessionCancelReturnsShutdown(t *testing.T) {
