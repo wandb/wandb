@@ -260,3 +260,24 @@ class TestMultiObjective:
 
         with pytest.raises(ValueError, match="disagree on the objectives"):
             AxOptimizer(client, sweep)
+
+
+class TestRouteLibraryLogs:
+    """Ax's records reach the handler the scheduler routes them to."""
+
+    def test_captures_first_trial_generation(
+        self,
+        client: Client,
+        sweep: SweepInfo,
+        caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
+        optimizer.ask_n_runs(1)
+
+        assert any(
+            record.name.startswith("ax.") and "trial 0" in record.getMessage()
+            for record in caplog.records
+        )

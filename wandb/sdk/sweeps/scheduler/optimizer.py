@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -107,6 +108,20 @@ class Optimizer(ABC):
     def __init__(self, sweep: SweepInfo):
         self._sweep = sweep
         self.validate_sweep_objective()
+
+    def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
+        """Send the search library's log records to `handler`.
+
+        Replaces the library's own console output for the scheduler session,
+        so each record reaches the terminal exactly once.
+
+        Args:
+            handler: Receives the library's log records.
+
+        Returns:
+            A function that restores the library's own console output.
+        """
+        return lambda: None
 
     @abstractmethod
     def validate_sweep_objective(self) -> None:
