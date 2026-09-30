@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/url"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -31,7 +32,9 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
-	logger *observability.CoreLogger
+	// telemetryProxy records the logger's telemetry until Shutdown.
+	telemetryProxy *analytics.OpenTelemetryProxy
+	logger         *observability.CoreLogger
 
 	settings *settings.Settings
 
@@ -59,11 +62,16 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 		return nil, fmt.Errorf("error reading credentials: %v", err)
 	}
 
-	opentelemetryHandler := NewOpenTelemetryHandler(s, serviceName)
-	logger := observability.NewCoreLogger(
-		slog.Default(),
-		opentelemetryHandler.TelemetryRecorder(),
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		serviceName,
 	)
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	logger := observability.NewCoreLogger(slog.Default(), telemetryRecorder)
 
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
@@ -73,7 +81,7 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 		&observability.Peeker{},
 		s,
 		s.GetExtraHTTPHeaders(),
-		opentelemetryHandler.TelemetryRecorder(),
+		telemetryRecorder,
 	)
 
 	fileTransferClient := newFileTransferClient(
@@ -98,16 +106,17 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
 	return &WandbAPI{
-		semaphore: make(chan struct{}, maxConcurrency),
-		logger:    logger,
-		settings:  s,
+		semaphore:      make(chan struct{}, maxConcurrency),
+		telemetryProxy: telemetryProxy,
+		logger:         logger,
+		settings:       s,
 
 		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),
-		opentelemetryHandler: opentelemetryHandler,
+		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHandler:           NewRunHandler(graphqlClient),
 		runQueueHandler:      NewRunQueueHandler(graphqlClient),
@@ -220,6 +229,13 @@ func (p *WandbAPI) Shutdown(ctx context.Context) {
 	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
 		p.logger.Error(
 			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
+	}
+	if err := p.telemetryProxy.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down telemetry proxy",
 			"error",
 			err,
 		)

@@ -159,7 +159,14 @@ func (attrs *LowCardinalityAttributes) merge(
 	return &merged
 }
 
+// toMap returns the LowCardinalityAttributes as a map.
+//
+// A nil receiver returns an empty map.
 func (attrs *LowCardinalityAttributes) toMap() map[string]string {
+	if attrs == nil {
+		return map[string]string{}
+	}
+
 	out := map[string]string{
 		"go_version":        attrs.GoVersion,
 		"operating_system":  attrs.OperatingSystem,
@@ -956,23 +963,6 @@ func (o *OpenTelemetryProxy) startSpan(
 		return noopTracer.Start(ctx, name, options...)
 	}
 	return o.tracerProvider.Tracer(o.serviceName).Start(ctx, name, options...)
-}
-
-// recordDuration records a duration histogram metric in seconds.
-func (o *OpenTelemetryProxy) recordDuration(
-	ctx context.Context,
-	name string,
-	delta int64,
-	lowCardinalityAttributes *LowCardinalityAttributes,
-) {
-	if o == nil {
-		return
-	}
-	counter, ok := o.counter(name)
-	if !ok {
-		return
-	}
-	counter.Add(ctx, delta, toOTelAttrs(lowCardinalityAttributes.toMap()))
 }
 
 type histogramCacheEntry struct {

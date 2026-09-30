@@ -293,7 +293,11 @@ func (s *OpenTelemetryProxyTest) addTraces(body []byte) error {
 					eventNames = append(eventNames, event.GetName())
 				}
 				var parentSpanID traceapi.SpanID
-				if parentBytes := otlpSpan.GetParentSpanId(); len(parentBytes) == len(parentSpanID) {
+				if parentBytes := otlpSpan.GetParentSpanId(); len(
+					parentBytes,
+				) == len(
+					parentSpanID,
+				) {
 					parentSpanID = traceapi.SpanID(parentBytes)
 				}
 				s.spans = append(s.spans, Span{
