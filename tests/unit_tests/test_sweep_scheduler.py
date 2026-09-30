@@ -835,16 +835,20 @@ class TestLoadSourceObject:
             scheduler_client.load_source_object(str(source), "configure")
 
 
+class _Engine:
+    """Stands in for an engine's optimizer type, like optuna.Study."""
+
+
 class TestLoadOptimizerConfig:
     def test_returns_bare_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        optimizer = object()
+        optimizer = _Engine()
         configure = MagicMock(return_value=optimizer)
         monkeypatch.setattr(
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
         loaded, terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", "engine.Optimizer"
+            "optimizer.py", "configure", _Engine
         )
 
         assert loaded is optimizer
@@ -853,7 +857,7 @@ class TestLoadOptimizerConfig:
     def test_returns_optimizer_and_terminator(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        optimizer = object()
+        optimizer = _Engine()
         terminator = MagicMock(return_value=True)
         configure = MagicMock(return_value=(optimizer, terminator))
         monkeypatch.setattr(
@@ -861,21 +865,21 @@ class TestLoadOptimizerConfig:
         )
 
         loaded, loaded_terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", "engine.Optimizer"
+            "optimizer.py", "configure", _Engine
         )
 
         assert loaded is optimizer
         assert loaded_terminator is terminator
 
     def test_returns_only_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        optimizer = object()
+        optimizer = _Engine()
         configure = MagicMock(return_value=(optimizer, None))
         monkeypatch.setattr(
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
         loaded, terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", "engine.Optimizer"
+            "optimizer.py", "configure", _Engine
         )
 
         assert loaded is optimizer
@@ -884,12 +888,37 @@ class TestLoadOptimizerConfig:
     def test_non_callable_terminator_raises(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        configure = MagicMock(return_value=(object(), "not-callable"))
+        configure = MagicMock(return_value=(_Engine(), "not-callable"))
         monkeypatch.setattr(
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
         with pytest.raises(ValueError, match="terminator.*Callable"):
-            scheduler_client.load_optimizer_config(
-                "optimizer.py", "configure", "engine.Optimizer"
-            )
+            scheduler_client.load_optimizer_config("optimizer.py", "configure", _Engine)
+
+    @pytest.mark.parametrize(
+        "factory, problem",
+        [
+            (3, "is int, not a function"),
+            (lambda study: _Engine(), "requires arguments"),
+            (lambda: object(), "returned object instead of"),
+            (lambda: (object(), None), "returned object instead of"),
+            (lambda: (_Engine(), None, None), "returned a tuple of 3 items"),
+        ],
+        ids=[
+            "not-callable",
+            "requires-arguments",
+            "wrong-type",
+            "wrong-type-in-tuple",
+            "tuple-too-long",
+        ],
+    )
+    def test_rejects_a_factory_of_the_wrong_type(
+        self, monkeypatch: pytest.MonkeyPatch, factory: object, problem: str
+    ) -> None:
+        monkeypatch.setattr(scheduler_client, "load_source_object", lambda *_: factory)
+
+        with pytest.raises(ValueError, match=problem) as error:
+            scheduler_client.load_optimizer_config("optimizer.py", "configure", _Engine)
+
+        assert "scheduler.optimizer must name a function" in str(error.value)
