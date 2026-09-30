@@ -269,11 +269,31 @@ class TestExhaustibleSampler:
         ] * 2
         assert optimizer.ask_n_runs(2) == []
 
-    def test_ask_still_suggests_while_the_grid_is_in_flight(self, optimizer) -> None:
-        """An empty batch finishes the sweep, so pending trials must not."""
-        optimizer.ask_n_runs(2)
+    def test_a_large_ask_proposes_each_grid_point_once(self, optimizer) -> None:
+        suggestions = optimizer.ask_n_runs(5)
 
-        assert optimizer.ask_n_runs(1) != []
+        points = sorted(s.config.flat_dict()["x"] for s in suggestions)
+        assert points == [1, 2]
+
+    def test_ask_skips_grid_points_in_flight(self, optimizer) -> None:
+        """The scheduler waits out in-flight runs after an empty batch."""
+        first = optimizer.ask_n_runs(1)
+        second = optimizer.ask_n_runs(2)
+
+        assert first[0].config.flat_dict() != second[0].config.flat_dict()
+        assert len(second) == 1
+        assert optimizer.ask_n_runs(1) == []
+
+    def test_a_forgotten_grid_point_is_proposed_again(self, optimizer) -> None:
+        forgotten, kept = optimizer.ask_n_runs(2)
+        optimizer.forget_run(forgotten.run_id)
+        self.finish(optimizer, kept)
+
+        again = optimizer.ask_n_runs(2)
+
+        assert [s.config.flat_dict() for s in again] == [forgotten.config.flat_dict()]
+        self.finish(optimizer, again[0])
+        assert optimizer.ask_n_runs(2) == []
 
     def test_adopts_an_active_run_after_exhaustion(self, optimizer) -> None:
         """Enqueued params are fixed, so they cost the spent grid nothing."""

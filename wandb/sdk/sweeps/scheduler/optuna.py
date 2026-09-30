@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     import optuna
     import optuna.distributions
     import optuna.pruners
+    import optuna.samplers
     import optuna.trial
 else:
     optuna = util.get_module(
@@ -296,14 +298,37 @@ class OptunaOptimizer(Optimizer):
 
         A sampler over a finite space does not refuse a further ask: optuna's
         GridSampler hands out a *duplicate* grid point (warning as it goes)
-        once the grid is spent, so asking again would re-run finished work
-        forever. Samplers over an unbounded space never report exhaustion.
+        once every point has started, so asking again would re-run work.
+        Samplers over an unbounded space never report exhaustion.
         """
+        sampler = self.study.sampler
+        if isinstance(sampler, optuna.samplers.GridSampler):
+            return not self._has_unproposed_grid_point(sampler)
         if self._stop_requested:
             return True
-        # `is_exhausted` is GridSampler's; other samplers don't define it.
-        is_exhausted = getattr(self.study.sampler, "is_exhausted", None)
+        # A custom finite sampler may mirror GridSampler's `is_exhausted`.
+        is_exhausted = getattr(sampler, "is_exhausted", None)
         return is_exhausted is not None and bool(is_exhausted(self.study))
+
+    def _has_unproposed_grid_point(self, sampler: optuna.samplers.GridSampler) -> bool:
+        """Whether a grid point remains that no trial in the study holds.
+
+        Trials count whatever their state: `forget_run` enqueues a
+        forgotten point again, so its failed trial never hides it.
+
+        Args:
+            sampler: The study's grid sampler.
+        """
+        trials = self.study.get_trials(deepcopy=False)
+        if any(trial.state == optuna.trial.TrialState.WAITING for trial in trials):
+            return True
+        # GridSampler has no public accessor for its grid.
+        grid: dict[str, Sequence[Any]] = sampler._search_space
+        held = [trial.params for trial in trials]
+        return any(
+            dict(zip(grid, point, strict=True)) not in held
+            for point in itertools.product(*grid.values())
+        )
 
     @abstractmethod
     def _ask_suggestion(self) -> RunSuggestion:
@@ -489,13 +514,16 @@ class OptunaOptimizer(Optimizer):
         """Fail the trial of a proposed run that will never start.
 
         Failing (rather than leaving it running) frees the trial's slot in
-        samplers that limit concurrency.
+        samplers that limit concurrency. Under GridSampler the point is
+        enqueued again, since the sampler never revisits a failed point.
         """
         trial = self.trials.pop(run_id, None)
         self._last_reported_step.pop(run_id, None)
         if trial is None:
             return
         self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
+        if isinstance(self.study.sampler, optuna.samplers.GridSampler):
+            self.study.enqueue_trial(trial.params)
 
     @override
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
