@@ -357,14 +357,14 @@ def convert_parameters(
 
 
 def check_sweep_metrics(config: dict[str, Any]) -> None:
-    """Check that a sweep config's `metric` or `metrics` blocks are mappings.
+    """Check the shape of a sweep config's `metric` or `metrics` blocks.
 
     Args:
         config: The sweep config.
 
     Raises:
-        ValueError: If `metrics` is not a list of mappings, or `metric` is
-            set but not a mapping.
+        ValueError: If `metrics` is not a non-empty list of named mappings,
+            or `metric` is set but not a mapping.
     """
     example = "`{name: loss, goal: minimize}`"
     metrics = config.get("metrics")
@@ -381,11 +381,21 @@ def check_sweep_metrics(config: dict[str, Any]) -> None:
             "The sweep config's metrics must be a list of mappings such as"
             f" {example}, not {metrics!r}."
         )
+    if not metrics:
+        raise ValueError(
+            "The sweep config's metrics must list at least one metric such as"
+            f" {example}; remove metrics or add one."
+        )
     for i, metric in enumerate(metrics):
         if not isinstance(metric, dict):
             raise ValueError(  # noqa: TRY004
                 f"metrics[{i}] in the sweep config must be a mapping such as"
                 f" {example}, not {metric!r}."
+            )
+        if "name" not in metric:
+            raise ValueError(
+                f"metrics[{i}] in the sweep config has no name; set"
+                f" metrics[{i}].name to the metric to optimize."
             )
 
 
@@ -420,4 +430,7 @@ def make_optimizer(sweep: SweepInfo) -> Optimizer:
         from wandb.sdk.sweeps.scheduler.ax import build_ax_optimizer
 
         return build_ax_optimizer(sweep, scheduler_config)
-    raise wandb.Error(f"Unsupported engine: {engine}")
+    raise wandb.Error(
+        "The sweep config's scheduler.engine must be one of wandb, optuna or"
+        f" ax, not {engine!r}."
+    )

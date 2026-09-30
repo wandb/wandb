@@ -488,8 +488,8 @@ class TestSweepSchedulerCli:
     @pytest.mark.parametrize(
         ("config", "expected_error"),
         [
-            ({}, "Unsupported engine: None"),
-            ({"scheduler": {"engine": "genetic"}}, "Unsupported engine: genetic"),
+            ({}, "scheduler.engine must be one of wandb, optuna or ax, not None"),
+            ({"scheduler": {"engine": "genetic"}}, "or ax, not 'genetic'"),
         ],
         ids=["no_engine", "unknown_engine"],
     )
@@ -819,20 +819,25 @@ class TestLoadSourceObject:
         source = tmp_path / "source.py"
         source.write_text("def configure():\n    return 42\n", encoding="utf-8")
 
-        loaded = scheduler_client.load_source_object(str(source), "configure")
+        loaded = scheduler_client.load_source_object(
+            str(source), "configure", "optimizer"
+        )
 
         assert loaded() == 42
 
     def test_empty_source_raises(self) -> None:
         with pytest.raises(ValueError, match="scheduler.source.*'configure'"):
-            scheduler_client.load_source_object("", "configure")
+            scheduler_client.load_source_object("", "configure", "optimizer")
 
     def test_missing_attribute_raises(self, tmp_path: Path) -> None:
         source = tmp_path / "source.py"
         source.write_text("OTHER = 1\n", encoding="utf-8")
 
-        with pytest.raises(ValueError, match="has no attribute 'configure'"):
-            scheduler_client.load_source_object(str(source), "configure")
+        with pytest.raises(
+            ValueError,
+            match="scheduler.optimizer is 'configure', but .* does not define it",
+        ):
+            scheduler_client.load_source_object(str(source), "configure", "optimizer")
 
     def test_missing_absolute_file_raises_without_cwd_hint(
         self, tmp_path: Path
@@ -840,7 +845,7 @@ class TestLoadSourceObject:
         source = tmp_path / "missing.py"
 
         with pytest.raises(ValueError, match="not exist\\.$"):
-            scheduler_client.load_source_object(str(source), "configure")
+            scheduler_client.load_source_object(str(source), "configure", "optimizer")
 
     def test_missing_relative_file_suggests_the_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -848,19 +853,20 @@ class TestLoadSourceObject:
         monkeypatch.chdir(tmp_path)
 
         with pytest.raises(ValueError, match="not exist; run the scheduler from"):
-            scheduler_client.load_source_object("missing.py", "configure")
+            scheduler_client.load_source_object("missing.py", "configure", "optimizer")
 
     def test_directory_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="is not a file"):
-            scheduler_client.load_source_object(str(tmp_path), "configure")
+            scheduler_client.load_source_object(str(tmp_path), "configure", "optimizer")
 
     @pytest.mark.parametrize(
         "text, problem",
         [
             ("def configure(:\n", "SyntaxError"),
             ("import definitely_not_a_module\n", "ModuleNotFoundError"),
+            ("X = 1\nY = 1 / 0\n", r"source\.py:2: ZeroDivisionError"),
         ],
-        ids=["syntax-error", "import-error"],
+        ids=["syntax-error", "import-error", "runtime-error"],
     )
     def test_failed_import_raises(
         self, tmp_path: Path, text: str, problem: str
@@ -869,7 +875,7 @@ class TestLoadSourceObject:
         source.write_text(text, encoding="utf-8")
 
         with pytest.raises(ValueError, match=f"Importing scheduler.source.*{problem}"):
-            scheduler_client.load_source_object(str(source), "configure")
+            scheduler_client.load_source_object(str(source), "configure", "optimizer")
 
 
 class TestSchedulerSetting:
@@ -932,8 +938,17 @@ class TestCheckSweepMetrics:
             ({"metric": ["loss"]}, "metric must be a mapping"),
             ({"metrics": "loss"}, "metrics must be a list of mappings"),
             ({"metrics": [{"name": "a"}, None]}, r"metrics\[1\] .*must be a mapping"),
+            ({"metrics": []}, "metrics must list at least one metric"),
+            ({"metrics": [{"goal": "minimize"}]}, r"set metrics\[0\]\.name"),
         ],
-        ids=["string-metric", "list-metric", "string-metrics", "null-in-metrics"],
+        ids=[
+            "string-metric",
+            "list-metric",
+            "string-metrics",
+            "null-in-metrics",
+            "empty-metrics",
+            "unnamed-metric",
+        ],
     )
     def test_rejects_non_mappings(self, config: dict[str, Any], problem: str) -> None:
         from wandb.sdk.sweeps.scheduler.optimizer import check_sweep_metrics

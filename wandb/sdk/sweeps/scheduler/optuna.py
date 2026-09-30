@@ -672,7 +672,7 @@ def load_trial_constructor(source: str, name: str) -> TrialConstructor:
         ValueError: If `name` is not a callable that takes one trial and
             returns a dict.
     """
-    constructor = load_source_object(source, name)
+    constructor = load_source_object(source, name, "search_space")
 
     # check search_space is a function
     if not callable(constructor):

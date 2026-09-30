@@ -14,6 +14,7 @@ import inspect
 import logging
 import pathlib
 import signal
+import traceback
 from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any, cast
@@ -205,12 +206,17 @@ def _install_sigint_handler(
         return None
 
 
-def load_source_object(source: str, name: str) -> Any:
+def load_source_object(source: str, name: str, key: str) -> Any:
     """Import the python file at `source` and return its `name` attribute.
 
     Used to load a user-defined `search_space` (define-by-run trial
     constructor) or `optimizer` (engine object and optional terminator
     factory) referenced by name from a sweep's scheduler config.
+
+    Args:
+        source: The python file named by `scheduler.source`.
+        name: The attribute to return from `source`.
+        key: The scheduler config key that holds `name`, such as `optimizer`.
     """
     if not source:
         raise ValueError(
@@ -238,12 +244,24 @@ def load_source_object(source: str, name: str) -> Any:
     except Exception as e:
         # The user's own module failed; its error is theirs to fix.
         raise ValueError(
-            f"Importing scheduler.source file {source} failed: {type(e).__name__}: {e}"
+            f"Importing scheduler.source file {source} failed{_error_location(e)}:"
+            f" {type(e).__name__}: {e}"
         ) from e
     try:
         return getattr(module, name)
     except AttributeError:
-        raise ValueError(f"{source} has no attribute {name!r}") from None
+        raise ValueError(
+            f"scheduler.{key} is {name!r}, but {source} does not define it;"
+            f" set scheduler.{key} to a name defined in {source}."
+        ) from None
+
+
+def _error_location(error: BaseException) -> str:
+    """Return " at <file>:<line>" for where `error` was raised, or ""."""
+    frames = traceback.extract_tb(error.__traceback__)
+    if not frames:
+        return ""
+    return f" at {frames[-1].filename}:{frames[-1].lineno}"
 
 
 def scheduler_setting(scheduler_config: dict[str, Any], key: str) -> str | None:
@@ -290,7 +308,7 @@ def load_optimizer_config(
         f" {terminator_type}) tuple."
     )
 
-    factory = load_source_object(source, name)
+    factory = load_source_object(source, name, "optimizer")
     if not callable(factory):
         raise ValueError(  # noqa: TRY004
             f"{name!r} in {source} is {type(factory).__name__}, not a function."
