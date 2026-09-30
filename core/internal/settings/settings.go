@@ -90,6 +90,8 @@ func (s *Settings) IsSharedMode() bool {
 }
 
 // IsHistoryValueEncodingTyped reports whether history records include typed values.
+//
+// Defaults to false if no encoding is specified.
 func (s *Settings) IsHistoryValueEncodingTyped() bool {
 	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
 	for _, form := range forms {
@@ -99,6 +101,25 @@ func (s *Settings) IsHistoryValueEncodingTyped() bool {
 	}
 
 	return false
+}
+
+// IsHistoryValueEncodingJSON reports whether history records include JSON values.
+//
+// Defaults to true if no encoding is specified.
+func (s *Settings) IsHistoryValueEncodingJSON() bool {
+	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
+	hasJSON := false
+	hasTyped := false
+	for _, form := range forms {
+		trimmed := strings.ToLower(strings.TrimSpace(form))
+		switch trimmed {
+		case "json":
+			hasJSON = true
+		case "typed":
+			hasTyped = true
+		}
+	}
+	return hasJSON || !hasTyped
 }
 
 // The ID of the run.

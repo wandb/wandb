@@ -157,8 +157,16 @@ func TestToRecords(t *testing.T) {
 			rh := runhistory.New()
 			require.NoError(t, rh.SetFromRecord(test.input))
 
-			for _, includeTyped := range []bool{false, true} {
-				records, err := rh.ToRecords(includeTyped)
+			formats := []struct {
+				includeTyped bool
+				includeJSON  bool
+			}{
+				{false, true},
+				{true, false},
+				{true, true},
+			}
+			for _, format := range formats {
+				records, err := rh.ToRecords(format.includeTyped, format.includeJSON)
 				require.NoError(t, err)
 				require.Len(t, records, 1)
 
@@ -168,15 +176,19 @@ func TestToRecords(t *testing.T) {
 					wantPath = []string{test.input.Key}
 				}
 				assert.Equal(t, wantPath, record.NestedKey)
-				assert.Equal(t, test.wantJSON, record.ValueJson)
-				if !includeTyped {
-					assert.Nil(t, record.Value)
-					continue
-				}
+
 				want := &spb.HistoryItem{
 					NestedKey: wantPath,
-					ValueJson: test.wantJSON,
-					Value:     test.wantTyped.Value,
+				}
+				if format.includeTyped {
+					want.Value = test.wantTyped.Value
+				} else {
+					assert.Nil(t, record.Value)
+				}
+				if format.includeJSON {
+					want.ValueJson = test.wantJSON
+				} else {
+					assert.Empty(t, record.ValueJson)
 				}
 				assert.True(t, proto.Equal(want, record), "got %v", record)
 			}
@@ -189,7 +201,7 @@ func TestToRecords_TypedValuesRoundTrip(t *testing.T) {
 	rh.SetInt(pathtree.PathOf("integer"), 1)
 	rh.SetFloat(pathtree.PathOf("float"), 1.0)
 
-	records, err := rh.ToRecords(true)
+	records, err := rh.ToRecords(true, true)
 	require.NoError(t, err)
 
 	decoded := runhistory.New()
