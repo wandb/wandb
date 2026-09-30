@@ -781,7 +781,7 @@ def build_optuna_optimizer(
         terminator = None
         if optimizer_name:
             study, terminator = load_optimizer_config(
-                source, optimizer_name, "optuna.study.Study"
+                source, optimizer_name, optuna.Study
             )
         else:
             study = create_study_from_sweep_config(sweep.config)
