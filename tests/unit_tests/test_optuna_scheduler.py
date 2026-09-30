@@ -17,7 +17,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -324,3 +324,41 @@ class TestIntermediateReporting:
 
         with pytest.raises(ValueError, match="_step"):
             optimizer.tell_run(suggestion.run_id, run)
+
+
+class TestRouteLibraryLogs:
+    """Optuna's records reach the handler the scheduler routes them to."""
+
+    @pytest.fixture
+    def optimizer(
+        self, study: optuna.Study, sweep: SweepInfo
+    ) -> OptunaDeclarativeOptimizer:
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+    def test_captures_study_creation(
+        self,
+        optimizer: OptunaDeclarativeOptimizer,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        optimizer.route_library_logs(caplog.handler)
+        optuna.create_study(study_name="routed-study")
+
+        assert any(
+            record.name.startswith("optuna.") and "routed-study" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_captures_trial_outcome(
+        self,
+        optimizer: OptunaDeclarativeOptimizer,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        optimizer.route_library_logs(caplog.handler)
+        suggestion = optimizer.ask_n_runs(1)[0]
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.FINISHED, summary={"loss": 1.0}),
+        )
+
+        assert [record.name for record in caplog.records] == ["optuna.wandb_scheduler"]

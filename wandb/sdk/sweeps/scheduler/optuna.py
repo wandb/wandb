@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -34,6 +35,15 @@ else:
         required="wandb[optuna] is required to use the Optuna sweep scheduler. "
         "Please run `pip install wandb[optuna]`.",
     )
+
+_TRIAL_OUTCOME_VERB: dict[optuna.trial.TrialState, str] = {
+    optuna.trial.TrialState.COMPLETE: "finished",
+    optuna.trial.TrialState.PRUNED: "pruned",
+    optuna.trial.TrialState.FAIL: "failed",
+}
+
+# Optuna's ask/tell API logs nothing on tell, so the optimizer logs outcomes.
+_logger = logging.getLogger("optuna.wandb_scheduler")
 
 TrialConstructor: TypeAlias = Callable[["optuna.Trial"], dict[str, Any]]
 TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
@@ -215,6 +225,27 @@ class OptunaOptimizer(Optimizer):
 
         super().__init__(sweep)
 
+    @override
+    def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
+        """Swap optuna's default stderr handler for `handler`.
+
+        Uses optuna's public logging switches: the "optuna" logger stops
+        propagation, so it alone sees every record the library emits.
+        """
+        library_logger = logging.getLogger("optuna")
+        verbosity = optuna.logging.get_verbosity()
+        optuna.logging.disable_default_handler()
+        library_logger.addHandler(handler)
+        if verbosity > logging.INFO:
+            optuna.logging.set_verbosity(logging.INFO)
+
+        def restore() -> None:
+            library_logger.removeHandler(handler)
+            optuna.logging.set_verbosity(verbosity)
+            optuna.logging.enable_default_handler()
+
+        return restore
+
     @property
     def _is_multi_objective(self) -> bool:
         """Whether the study optimizes more than one objective."""
@@ -251,6 +282,13 @@ class OptunaOptimizer(Optimizer):
             if _STOP_OUTSIDE_OPTIMIZE_LOOP not in str(e):
                 raise
             self._stop_requested = True
+        _logger.info(
+            "Trial %d %s%s and parameters: %s.",
+            trial.number,
+            _TRIAL_OUTCOME_VERB.get(state, state.name.lower()),
+            f" with value: {values}" if values is not None else "",
+            trial.params,
+        )
 
     def _search_is_exhausted(self) -> bool:
         """Whether the study has no unexplored point left to propose.

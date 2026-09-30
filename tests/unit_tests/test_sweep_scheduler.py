@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import abc
 import importlib.util
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,18 @@ def make_run(
         summary_metrics=summary,
         history_metrics=history or [],
     )
+
+
+def logger_state() -> dict[str, tuple[int, frozenset[logging.Handler]]]:
+    """Return every existing logger's level and handlers, by name."""
+    loggers = [logging.getLogger()] + [
+        logger
+        for logger in logging.Logger.manager.loggerDict.values()
+        if isinstance(logger, logging.Logger)
+    ]
+    return {
+        logger.name: (logger.level, frozenset(logger.handlers)) for logger in loggers
+    }
 
 
 class OptimizerAcceptanceTests(abc.ABC):
@@ -156,6 +169,17 @@ class OptimizerAcceptanceTests(abc.ABC):
         self, optimizer: Optimizer
     ) -> None:
         assert optimizer.prune_runs([], []) == []
+
+    def test_restore_library_logs_undoes_routing(
+        self, optimizer: Optimizer, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        before = logger_state()
+
+        restore = optimizer.route_library_logs(caplog.handler)
+        restore()
+
+        after = logger_state()
+        assert {name: after[name] for name in before} == before
 
     # The better running run's final loss. Low enough that the pruner
     # under test spares that run; subclasses lower it for stricter

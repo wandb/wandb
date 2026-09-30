@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
@@ -286,6 +287,29 @@ class AxOptimizer(Optimizer):
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
         super().__init__(sweep)
+
+    @override
+    def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
+        """Swap Ax's root stderr handler for `handler`.
+
+        Ax's public root logger stops propagation, so it alone sees every
+        record the library emits.
+        """
+        from ax.utils.common import logger as ax_logger
+
+        root = ax_logger.ROOT_LOGGER
+        default = ax_logger.ROOT_STREAM_HANDLER
+        has_default = default in root.handlers
+        if has_default:
+            root.removeHandler(default)
+        root.addHandler(handler)
+
+        def restore() -> None:
+            root.removeHandler(handler)
+            if has_default:
+                root.addHandler(default)
+
+        return restore
 
     @override
     def should_terminate_sweep(self) -> bool:
