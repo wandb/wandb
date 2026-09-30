@@ -77,22 +77,6 @@ def _to_run_with_metrics(
     )
 
 
-def _log_prune_requests(
-    pruned: Iterable[str],
-    told: dict[str, RunWithMetrics],
-) -> None:
-    """Print one status line per prune the optimizer requested.
-
-    Ids outside the offered candidates are skipped: the scheduler ignores
-    them, and there is no known run to name.
-    """
-    for run_id in pruned:
-        run = told.get(run_id)
-        if run is None:
-            continue
-        term.termlog(f"Requesting early stop of run {run.wandb_run_id}.")
-
-
 class SchedulerTaskExchange:
     """Long-polls wandb-core for optimizer tasks and reports results."""
 
@@ -311,7 +295,10 @@ class SchedulerTaskExchange:
                     candidates, [told[run_id] for run_id in candidates]
                 )
             )
-            _log_prune_requests(result.prune, told)
+            for run_id in result.prune:
+                term.termlog(
+                    f"Requesting early stop of run {told[run_id].wandb_run_id}."
+                )
 
         result.terminate = self._optimizer.should_terminate_sweep()
 
