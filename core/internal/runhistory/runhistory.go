@@ -55,7 +55,9 @@ func (rh *RunHistory) ToRecords(includeTyped bool) ([]*spb.HistoryItem, error) {
 			ValueJson: valueJSONText,
 		}
 		if includeTyped {
-			record.Value = historyValue(value, valueJSONText)
+			if !setTypedScalar(record, value) {
+				record.Value = &spb.HistoryItem_Json{Json: valueJSONText}
+			}
 		}
 		records = append(records, record)
 
@@ -65,21 +67,22 @@ func (rh *RunHistory) ToRecords(includeTyped bool) ([]*spb.HistoryItem, error) {
 	return records, errors.Join(errs...)
 }
 
-func historyValue(value any, valueJSON string) *spb.HistoryValue {
+func setTypedScalar(record *spb.HistoryItem, value any) bool {
 	switch value := value.(type) {
 	case nil:
-		return &spb.HistoryValue{Value: &spb.HistoryValue_None{}}
+		record.Value = &spb.HistoryItem_None{}
 	case bool:
-		return &spb.HistoryValue{Value: &spb.HistoryValue_Boolean{Boolean: value}}
+		record.Value = &spb.HistoryItem_Boolean{Boolean: value}
 	case int64:
-		return &spb.HistoryValue{Value: &spb.HistoryValue_Integer{Integer: value}}
+		record.Value = &spb.HistoryItem_Integer{Integer: value}
 	case float64:
-		return &spb.HistoryValue{Value: &spb.HistoryValue_Number{Number: value}}
+		record.Value = &spb.HistoryItem_Number{Number: value}
 	case string:
-		return &spb.HistoryValue{Value: &spb.HistoryValue_Text{Text: value}}
+		record.Value = &spb.HistoryItem_Text{Text: value}
 	default:
-		return &spb.HistoryValue{Value: &spb.HistoryValue_Json{Json: valueJSON}}
+		return false
 	}
+	return true
 }
 
 // ForEachNumber runs a callback on every numeric metric.
