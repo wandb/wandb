@@ -18,6 +18,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
     _experiment,
     _experiment_objectives,
+    build_ax_optimizer,
     create_default_client,
     sweep_parameter_to_parameter,
 )
@@ -181,6 +182,21 @@ class TestCreateDefaultClient:
     def test_metric_without_a_name_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="no metric name"):
             create_default_client({"metric": {"goal": "minimize"}, "parameters": {}})
+
+
+class TestBuildAxSchedulerOptimizer:
+    def test_builds_a_default_client(self) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "ax"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, AxOptimizer)
+        assert optimizer.should_terminate_sweep() is False
 
 
 class TestUnparseableMetricName:

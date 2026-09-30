@@ -11,6 +11,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
     OptunaOptions,
+    build_optuna_optimizer,
     create_study_from_sweep_config,
     make_optimizer,
     sweep_parameter_to_distribution,
@@ -175,6 +176,45 @@ class TestCreateStudyFromSweepConfig:
         study = create_study_from_sweep_config({"metric": {"name": "loss"}})
 
         assert isinstance(study.pruner, optuna.pruners.NopPruner)
+
+
+class TestBuildOptunaSchedulerOptimizer:
+    def test_builds_declarative_optimizer_from_parameters(self) -> None:
+        config = {
+            "metrics": [
+                {"name": "loss", "goal": "minimize"},
+                {"name": "accuracy", "goal": "maximize"},
+            ],
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "optuna"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, OptunaDeclarativeOptimizer)
+
+    def test_builds_imperative_optimizer_from_search_space(self, tmp_path) -> None:
+        source = tmp_path / "search_space.py"
+        source.write_text(
+            "def define_by_run(trial):\n"
+            "    return {'lr': trial.suggest_float('lr', 0.0, 1.0)}\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "search_space": "define_by_run",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, OptunaImperativeOptimizer)
 
 
 class TestExhaustibleSampler:
