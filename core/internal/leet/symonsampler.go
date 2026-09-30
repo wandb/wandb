@@ -65,7 +65,7 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			TrackProcessTree: false,
 			DiskPaths:        defaultSymonDiskPaths(),
 		}),
-		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
+		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil, false),
 	)
 
 	return sampler

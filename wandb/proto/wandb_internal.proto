@@ -31,7 +31,7 @@ option go_package = "core/pkg/service_go_proto";
 // sync an older transaction log, it is important to follow proper protobuf
 // versioning practices: https://protobuf.dev/best-practices/
 //
-// Next ID: 28
+// Next ID: 30
 message Record {
   int64 num = 1;
   oneof record_type {
@@ -60,6 +60,8 @@ message Record {
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
     OutputLoggerRecord output_logger = 27;
+    DeviceBindingRecord device_binding = 28;
+    CommStatsRecord comm_stats = 29;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -361,6 +363,33 @@ message OutputRawResult {}
  */
 message OutputLoggerRecord {
   string line = 1;
+}
+
+// DeviceBindingRecord: the CUDA device a writer process reports it is bound to.
+message DeviceBindingRecord {
+  string uuid = 1;
+  string pci_bus_id = 2;
+  string source = 3;
+  int32 cuda_index = 4;
+  _RecordInfo _info = 200;
+}
+
+// CollectiveStats: timings of one collective kind from the NCCL flight recorder.
+message CollectiveStats {
+  string name = 1;
+  int64 count = 2;
+  double p50_ms = 3;
+  double p99_ms = 4;
+  double max_ms = 5;
+  double total_ms = 6;
+  optional int64 bytes = 7;
+}
+
+// CommStatsRecord: collectives a writer process completed since its previous report.
+message CommStatsRecord {
+  string status = 1;
+  repeated CollectiveStats collectives = 2;
+  _RecordInfo _info = 200;
 }
 
 /*
@@ -1426,6 +1455,8 @@ message GpuNvidiaInfo {
   string pci_bus_id = 6;
   // NUMA node the GPU is attached to, when known.
   optional uint32 numa_node = 7;
+  // Board serial number as reported by NVML.
+  string serial = 8;
 }
 
 message GpuAmdInfo {

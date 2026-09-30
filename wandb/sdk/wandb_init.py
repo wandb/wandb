@@ -903,6 +903,9 @@ class _WandbInit:
             if settings.x_label:
                 tel.feature.user_provided_label = True
 
+            if settings.x_provenance_logs:
+                tel.feature.provenance_logs = True
+
             if wandb.env.dcgm_profiling_enabled():
                 tel.feature.dcgm_profiling_enabled = True
 

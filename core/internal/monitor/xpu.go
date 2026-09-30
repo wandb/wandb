@@ -19,8 +19,9 @@ type XPU struct {
 	ctx             context.Context
 	resourceManager *XPUResourceManager
 
-	pid          int32
-	gpuDeviceIds []int32
+	pid                    int32
+	gpuDeviceIds           []int32
+	includeThrottleReasons bool
 
 	startOnce        sync.Once
 	startErrReported atomic.Bool
@@ -39,12 +40,14 @@ func NewXPU(
 	resourceManager *XPUResourceManager,
 	pid int32,
 	gpuDeviceIds []int32,
+	includeThrottleReasons bool,
 ) *XPU {
 	return &XPU{
-		ctx:             ctx,
-		resourceManager: resourceManager,
-		pid:             pid,
-		gpuDeviceIds:    gpuDeviceIds,
+		ctx:                    ctx,
+		resourceManager:        resourceManager,
+		pid:                    pid,
+		gpuDeviceIds:           gpuDeviceIds,
+		includeThrottleReasons: includeThrottleReasons,
 	}
 }
 
@@ -63,10 +66,7 @@ func (a *XPU) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	stats, err := client.GetStats(
-		ctx,
-		&spb.GetStatsRequest{Pid: a.pid, GpuDeviceIds: a.gpuDeviceIds},
-	)
+	stats, err := client.GetStats(ctx, a.statsRequest())
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +75,15 @@ func (a *XPU) Sample() (*spb.StatsRecord, error) {
 		return nil, nil
 	}
 	return metrics, nil
+}
+
+// statsRequest builds the GetStats request; lets tests assert it without a live sidecar client.
+func (a *XPU) statsRequest() *spb.GetStatsRequest {
+	return &spb.GetStatsRequest{
+		Pid:                    a.pid,
+		GpuDeviceIds:           a.gpuDeviceIds,
+		IncludeThrottleReasons: a.includeThrottleReasons,
+	}
 }
 
 func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {

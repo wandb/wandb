@@ -58,6 +58,7 @@ struct GpuStaticInfo {
     pci_bus_id: String,
     /// NUMA node the GPU is attached to, when the platform reports one.
     numa_node: Option<u32>,
+    serial: String,
 }
 
 /// Tracks the availability of GPU metrics for the current system.
@@ -83,6 +84,7 @@ struct GpuMetricAvailability {
     max_link_width: bool,
     pcie_throughput: bool,
     gpm: bool,
+    throttle_reasons: bool,
 }
 
 impl Default for GpuMetricAvailability {
@@ -109,6 +111,7 @@ impl Default for GpuMetricAvailability {
             max_link_width: false,
             pcie_throughput: true,
             gpm: false,
+            throttle_reasons: true,
         }
     }
 }
@@ -218,6 +221,9 @@ impl NvidiaGpu {
             if let Ok(pci_info) = device.pci_info() {
                 static_info.numa_node = pci_numa_node(&pci_info);
                 static_info.pci_bus_id = pci_info.bus_id;
+            }
+            if let Ok(serial) = device.serial() {
+                static_info.serial = serial;
             }
 
             gpu_static_info.push(static_info);
@@ -385,6 +391,7 @@ impl NvidiaGpu {
         &mut self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
@@ -446,6 +453,10 @@ impl NvidiaGpu {
                     MetricValue::Int(numa_node as i64),
                 ));
             }
+            metrics.push((
+                format!("_gpu.{}.serial", di),
+                MetricValue::String(self.gpu_static_info[di as usize].serial.clone()),
+            ));
 
             // Collect dynamic metrics for the GPU if pid != 0
             let gpu_in_use = match pid {
@@ -622,6 +633,16 @@ impl NvidiaGpu {
                     Err(_) => {
                         availability.sm_clock = false;
                     }
+                }
+            }
+
+            if availability.throttle_reasons && include_throttle_reasons {
+                match device.current_throttle_reasons() {
+                    Ok(reasons) => metrics.push((
+                        format!("gpu.{}.clockThrottleReasons", di),
+                        MetricValue::Int(reasons.bits() as i64),
+                    )),
+                    Err(_) => availability.throttle_reasons = false,
                 }
             }
 
@@ -942,6 +963,9 @@ impl NvidiaGpu {
                 if let MetricValue::Int(numa_node) = value {
                     gpu_nvidia.numa_node = Some(*numa_node as u32);
                 }
+            }
+            if let Some(MetricValue::String(v)) = samples.get(&format!("_gpu.{}.serial", i)) {
+                gpu_nvidia.serial = v.clone();
             }
             metadata.gpu_nvidia.push(gpu_nvidia);
         }
