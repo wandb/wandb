@@ -432,7 +432,7 @@ func TestStopDuringTheWaitExitsWithoutTransitioningTheSweep(t *testing.T) {
 		done <- fixture.scheduler.Step(context.Background(), warmResult(nil))
 	}()
 
-	<-fixture.clock.waiting
+	schedulertest.Receive(t, fixture.clock.waiting)
 	fixture.scheduler.Stop()
 
 	task := schedulertest.Receive(t, done)
