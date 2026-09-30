@@ -1070,7 +1070,10 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}
 
 	emitStart := time.Now()
-	items, err := h.partialHistory.ToRecords(h.settings.IsHistoryValueEncodingTyped())
+	items, err := h.partialHistory.ToRecords(
+		h.settings.IsHistoryValueEncodingTyped(),
+		h.settings.IsHistoryValueEncodingJSON(),
+	)
 	h.stats.RecordSegment(
 		context.Background(),
 		filestreamstats.SegmentHandlerEmit,

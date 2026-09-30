@@ -769,12 +769,13 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 	tests := []struct {
 		name      string
 		encoding  string
+		wantJSON  bool
 		wantTyped bool
 	}{
-		{"default", "", false},
-		{"json", "json", false},
-		{"typed", "typed", true},
-		{"dual write", "json,typed", true},
+		{"default", "", true, false},
+		{"json", "json", true, false},
+		{"typed", "typed", false, true},
+		{"dual write", "json,typed", true, true},
 	}
 
 	for _, test := range tests {
@@ -799,10 +800,17 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 			byKey := make(map[string]*spb.HistoryItem)
 			for _, item := range history.Item {
 				byKey[item.GetNestedKey()[0]] = item
-				require.NotEmpty(t, item.ValueJson)
+				if !test.wantJSON {
+					assert.Empty(t, item.ValueJson)
+				}
 				if !test.wantTyped {
 					assert.Nil(t, item.Value)
 				}
+			}
+			if test.wantJSON {
+				assert.NotEmpty(t, byKey["metric"].ValueJson)
+				assert.NotEmpty(t, byKey["_step"].ValueJson)
+				assert.NotEmpty(t, byKey["_runtime"].ValueJson)
 			}
 			if test.wantTyped {
 				assert.IsType(t, &spb.HistoryItem_Number{}, byKey["metric"].Value)

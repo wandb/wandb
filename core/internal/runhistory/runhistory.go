@@ -36,7 +36,7 @@ func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
 // addition to the JSON value.
 //
 // TODO: Don't convert history back to protos. Delete this method.
-func (rh *RunHistory) ToRecords(includeTyped bool) ([]*spb.HistoryItem, error) {
+func (rh *RunHistory) ToRecords(includeTyped, includeJSON bool) ([]*spb.HistoryItem, error) {
 	var records []*spb.HistoryItem
 	var errs []error
 
@@ -52,7 +52,9 @@ func (rh *RunHistory) ToRecords(includeTyped bool) ([]*spb.HistoryItem, error) {
 
 		record := &spb.HistoryItem{
 			NestedKey: path.Labels(),
-			ValueJson: valueJSONText,
+		}
+		if includeJSON {
+			record.ValueJson = valueJSONText
 		}
 		if includeTyped {
 			if !setTypedScalar(record, value) {
