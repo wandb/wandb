@@ -153,7 +153,7 @@ class SchedulerTaskExchange:
         }
         for run_id, config_json in list(self._await_enqueue.items()):
             if run_id in dropped:
-                term.termwarn(f"Could not schedule the run with config {config_json}.")
+                term.termwarn(f"Run with config {config_json} was deleted.")
             elif run_id in wandb_run_ids:
                 term.termlog(
                     f"Enqueued run {wandb_run_ids[run_id]} with config {config_json}."
