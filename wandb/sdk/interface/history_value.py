@@ -35,23 +35,21 @@ def set_history_value(
     if not typed_form:
         return
 
-    if _set_scalar(item.value, value):
+    if _set_typed_scalar(item, value):
         return
 
     # Convert numpy scalars the way the JSON encoder does.
     if util.np is not None and isinstance(value, util.np.generic):
         converted, _ = json_friendly(value, preserve_numpy_nan=True)
-        if _set_scalar(item.value, converted):
+        if _set_typed_scalar(item, converted):
             return
 
     # Objects, arrays, wide ints, and everything else with no scalar case
     # stay as verbatim JSON text.
-    item.value.json = (
-        json_text if json_text is not None else json_dumps_safer_history(value)
-    )
+    item.json = json_text if json_text is not None else json_dumps_safer_history(value)
 
 
-def _set_scalar(typed: pb.HistoryValue, value: Any) -> bool:
+def _set_typed_scalar(item: pb.HistoryItem, value: Any) -> bool:
     """Set a scalar oneof case on a typed history value.
 
     The case follows the Python type, so a logged `1.0` stays a float and
@@ -61,30 +59,30 @@ def _set_scalar(typed: pb.HistoryValue, value: Any) -> bool:
     scalar case.
     """
     if value is None:
-        typed.none = NULL_VALUE
+        item.none = NULL_VALUE
 
     elif isinstance(value, bool):
         # bool is a subclass of int, so it must be tested first.
-        typed.boolean = value
+        item.boolean = value
 
     elif isinstance(value, int):
         # A wider int has no scalar case. It falls back to JSON text, which
         # keeps the exact value.
         if not _INT64_MIN <= value <= _INT64_MAX:
             return False
-        typed.integer = value
+        item.integer = value
 
     elif isinstance(value, float):
         # NaN and +-Infinity are ordinary IEEE doubles here. The JSON
         # form spells them "NaN", "Infinity" and "-Infinity".
-        typed.number = value
+        item.number = value
 
     elif isinstance(value, str):
         try:
-            typed.text = value
+            item.text = value
         except UnicodeEncodeError:
             # Fall back to JSON if the text is not valid Unicode.
-            typed.json = json.dumps(value)
+            item.json = json.dumps(value)
 
     else:
         return False
