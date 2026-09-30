@@ -103,11 +103,19 @@ def _infer_distribution_name(name: str, parameter: dict[str, Any]) -> str:
     return "int_uniform" if _is_int(lo) and _is_int(hi) else "uniform"
 
 
-def _choice_config_for(name: str, parameter: dict[str, Any]) -> Any:
-    """Build a choice config from a `values` list or a lone `value`."""
+def _choice_values(parameter: dict[str, Any]) -> list[Any] | None:
+    """Return a choice spec's `values` or lone `value`; None for a range."""
+    # Constant / categorical shorthands: `distribution` is optional in W&B.
+    is_choice = (
+        "value" in parameter
+        or ("values" in parameter and "distribution" not in parameter)
+        or parameter.get("distribution") in ("categorical", "constant")
+    )
+    if not is_choice:
+        return None
     if "values" in parameter:
-        return _choice_config(name, list(parameter["values"]))
-    return _choice_config(name, [parameter["value"]])
+        return list(parameter["values"])
+    return [parameter["value"]]
 
 
 def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
@@ -119,17 +127,12 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
     and `q_log_uniform_values` with `q != 1`, which would need a quantized
     log range) raise ValueError.
     """
-    # Constant / categorical shorthands: `distribution` is optional in W&B.
-    if "value" in parameter or (
-        "values" in parameter and "distribution" not in parameter
-    ):
-        return _choice_config_for(name, parameter)
+    values = _choice_values(parameter)
+    if values is not None:
+        return _choice_config(name, values)
 
     # Without an explicit distribution, W&B infers one from min/max.
     dist = parameter.get("distribution") or _infer_distribution_name(name, parameter)
-
-    if dist in ("categorical", "constant"):
-        return _choice_config_for(name, parameter)
 
     if dist == "int_uniform":
         return ax.RangeParameterConfig(
@@ -211,14 +214,13 @@ def sweep_parameters_to_search_space(
 
 
 def _mixed_choices(parameters: dict[str, Any]) -> dict[str, list[Any]]:
-    """Return the sweep values of each categorical that mixes types."""
+    """Return the sweep values of each choice parameter Ax holds as text."""
     return {
-        name: list(spec["values"])
+        name: values
         for name, spec in parameters.items()
         if isinstance(spec, dict)
-        and spec.get("distribution") in (None, "categorical")
-        and isinstance(spec.get("values"), list)
-        and _is_mixed(spec["values"])
+        and (values := _choice_values(spec)) is not None
+        and _is_mixed(values)
     }
 
 
