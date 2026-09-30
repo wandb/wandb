@@ -118,11 +118,6 @@ def _objective_value_problem(name: str, value: Any) -> tuple[str, str] | None:
     return None
 
 
-def is_usable_objective_value(value: Any) -> bool:
-    """Return whether the search libraries accept `value` as an objective."""
-    return isinstance(value, numbers.Real) and not math.isnan(value)
-
-
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
@@ -297,21 +292,36 @@ class Optimizer(ABC):
             data: The finished run.
         """
         values = self.objective_values(data.summary_metrics)
-        if values is None:
+        if values is None or not self.check_objective_values(data, values):
             return None
-        has_unusable = False
+        return values
+
+    def check_objective_values(
+        self,
+        data: RunWithMetrics,
+        values: list[Any],
+    ) -> bool:
+        """Return whether every objective value is a number that isn't NaN.
+
+        Warns about each value that isn't.
+
+        Args:
+            data: The finished run.
+            values: The run's objective values, ordered as `metric_names`.
+        """
+        is_usable = True
         for name, value in zip(self.metric_names(), values, strict=True):
             problem_and_fix = _objective_value_problem(name, value)
             if problem_and_fix is None:
                 continue
             problem, fix = problem_and_fix
-            has_unusable = True
+            is_usable = False
             wandb.termwarn(
                 f"Run {data.wandb_run_id} finished with metric {name!r} ="
                 f" {value!r}, which is {problem}, so it is recorded as failed."
                 f" {fix}"
             )
-        return None if has_unusable else values
+        return is_usable
 
     @property
     def sweep_name(self) -> str:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import numbers
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -19,7 +20,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
-    is_usable_objective_value,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -457,8 +457,8 @@ class OptunaOptimizer(Optimizer):
                 if step <= last:
                     continue
                 value = self.metric_value(row)
-                # Skips a missing value, and those trial.report rejects.
-                if is_usable_objective_value(value):
+                # Skips non-numbers; keeps NaN, which pruners prune on.
+                if isinstance(value, numbers.Real):
                     trial.report(value, step=step)
                     last = step
             self._last_reported_step[run_id] = last
@@ -583,11 +583,12 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
         values = None
         if trial_state == optuna.trial.TrialState.COMPLETE:
-            if self.objective_values(data.summary_metrics) is None:
-                return  # finished but never logged every objective metric
-            values = self.final_objective_values(data)
+            values = self.objective_values(data.summary_metrics)
             if values is None:
+                return  # finished but never logged every objective metric
+            if not self.check_objective_values(data, values):
                 trial_state = optuna.trial.TrialState.FAIL
+                values = None
         self.study.add_trial(
             optuna.trial.create_trial(
                 params=params,

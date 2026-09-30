@@ -365,6 +365,27 @@ class TestIntermediateReporting:
         with pytest.raises(ValueError, match="_step"):
             optimizer.tell_run(suggestion.run_id, run)
 
+    def test_nan_history_value_is_reported_and_pruned(self, sweep: SweepInfo) -> None:
+        study = optuna.create_study(
+            direction="minimize",
+            pruner=optuna.pruners.ThresholdPruner(upper=10.0),
+        )
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = make_run(
+            suggestion,
+            state=RunState.RUNNING,
+            summary={},
+            history=[{"_step": 0, "loss": float("nan")}],
+        )
+
+        optimizer.tell_run(suggestion.run_id, run)
+        is_pruned = optimizer.prune_run(suggestion.run_id, run)
+
+        assert is_pruned
+        assert study.trials[-1].state == optuna.trial.TrialState.PRUNED
+
 
 UNUSABLE_LOSSES = pytest.mark.parametrize(
     ("loss", "problem"),
