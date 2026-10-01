@@ -1,18 +1,17 @@
-//! GPU monitor implementations for different platforms and vendors.
+//! Collectors for each hardware platform and vendor.
 
-use crate::metrics;
+use crate::metrics::{self, Sample};
 use crate::wandb_internal::EnvironmentRecord;
 use log::{debug, warn};
 use std::collections::HashMap;
 
-/// Trait for GPU monitors to provide a uniform interface
+/// A source of metrics for one kind of hardware.
+///
+/// A collector reads every device it knows about; which of them a client
+/// sees is decided when its record is built.
 #[async_trait::async_trait]
-pub trait GpuMonitor: Send + Sync {
-    async fn collect_metrics(
-        &self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
-    ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>>;
+pub trait Collector: Send + Sync {
+    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>>;
 
     async fn collect_metadata(
         &self,
@@ -22,66 +21,66 @@ pub trait GpuMonitor: Send + Sync {
     fn shutdown(&self) {}
 }
 
-/// Container for all GPU monitors
-pub struct GpuMonitors {
-    monitors: Vec<Box<dyn GpuMonitor>>,
+/// Every collector available on this machine.
+pub struct Collectors {
+    collectors: Vec<Box<dyn Collector>>,
 }
 
-impl GpuMonitors {
+impl Collectors {
     #[allow(unused_variables)] // used only on linux
     pub fn new(enable_dcgm_profiling: bool) -> Self {
-        let mut monitors: Vec<Box<dyn GpuMonitor>> = Vec::new();
+        let mut collectors: Vec<Box<dyn Collector>> = Vec::new();
 
-        // Add platform-specific monitors
+        // Add platform-specific collectors
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
-            if let Some(monitor) = AppleGpuMonitor::new() {
-                monitors.push(Box::new(monitor));
+            if let Some(collector) = AppleGpuMonitor::new() {
+                collectors.push(Box::new(collector));
             }
         }
 
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
-            if let Some(monitor) = NvidiaGpuMonitor::new() {
-                monitors.push(Box::new(monitor));
+            if let Some(collector) = NvidiaGpuMonitor::new() {
+                collectors.push(Box::new(collector));
             }
         }
 
         #[cfg(target_os = "linux")]
         {
             if enable_dcgm_profiling {
-                if let Some(monitor) = DcgmGpuMonitor::new() {
-                    monitors.push(Box::new(monitor));
+                if let Some(collector) = DcgmGpuMonitor::new() {
+                    collectors.push(Box::new(collector));
                 }
             }
 
-            if let Some(monitor) = AmdGpuMonitor::new() {
-                monitors.push(Box::new(monitor));
+            if let Some(collector) = AmdGpuMonitor::new() {
+                collectors.push(Box::new(collector));
             }
 
-            if let Some(monitor) = tpu_libtpu::TpuMonitor::new() {
-                monitors.push(Box::new(monitor));
+            if let Some(collector) = tpu_libtpu::TpuMonitor::new() {
+                collectors.push(Box::new(collector));
             }
         }
 
-        Self { monitors }
+        Self { collectors }
     }
 
-    pub async fn collect_metrics(
-        &self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
-    ) -> Vec<(String, metrics::MetricValue)> {
-        let mut all_metrics = Vec::new();
+    /// One pass over every collector.
+    pub async fn collect_metrics(&self) -> Sample {
+        let mut sample = Sample::default();
 
-        for monitor in &self.monitors {
-            match monitor.collect_metrics(pid, gpu_device_ids.clone()).await {
-                Ok(metrics) => all_metrics.extend(metrics),
+        for collector in &self.collectors {
+            match collector.collect_metrics().await {
+                Ok(part) => {
+                    sample.metrics.extend(part.metrics);
+                    sample.gpu_pids.extend(part.gpu_pids);
+                }
                 Err(e) => warn!("Failed to collect metrics: {}", e),
             }
         }
 
-        all_metrics
+        sample
     }
 
     pub async fn collect_metadata(
@@ -90,20 +89,20 @@ impl GpuMonitors {
     ) -> EnvironmentRecord {
         let mut metadata = EnvironmentRecord::default();
 
-        for monitor in &self.monitors {
-            let monitor_metadata = monitor.collect_metadata(samples).await;
-            if monitor_metadata.gpu_count > 0 {
-                metadata.gpu_count = monitor_metadata.gpu_count;
-                metadata.gpu_type = monitor_metadata.gpu_type.clone();
+        for collector in &self.collectors {
+            let collector_metadata = collector.collect_metadata(samples).await;
+            if collector_metadata.gpu_count > 0 {
+                metadata.gpu_count = collector_metadata.gpu_count;
+                metadata.gpu_type = collector_metadata.gpu_type.clone();
             }
-            if !monitor_metadata.cuda_version.is_empty() {
-                metadata.cuda_version = monitor_metadata.cuda_version.clone();
+            if !collector_metadata.cuda_version.is_empty() {
+                metadata.cuda_version = collector_metadata.cuda_version.clone();
             }
-            metadata.gpu_nvidia.extend(monitor_metadata.gpu_nvidia);
-            metadata.gpu_amd.extend(monitor_metadata.gpu_amd);
-            metadata.apple = monitor_metadata.apple;
-            if monitor_metadata.tpu.is_some() {
-                metadata.tpu = monitor_metadata.tpu;
+            metadata.gpu_nvidia.extend(collector_metadata.gpu_nvidia);
+            metadata.gpu_amd.extend(collector_metadata.gpu_amd);
+            metadata.apple = collector_metadata.apple;
+            if collector_metadata.tpu.is_some() {
+                metadata.tpu = collector_metadata.tpu;
             }
         }
 
@@ -111,8 +110,8 @@ impl GpuMonitors {
     }
 
     pub fn shutdown(&self) {
-        for monitor in &self.monitors {
-            monitor.shutdown();
+        for collector in &self.collectors {
+            collector.shutdown();
         }
     }
 }
@@ -144,15 +143,14 @@ impl AppleGpuMonitor {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[async_trait::async_trait]
-impl GpuMonitor for AppleGpuMonitor {
-    async fn collect_metrics(
-        &self,
-        _pid: i32,
-        _gpu_device_ids: Option<Vec<i32>>,
-    ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
+impl Collector for AppleGpuMonitor {
+    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
         let stats = self.sampler.get_metrics().await?;
         let soc_info = self.sampler.get_soc_info().await?;
-        Ok(self.sampler.metrics_to_vec(stats, soc_info))
+        Ok(Sample {
+            metrics: self.sampler.metrics_to_vec(stats, soc_info),
+            ..Default::default()
+        })
     }
 
     async fn collect_metadata(
@@ -203,13 +201,9 @@ impl NvidiaGpuMonitor {
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 #[async_trait::async_trait]
-impl GpuMonitor for NvidiaGpuMonitor {
-    async fn collect_metrics(
-        &self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
-    ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.gpu.lock().await.get_metrics(pid, gpu_device_ids)?)
+impl Collector for NvidiaGpuMonitor {
+    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+        Ok(self.gpu.lock().await.get_metrics()?)
     }
 
     async fn collect_metadata(
@@ -257,13 +251,12 @@ impl DcgmGpuMonitor {
 
 #[cfg(target_os = "linux")]
 #[async_trait::async_trait]
-impl GpuMonitor for DcgmGpuMonitor {
-    async fn collect_metrics(
-        &self,
-        _pid: i32,
-        _gpu_device_ids: Option<Vec<i32>>,
-    ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.client.get_metrics().await?)
+impl Collector for DcgmGpuMonitor {
+    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+        Ok(Sample {
+            metrics: self.client.get_metrics().await?,
+            ..Default::default()
+        })
     }
 
     async fn collect_metadata(
@@ -306,13 +299,12 @@ impl AmdGpuMonitor {
 
 #[cfg(target_os = "linux")]
 #[async_trait::async_trait]
-impl GpuMonitor for AmdGpuMonitor {
-    async fn collect_metrics(
-        &self,
-        _pid: i32,
-        _gpu_device_ids: Option<Vec<i32>>,
-    ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.gpu.lock().await.get_metrics())
+impl Collector for AmdGpuMonitor {
+    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+        Ok(Sample {
+            metrics: self.gpu.lock().await.get_metrics(),
+            ..Default::default()
+        })
     }
 
     async fn collect_metadata(
