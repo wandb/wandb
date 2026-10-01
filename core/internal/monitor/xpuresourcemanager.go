@@ -31,8 +31,7 @@ const (
 
 type XPUResourceManagerRef int
 
-// XPUResourceManager manages the sidecar process that collects
-// GPU and TPU metrics.
+// XPUResourceManager manages the wandb-xpu sidecar process.
 //
 // The sidecar runs while at least one reference is held and is started
 // again by the next Client call after it exits.
