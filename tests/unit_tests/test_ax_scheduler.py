@@ -199,6 +199,21 @@ class TestBuildAxSchedulerOptimizer:
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
 
+    def test_builds_bounds_yaml_read_as_strings(self) -> None:
+        """PyYAML reads `1e-5` without a dot as the string '1e-5'."""
+        lr = {"distribution": "log_uniform_values", "min": "1e-5", "max": "1e-1"}
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"lr": lr},
+            "scheduler": {"engine": "ax"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, AxOptimizer)
+        assert sweep_parameter_to_parameter("lr", lr).bounds == (1e-5, 0.1)
+
     @pytest.mark.parametrize(
         "config, problem",
         [
@@ -231,6 +246,7 @@ class TestBuildAxSchedulerOptimizer:
             ({"metric": None}, "set metric.name"),
             ({"metric": "username"}, "metric must be a mapping"),
             ({"metrics": [None]}, r"metrics\[0\] .*must be a mapping"),
+            ({"metric": {"name": "loss", "goal": "up"}}, "metric.goal .* is 'up'"),
         ],
         ids=[
             "no-values",
@@ -243,6 +259,7 @@ class TestBuildAxSchedulerOptimizer:
             "null-metric",
             "string-metric",
             "null-in-metrics",
+            "unknown-goal",
         ],
     )
     def test_a_bad_sweep_config_is_a_wandb_error(
@@ -291,6 +308,24 @@ class TestBuildAxSchedulerOptimizer:
         )
 
         with pytest.raises(wandb.Error, match=problem):
+            build_ax_optimizer(sweep, scheduler)
+
+    def test_an_ax_error_in_the_factory_names_scheduler_optimizer(
+        self, tmp_path
+    ) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "from ax.exceptions.core import UserInputError\n"
+            "def configure():\n"
+            "    raise UserInputError('bad bounds')\n",
+            encoding="utf-8",
+        )
+        scheduler = {"engine": "ax", "source": str(source), "optimizer": "configure"}
+        sweep = make_scheduler_grid_sweep(
+            config={**DEFAULT_CONFIG, "scheduler": scheduler}
+        )
+
+        with pytest.raises(wandb.Error, match="scheduler.optimizer 'configure'"):
             build_ax_optimizer(sweep, scheduler)
 
 

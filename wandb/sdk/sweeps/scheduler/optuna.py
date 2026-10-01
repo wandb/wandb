@@ -26,6 +26,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     check_sweep_metrics,
     convert_parameters,
     is_terminal_state,
+    numeric_bounds,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -155,6 +156,8 @@ def sweep_parameter_to_distribution(
 
     if dist in ("categorical", "constant"):
         return _categorical_distribution(parameter)
+
+    parameter = numeric_bounds(parameter)
 
     if dist == "int_uniform":
         return distributions.IntDistribution(parameter["min"], parameter["max"])

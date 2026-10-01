@@ -149,6 +149,18 @@ class TestQLogUniformValues:
         mock_wandb_log.assert_warned("Converting to a FloatDistribution(log=True)")
 
 
+class TestStringBounds:
+    def test_parses_bounds_yaml_read_as_strings(self) -> None:
+        """PyYAML reads `1e-5` without a dot as the string '1e-5'."""
+        distribution = sweep_parameter_to_distribution(
+            {"distribution": "log_uniform_values", "min": "1e-5", "max": "1e-1"}
+        )
+
+        assert distribution == optuna.distributions.FloatDistribution(
+            1e-5, 0.1, log=True
+        )
+
+
 class TestCreateStudyFromSweepConfig:
     @pytest.mark.parametrize(
         ("objective", "directions"),
@@ -263,8 +275,9 @@ class TestBuildOptunaSchedulerOptimizer:
             ({"x": {"max": 1.0}}, "set its distribution, or both min and max"),
             ({"x": 5}, "parameters.x must be a mapping"),
             (None, "parameters must map"),
+            ({"x": {"min": "a", "max": 1.0}}, "wrong type.*min is 'a'"),
         ],
-        ids=["no-max", "no-values", "no-min", "not-a-mapping", "null"],
+        ids=["no-max", "no-values", "no-min", "not-a-mapping", "null", "string-min"],
     )
     def test_a_bad_parameter_is_a_wandb_error(
         self, parameters: object, problem: str
@@ -285,8 +298,9 @@ class TestBuildOptunaSchedulerOptimizer:
             ({"metric": "loss"}, "metric must be a mapping"),
             ({"metric": ["loss"]}, "metric must be a mapping"),
             ({"metrics": [None]}, r"metrics\[0\] .*must be a mapping"),
+            ({"metric": {"name": "loss", "goal": 3}}, "metric.goal .* is 3"),
         ],
-        ids=["string", "list", "null-in-metrics"],
+        ids=["string", "list", "null-in-metrics", "unknown-goal"],
     )
     def test_a_bad_metric_is_a_wandb_error(
         self, objective: dict[str, Any], problem: str

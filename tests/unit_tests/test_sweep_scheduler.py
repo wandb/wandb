@@ -941,8 +941,9 @@ class TestCheckSweepMetrics:
             {"metric": None},
             {"metric": {"name": "loss"}},
             {"metrics": [{"name": "loss"}, {"name": "acc"}]},
+            {"metric": {"name": "loss", "goal": "Maximize"}},
         ],
-        ids=["none", "null-metric", "metric", "metrics"],
+        ids=["none", "null-metric", "metric", "metrics", "capitalized-goal"],
     )
     def test_accepts_mappings(self, config: dict[str, Any]) -> None:
         check_sweep_metrics(config)
@@ -956,6 +957,11 @@ class TestCheckSweepMetrics:
             ({"metrics": [{"name": "a"}, None]}, r"metrics\[1\] .*must be a mapping"),
             ({"metrics": []}, "metrics must list at least one metric"),
             ({"metrics": [{"goal": "minimize"}]}, r"set metrics\[0\]\.name"),
+            ({"metric": {"name": "a", "goal": "up"}}, "metric.goal .* is 'up'"),
+            (
+                {"metrics": [{"name": "a", "goal": 3}]},
+                r"metrics\[0\]\.goal .* is 3",
+            ),
         ],
         ids=[
             "string-metric",
@@ -964,9 +970,13 @@ class TestCheckSweepMetrics:
             "null-in-metrics",
             "empty-metrics",
             "unnamed-metric",
+            "unknown-goal",
+            "numeric-goal",
         ],
     )
-    def test_rejects_non_mappings(self, config: dict[str, Any], problem: str) -> None:
+    def test_rejects_malformed_metrics(
+        self, config: dict[str, Any], problem: str
+    ) -> None:
         with pytest.raises(ValueError, match=problem):
             check_sweep_metrics(config)
 

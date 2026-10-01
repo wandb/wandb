@@ -361,6 +361,34 @@ def convert_parameters(
     return converted
 
 
+def numeric_bounds(parameter: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of a parameter spec with min, max and q as numbers.
+
+    PyYAML reads `1e-5` (no dot) as a string, so numeric strings are parsed.
+
+    Raises:
+        TypeError: If min, max or q is neither a number nor a numeric string.
+    """
+    parsed = dict(parameter)
+    for key in ("min", "max", "q"):
+        if key in parsed:
+            parsed[key] = _parse_number(key, parsed[key])
+    return parsed
+
+
+def _parse_number(key: str, value: object) -> int | float:
+    """Return `value` as a number, parsing it if it is a string."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        for parse in (int, float):
+            try:
+                return parse(value)
+            except ValueError:
+                pass
+    raise TypeError(f"{key} is {value!r}")
+
+
 def check_sweep_metrics(config: dict[str, Any]) -> None:
     """Check the shape of a sweep config's `metric` or `metrics` blocks.
 
@@ -369,7 +397,8 @@ def check_sweep_metrics(config: dict[str, Any]) -> None:
 
     Raises:
         ValueError: If `metrics` is not a non-empty list of named mappings,
-            or `metric` is set but not a mapping.
+            `metric` is set but not a mapping, or a goal is not minimize
+            or maximize.
     """
     example = "`{name: loss, goal: minimize}`"
     metrics = config.get("metrics")
@@ -380,6 +409,7 @@ def check_sweep_metrics(config: dict[str, Any]) -> None:
                 f"The sweep config's metric must be a mapping such as {example},"
                 f" not {metric!r}."
             )
+        _check_goal(metric or {}, "metric")
         return
     if not isinstance(metrics, list):
         raise ValueError(  # noqa: TRY004
@@ -402,6 +432,17 @@ def check_sweep_metrics(config: dict[str, Any]) -> None:
                 f"metrics[{i}] in the sweep config has no name; set"
                 f" metrics[{i}].name to the metric to optimize."
             )
+        _check_goal(metric, f"metrics[{i}]")
+
+
+def _check_goal(metric: dict[str, Any], key: str) -> None:
+    """Raise ValueError if the metric's goal is not minimize or maximize."""
+    goal = metric.get("goal")
+    if goal is not None and str(goal).lower() not in ("minimize", "maximize"):
+        raise ValueError(
+            f"{key}.goal in the sweep config is {goal!r}; set it to minimize"
+            " or maximize."
+        )
 
 
 def make_optimizer(sweep: SweepInfo) -> Optimizer:
