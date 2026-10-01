@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -82,6 +83,18 @@ class RunWithMetrics(Run):
 
     summary_metrics: dict[str, Any]
     history_metrics: list[dict[str, Any]]
+
+
+def format_caught_error(headline: str) -> str:
+    """Append the exception being handled and its traceback to a headline.
+
+    Call from an `except` block, where the error is printed once and not
+    re-raised.
+
+    Args:
+        headline: What failed, in a sentence.
+    """
+    return f"{headline}\n{traceback.format_exc().rstrip()}"
 
 
 def is_terminal_state(state: RunState) -> bool:

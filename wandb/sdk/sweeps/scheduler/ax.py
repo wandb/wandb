@@ -16,6 +16,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    format_caught_error,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -498,6 +499,9 @@ class AxOptimizer(Optimizer):
             if not self.client.should_stop_trial_early(trial_index=trial_index):
                 return False
         except Exception:
+            wandb.termwarn(
+                format_caught_error(f"Early stopping failed for trial {trial_index}.")
+            )
             return False
         self._finalized.add(trial_index)
         self.client.mark_trial_early_stopped(trial_index=trial_index)
