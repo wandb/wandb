@@ -53,6 +53,7 @@ func TestExtractBaseKey(t *testing.T) {
 		{"gpu.0.temp/l:0:GPU0", "gpu.temp"},
 		{"gpu.process.2.temp", "gpu.process.temp"},
 		{"disk.disk4.out", "disk.io_per_device"},
+		{"disk.disk4.readBps", "disk.io_rate_per_device"},
 		{"cpu.0.cpu_percent", "cpu.cpu_percent"},
 		{"memory.used", "memory.used"},
 	}
@@ -72,6 +73,7 @@ func TestExtractSeriesName(t *testing.T) {
 		{"cpu.2.cpu_percent", "CPU 2"},
 		{"disk.disk4.in", "disk4 read"},
 		{"disk.disk4.out", "disk4 write"},
+		{"disk.disk4.writeBps", "disk4 write"},
 		{"memory.used", "Default"},
 	}
 	for _, tc := range cases {
