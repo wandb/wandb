@@ -24,6 +24,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     Run,
     RunConfig,
     RunWithMetrics,
+    format_caught_error,
     is_terminal_state,
 )
 
@@ -204,14 +205,13 @@ class SchedulerTaskExchange:
                 generation=self._execute_generation(response.generation)
             )
         except Exception as e:
-            trace = traceback.format_exc()
             term.termerror(
-                f"The optimizer failed, stopping the scheduler.\n{trace.rstrip()}"
+                format_caught_error("The optimizer failed, stopping the scheduler.")
             )
             return sspb.SweepSchedulerClientTaskResult(
                 error=sspb.SweepSchedulerClientTaskError(
                     message=str(e),
-                    traceback=trace,
+                    traceback=traceback.format_exc(),
                 )
             )
 
@@ -238,7 +238,11 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
+                term.termwarn(
+                    format_caught_error(
+                        f"The optimizer rejected run {data.wandb_run_id}: {e}"
+                    )
+                )
 
         for data in task.active_runs:
             run = _to_run(data)
@@ -251,7 +255,11 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
+                term.termwarn(
+                    format_caught_error(
+                        f"The optimizer rejected run {data.wandb_run_id}: {e}"
+                    )
+                )
                 continue
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)
@@ -282,8 +290,10 @@ class SchedulerTaskExchange:
                 self._optimizer.tell_run(run_id, data)
             except Exception as e:
                 term.termwarn(
-                    f"The optimizer failed to record run {data.wandb_run_id};"
-                    f" the scheduler stops tracking it: {e}"
+                    format_caught_error(
+                        f"The optimizer failed to record run {data.wandb_run_id};"
+                        f" the scheduler stops tracking it: {e}"
+                    )
                 )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(

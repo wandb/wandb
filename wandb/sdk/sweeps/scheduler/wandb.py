@@ -16,6 +16,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    format_caught_error,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -184,6 +185,9 @@ class WandbOptimizer(Optimizer):
                 self._sweep_runs_for_stop_runs(run_ids, runs),
             )
         except Exception:
+            wandb.termwarn(
+                format_caught_error("Early termination failed; no runs were stopped.")
+            )
             return []
         to_stop_names = {run.name for run in to_stop}
         pruned: list[str] = []
