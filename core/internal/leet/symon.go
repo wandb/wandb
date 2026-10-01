@@ -3,6 +3,7 @@ package leet
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -72,28 +73,57 @@ func NewSymon(params SymonParams) *Symon {
 	help := NewHelp()
 	help.SetMode(viewModeSymon)
 
+	grid := NewSystemMetricsGrid(
+		MinMetricChartWidth*cols,
+		MinMetricChartHeight*rows,
+		cfg,
+		cfg.SymonGrid,
+		focus,
+		NewFilter(),
+		logger,
+	)
+	grid.SetChartRank(symonChartRank)
+
 	return &Symon{
 		ctx:    ctx,
 		cancel: cancel,
 		config: cfg,
 		keyMap: buildKeyMap(SymonKeyBindings()),
 		focus:  focus,
-		grid: NewSystemMetricsGrid(
-			MinMetricChartWidth*cols,
-			MinMetricChartHeight*rows,
-			cfg,
-			cfg.SymonGrid,
-			focus,
-			NewFilter(),
-			logger,
-		),
-		help: help,
+		grid:   grid,
+		help:   help,
 		sampler: NewSymonSampler(SymonSamplerParams{
 			Interval: params.SamplingInterval,
 			Logger:   logger,
 		}),
 		logger: logger,
 	}
+}
+
+// symonChartOrder lists the charts that open the first page by base key,
+// most important first. Other charts follow in title order.
+var symonChartOrder = []string{
+	"cpu.cpu_percent",
+	"memory_percent",
+	"swap.used_percent",
+	"network.recvBps",
+	"network.sentBps",
+	"disk.io_rate_per_device",
+	"cpu.avg_temp",
+	"gpu.gpu",
+	"gpu.memoryAllocated",
+	"gpu.temp",
+	"gpu.powerWatts",
+	"cpu.pcpu_percent",
+	"cpu.ecpu_percent",
+	"system.powerWatts",
+}
+
+func symonChartRank(baseKey string) int {
+	if i := slices.Index(symonChartOrder, baseKey); i >= 0 {
+		return i
+	}
+	return len(symonChartOrder)
 }
 
 // Init starts the initial sampling pass.
