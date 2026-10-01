@@ -48,6 +48,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
 - AMD GPU system metrics are now read through the ROCm SMI library (`librocm_smi64.so`) instead of running the `rocm-smi` tool on every sample, and readings a GPU does not provide are left out instead of reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12990)
+- Sweep scheduler `optimizer:` specified function must now take a `SweepInfo` parameter (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13072)
 
 ### Removed
 
