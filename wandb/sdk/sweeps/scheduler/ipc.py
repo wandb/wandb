@@ -199,7 +199,7 @@ class SchedulerTaskExchange:
 
         Only per-run tells are fault-tolerant; an exception anywhere else
         becomes a task error, which stops the scheduler without finishing
-        the sweep.
+        the sweep. The error is printed with its traceback when it is caught.
         """
         try:
             if response.WhichOneof("task") == "warm_start":
@@ -210,10 +210,14 @@ class SchedulerTaskExchange:
                 generation=self._execute_generation(response.generation)
             )
         except Exception as e:
+            trace = traceback.format_exc()
+            term.termerror(
+                f"The optimizer failed, stopping the scheduler.\n{trace.rstrip()}"
+            )
             return sspb.SweepSchedulerClientTaskResult(
                 error=sspb.SweepSchedulerClientTaskError(
                     message=str(e),
-                    traceback=traceback.format_exc(),
+                    traceback=trace,
                 )
             )
 
@@ -283,6 +287,11 @@ class SchedulerTaskExchange:
             try:
                 self._optimizer.tell_run(run_id, data)
             except Exception as e:
+                term.termwarn(
+                    f"The optimizer failed to record run {data.wandb_run_id};"
+                    " the scheduler stops tracking it.\n"
+                    f"{traceback.format_exc().rstrip()}"
+                )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(
                         optimizer_run_id=run_id, message=str(e)
@@ -391,6 +400,8 @@ def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:
     }
     message, is_error = messages.get(reason, ("the scheduler stopped", False))
 
-    if done.message:
+    # Optimizer errors were printed with their traceback when they happened.
+    is_reported = reason == sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR
+    if done.message and not is_reported:
         message = f"{message} ({done.message})"
     return message, is_error
