@@ -65,6 +65,7 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			TrackProcessTree: false,
 			DiskPaths:        defaultSymonDiskPaths(),
 		}),
+		monitor.NewCPU(),
 		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
 	)
 
@@ -104,7 +105,6 @@ func (s *SymonSampler) Sample() StatsMsg {
 			record, err := resource.Sample()
 			if err != nil {
 				s.logSamplingError(err)
-				return nil
 			}
 			if record == nil {
 				return nil
