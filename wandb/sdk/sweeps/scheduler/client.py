@@ -1,10 +1,11 @@
 """Runs a sweep scheduler: wandb-core drives, this process optimizes.
 
-The client initializes a scheduler session in wandb-core, builds the
-optimizer from the sweep facts core returns, and exchanges tasks until the
-scheduler is done. Signals are handled here: only this process receives
-ctrl-c (wandb-core runs in its own session), so the first one is
-translated into a graceful stop request and the second one force-quits.
+The client fetches the sweep, builds its optimizer, initializes a
+scheduler session in wandb-core with the optimizer's objectives, and
+exchanges tasks until the scheduler is done. Signals are handled here: only
+this process receives ctrl-c (wandb-core runs in its own session), so the
+first one is translated into a graceful stop request and the second one
+force-quits.
 """
 
 from __future__ import annotations
@@ -18,15 +19,13 @@ from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any, cast
 
-import yaml
-
 import wandb
 from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
 from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange, describe_done
-from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
+from wandb.sdk.sweeps.scheduler.optimizer import Objective, Optimizer
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 if TYPE_CHECKING:
@@ -39,6 +38,11 @@ _INIT_TIMEOUT_SECONDS = 30
 
 OptimizerFactory = Callable[[SweepInfo], Optimizer]
 """Builds the optimizer once the sweep's config is known."""
+
+_GOALS = {
+    "minimize": sspb.SWEEP_SCHEDULER_GOAL_MINIMIZE,
+    "maximize": sspb.SWEEP_SCHEDULER_GOAL_MAXIMIZE,
+}
 
 # matches return type of signal.signal
 _SignalHandler = Callable[[int, FrameType | None], Any] | int | signal.Handlers | None
@@ -77,9 +81,7 @@ def run_scheduler(
 
     singleton = wandb_setup.singleton()
 
-    # wandb-core makes every backend call for the scheduler, so the
-    # session's credentials must be resolved before it starts: without
-    # them the sweep simply looks missing.
+    # Without credentials, the sweep fetch and wandb-core see no sweep.
     if not wbauth.authenticate_session(
         host=singleton.settings.base_url,
         source="wandb sweep-scheduler",
@@ -88,6 +90,19 @@ def run_scheduler(
         raise wandb.Error(
             "Not authenticated. Run `wandb login` to run a sweep scheduler."
         )
+
+    try:
+        sweep = _fetch_sweep(entity, project, sweep_id)
+    except Exception as e:
+        term.termerror(f"Sweep scheduler for {sweep_id} could not fetch the sweep: {e}")
+        raise wandb.Error(f"The sweep scheduler could not fetch the sweep: {e}") from e
+
+    try:
+        optimizer = make_optimizer(sweep)
+    except wandb.Error as e:
+        # Config mistakes raise wandb.Error, which is printed here once.
+        term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
+        raise
 
     service = singleton.ensure_service()
 
@@ -99,6 +114,7 @@ def run_scheduler(
             sweep_id=sweep_id,
             batch_size=batch_size,
             poll_interval_seconds=poll_interval,
+            objectives=[_objective_proto(o) for o in optimizer.objectives],
         )
         return await handle.wait_async(timeout=_INIT_TIMEOUT_SECONDS)
 
@@ -108,18 +124,6 @@ def run_scheduler(
         term.termerror(f"Sweep scheduler for {sweep_id} failed to initialize: {e}")
         raise wandb.Error(f"The sweep scheduler failed to initialize: {e}") from e
 
-    sweep = SweepInfo(
-        id=sweep_id,
-        name=init_response.display_name or sweep_id,
-        entity=entity,
-        project=project,
-        config=yaml.safe_load(init_response.sweep_config) or {},
-    )
-    try:
-        optimizer = make_optimizer(sweep)
-    except wandb.Error as e:
-        term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
-        raise
     exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
 
     previous_handler = _install_sigint_handler(
@@ -142,6 +146,26 @@ def run_scheduler(
 
     term.termlog(f"Sweep scheduler for {sweep.name} exited: {message}.")
     return done
+
+
+def _fetch_sweep(entity: str, project: str, sweep_id: str) -> SweepInfo:
+    """Fetch the sweep's name and config through the public API."""
+    sweep = wandb.Api().sweep(f"{entity}/{project}/{sweep_id}")
+    return SweepInfo(
+        id=sweep_id,
+        name=sweep.name,
+        entity=entity,
+        project=project,
+        config=sweep.config or {},
+    )
+
+
+def _objective_proto(objective: Objective) -> sspb.SweepSchedulerObjective:
+    """Convert an optimizer objective into its init request form."""
+    return sspb.SweepSchedulerObjective(
+        metric_name=objective.metric_name,
+        goal=_GOALS.get(objective.goal, sspb.SWEEP_SCHEDULER_GOAL_UNSPECIFIED),
+    )
 
 
 class _TermForwarder(logging.Handler):
