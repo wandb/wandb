@@ -26,7 +26,7 @@ import wandb.errors
 from wandb import Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
 from wandb.errors.links import url_registry
-from wandb.sdk import wandb_setup, wandb_sweep
+from wandb.sdk import wandb_login, wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.lib import config_util, filesystem, settings_file, urls, wbauth
 from wandb.sdk.lib.filenames import DIFF_FNAME
@@ -285,7 +285,17 @@ def projects(entity, display=True):
     "--relogin",
     default=None,
     is_flag=True,
-    help="Force a new login prompt, ignoring any existing credentials.",
+    help="""Log in again the way you are logged in now: ask for a new API
+    key, run the browser login again, or exchange the identity token
+    again.""",
+)
+@click.option(
+    "--browser",
+    default=False,
+    is_flag=True,
+    help="""Log in through your browser instead of with an API key. Works
+    with SAML, OIDC, and password sign-in alike, and stores a credential
+    that is renewed for you.""",
 )
 @click.option(
     "--anonymously",
@@ -298,28 +308,61 @@ def projects(entity, display=True):
     "--verify/--no-verify",
     default=True,
     is_flag=True,
-    help="""Verify the API key with W&B after storing it. If verification
-    is successful, display the source of the credentials and the
-    default team.""",
+    help="""Verify the credentials with W&B after storing them. If
+    verification is successful, display the source of the credentials and
+    the default team.""",
+)
+@click.option(
+    "--timeout",
+    default=wbauth.browser_login.LOGIN_TIMEOUT_SECONDS,
+    show_default=True,
+    help="Seconds to wait for a --browser login to complete.",
+)
+@click.option(
+    "--client-id",
+    default=wbauth.browser_login.CLI_CLIENT_ID,
+    hidden=True,
+    help="Identify as a different OAuth client. Only needed if your deployment registered one.",
 )
 @display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+def login(
+    key,
+    host,
+    cloud,
+    relogin,
+    browser,
+    anonymously,
+    verify,
+    timeout,
+    client_id,
+    no_offline=False,
+):
     """Authenticate your machine with W&B.
 
-    Store an API key locally for authenticating with W&B services.
-    By default, credentials are stored without server-side verification.
+    Store an API key locally for authenticating with W&B services, or, with
+    --browser, approve the login in your browser and store a short-lived
+    credential that is renewed for you. A browser login relies on the browser
+    session you already have, so it works the same whether your organization
+    signs in with SAML, OIDC, or a password.
 
     If no API key is provided as an argument, the command looks for
     credentials in the following order:
 
-        1. The WANDB_API_KEY environment variable
+        1. The WANDB_API_KEY or WANDB_IDENTITY_TOKEN_FILE environment variable
 
-        2. The api_key setting in a system or workspace settings file (use
-            `wandb status` to see which settings file is used)
+        2. A browser login stored by a previous `wandb login --browser`
 
         3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
 
-        4. An interactive prompt (if a TTY is available)
+        4. The api_key setting in a system or workspace settings file (use
+            `wandb status` to see which settings file is used)
+
+        5. An interactive prompt for an API key (if a TTY is available)
+
+    Credentials that are found are reused rather than replaced, so this is
+    safe to run repeatedly. Use --relogin to log in again the same way: it
+    asks for a new API key, runs the browser login again, or exchanges the
+    identity token again, depending on which of those is in use.
 
     For self-hosted or dedicated cloud deployments, specify the server
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
@@ -327,6 +370,10 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     For example, to log in interactively (prompts for API key):
 
         $ wandb login
+
+    To log in through your browser:
+
+        $ wandb login --browser
 
     To log in with an explicit API key (WANDB_API_KEY_EXAMPLE):
 
@@ -336,15 +383,11 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
         $ wandb login --no-verify
 
-    To log in to the W&B public cloud instead of a configured self-hosted instance:
-
-        $ wandb login --cloud
-
     To log in to a self-hosted W&B instance:
 
         $ wandb login --host https://my-wandb-server.example.com
 
-    To force a new login prompt even if already authenticated:
+    To log in again the same way you are logged in now:
 
         $ wandb login --relogin
     """
@@ -363,22 +406,289 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     if cloud:
         host = urls.DEFAULT_BASE_URL
 
-    # A change in click or the test harness means key can be none...
-    key = key[0] if key is not None and len(key) > 0 else None
-    relogin = True if key or relogin else False
+    key = key[0] if key else None
+
+    if key and browser:
+        wandb.termerror("Pass an API key or --browser, not both.")
+        sys.exit(1)
+
+    relogin = bool(key or relogin)
 
     global_settings = wandb_setup.singleton().settings
     global_settings.x_cli_only_mode = True
     global_settings.x_disable_viewer = relogin and not verify
 
+    host_url = wbauth.HostUrl(host or global_settings.base_url)
+
+    if key:
+        _login_with_api_key(host=host, host_url=host_url, key=key, verify=verify)
+        return
+
+    if browser:
+        _login_with_browser(
+            host_url=host_url,
+            client_id=client_id,
+            timeout=timeout,
+            relogin=relogin,
+            verify=verify,
+        )
+        return
+
+    if relogin:
+        _relogin(
+            host=host,
+            host_url=host_url,
+            client_id=client_id,
+            timeout=timeout,
+            verify=verify,
+        )
+        return
+
+    # Reuse credentials that already resolve: WANDB_API_KEY and
+    # WANDB_IDENTITY_TOKEN_FILE in CI, a stored browser login, or .netrc.
+    if wandb.login(
+        force=True,
+        host=host,
+        relogin=False,
+        verify=verify,
+        referrer="models",
+        prompt=False,
+    ):
+        return
+
+    _login_with_api_key(host=host, host_url=host_url, key=None, verify=verify)
+
+
+def _relogin(
+    *,
+    host: str | None,
+    host_url: wbauth.HostUrl,
+    client_id: str,
+    timeout: float,
+    verify: bool,
+) -> None:
+    """Log in again with whichever method the session would use now.
+
+    Environment variables decide first, then a stored browser login. With an
+    API key from anywhere, or nothing at all, this asks for a new key.
+    """
+    current = wbauth.find_system_auth(host=host_url)
+    auth = current.auth if current else None
+
+    if isinstance(auth, wbauth.AuthIdentityTokenFile):
+        _relogin_with_identity_token(host=host, host_url=host_url, verify=verify)
+    elif isinstance(auth, wbauth.AuthBrowserLogin):
+        _login_with_browser(
+            host_url=host_url,
+            client_id=client_id,
+            timeout=timeout,
+            relogin=True,
+            verify=verify,
+        )
+    else:
+        _login_with_api_key(host=host, host_url=host_url, key=None, verify=verify)
+
+
+def _relogin_with_identity_token(
+    *,
+    host: str | None,
+    host_url: wbauth.HostUrl,
+    verify: bool,
+) -> None:
+    """Exchange the identity token in the environment again.
+
+    wandb-core reuses the access token stored for the host while it is
+    valid, so that entry is dropped first. The exchange happens when the
+    credentials are verified; with --no-verify it waits for the next use.
+    """
+    global_settings = wandb_setup.singleton().settings
+
+    wbauth.browser_login.clear_identity_token_exchange(
+        global_settings.credentials_file,
+        host_url,
+    )
+    wandb.termlog(
+        f"Exchanging the identity token in {env.IDENTITY_TOKEN_FILE}"
+        f" for new credentials for {host_url}."
+    )
+
     wandb.login(
         force=True,
         host=host,
+        relogin=False,
+        verify=verify,
+        referrer="models",
+        prompt=False,
+    )
+
+
+def _login_with_api_key(
+    *,
+    host: str | None,
+    host_url: wbauth.HostUrl,
+    key: str | None,
+    verify: bool,
+) -> bool:
+    """Store an API key, prompting for one when key is None.
+
+    A browser login outranks .netrc, so one stored for the host is removed,
+    but only after the key is accepted: a rejected key leaves it in place.
+    """
+    logged_in = wandb.login(
+        force=True,
+        host=host,
         key=key,
-        relogin=relogin,
+        relogin=True,
         verify=verify,
         referrer="models",
     )
+    if logged_in:
+        _clear_browser_login(host_url)
+    return logged_in
+
+
+def _login_with_browser(
+    *,
+    host_url: wbauth.HostUrl,
+    client_id: str,
+    timeout: float,
+    relogin: bool,
+    verify: bool,
+) -> None:
+    """Log in through the browser, or reuse the browser login already stored.
+
+    There is one browser login per host. It is reused unless relogin is set
+    or it no longer verifies; a login this replaces is revoked.
+    """
+    global_settings = wandb_setup.singleton().settings
+    credentials_file = global_settings.credentials_file
+
+    if not relogin and wbauth.browser_login.load_credentials(
+        credentials_file, host_url
+    ):
+        auth = wbauth.AuthBrowserLogin(
+            host=host_url,
+            credentials_file=credentials_file,
+        )
+        try:
+            if verify:
+                auth.verify()
+        except wandb.errors.AuthenticationError as e:
+            wandb.termwarn(
+                f"The browser login stored for {host_url} no longer works"
+                f" ({e}). Logging in again."
+            )
+        else:
+            wbauth.use_explicit_auth(auth, source="wandb login")
+            wandb.termlog(
+                f"Already logged in to {host_url} through the browser."
+                " Use --relogin to log in again."
+            )
+            return
+
+    if not wbauth.browser_login.can_open_browser():
+        wandb.termerror(
+            "`wandb login --browser` needs a browser on this machine to"
+            " finish the login. Run it where you have one, or log in with"
+            " an API key instead."
+        )
+        sys.exit(1)
+
+    replaced = _run_browser_login(
+        host_url=host_url,
+        client_id=client_id,
+        timeout=timeout,
+    )
+    if replaced is not None:
+        _revoke_replaced_login(host_url, replaced.refresh_token)
+
+
+def _run_browser_login(
+    *,
+    host_url: wbauth.HostUrl,
+    client_id: str,
+    timeout: float,
+) -> wbauth.browser_login.TokenSet | None:
+    """Run the browser flow. Returns the login it replaced, if it verified.
+
+    The previous login stays on disk until this one is stored and accepted.
+    A failure puts that previous login back.
+    """
+    global_settings = wandb_setup.singleton().settings
+    credentials_file = global_settings.credentials_file
+
+    tokens = wbauth.browser_login.login(
+        host=host_url,
+        client_id=client_id,
+        timeout=timeout,
+        verify=not global_settings.insecure_disable_ssl,
+    )
+    previous = wbauth.browser_login.load_credentials(credentials_file, host_url)
+    wbauth.browser_login.save_credentials(credentials_file, host_url, tokens)
+
+    auth = wbauth.AuthBrowserLogin(
+        host=host_url,
+        credentials_file=credentials_file,
+    )
+    try:
+        auth.verify()
+    except Exception:
+        if previous is None:
+            wbauth.browser_login.clear_credentials(credentials_file, host_url)
+        else:
+            wbauth.browser_login.save_credentials(credentials_file, host_url, previous)
+        raise
+
+    wbauth.use_explicit_auth(auth, source="wandb login")
+    wandb_login.update_system_settings(
+        global_settings.read_system_settings(),
+        host=host_url.url,
+    )
+    wandb.termlog(f"Logged in to {host_url}.")
+
+    if previous is None or previous.refresh_token == tokens.refresh_token:
+        return None
+    return previous
+
+
+def _revoke_replaced_login(host_url: wbauth.HostUrl, refresh_token: str) -> None:
+    """Best-effort revoke of a login that has already been replaced."""
+    settings = wandb_setup.singleton().settings
+    try:
+        wbauth.browser_login.revoke(
+            host=host_url,
+            refresh_token=refresh_token,
+            verify=not settings.insecure_disable_ssl,
+        )
+    except Exception as e:
+        wandb.termwarn(
+            f"Could not revoke the previous browser login for {host_url}: {e}"
+        )
+
+
+def _clear_browser_login(host_url: wbauth.HostUrl) -> None:
+    """Drop a stored browser login so it does not outrank a new credential.
+
+    Revocation is best effort. Failing to reach the server must not fail login.
+    """
+    settings = wandb_setup.singleton().settings
+
+    try:
+        tokens = wbauth.browser_login.clear_credentials(
+            settings.credentials_file,
+            host_url,
+        )
+        if tokens is None:
+            return
+        wbauth.browser_login.revoke(
+            host=host_url,
+            refresh_token=tokens.refresh_token,
+            verify=not settings.insecure_disable_ssl,
+        )
+    except Exception as e:
+        wandb.termwarn(
+            f"Could not revoke the previous browser login for {host_url}: {e}"
+        )
 
 
 @cli.command(context_settings=CONTEXT)
