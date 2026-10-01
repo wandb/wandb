@@ -270,13 +270,12 @@ def _describe_range_distribution(
     | optuna.distributions.IntDistribution,
 ) -> str:
     """Describe the values a numeric distribution produces, for an error."""
-    bounds = f"from {distribution.low} to {distribution.high}"
-    if isinstance(distribution, optuna.distributions.IntDistribution):
-        if distribution.step == 1:
-            return f"an integer {bounds}"
-    elif distribution.step is None:
-        return f"a number {bounds}"
-    return f"a multiple of {distribution.step} {bounds}"
+    is_int = isinstance(distribution, optuna.distributions.IntDistribution)
+    kind = "an integer" if is_int else "a number"
+    description = f"{kind} from {distribution.low} to {distribution.high}"
+    if distribution.step is None or (is_int and distribution.step == 1):
+        return description
+    return f"{description} in steps of {distribution.step}"
 
 
 class _WarmStartTrial(optuna.trial.FixedTrial):

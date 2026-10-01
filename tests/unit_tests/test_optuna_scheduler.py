@@ -430,15 +430,20 @@ class TestWarmStartValidation:
             (
                 optuna.distributions.FloatDistribution(0.0, 1.0, step=0.3),
                 0.5,
-                "sets 'p' to 0.5.* a multiple of 0.3 from 0.0 to 0.9",
+                "sets 'p' to 0.5.* a number from 0.0 to 0.9 in steps of 0.3",
             ),
             (
                 optuna.distributions.IntDistribution(0, 10, step=3),
                 4,
-                "sets 'p' to 4.* a multiple of 3 from 0 to 9",
+                "sets 'p' to 4.* an integer from 0 to 9 in steps of 3",
+            ),
+            (
+                optuna.distributions.IntDistribution(1, 9, step=2),
+                4,
+                "sets 'p' to 4.* an integer from 1 to 9 in steps of 2",
             ),
         ],
-        ids=["float-step", "int-step"],
+        ids=["float-step", "int-step", "int-step-offset-low"],
     )
     def test_declarative_rejects_off_step_values(
         self,
@@ -483,7 +488,7 @@ class TestWarmStartValidation:
             ({"optimizer": "rmsprop"}, "sets 'optimizer' to 'rmsprop'"),
             (
                 {"optimizer": "sgd", "lr": 0.3},
-                "sets 'lr' to 0.3.* a multiple of 0.25 from 0.0 to 1.0",
+                "sets 'lr' to 0.3.* a number from 0.0 to 1.0 in steps of 0.25",
             ),
         ],
         ids=[
