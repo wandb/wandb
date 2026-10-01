@@ -18,7 +18,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
-    declared_objectives,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -197,37 +196,6 @@ def search_space_from_sweep_config(
     }
 
 
-def _study_objectives(
-    study: optuna.Study, config: dict[str, Any]
-) -> list[tuple[str, str]]:
-    """Return `(name, goal)` for each objective the study optimizes.
-
-    Optuna metric names are optional, so a study without them takes the
-    names the sweep config declares.
-
-    Raises:
-        ValueError: If neither the study nor the sweep config names a metric,
-            or the config names a different number than the study optimizes.
-    """
-    goals = [direction.name.lower() for direction in study.directions]
-    if study.metric_names is not None:
-        return list(zip(study.metric_names, goals, strict=True))
-
-    names = [name for name, _ in declared_objectives(config)]
-    if not names:
-        raise ValueError(
-            "The sweep config declares no metric and the study names none; call"
-            " study.set_metric_names() in the scheduler.optimizer function, or"
-            " set metric in the sweep config."
-        )
-    if len(names) != len(goals):
-        raise ValueError(
-            f"Study has {len(goals)} objectives but the sweep config declares"
-            f" {len(names)} metrics."
-        )
-    return list(zip(names, goals, strict=True))
-
-
 class OptunaOptimizer(Optimizer):
     """Base `Optimizer` driving a W&B sweep from an optuna study.
 
@@ -256,9 +224,41 @@ class OptunaOptimizer(Optimizer):
         # Set when a sampler asks the study to stop; see `_tell_study`.
         self._stop_requested = False
         # The study, not the sweep config, defines what is optimized.
-        self._objectives = _study_objectives(study, sweep.config)
+        self._objectives = self._study_objectives(study, sweep.config)
 
         super().__init__(sweep)
+
+    @classmethod
+    def _study_objectives(
+        cls, study: optuna.Study, config: dict[str, Any]
+    ) -> list[tuple[str, str]]:
+        """Return `(name, goal)` for each objective the study optimizes.
+
+        Optuna metric names are optional, so a study without them takes the
+        names the sweep config declares.
+
+        Raises:
+            ValueError: If neither the study nor the sweep config names a
+                metric, or the config names a different number than the study
+                optimizes.
+        """
+        goals = [direction.name.lower() for direction in study.directions]
+        if study.metric_names is not None:
+            return list(zip(study.metric_names, goals, strict=True))
+
+        names = [name for name, _ in cls._declared_objectives(config)]
+        if not names:
+            raise ValueError(
+                "The sweep config declares no metric and the study names none; call"
+                " study.set_metric_names() in the scheduler.optimizer function, or"
+                " set metric in the sweep config."
+            )
+        if len(names) != len(goals):
+            raise ValueError(
+                f"Study has {len(goals)} objectives but the sweep config declares"
+                f" {len(names)} metrics."
+            )
+        return list(zip(names, goals, strict=True))
 
     @override
     def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
@@ -398,7 +398,7 @@ class OptunaOptimizer(Optimizer):
         study. Otherwise the study's directions, and its metric names when it
         sets them, must match the sweep's `metric` or `metrics`.
         """
-        declared = declared_objectives(self._sweep.config)
+        declared = self._declared_objectives(self._sweep.config)
         if not declared:
             return
         if len(self._objectives) != len(declared):

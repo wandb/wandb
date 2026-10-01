@@ -16,7 +16,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
-    declared_objectives,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -345,7 +344,7 @@ class AxOptimizer(Optimizer):
         A sweep config that declares no metric leaves the objective to the
         experiment.
         """
-        declared = declared_objectives(self._sweep.config)
+        declared = self._declared_objectives(self._sweep.config)
         if not declared:
             return
         if len(self._objectives) != len(declared):

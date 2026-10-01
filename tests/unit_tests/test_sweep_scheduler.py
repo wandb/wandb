@@ -24,7 +24,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
-    declared_objectives,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -894,23 +893,3 @@ class TestLoadOptimizerConfig:
             scheduler_client.load_optimizer_config(
                 "optimizer.py", "configure", "engine.Optimizer"
             )
-
-
-class TestDeclaredObjectives:
-    @pytest.mark.parametrize(
-        "config, objectives",
-        [
-            ({"metric": {"name": "loss"}}, [("loss", "minimize")]),
-            (
-                {"metrics": [{"name": "a", "goal": "maximize"}, {"name": "b"}]},
-                [("a", "maximize"), ("b", "minimize")],
-            ),
-            ({}, []),
-            ({"metric": None, "metrics": []}, []),
-        ],
-        ids=["metric", "metrics", "neither", "empty"],
-    )
-    def test_reads_metric_or_metrics(
-        self, config: dict[str, Any], objectives: list[tuple[str, str]]
-    ) -> None:
-        assert declared_objectives(config) == objectives

@@ -95,24 +95,6 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
-def declared_objectives(config: dict[str, Any]) -> list[tuple[str, str]]:
-    """Return `(name, goal)` for each objective a sweep config declares.
-
-    A multi-objective sweep declares them in `metrics`, a single-objective one
-    in `metric`. A sweep whose `scheduler.optimizer` function sets the
-    objective may declare neither, which returns an empty list.
-
-    Args:
-        config: A sweep config.
-    """
-    metrics = config.get("metrics") or [config.get("metric") or {}]
-    return [
-        (metric["name"], str(metric.get("goal", "minimize")).lower())
-        for metric in metrics
-        if "name" in metric
-    ]
-
-
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
@@ -141,6 +123,25 @@ class Optimizer(ABC):
             A function that restores the library's own console output.
         """
         return lambda: None
+
+    @staticmethod
+    def _declared_objectives(config: dict[str, Any]) -> list[tuple[str, str]]:
+        """Return `(name, goal)` for each objective a sweep config declares.
+
+        A multi-objective sweep declares them in `metrics`, a single-objective
+        one in `metric`. A sweep whose `scheduler.optimizer` function sets the
+        objective may declare neither, which returns an empty list. Subclasses
+        may call this.
+
+        Args:
+            config: A sweep config.
+        """
+        metrics = config.get("metrics") or [config.get("metric") or {}]
+        return [
+            (metric["name"], str(metric.get("goal", "minimize")).lower())
+            for metric in metrics
+            if "name" in metric
+        ]
 
     @abstractmethod
     def validate_sweep_objective(self) -> None:
