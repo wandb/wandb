@@ -18,6 +18,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -101,8 +102,10 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		context.Background(),
 		monitor.NewXPUResourceManager(false),
 		logger,
-		0,
-		nil,
+		&spb.SubscribeRequest{
+			SubscriberId: string(sharedmode.RandomClientID()),
+			DiskPaths:    defaultSymonDiskPaths(),
+		},
 	)
 
 	return sampler

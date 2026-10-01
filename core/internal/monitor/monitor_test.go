@@ -3,6 +3,7 @@ package monitor_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,32 @@ func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
 		XPUResourceManager: monitor.NewXPUResourceManager(false),
 	}
 	return factory.New(runworktest.New())
+}
+
+func TestSystemMonitor_ProbeRecordsSlurmEnv(t *testing.T) {
+	t.Setenv("SLURM_JOB_ID", "12345")
+	t.Setenv("SLURM_JOB_NAME", "test_job")
+	work := runworktest.New()
+	factory := &monitor.SystemMonitorFactory{
+		Logger: observabilitytest.NewTestLogger(t),
+		Settings: settings.From(&spb.Settings{
+			XDisableStats: wrapperspb.Bool(true),
+			XPrimary:      wrapperspb.Bool(true),
+		}),
+		XPUResourceManager: monitor.NewXPUResourceManager(false),
+	}
+
+	factory.New(work).Probe()
+
+	assert.Eventually(t, func() bool {
+		for _, record := range work.AllRecords() {
+			slurm := record.GetEnvironment().GetSlurm()
+			if slurm["job_id"] == "12345" && slurm["job_name"] == "test_job" {
+				return true
+			}
+		}
+		return false
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
