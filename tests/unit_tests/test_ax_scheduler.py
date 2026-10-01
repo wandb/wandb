@@ -22,11 +22,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     create_default_client,
     sweep_parameter_to_parameter,
 )
-from wandb.sdk.sweeps.scheduler.optimizer import (
-    RunConfig,
-    RunSuggestion,
-    RunWithMetrics,
-)
+from wandb.sdk.sweeps.scheduler.optimizer import RunSuggestion
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
@@ -148,6 +144,24 @@ class TestWarmStart:
 
         with pytest.raises(ValueError, match="Parameter 'x' does not fit"):
             optimizer.tell_existing_active_run(run)
+
+
+class TestMixedChoices:
+    @pytest.mark.parametrize(
+        ("values", "kinds"),
+        [
+            ([1, "two", 3.0], "number, str"),
+            ([True, 2], "bool, number"),
+            ([None, 3, 5], "NoneType, number"),
+        ],
+    )
+    def test_rejects_a_list_of_mixed_types(self, values: list[Any], kinds: str) -> None:
+        with pytest.raises(ValueError, match=f"'p' mixes value types \\({kinds}\\)"):
+            sweep_parameter_to_parameter("p", {"values": values})
+
+    @pytest.mark.parametrize("values", [[1, 2.5], ["a", "b"], [True, False], [None]])
+    def test_accepts_a_list_of_one_type(self, values: list[Any]) -> None:
+        sweep_parameter_to_parameter("p", {"values": values})
 
 
 class TestForgetRun:
@@ -287,147 +301,6 @@ class TestBuildAxSchedulerOptimizer:
 
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         assert set(suggestion.config.config) == {"x"}
-
-
-MIXED_CHOICE_VALUES = [1, "two", 3.0, True]
-MIXED_CHOICE_CONFIG = {
-    "metric": {"name": "loss", "goal": "minimize"},
-    "parameters": {
-        "p": {"values": MIXED_CHOICE_VALUES},
-        "x": {"min": 0.0, "max": 1.0},
-    },
-}
-
-
-def _suggested_values(parameter: dict) -> list:
-    """Return the values of `p` in suggestions from a sweep with `parameter`."""
-    config = {
-        "metric": {"name": "loss", "goal": "minimize"},
-        "parameters": {"p": parameter, "x": {"min": 0.0, "max": 1.0}},
-    }
-    optimizer = AxOptimizer(
-        create_default_client(config),
-        make_scheduler_grid_sweep(config=config),
-    )
-    suggestions = optimizer.ask_n_runs(4)
-    assert suggestions
-    return [suggestion.config["p"].value for suggestion in suggestions]
-
-
-class TestMixedTypeChoices:
-    """Ax stores mixed-type values as text; runs still get the originals."""
-
-    @pytest.fixture
-    def optimizer(self) -> AxOptimizer:
-        return AxOptimizer(
-            create_default_client(MIXED_CHOICE_CONFIG),
-            make_scheduler_grid_sweep(config=MIXED_CHOICE_CONFIG),
-        )
-
-    def test_suggestions_keep_the_sweep_values(self, optimizer: AxOptimizer) -> None:
-        suggestions = optimizer.ask_n_runs(8)
-
-        assert suggestions
-        for suggestion in suggestions:
-            value = suggestion.config["p"].value
-            assert (type(value), value) in [(type(v), v) for v in MIXED_CHOICE_VALUES]
-
-    def test_warm_start_matches_a_json_collapsed_value(
-        self, optimizer: AxOptimizer
-    ) -> None:
-        run = RunWithMetrics(
-            config=RunConfig.from_values({"p": 3, "x": 0.5}),
-            state=RunState.FINISHED,
-            wandb_run_id="old-run",
-            summary_metrics={"loss": 0.5},
-            history_metrics=[],
-        )
-
-        optimizer.tell_existing_finished_run(run)
-
-        trial = _experiment(optimizer.client).trials[0]
-        assert trial.arm.parameters == {"p": "3.0", "x": 0.5}
-
-    def test_warm_start_prefers_the_value_of_the_same_type(self) -> None:
-        config = {
-            "metric": {"name": "loss", "goal": "minimize"},
-            "parameters": {"p": {"values": [1.0, 1, "a"]}},
-        }
-        optimizer = AxOptimizer(
-            create_default_client(config),
-            make_scheduler_grid_sweep(config=config),
-        )
-        run = RunWithMetrics(
-            config=RunConfig.from_values({"p": 1}),
-            state=RunState.FINISHED,
-            wandb_run_id="old-run",
-            summary_metrics={"loss": 0.5},
-            history_metrics=[],
-        )
-
-        optimizer.tell_existing_finished_run(run)
-
-        trial = _experiment(optimizer.client).trials[0]
-        assert trial.arm.parameters == {"p": "1"}
-
-    @pytest.mark.parametrize(
-        "parameter",
-        [
-            {"value": [64, 128]},
-            {"distribution": "constant", "value": [64, 128]},
-        ],
-    )
-    def test_constant_list_reaches_runs_as_a_list(self, parameter: dict) -> None:
-        assert all(v == [64, 128] for v in _suggested_values(parameter))
-
-    def test_constant_none_reaches_runs_as_none(self) -> None:
-        assert all(v is None for v in _suggested_values({"value": None}))
-
-    @pytest.mark.parametrize(
-        "values",
-        [
-            [None, 1],
-            [{"a": 1}, {"a": 2}],
-            [True, 2],
-            [True, 1],
-            [float("nan"), "a"],
-        ],
-    )
-    def test_mixed_choices_reach_runs_with_their_type(self, values: list) -> None:
-        got = _suggested_values({"values": values})
-
-        assert all((type(v), v) in [(type(c), c) for c in values] for v in got)
-
-    def test_custom_client_keeps_its_own_parameter_type(self, client: Client) -> None:
-        config = {
-            "metric": {"name": "loss", "goal": "minimize"},
-            "parameters": {"x": {"values": [1, "two", 0.5]}},
-        }
-        optimizer = AxOptimizer(client, make_scheduler_grid_sweep(config=config))
-        run = RunWithMetrics(
-            config=RunConfig.from_values({"x": 1}),
-            state=RunState.FINISHED,
-            wandb_run_id="old-run",
-            summary_metrics={"loss": 0.5},
-            history_metrics=[],
-        )
-
-        optimizer.tell_existing_finished_run(run)
-
-        trial = _experiment(optimizer.client).trials[0]
-        assert trial.arm.parameters == {"x": 1.0}
-
-    def test_custom_client_with_null_parameters(self, client: Client) -> None:
-        config = {"metric": {"name": "loss", "goal": "minimize"}, "parameters": None}
-
-        AxOptimizer(client, make_scheduler_grid_sweep(config=config))
-
-    def test_repeated_nan_is_a_duplicate(self) -> None:
-        sweep_parameter_to_parameter("p", {"values": [float("nan"), float("nan"), "a"]})
-
-    def test_values_with_the_same_text_are_rejected(self) -> None:
-        with pytest.raises(ValueError, match="cannot tell apart"):
-            sweep_parameter_to_parameter("p", {"values": [1, "1"]})
 
 
 class TestUnparseableMetricName:

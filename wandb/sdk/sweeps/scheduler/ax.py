@@ -55,30 +55,28 @@ def _value_type(values: list[Any]) -> Literal["bool", "int", "float", "str"]:
     return "str"
 
 
-def _is_mixed(values: list[Any]) -> bool:
-    """Whether Ax must hold `values` as text though not all are strings."""
-    # Ax would read a bool listed with numbers as a number.
-    has_bool = any(isinstance(v, bool) for v in values)
-    if has_bool and not all(isinstance(v, bool) for v in values):
-        return True
-    return _value_type(values) == "str" and not all(isinstance(v, str) for v in values)
+def _check_one_type(name: str, values: list[Any]) -> None:
+    """Raise if a choice list mixes value types, which Ax cannot hold.
 
-
-def _check_distinct_text(name: str, values: list[Any]) -> None:
-    """Raise if two different values would become the same Ax string."""
-    seen: dict[str, Any] = {}
-    for value in values:
-        text = str(value)
-        other = seen.setdefault(text, value)
-        if other is value:
-            continue
-        # Same type and text is a duplicate, e.g. two NaNs.
-        if type(other) is not type(value):
-            raise ValueError(
-                f"Sweep parameter {name!r} lists {other!r} and {value!r}, "
-                "which the Ax engine cannot tell apart because it stores "
-                "mixed-type values as text. Remove one of them."
-            )
+    Raises:
+        ValueError: If the values are not all bools, all numbers, or all of
+            one other type.
+    """
+    # Ints and floats share a number type; a bool is never one.
+    kinds = {
+        "bool"
+        if isinstance(v, bool)
+        else "number"
+        if isinstance(v, (int, float))
+        else type(v).__name__
+        for v in values
+    }
+    if len(kinds) > 1:
+        raise ValueError(
+            f"Sweep parameter {name!r} mixes value types ({', '.join(sorted(kinds))}),"
+            " which the Ax engine does not support. List values of one type, or"
+            " use the wandb or optuna engine."
+        )
 
 
 def _choice_config(name: str, values: list[Any]) -> Any:
@@ -86,12 +84,9 @@ def _choice_config(name: str, values: list[Any]) -> Any:
 
     A single-value list becomes a fixed parameter (Ax collapses it to one). W&B
     categoricals carry no order; declaring `is_ordered` explicitly also silences
-    Ax's "is_ordered not specified" warning. Ax needs one type per parameter,
-    so mixed-type values are passed as strings; `AxOptimizer` maps them back.
+    Ax's "is_ordered not specified" warning.
     """
-    if _is_mixed(values):
-        _check_distinct_text(name, values)
-        values = [str(v) for v in values]
+    _check_one_type(name, values)
     return ax.ChoiceParameterConfig(
         name=name,
         values=values,
@@ -110,19 +105,11 @@ def _infer_distribution_name(name: str, parameter: dict[str, Any]) -> str:
     return "int_uniform" if _is_int(lo) and _is_int(hi) else "uniform"
 
 
-def _choice_values(parameter: dict[str, Any]) -> list[Any] | None:
-    """Return a choice spec's `values` or lone `value`; None for a range."""
-    # Constant / categorical shorthands: `distribution` is optional in W&B.
-    is_choice = (
-        "value" in parameter
-        or ("values" in parameter and "distribution" not in parameter)
-        or parameter.get("distribution") in ("categorical", "constant")
-    )
-    if not is_choice:
-        return None
+def _choice_config_for(name: str, parameter: dict[str, Any]) -> Any:
+    """Build a choice config from a `values` list or a lone `value`."""
     if "values" in parameter:
-        return list(parameter["values"])
-    return [parameter["value"]]
+        return _choice_config(name, list(parameter["values"]))
+    return _choice_config(name, [parameter["value"]])
 
 
 def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
@@ -134,12 +121,17 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
     and `q_log_uniform_values` with `q != 1`, which would need a quantized
     log range) raise ValueError.
     """
-    values = _choice_values(parameter)
-    if values is not None:
-        return _choice_config(name, values)
+    # Constant / categorical shorthands: `distribution` is optional in W&B.
+    if "value" in parameter or (
+        "values" in parameter and "distribution" not in parameter
+    ):
+        return _choice_config_for(name, parameter)
 
     # Without an explicit distribution, W&B infers one from min/max.
     dist = parameter.get("distribution") or _infer_distribution_name(name, parameter)
+
+    if dist in ("categorical", "constant"):
+        return _choice_config_for(name, parameter)
 
     if dist == "int_uniform":
         return ax.RangeParameterConfig(
@@ -218,17 +210,6 @@ def sweep_parameters_to_search_space(
     return [
         sweep_parameter_to_parameter(name, spec) for name, spec in parameters.items()
     ]
-
-
-def _mixed_choices(parameters: dict[str, Any]) -> dict[str, list[Any]]:
-    """Return the sweep values of each choice parameter Ax holds as text."""
-    return {
-        name: values
-        for name, spec in parameters.items()
-        if isinstance(spec, dict)
-        and (values := _choice_values(spec)) is not None
-        and _is_mixed(values)
-    }
 
 
 def sweep_config_to_metrics(config: dict[str, Any]) -> list[Any]:
@@ -332,7 +313,6 @@ class AxOptimizer(Optimizer):
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
-        self._mixed_choices = _mixed_choices(sweep.config.get("parameters") or {})
         super().__init__(sweep)
 
     @override
@@ -422,43 +402,11 @@ class AxOptimizer(Optimizer):
             return []
         return [
             RunSuggestion(
-                config=RunConfig.from_values(self._from_ax_values(parameters)),
+                config=RunConfig.from_values(dict(parameters)),
                 run_id=str(trial_index),
             )
             for trial_index, parameters in trials.items()
         ]
-
-    def _from_ax_values(self, parameters: Any) -> dict[str, Any]:
-        """Map Ax's text for mixed-type choices back to the sweep's values."""
-        values = dict(parameters)
-        for name, choices in self._mixed_choices.items():
-            if name in values:
-                values[name] = next(
-                    (c for c in choices if str(c) == values[name]), values[name]
-                )
-        return values
-
-    def _to_ax_value(self, name: str, value: Any, python_type: type) -> Any:
-        """Cast a run's config value to the type Ax declared for `name`."""
-        choices = self._mixed_choices.get(name)
-        # A custom Ax client may declare the parameter with another type.
-        if choices is None or python_type is not str:
-            return python_type(value)
-        exact = next(
-            (c for c in choices if type(c) is type(value) and c == value), None
-        )
-        if exact is not None:
-            return str(exact)
-        # A JSON round trip may turn 3.0 into 3, so fall back to equality.
-        match = next(
-            (
-                c
-                for c in choices
-                if c == value and isinstance(c, bool) == isinstance(value, bool)
-            ),
-            value,
-        )
-        return str(match)
 
     @override
     def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
@@ -608,9 +556,7 @@ class AxOptimizer(Optimizer):
         params = {}
         for name, parameter in parameters.items():
             try:
-                params[name] = self._to_ax_value(
-                    name, config[name], parameter.python_type
-                )
+                params[name] = parameter.python_type(config[name])
             except (TypeError, ValueError) as e:
                 raise ValueError(
                     f"Parameter {name!r} does not fit the sweep's search space: {e}"
