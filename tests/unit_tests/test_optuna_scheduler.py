@@ -362,13 +362,7 @@ class TestUserErrors:
         optimizer = OptunaDeclarativeOptimizer(
             optuna.create_study(direction="minimize"), distributions, sweep
         )
-        run = RunWithMetrics(
-            config=RunConfig.from_values({"b": "zzz"}),
-            state=RunState.FINISHED,
-            wandb_run_id="wandb-run-id",
-            summary_metrics={"loss": 1.0},
-            history_metrics=[],
-        )
+        run = _replayed_run({"b": "zzz"}, RunState.FINISHED)
 
         with pytest.raises(ValueError, match="Parameter 'b' does not fit"):
             optimizer.tell_existing_finished_run(run)
@@ -457,6 +451,29 @@ class TestUserErrors:
             ValueError, match="scheduler.optimizer function could not sample"
         ):
             optimizer.ask_n_runs(1)
+
+    def test_fails_a_trial_the_study_could_not_sample(self, sweep) -> None:
+        study = optuna.create_study(
+            direction="minimize", sampler=optuna.samplers.BruteForceSampler()
+        )
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+        run = Run(
+            config=RunConfig.from_values({"y": 1}),
+            state=RunState.RUNNING,
+            wandb_run_id="wandb-run-id",
+        )
+
+        with pytest.raises(ValueError, match="could not sample"):
+            optimizer.tell_existing_active_run(run)
+        assert [trial.state for trial in study.trials] == [optuna.trial.TrialState.FAIL]
+
+    def test_search_space_function_gets_a_real_trial(self, study, sweep) -> None:
+        search_space = MagicMock(return_value={})
+
+        OptunaImperativeOptimizer(study, search_space, sweep).ask_n_runs(1)
+
+        assert isinstance(search_space.call_args.args[0], optuna.Trial)
 
     def test_names_a_failing_search_space_function(self, study, sweep) -> None:
         optimizer = OptunaImperativeOptimizer(

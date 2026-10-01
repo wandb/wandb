@@ -4,7 +4,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import override
 
@@ -278,12 +278,7 @@ class OptunaOptimizer(Optimizer):
             RuntimeError: Any error from `after_trial` other than a sampler
                 asking the study to stop.
         """
-        try:
-            self.study.tell(trial, values, state=state)
-        except RuntimeError as e:
-            if _STOP_OUTSIDE_OPTIMIZE_LOOP not in str(e):
-                raise
-            self._stop_requested = True
+        self._tell_absorbing_stop(trial, values, state=state)
         _logger.info(
             "Trial %d %s%s and parameters: %s.",
             trial.number,
@@ -291,6 +286,27 @@ class OptunaOptimizer(Optimizer):
             f" with value: {values}" if values is not None else "",
             trial.params,
         )
+
+    def _tell_absorbing_stop(
+        self,
+        trial: optuna.Trial | int,
+        values: Any = None,
+        *,
+        state: optuna.trial.TrialState,
+    ) -> None:
+        """Tell the study a trial's outcome; see `_tell_study`.
+
+        Args:
+            trial: The live trial to finalize, or its number.
+            values: The trial's objective value(s), or None if it has none.
+            state: The terminal state to record the trial in.
+        """
+        try:
+            self.study.tell(trial, values, state=state)
+        except RuntimeError as e:
+            if _STOP_OUTSIDE_OPTIMIZE_LOOP not in str(e):
+                raise
+            self._stop_requested = True
 
     def _search_is_exhausted(self) -> bool:
         """Whether the study has no unexplored point left to propose.
@@ -571,14 +587,26 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
     @override
     def _ask_suggestion(self) -> RunSuggestion:
         """Sample one trial from the declared distributions."""
+        running_before = self._running_trial_numbers()
         try:
             trial = self.study.ask(self.distributions)
         except ValueError as e:
+            for number in self._running_trial_numbers() - running_before:
+                # Fails the asked trial so samplers and storage don't keep it.
+                self._tell_absorbing_stop(number, state=optuna.trial.TrialState.FAIL)
             raise ValueError(
                 "The study returned by the scheduler.optimizer function could not"
                 f" sample the sweep's parameters: {e}"
             ) from e
         return self._track(trial, trial.params)
+
+    def _running_trial_numbers(self) -> set[int]:
+        """The numbers of the study's RUNNING trials."""
+        running = self.study.get_trials(
+            deepcopy=False,
+            states=(optuna.trial.TrialState.RUNNING,),
+        )
+        return {frozen.number for frozen in running}
 
     @override
     def _ask_replay(self, config: dict[str, Any]) -> RunSuggestion:
@@ -695,12 +723,12 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         replayed_config: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Call the search_space function, naming the suggestion that fails."""
-        recorder = _SuggestionRecorder(trial)
         try:
             # A define-by-run constructor returns the flat {param: value} map.
-            params = self.trial_constructor(cast("optuna.Trial", recorder))
+            params = self.trial_constructor(trial)
         except Exception as e:
-            raise _search_space_error(e, recorder.failed_call, replayed_config) from e
+            failed_call = _failed_suggestion(e, trial)
+            raise _search_space_error(e, failed_call, replayed_config) from e
         return _search_space_params(params)
 
     @override
@@ -769,27 +797,25 @@ def _search_space_error(
     return ValueError(f"{source} raised {kind}{context}: {error}")
 
 
-class _SuggestionRecorder:
-    """Wraps a trial to remember which suggest call raised, if any."""
+def _failed_suggestion(
+    error: Exception,
+    trial: optuna.Trial,
+) -> tuple[str, str] | None:
+    """Find the trial's suggest call that raised `error`, if one did.
 
-    def __init__(self, trial: optuna.Trial) -> None:
-        self._trial = trial
-        self.failed_call: tuple[str, str] | None = None
-
-    def __getattr__(self, attr: str) -> Any:
-        value = getattr(self._trial, attr)
-        if not attr.startswith("suggest_"):
-            return value
-
-        def suggest(*args: Any, **kwargs: Any) -> Any:
-            try:
-                return value(*args, **kwargs)
-            except Exception:
-                name = kwargs.get("name", args[0] if args else None)
-                self.failed_call = (attr, str(name))
-                raise
-
-        return suggest
+    Returns:
+        The suggest method's name and the parameter name it was given.
+    """
+    traceback = error.__traceback__
+    while traceback is not None:
+        frame = traceback.tb_frame
+        if (
+            frame.f_code.co_name.startswith("suggest_")
+            and frame.f_locals.get("self") is trial
+        ):
+            return frame.f_code.co_name, str(frame.f_locals.get("name"))
+        traceback = traceback.tb_next
+    return None
 
 
 # ---------------------------------------------------------------------------
