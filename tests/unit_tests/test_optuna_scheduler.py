@@ -14,6 +14,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
     build_optuna_optimizer,
     create_study_from_sweep_config,
     make_optimizer,
+    search_space_from_sweep_config,
     sweep_parameter_to_distribution,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -256,6 +257,15 @@ class TestExhaustibleSampler:
             ),
         )
 
+    def drain(self, optimizer, max_runs: int = 10) -> list[dict[str, Any]]:
+        """Finish every proposed run until the grid is spent or the cap hits."""
+        configs = []
+        while len(configs) < max_runs and (batch := optimizer.ask_n_runs(2)):
+            for suggestion in batch:
+                configs.append(suggestion.config.flat_dict())
+                self.finish(optimizer, suggestion)
+        return configs
+
     def test_the_spent_grid_records_its_trials_then_asks_for_nothing(
         self, optimizer
     ) -> None:
@@ -382,6 +392,94 @@ class TestExhaustibleSampler:
             "{'opt': 'sgd', 'mom': 0.9}",
         ]
         assert optimizer.ask_n_runs(5) == []
+
+    def test_a_constant_parameter_outside_the_grid_is_exhausted(self) -> None:
+        parameters = {"x": {"values": [1, 2]}, "epochs": {"value": 10}}
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler({"x": [1, 2]}),
+        )
+        sweep = make_scheduler_grid_sweep(
+            config={**self.CONFIG, "parameters": parameters}
+        )
+        optimizer = OptunaDeclarativeOptimizer(
+            study, search_space_from_sweep_config(parameters), sweep
+        )
+
+        configs = self.drain(optimizer)
+
+        assert sorted(c["x"] for c in configs) == [1, 2]
+
+    def test_a_nan_grid_value_is_proposed_once(self) -> None:
+        """Distinct NaN objects, as a grid and a search space each hold one."""
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler({"x": [1.0, float("nan")]}),
+        )
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaImperativeOptimizer(
+            study,
+            lambda trial: {"x": trial.suggest_categorical("x", [1.0, float("nan")])},
+            sweep,
+        )
+
+        configs = self.drain(optimizer)
+
+        assert len(configs) == 2
+
+    @pytest.mark.parametrize("seed", [0, 1, 2])
+    def test_grid_points_follow_the_sampler_seed(self, seed: int) -> None:
+        grid = {"x": [1, 2, 3]}
+        reference = optuna.create_study(
+            sampler=optuna.samplers.GridSampler(grid, seed=seed)
+        )
+        expected = [
+            reference.ask().suggest_categorical("x", grid["x"]) for _ in grid["x"]
+        ]
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler(grid, seed=seed),
+        )
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaDeclarativeOptimizer(
+            study, {"x": optuna.distributions.CategoricalDistribution([1, 2, 3])}, sweep
+        )
+
+        suggestions = optimizer.ask_n_runs(3)
+
+        assert [s.config.flat_dict()["x"] for s in suggestions] == expected
+
+    def test_a_sweep_parameter_outside_the_grid_is_named(self) -> None:
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler({"x": [1, 2]}),
+        )
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        distributions = {
+            **self.DISTRIBUTIONS,
+            "lr": optuna.distributions.FloatDistribution(0.0, 1.0),
+        }
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+        with pytest.raises(ValueError, match=r"\['lr'\].*`value`"):
+            optimizer.ask_n_runs(1)
+
+    def test_a_suggestion_outside_the_grid_names_the_search_space(self) -> None:
+        def search_space(trial: optuna.Trial) -> dict[str, Any]:
+            return {
+                "x": trial.suggest_categorical("x", [1, 2]),
+                "lr": trial.suggest_float("lr", 0.0, 1.0),
+            }
+
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler({"x": [1, 2]}),
+        )
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaImperativeOptimizer(study, search_space, sweep)
+
+        with pytest.raises(ValueError, match=r"`scheduler.search_space`.*\['x'\]"):
+            optimizer.ask_n_runs(1)
 
     def test_an_unrelated_sampler_error_is_not_swallowed(self) -> None:
         class BrokenSampler(optuna.samplers.RandomSampler):
