@@ -48,19 +48,24 @@ type XPU struct {
 // NewXPU returns an XPU resource whose sidecar start and requests are
 // canceled together with ctx.
 //
-// request describes what to subscribe to.
+// request describes what to subscribe to. shared asks for the wandb-xpu
+// shared by the user's processes on this machine instead of a sidecar
+// private to this process.
 func NewXPU(
 	ctx context.Context,
 	resourceManager *XPUResourceManager,
 	logger *observability.CoreLogger,
 	request *spb.SubscribeRequest,
+	shared bool,
 ) *XPU {
 	return &XPU{
 		ctx:             ctx,
 		resourceManager: resourceManager,
-		resourceRef:     resourceManager.Acquire(),
-		logger:          logger,
-		request:         request,
+		resourceRef: resourceManager.Acquire(
+			XPUResourceOptions{Shared: shared, Logger: logger},
+		),
+		logger:  logger,
+		request: request,
 	}
 }
 
