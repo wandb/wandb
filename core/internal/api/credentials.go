@@ -88,33 +88,30 @@ func NewCredentialProvider(
 	s *settings.Settings,
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
-	// The exchange must not use a credential provider: supplying its
-	// credentials is what it is being used to make possible.
-	newExchangeClient := func(o ClientOptions) RetryableClient {
-		o.RetryPolicy = TokenExchangeRetryPolicy
-
-		o.Proxy = s.GetProxyFn()
-		o.ProxyConnectHeader = s.GetProxyConnectHeader()
-
-		o.InsecureDisableSSL = s.IsInsecureDisableSSL()
-		o.Logger = logger
-
-		o.PreRetryLayers = httplayers.DefaultHeaders(s.GetExtraHTTPHeaders())
-
-		return NewClient(o)
-	}
-
 	if s.GetIdentityTokenFile() != "" {
+		// The exchange must not use a credential provider: supplying its
+		// credentials is what it is being used to make possible.
+		exchangeClient := NewClient(ClientOptions{
+			RetryMax:        TokenExchangeRetryMax,
+			RetryWaitMin:    tokenExchangeRetryWaitMin,
+			RetryWaitMax:    tokenExchangeRetryWaitMax,
+			RetryPolicy:     TokenExchangeRetryPolicy,
+			NonRetryTimeout: tokenExchangeAttemptTimeout,
+
+			Proxy:              s.GetProxyFn(),
+			ProxyConnectHeader: s.GetProxyConnectHeader(),
+
+			InsecureDisableSSL: s.IsInsecureDisableSSL(),
+			Logger:             logger,
+
+			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
+		})
+
 		return NewOAuth2CredentialProvider(
 			s.GetBaseURL(),
 			s.GetIdentityTokenFile(),
 			s.GetCredentialsFile(),
-			newExchangeClient(ClientOptions{
-				RetryMax:        TokenExchangeRetryMax,
-				RetryWaitMin:    tokenExchangeRetryWaitMin,
-				RetryWaitMax:    tokenExchangeRetryWaitMax,
-				NonRetryTimeout: tokenExchangeAttemptTimeout,
-			}),
+			exchangeClient,
 			logger,
 		)
 	}
@@ -126,15 +123,28 @@ func NewCredentialProvider(
 	// A browser login is only a refresh token in the credentials file.
 	// Absence is the normal logged-out case, not an error.
 	if hasStoredRefreshToken(s.GetCredentialsFile(), s.GetBaseURL()) {
+		// Same constraint as the identity-token client above: this client
+		// supplies the credential, so it must not attach one of its own.
+		exchangeClient := NewClient(ClientOptions{
+			RetryMax:        refreshExchangeRetryMax,
+			RetryWaitMin:    refreshExchangeRetryWaitMin,
+			RetryWaitMax:    refreshExchangeRetryWaitMax,
+			RetryPolicy:     TokenExchangeRetryPolicy,
+			NonRetryTimeout: refreshExchangeAttemptTimeout,
+
+			Proxy:              s.GetProxyFn(),
+			ProxyConnectHeader: s.GetProxyConnectHeader(),
+
+			InsecureDisableSSL: s.IsInsecureDisableSSL(),
+			Logger:             logger,
+
+			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
+		})
+
 		return NewRefreshTokenCredentialProvider(
 			s.GetBaseURL(),
 			s.GetCredentialsFile(),
-			newExchangeClient(ClientOptions{
-				RetryMax:        refreshExchangeRetryMax,
-				RetryWaitMin:    refreshExchangeRetryWaitMin,
-				RetryWaitMax:    refreshExchangeRetryWaitMax,
-				NonRetryTimeout: refreshExchangeAttemptTimeout,
-			}),
+			exchangeClient,
 			logger,
 		), nil
 	}
