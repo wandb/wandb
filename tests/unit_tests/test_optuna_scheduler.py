@@ -285,6 +285,7 @@ class TestExhaustibleSampler:
         assert optimizer.ask_n_runs(1) == []
 
     def test_a_forgotten_grid_point_is_proposed_again(self, optimizer) -> None:
+        """Go never asks after an empty batch, so ipc.py forgets first."""
         forgotten, kept = optimizer.ask_n_runs(2)
         optimizer.forget_run(forgotten.run_id)
         self.finish(optimizer, kept)
@@ -309,6 +310,78 @@ class TestExhaustibleSampler:
         )
 
         assert run_id in optimizer.trials
+
+    def test_ask_skips_the_point_of_an_adopted_run(self, optimizer) -> None:
+        optimizer.tell_existing_active_run(
+            Run(
+                config=RunConfig.from_values({"x": 1}),
+                state=RunState.RUNNING,
+                wandb_run_id="wandb-run-id",
+            )
+        )
+
+        suggestions = optimizer.ask_n_runs(2)
+
+        assert [s.config.flat_dict() for s in suggestions] == [{"x": 2}]
+
+    def test_ask_skips_the_point_of_a_warm_started_run(self, optimizer) -> None:
+        optimizer.tell_existing_finished_run(
+            RunWithMetrics(
+                config=RunConfig.from_values({"x": 1}),
+                state=RunState.FINISHED,
+                wandb_run_id="wandb-run-id",
+                summary_metrics={"loss": 0.5},
+                history_metrics=[],
+            )
+        )
+
+        suggestions = optimizer.ask_n_runs(2)
+
+        assert [s.config.flat_dict() for s in suggestions] == [{"x": 2}]
+
+    def test_a_single_point_grid_finishes_its_run(self) -> None:
+        """GridSampler's grid id lookup must not fail an enqueued trial."""
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler({"x": [1]}),
+        )
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+
+        self.finish(optimizer, optimizer.ask_n_runs(2)[0])
+
+        trial = study.get_trials(deepcopy=False)[0]
+        assert trial.state == optuna.trial.TrialState.COMPLETE
+        assert optimizer.ask_n_runs(2) == []
+
+    def test_a_conditional_define_by_run_grid_is_exhausted(self) -> None:
+        """A branch that skips a grid key covers every value of that key."""
+
+        def search_space(trial: optuna.Trial) -> dict[str, Any]:
+            params = {"opt": trial.suggest_categorical("opt", ["sgd", "adam"])}
+            if params["opt"] == "sgd":
+                params["mom"] = trial.suggest_categorical("mom", [0.9, 0.99])
+            return params
+
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.GridSampler(
+                {"opt": ["sgd", "adam"], "mom": [0.9, 0.99]}
+            ),
+        )
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaImperativeOptimizer(study, search_space, sweep)
+
+        suggestions = optimizer.ask_n_runs(5)
+        for suggestion in suggestions:
+            self.finish(optimizer, suggestion)
+
+        assert sorted(str(s.config.flat_dict()) for s in suggestions) == [
+            "{'opt': 'adam'}",
+            "{'opt': 'sgd', 'mom': 0.99}",
+            "{'opt': 'sgd', 'mom': 0.9}",
+        ]
+        assert optimizer.ask_n_runs(5) == []
 
     def test_an_unrelated_sampler_error_is_not_swallowed(self) -> None:
         class BrokenSampler(optuna.samplers.RandomSampler):
