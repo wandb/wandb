@@ -165,6 +165,7 @@ class TestCreateDefaultClient:
             ("1_loss", "minimize", True),
             ("acc %", "minimize", True),
             ("accuracy", "maximize", False),
+            ("accuracy", "MAXIMIZE", False),
         ],
     )
     def test_objective_keeps_the_metric_name_and_goal(

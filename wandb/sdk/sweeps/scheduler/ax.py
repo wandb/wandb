@@ -217,7 +217,7 @@ def sweep_objective_to_metric(objective: dict[str, Any]) -> Any:
         )
     return MapMetric(
         name=objective["name"],
-        lower_is_better=objective.get("goal") != "maximize",
+        lower_is_better=str(objective.get("goal", "minimize")).lower() != "maximize",
     )
 
 
