@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -184,16 +185,17 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
 	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
 
-	if system := NewSystem(
-		SystemParams{
-			Pid:                         pid,
-			TrackProcessTree:            sm.settings.GetStatsTrackProcessTree(),
-			DisableCgroupResourceLimits: sm.settings.GetStatsNoCgroup(),
-			ReportSelfUsage:             sm.settings.GetStatsSelfUsage(),
-			DiskPaths:                   sm.settings.GetStatsDiskPaths(),
-		},
-	); system != nil {
-		sm.addResource(system)
+	// On Linux, wandb-xpu collects the host metrics.
+	if runtime.GOOS != "linux" {
+		sm.addResource(NewSystem(
+			SystemParams{
+				Pid:                         pid,
+				TrackProcessTree:            sm.settings.GetStatsTrackProcessTree(),
+				DisableCgroupResourceLimits: sm.settings.GetStatsNoCgroup(),
+				ReportSelfUsage:             sm.settings.GetStatsSelfUsage(),
+				DiskPaths:                   sm.settings.GetStatsDiskPaths(),
+			},
+		))
 	}
 
 	request := &spb.SubscribeRequest{
@@ -602,12 +604,6 @@ func ShouldCaptureSamplingError(err error) bool {
 	case errors.Is(err, exec.ErrNotFound):
 		return false
 	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
-		return false
-
-	// Container/lean Linux builds without /proc/diskstats.
-	case strings.Contains(msg, "/proc/diskstats") &&
-		(strings.Contains(msg, "no such file") ||
-			strings.Contains(msg, "no such file or directory")):
 		return false
 
 	// Windows sporadic low-level API failure wording.
