@@ -124,6 +124,10 @@ type SystemMonitorFactory struct {
 	// XPUResourceManager manages the sidecar for GPU/TPU metrics.
 	XPUResourceManager *XPUResourceManager
 
+	// ScraperRegistry shares the OpenMetrics and DCGM exporter scrapers
+	// between the runs of the process.
+	ScraperRegistry *ScraperRegistry
+
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
 
@@ -168,7 +172,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(f.XPUResourceManager)
+	sm.initializeResources(f.XPUResourceManager, f.ScraperRegistry)
 
 	return sm
 }
@@ -179,7 +183,10 @@ func (sm *SystemMonitor) addResource(r Resource) {
 }
 
 // initializeResources sets up the resources to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
+func (sm *SystemMonitor) initializeResources(
+	xpuResourceManager *XPUResourceManager,
+	scrapers *ScraperRegistry,
+) {
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
@@ -247,7 +254,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			Headers: sm.settings.GetStatsOpenMetricsHeaders(),
 			Logger:  sm.logger,
 		}
-		if de := NewDCGMExporter(params); de != nil {
+		if de := scrapers.DCGMExporter(params, sm.samplingInterval); de != nil {
 			sm.addResource(de)
 		}
 	}
@@ -257,7 +264,9 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		for name, url := range endpoints {
 			filters := sm.settings.GetStatsOpenMetricsFilters()
 			headers := sm.settings.GetStatsOpenMetricsHeaders()
-			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
+			if om := scrapers.OpenMetrics(
+				sm.logger, name, url, filters, headers, sm.samplingInterval,
+			); om != nil {
 				sm.addResource(om)
 			}
 		}

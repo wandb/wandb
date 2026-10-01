@@ -41,6 +41,7 @@ type ConnectionParams struct {
 	RunSyncManager     *runsync.RunSyncManager
 	SweepSchedBroker   *scheduler.IPCSessionBroker
 	XPUResourceManager *monitor.XPUResourceManager
+	ScraperRegistry    *monitor.ScraperRegistry
 
 	ID string
 
@@ -89,6 +90,10 @@ type Connection struct {
 	// xpuResourceManager is used by streams for system accelerator metrics.
 	xpuResourceManager *monitor.XPUResourceManager
 
+	// scraperRegistry is used by streams for OpenMetrics and DCGM exporter
+	// metrics.
+	scraperRegistry *monitor.ScraperRegistry
+
 	// id is the unique id for the connection
 	id string
 
@@ -131,6 +136,7 @@ func NewConnection(
 		runSyncManager:     params.RunSyncManager,
 		sweepSchedBroker:   params.SweepSchedBroker,
 		xpuResourceManager: params.XPUResourceManager,
+		scraperRegistry:    params.ScraperRegistry,
 		conn:               params.Conn,
 		commit:             params.Commit,
 		id:                 params.ID,
@@ -420,6 +426,7 @@ func (nc *Connection) handleInformInit(
 	strm := stream.InjectStream(
 		stream.GitCommitHash(nc.commit),
 		nc.xpuResourceManager,
+		nc.scraperRegistry,
 		stream.DebugCorePath(nc.loggerPath),
 		nc.logLevel,
 		s,
