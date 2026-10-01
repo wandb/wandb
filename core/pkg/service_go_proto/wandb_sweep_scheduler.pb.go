@@ -102,6 +102,56 @@ func (SweepRunState) EnumDescriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{0}
 }
 
+// Whether an objective metric is minimized or maximized.
+type SweepSchedulerGoal int32
+
+const (
+	SweepSchedulerGoal_SWEEP_SCHEDULER_GOAL_UNSPECIFIED SweepSchedulerGoal = 0
+	SweepSchedulerGoal_SWEEP_SCHEDULER_GOAL_MINIMIZE    SweepSchedulerGoal = 1
+	SweepSchedulerGoal_SWEEP_SCHEDULER_GOAL_MAXIMIZE    SweepSchedulerGoal = 2
+)
+
+// Enum value maps for SweepSchedulerGoal.
+var (
+	SweepSchedulerGoal_name = map[int32]string{
+		0: "SWEEP_SCHEDULER_GOAL_UNSPECIFIED",
+		1: "SWEEP_SCHEDULER_GOAL_MINIMIZE",
+		2: "SWEEP_SCHEDULER_GOAL_MAXIMIZE",
+	}
+	SweepSchedulerGoal_value = map[string]int32{
+		"SWEEP_SCHEDULER_GOAL_UNSPECIFIED": 0,
+		"SWEEP_SCHEDULER_GOAL_MINIMIZE":    1,
+		"SWEEP_SCHEDULER_GOAL_MAXIMIZE":    2,
+	}
+)
+
+func (x SweepSchedulerGoal) Enum() *SweepSchedulerGoal {
+	p := new(SweepSchedulerGoal)
+	*p = x
+	return p
+}
+
+func (x SweepSchedulerGoal) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SweepSchedulerGoal) Descriptor() protoreflect.EnumDescriptor {
+	return file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[1].Descriptor()
+}
+
+func (SweepSchedulerGoal) Type() protoreflect.EnumType {
+	return &file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[1]
+}
+
+func (x SweepSchedulerGoal) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SweepSchedulerGoal.Descriptor instead.
+func (SweepSchedulerGoal) EnumDescriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{1}
+}
+
 type SweepSchedulerServerDoneTask_Reason int32
 
 const (
@@ -155,11 +205,11 @@ func (x SweepSchedulerServerDoneTask_Reason) String() string {
 }
 
 func (SweepSchedulerServerDoneTask_Reason) Descriptor() protoreflect.EnumDescriptor {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[1].Descriptor()
+	return file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[2].Descriptor()
 }
 
 func (SweepSchedulerServerDoneTask_Reason) Type() protoreflect.EnumType {
-	return &file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[1]
+	return &file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[2]
 }
 
 func (x SweepSchedulerServerDoneTask_Reason) Number() protoreflect.EnumNumber {
@@ -168,7 +218,7 @@ func (x SweepSchedulerServerDoneTask_Reason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SweepSchedulerServerDoneTask_Reason.Descriptor instead.
 func (SweepSchedulerServerDoneTask_Reason) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{9, 0}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{10, 0}
 }
 
 type SweepSchedulerClientGenerationResult_AskOutcome int32
@@ -211,11 +261,11 @@ func (x SweepSchedulerClientGenerationResult_AskOutcome) String() string {
 }
 
 func (SweepSchedulerClientGenerationResult_AskOutcome) Descriptor() protoreflect.EnumDescriptor {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[2].Descriptor()
+	return file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[3].Descriptor()
 }
 
 func (SweepSchedulerClientGenerationResult_AskOutcome) Type() protoreflect.EnumType {
-	return &file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[2]
+	return &file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes[3]
 }
 
 func (x SweepSchedulerClientGenerationResult_AskOutcome) Number() protoreflect.EnumNumber {
@@ -224,15 +274,15 @@ func (x SweepSchedulerClientGenerationResult_AskOutcome) Number() protoreflect.E
 
 // Deprecated: Use SweepSchedulerClientGenerationResult_AskOutcome.Descriptor instead.
 func (SweepSchedulerClientGenerationResult_AskOutcome) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{13, 0}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{14, 0}
 }
 
 // Starts a sweep-scheduling loop in wandb-core.
 //
-// The response carries the sweep's config so the client can build an
-// optimizer without its own backend access. Errors (sweep not found,
-// unsupported server, a live scheduler for the same sweep in this
-// process) are returned as a ServerErrorResponse.
+// The client builds its optimizer before init and sends the objectives it
+// searches over. Errors (sweep not found, unsupported server, a live
+// scheduler for the same sweep in this process) are returned as a
+// ServerErrorResponse.
 type SweepSchedulerClientInitRequest struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Entity  string                 `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
@@ -245,8 +295,10 @@ type SweepSchedulerClientInitRequest struct {
 	BatchSize uint32 `protobuf:"varint,5,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
 	// Seconds between backend polls. Zero means the server default.
 	PollIntervalSeconds float64 `protobuf:"fixed64,6,opt,name=poll_interval_seconds,json=pollIntervalSeconds,proto3" json:"poll_interval_seconds,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// The optimizer's objectives, in order; the scheduler samples their history.
+	Objectives    []*SweepSchedulerObjective `protobuf:"bytes,7,rep,name=objectives,proto3" json:"objectives,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SweepSchedulerClientInitRequest) Reset() {
@@ -321,6 +373,66 @@ func (x *SweepSchedulerClientInitRequest) GetPollIntervalSeconds() float64 {
 	return 0
 }
 
+func (x *SweepSchedulerClientInitRequest) GetObjectives() []*SweepSchedulerObjective {
+	if x != nil {
+		return x.Objectives
+	}
+	return nil
+}
+
+// One metric the optimizer searches over.
+type SweepSchedulerObjective struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MetricName    string                 `protobuf:"bytes,1,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
+	Goal          SweepSchedulerGoal     `protobuf:"varint,2,opt,name=goal,proto3,enum=wandb_internal.SweepSchedulerGoal" json:"goal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SweepSchedulerObjective) Reset() {
+	*x = SweepSchedulerObjective{}
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SweepSchedulerObjective) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SweepSchedulerObjective) ProtoMessage() {}
+
+func (x *SweepSchedulerObjective) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SweepSchedulerObjective.ProtoReflect.Descriptor instead.
+func (*SweepSchedulerObjective) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SweepSchedulerObjective) GetMetricName() string {
+	if x != nil {
+		return x.MetricName
+	}
+	return ""
+}
+
+func (x *SweepSchedulerObjective) GetGoal() SweepSchedulerGoal {
+	if x != nil {
+		return x.Goal
+	}
+	return SweepSchedulerGoal_SWEEP_SCHEDULER_GOAL_UNSPECIFIED
+}
+
 // Identifies the started scheduler and describes its sweep.
 type SweepSchedulerServerInitResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -342,7 +454,7 @@ type SweepSchedulerServerInitResponse struct {
 
 func (x *SweepSchedulerServerInitResponse) Reset() {
 	*x = SweepSchedulerServerInitResponse{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[1]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -354,7 +466,7 @@ func (x *SweepSchedulerServerInitResponse) String() string {
 func (*SweepSchedulerServerInitResponse) ProtoMessage() {}
 
 func (x *SweepSchedulerServerInitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[1]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -367,7 +479,7 @@ func (x *SweepSchedulerServerInitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerServerInitResponse.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerInitResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{1}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SweepSchedulerServerInitResponse) GetSessionId() string {
@@ -425,7 +537,7 @@ type SweepSchedulerClientNextTaskRequest struct {
 
 func (x *SweepSchedulerClientNextTaskRequest) Reset() {
 	*x = SweepSchedulerClientNextTaskRequest{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[2]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -437,7 +549,7 @@ func (x *SweepSchedulerClientNextTaskRequest) String() string {
 func (*SweepSchedulerClientNextTaskRequest) ProtoMessage() {}
 
 func (x *SweepSchedulerClientNextTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[2]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -450,7 +562,7 @@ func (x *SweepSchedulerClientNextTaskRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use SweepSchedulerClientNextTaskRequest.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientNextTaskRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{2}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SweepSchedulerClientNextTaskRequest) GetSessionId() string {
@@ -484,7 +596,7 @@ type SweepSchedulerServerNextTaskResponse struct {
 
 func (x *SweepSchedulerServerNextTaskResponse) Reset() {
 	*x = SweepSchedulerServerNextTaskResponse{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[3]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -496,7 +608,7 @@ func (x *SweepSchedulerServerNextTaskResponse) String() string {
 func (*SweepSchedulerServerNextTaskResponse) ProtoMessage() {}
 
 func (x *SweepSchedulerServerNextTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[3]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -509,7 +621,7 @@ func (x *SweepSchedulerServerNextTaskResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use SweepSchedulerServerNextTaskResponse.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerNextTaskResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{3}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SweepSchedulerServerNextTaskResponse) GetTaskSeq() uint64 {
@@ -592,7 +704,7 @@ type SweepSchedulerClientStopRequest struct {
 
 func (x *SweepSchedulerClientStopRequest) Reset() {
 	*x = SweepSchedulerClientStopRequest{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -604,7 +716,7 @@ func (x *SweepSchedulerClientStopRequest) String() string {
 func (*SweepSchedulerClientStopRequest) ProtoMessage() {}
 
 func (x *SweepSchedulerClientStopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -617,7 +729,7 @@ func (x *SweepSchedulerClientStopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerClientStopRequest.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientStopRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{4}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SweepSchedulerClientStopRequest) GetSessionId() string {
@@ -646,7 +758,7 @@ type SweepSchedulerServerWarmStartTask struct {
 
 func (x *SweepSchedulerServerWarmStartTask) Reset() {
 	*x = SweepSchedulerServerWarmStartTask{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -658,7 +770,7 @@ func (x *SweepSchedulerServerWarmStartTask) String() string {
 func (*SweepSchedulerServerWarmStartTask) ProtoMessage() {}
 
 func (x *SweepSchedulerServerWarmStartTask) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -671,7 +783,7 @@ func (x *SweepSchedulerServerWarmStartTask) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SweepSchedulerServerWarmStartTask.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerWarmStartTask) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{5}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SweepSchedulerServerWarmStartTask) GetFinishedRuns() []*SweepSchedulerServerRunData {
@@ -718,7 +830,7 @@ type SweepSchedulerServerGenerationTask struct {
 
 func (x *SweepSchedulerServerGenerationTask) Reset() {
 	*x = SweepSchedulerServerGenerationTask{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[6]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -730,7 +842,7 @@ func (x *SweepSchedulerServerGenerationTask) String() string {
 func (*SweepSchedulerServerGenerationTask) ProtoMessage() {}
 
 func (x *SweepSchedulerServerGenerationTask) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[6]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -743,7 +855,7 @@ func (x *SweepSchedulerServerGenerationTask) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use SweepSchedulerServerGenerationTask.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerGenerationTask) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{6}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SweepSchedulerServerGenerationTask) GetUpdates() []*SweepSchedulerServerRunUpdate {
@@ -787,7 +899,7 @@ type SweepSchedulerServerRunUpdate struct {
 
 func (x *SweepSchedulerServerRunUpdate) Reset() {
 	*x = SweepSchedulerServerRunUpdate{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[7]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -799,7 +911,7 @@ func (x *SweepSchedulerServerRunUpdate) String() string {
 func (*SweepSchedulerServerRunUpdate) ProtoMessage() {}
 
 func (x *SweepSchedulerServerRunUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[7]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -812,7 +924,7 @@ func (x *SweepSchedulerServerRunUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerServerRunUpdate.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerRunUpdate) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{7}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SweepSchedulerServerRunUpdate) GetRun() *SweepSchedulerServerRunData {
@@ -852,7 +964,7 @@ type SweepSchedulerServerRunData struct {
 
 func (x *SweepSchedulerServerRunData) Reset() {
 	*x = SweepSchedulerServerRunData{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[8]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -864,7 +976,7 @@ func (x *SweepSchedulerServerRunData) String() string {
 func (*SweepSchedulerServerRunData) ProtoMessage() {}
 
 func (x *SweepSchedulerServerRunData) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[8]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -877,7 +989,7 @@ func (x *SweepSchedulerServerRunData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerServerRunData.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerRunData) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{8}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SweepSchedulerServerRunData) GetWandbRunId() string {
@@ -934,7 +1046,7 @@ type SweepSchedulerServerDoneTask struct {
 
 func (x *SweepSchedulerServerDoneTask) Reset() {
 	*x = SweepSchedulerServerDoneTask{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[9]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -946,7 +1058,7 @@ func (x *SweepSchedulerServerDoneTask) String() string {
 func (*SweepSchedulerServerDoneTask) ProtoMessage() {}
 
 func (x *SweepSchedulerServerDoneTask) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[9]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -959,7 +1071,7 @@ func (x *SweepSchedulerServerDoneTask) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerServerDoneTask.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerServerDoneTask) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{9}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SweepSchedulerServerDoneTask) GetReason() SweepSchedulerServerDoneTask_Reason {
@@ -994,7 +1106,7 @@ type SweepSchedulerClientTaskResult struct {
 
 func (x *SweepSchedulerClientTaskResult) Reset() {
 	*x = SweepSchedulerClientTaskResult{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1006,7 +1118,7 @@ func (x *SweepSchedulerClientTaskResult) String() string {
 func (*SweepSchedulerClientTaskResult) ProtoMessage() {}
 
 func (x *SweepSchedulerClientTaskResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1019,7 +1131,7 @@ func (x *SweepSchedulerClientTaskResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerClientTaskResult.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientTaskResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{10}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SweepSchedulerClientTaskResult) GetTaskSeq() uint64 {
@@ -1100,7 +1212,7 @@ type SweepSchedulerClientWarmStartResult struct {
 
 func (x *SweepSchedulerClientWarmStartResult) Reset() {
 	*x = SweepSchedulerClientWarmStartResult{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1224,7 @@ func (x *SweepSchedulerClientWarmStartResult) String() string {
 func (*SweepSchedulerClientWarmStartResult) ProtoMessage() {}
 
 func (x *SweepSchedulerClientWarmStartResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1237,7 @@ func (x *SweepSchedulerClientWarmStartResult) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use SweepSchedulerClientWarmStartResult.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientWarmStartResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{11}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SweepSchedulerClientWarmStartResult) GetAdoptions() map[string]string {
@@ -1154,7 +1266,7 @@ type SweepSchedulerClientSkippedRun struct {
 
 func (x *SweepSchedulerClientSkippedRun) Reset() {
 	*x = SweepSchedulerClientSkippedRun{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1166,7 +1278,7 @@ func (x *SweepSchedulerClientSkippedRun) String() string {
 func (*SweepSchedulerClientSkippedRun) ProtoMessage() {}
 
 func (x *SweepSchedulerClientSkippedRun) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1179,7 +1291,7 @@ func (x *SweepSchedulerClientSkippedRun) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerClientSkippedRun.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientSkippedRun) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{12}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SweepSchedulerClientSkippedRun) GetWandbRunId() string {
@@ -1214,7 +1326,7 @@ type SweepSchedulerClientGenerationResult struct {
 
 func (x *SweepSchedulerClientGenerationResult) Reset() {
 	*x = SweepSchedulerClientGenerationResult{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1226,7 +1338,7 @@ func (x *SweepSchedulerClientGenerationResult) String() string {
 func (*SweepSchedulerClientGenerationResult) ProtoMessage() {}
 
 func (x *SweepSchedulerClientGenerationResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1239,7 +1351,7 @@ func (x *SweepSchedulerClientGenerationResult) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use SweepSchedulerClientGenerationResult.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientGenerationResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{13}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SweepSchedulerClientGenerationResult) GetAskOutcome() SweepSchedulerClientGenerationResult_AskOutcome {
@@ -1291,7 +1403,7 @@ type SweepSchedulerClientRunSuggestion struct {
 
 func (x *SweepSchedulerClientRunSuggestion) Reset() {
 	*x = SweepSchedulerClientRunSuggestion{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1303,7 +1415,7 @@ func (x *SweepSchedulerClientRunSuggestion) String() string {
 func (*SweepSchedulerClientRunSuggestion) ProtoMessage() {}
 
 func (x *SweepSchedulerClientRunSuggestion) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1316,7 +1428,7 @@ func (x *SweepSchedulerClientRunSuggestion) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SweepSchedulerClientRunSuggestion.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientRunSuggestion) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{14}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SweepSchedulerClientRunSuggestion) GetOptimizerRunId() string {
@@ -1345,7 +1457,7 @@ type SweepSchedulerClientTellError struct {
 
 func (x *SweepSchedulerClientTellError) Reset() {
 	*x = SweepSchedulerClientTellError{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1357,7 +1469,7 @@ func (x *SweepSchedulerClientTellError) String() string {
 func (*SweepSchedulerClientTellError) ProtoMessage() {}
 
 func (x *SweepSchedulerClientTellError) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1370,7 +1482,7 @@ func (x *SweepSchedulerClientTellError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerClientTellError.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientTellError) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{15}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SweepSchedulerClientTellError) GetOptimizerRunId() string {
@@ -1403,7 +1515,7 @@ type SweepSchedulerClientTaskError struct {
 
 func (x *SweepSchedulerClientTaskError) Reset() {
 	*x = SweepSchedulerClientTaskError{}
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1415,7 +1527,7 @@ func (x *SweepSchedulerClientTaskError) String() string {
 func (*SweepSchedulerClientTaskError) ProtoMessage() {}
 
 func (x *SweepSchedulerClientTaskError) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1428,7 +1540,7 @@ func (x *SweepSchedulerClientTaskError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SweepSchedulerClientTaskError.ProtoReflect.Descriptor instead.
 func (*SweepSchedulerClientTaskError) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{16}
+	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SweepSchedulerClientTaskError) GetMessage() string {
@@ -1449,7 +1561,7 @@ var File_wandb_proto_wandb_sweep_scheduler_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"'wandb/proto/wandb_sweep_scheduler.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_settings.proto\"\xf7\x01\n" +
+	"'wandb/proto/wandb_sweep_scheduler.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_settings.proto\"\xc0\x02\n" +
 	"\x1fSweepSchedulerClientInitRequest\x12\x16\n" +
 	"\x06entity\x18\x01 \x01(\tR\x06entity\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x19\n" +
@@ -1457,7 +1569,14 @@ const file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc = "" +
 	"\bsettings\x18\x04 \x01(\v2\x18.wandb_internal.SettingsR\bsettings\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x05 \x01(\rR\tbatchSize\x122\n" +
-	"\x15poll_interval_seconds\x18\x06 \x01(\x01R\x13pollIntervalSeconds\"\xb7\x01\n" +
+	"\x15poll_interval_seconds\x18\x06 \x01(\x01R\x13pollIntervalSeconds\x12G\n" +
+	"\n" +
+	"objectives\x18\a \x03(\v2'.wandb_internal.SweepSchedulerObjectiveR\n" +
+	"objectives\"r\n" +
+	"\x17SweepSchedulerObjective\x12\x1f\n" +
+	"\vmetric_name\x18\x01 \x01(\tR\n" +
+	"metricName\x126\n" +
+	"\x04goal\x18\x02 \x01(\x0e2\".wandb_internal.SweepSchedulerGoalR\x04goal\"\xb7\x01\n" +
 	" SweepSchedulerServerInitResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
@@ -1566,7 +1685,11 @@ const file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc = "" +
 	"\x16SWEEP_RUN_STATE_FAILED\x10\x06\x12\x1b\n" +
 	"\x17SWEEP_RUN_STATE_CRASHED\x10\a\x12\x1a\n" +
 	"\x16SWEEP_RUN_STATE_KILLED\x10\b\x12\x1b\n" +
-	"\x17SWEEP_RUN_STATE_UNKNOWN\x10\tB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x17SWEEP_RUN_STATE_UNKNOWN\x10\t*\x80\x01\n" +
+	"\x12SweepSchedulerGoal\x12$\n" +
+	" SWEEP_SCHEDULER_GOAL_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dSWEEP_SCHEDULER_GOAL_MINIMIZE\x10\x01\x12!\n" +
+	"\x1dSWEEP_SCHEDULER_GOAL_MAXIMIZE\x10\x02B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_sweep_scheduler_proto_rawDescOnce sync.Once
@@ -1580,57 +1703,61 @@ func file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP() []byte {
 	return file_wandb_proto_wandb_sweep_scheduler_proto_rawDescData
 }
 
-var file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_wandb_proto_wandb_sweep_scheduler_proto_goTypes = []any{
 	(SweepRunState)(0),                                   // 0: wandb_internal.SweepRunState
-	(SweepSchedulerServerDoneTask_Reason)(0),             // 1: wandb_internal.SweepSchedulerServerDoneTask.Reason
-	(SweepSchedulerClientGenerationResult_AskOutcome)(0), // 2: wandb_internal.SweepSchedulerClientGenerationResult.AskOutcome
-	(*SweepSchedulerClientInitRequest)(nil),              // 3: wandb_internal.SweepSchedulerClientInitRequest
-	(*SweepSchedulerServerInitResponse)(nil),             // 4: wandb_internal.SweepSchedulerServerInitResponse
-	(*SweepSchedulerClientNextTaskRequest)(nil),          // 5: wandb_internal.SweepSchedulerClientNextTaskRequest
-	(*SweepSchedulerServerNextTaskResponse)(nil),         // 6: wandb_internal.SweepSchedulerServerNextTaskResponse
-	(*SweepSchedulerClientStopRequest)(nil),              // 7: wandb_internal.SweepSchedulerClientStopRequest
-	(*SweepSchedulerServerWarmStartTask)(nil),            // 8: wandb_internal.SweepSchedulerServerWarmStartTask
-	(*SweepSchedulerServerGenerationTask)(nil),           // 9: wandb_internal.SweepSchedulerServerGenerationTask
-	(*SweepSchedulerServerRunUpdate)(nil),                // 10: wandb_internal.SweepSchedulerServerRunUpdate
-	(*SweepSchedulerServerRunData)(nil),                  // 11: wandb_internal.SweepSchedulerServerRunData
-	(*SweepSchedulerServerDoneTask)(nil),                 // 12: wandb_internal.SweepSchedulerServerDoneTask
-	(*SweepSchedulerClientTaskResult)(nil),               // 13: wandb_internal.SweepSchedulerClientTaskResult
-	(*SweepSchedulerClientWarmStartResult)(nil),          // 14: wandb_internal.SweepSchedulerClientWarmStartResult
-	(*SweepSchedulerClientSkippedRun)(nil),               // 15: wandb_internal.SweepSchedulerClientSkippedRun
-	(*SweepSchedulerClientGenerationResult)(nil),         // 16: wandb_internal.SweepSchedulerClientGenerationResult
-	(*SweepSchedulerClientRunSuggestion)(nil),            // 17: wandb_internal.SweepSchedulerClientRunSuggestion
-	(*SweepSchedulerClientTellError)(nil),                // 18: wandb_internal.SweepSchedulerClientTellError
-	(*SweepSchedulerClientTaskError)(nil),                // 19: wandb_internal.SweepSchedulerClientTaskError
-	nil,                                                  // 20: wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
-	(*Settings)(nil),                                     // 21: wandb_internal.Settings
+	(SweepSchedulerGoal)(0),                              // 1: wandb_internal.SweepSchedulerGoal
+	(SweepSchedulerServerDoneTask_Reason)(0),             // 2: wandb_internal.SweepSchedulerServerDoneTask.Reason
+	(SweepSchedulerClientGenerationResult_AskOutcome)(0), // 3: wandb_internal.SweepSchedulerClientGenerationResult.AskOutcome
+	(*SweepSchedulerClientInitRequest)(nil),              // 4: wandb_internal.SweepSchedulerClientInitRequest
+	(*SweepSchedulerObjective)(nil),                      // 5: wandb_internal.SweepSchedulerObjective
+	(*SweepSchedulerServerInitResponse)(nil),             // 6: wandb_internal.SweepSchedulerServerInitResponse
+	(*SweepSchedulerClientNextTaskRequest)(nil),          // 7: wandb_internal.SweepSchedulerClientNextTaskRequest
+	(*SweepSchedulerServerNextTaskResponse)(nil),         // 8: wandb_internal.SweepSchedulerServerNextTaskResponse
+	(*SweepSchedulerClientStopRequest)(nil),              // 9: wandb_internal.SweepSchedulerClientStopRequest
+	(*SweepSchedulerServerWarmStartTask)(nil),            // 10: wandb_internal.SweepSchedulerServerWarmStartTask
+	(*SweepSchedulerServerGenerationTask)(nil),           // 11: wandb_internal.SweepSchedulerServerGenerationTask
+	(*SweepSchedulerServerRunUpdate)(nil),                // 12: wandb_internal.SweepSchedulerServerRunUpdate
+	(*SweepSchedulerServerRunData)(nil),                  // 13: wandb_internal.SweepSchedulerServerRunData
+	(*SweepSchedulerServerDoneTask)(nil),                 // 14: wandb_internal.SweepSchedulerServerDoneTask
+	(*SweepSchedulerClientTaskResult)(nil),               // 15: wandb_internal.SweepSchedulerClientTaskResult
+	(*SweepSchedulerClientWarmStartResult)(nil),          // 16: wandb_internal.SweepSchedulerClientWarmStartResult
+	(*SweepSchedulerClientSkippedRun)(nil),               // 17: wandb_internal.SweepSchedulerClientSkippedRun
+	(*SweepSchedulerClientGenerationResult)(nil),         // 18: wandb_internal.SweepSchedulerClientGenerationResult
+	(*SweepSchedulerClientRunSuggestion)(nil),            // 19: wandb_internal.SweepSchedulerClientRunSuggestion
+	(*SweepSchedulerClientTellError)(nil),                // 20: wandb_internal.SweepSchedulerClientTellError
+	(*SweepSchedulerClientTaskError)(nil),                // 21: wandb_internal.SweepSchedulerClientTaskError
+	nil,                                                  // 22: wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
+	(*Settings)(nil),                                     // 23: wandb_internal.Settings
 }
 var file_wandb_proto_wandb_sweep_scheduler_proto_depIdxs = []int32{
-	21, // 0: wandb_internal.SweepSchedulerClientInitRequest.settings:type_name -> wandb_internal.Settings
-	13, // 1: wandb_internal.SweepSchedulerClientNextTaskRequest.result:type_name -> wandb_internal.SweepSchedulerClientTaskResult
-	8,  // 2: wandb_internal.SweepSchedulerServerNextTaskResponse.warm_start:type_name -> wandb_internal.SweepSchedulerServerWarmStartTask
-	9,  // 3: wandb_internal.SweepSchedulerServerNextTaskResponse.generation:type_name -> wandb_internal.SweepSchedulerServerGenerationTask
-	12, // 4: wandb_internal.SweepSchedulerServerNextTaskResponse.done:type_name -> wandb_internal.SweepSchedulerServerDoneTask
-	11, // 5: wandb_internal.SweepSchedulerServerWarmStartTask.finished_runs:type_name -> wandb_internal.SweepSchedulerServerRunData
-	11, // 6: wandb_internal.SweepSchedulerServerWarmStartTask.active_runs:type_name -> wandb_internal.SweepSchedulerServerRunData
-	10, // 7: wandb_internal.SweepSchedulerServerGenerationTask.updates:type_name -> wandb_internal.SweepSchedulerServerRunUpdate
-	11, // 8: wandb_internal.SweepSchedulerServerRunUpdate.run:type_name -> wandb_internal.SweepSchedulerServerRunData
-	0,  // 9: wandb_internal.SweepSchedulerServerRunData.state:type_name -> wandb_internal.SweepRunState
-	1,  // 10: wandb_internal.SweepSchedulerServerDoneTask.reason:type_name -> wandb_internal.SweepSchedulerServerDoneTask.Reason
-	14, // 11: wandb_internal.SweepSchedulerClientTaskResult.warm_start:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult
-	16, // 12: wandb_internal.SweepSchedulerClientTaskResult.generation:type_name -> wandb_internal.SweepSchedulerClientGenerationResult
-	19, // 13: wandb_internal.SweepSchedulerClientTaskResult.error:type_name -> wandb_internal.SweepSchedulerClientTaskError
-	20, // 14: wandb_internal.SweepSchedulerClientWarmStartResult.adoptions:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
-	15, // 15: wandb_internal.SweepSchedulerClientWarmStartResult.skipped:type_name -> wandb_internal.SweepSchedulerClientSkippedRun
-	2,  // 16: wandb_internal.SweepSchedulerClientGenerationResult.ask_outcome:type_name -> wandb_internal.SweepSchedulerClientGenerationResult.AskOutcome
-	17, // 17: wandb_internal.SweepSchedulerClientGenerationResult.suggestions:type_name -> wandb_internal.SweepSchedulerClientRunSuggestion
-	18, // 18: wandb_internal.SweepSchedulerClientGenerationResult.tell_errors:type_name -> wandb_internal.SweepSchedulerClientTellError
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	23, // 0: wandb_internal.SweepSchedulerClientInitRequest.settings:type_name -> wandb_internal.Settings
+	5,  // 1: wandb_internal.SweepSchedulerClientInitRequest.objectives:type_name -> wandb_internal.SweepSchedulerObjective
+	1,  // 2: wandb_internal.SweepSchedulerObjective.goal:type_name -> wandb_internal.SweepSchedulerGoal
+	15, // 3: wandb_internal.SweepSchedulerClientNextTaskRequest.result:type_name -> wandb_internal.SweepSchedulerClientTaskResult
+	10, // 4: wandb_internal.SweepSchedulerServerNextTaskResponse.warm_start:type_name -> wandb_internal.SweepSchedulerServerWarmStartTask
+	11, // 5: wandb_internal.SweepSchedulerServerNextTaskResponse.generation:type_name -> wandb_internal.SweepSchedulerServerGenerationTask
+	14, // 6: wandb_internal.SweepSchedulerServerNextTaskResponse.done:type_name -> wandb_internal.SweepSchedulerServerDoneTask
+	13, // 7: wandb_internal.SweepSchedulerServerWarmStartTask.finished_runs:type_name -> wandb_internal.SweepSchedulerServerRunData
+	13, // 8: wandb_internal.SweepSchedulerServerWarmStartTask.active_runs:type_name -> wandb_internal.SweepSchedulerServerRunData
+	12, // 9: wandb_internal.SweepSchedulerServerGenerationTask.updates:type_name -> wandb_internal.SweepSchedulerServerRunUpdate
+	13, // 10: wandb_internal.SweepSchedulerServerRunUpdate.run:type_name -> wandb_internal.SweepSchedulerServerRunData
+	0,  // 11: wandb_internal.SweepSchedulerServerRunData.state:type_name -> wandb_internal.SweepRunState
+	2,  // 12: wandb_internal.SweepSchedulerServerDoneTask.reason:type_name -> wandb_internal.SweepSchedulerServerDoneTask.Reason
+	16, // 13: wandb_internal.SweepSchedulerClientTaskResult.warm_start:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult
+	18, // 14: wandb_internal.SweepSchedulerClientTaskResult.generation:type_name -> wandb_internal.SweepSchedulerClientGenerationResult
+	21, // 15: wandb_internal.SweepSchedulerClientTaskResult.error:type_name -> wandb_internal.SweepSchedulerClientTaskError
+	22, // 16: wandb_internal.SweepSchedulerClientWarmStartResult.adoptions:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
+	17, // 17: wandb_internal.SweepSchedulerClientWarmStartResult.skipped:type_name -> wandb_internal.SweepSchedulerClientSkippedRun
+	3,  // 18: wandb_internal.SweepSchedulerClientGenerationResult.ask_outcome:type_name -> wandb_internal.SweepSchedulerClientGenerationResult.AskOutcome
+	19, // 19: wandb_internal.SweepSchedulerClientGenerationResult.suggestions:type_name -> wandb_internal.SweepSchedulerClientRunSuggestion
+	20, // 20: wandb_internal.SweepSchedulerClientGenerationResult.tell_errors:type_name -> wandb_internal.SweepSchedulerClientTellError
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_sweep_scheduler_proto_init() }
@@ -1639,12 +1766,12 @@ func file_wandb_proto_wandb_sweep_scheduler_proto_init() {
 		return
 	}
 	file_wandb_proto_wandb_settings_proto_init()
-	file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[3].OneofWrappers = []any{
+	file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[4].OneofWrappers = []any{
 		(*SweepSchedulerServerNextTaskResponse_WarmStart)(nil),
 		(*SweepSchedulerServerNextTaskResponse_Generation)(nil),
 		(*SweepSchedulerServerNextTaskResponse_Done)(nil),
 	}
-	file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[10].OneofWrappers = []any{
+	file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes[11].OneofWrappers = []any{
 		(*SweepSchedulerClientTaskResult_WarmStart)(nil),
 		(*SweepSchedulerClientTaskResult_Generation)(nil),
 		(*SweepSchedulerClientTaskResult_Error)(nil),
@@ -1654,8 +1781,8 @@ func file_wandb_proto_wandb_sweep_scheduler_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc), len(file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   18,
+			NumEnums:      4,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
