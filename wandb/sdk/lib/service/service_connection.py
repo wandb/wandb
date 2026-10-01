@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import atexit
 import pathlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from wandb.proto import (
     wandb_api_pb2,
@@ -238,6 +238,7 @@ class ServiceConnection:
         sweep_id: str,
         batch_size: int,
         poll_interval_seconds: float,
+        objectives: Sequence[wandb_sweep_scheduler_pb2.SweepSchedulerObjective],
     ) -> MailboxHandle[wandb_sweep_scheduler_pb2.SweepSchedulerServerInitResponse]:
         """Send a SweepSchedulerClientInitRequest."""
         init = wandb_sweep_scheduler_pb2.SweepSchedulerClientInitRequest(
@@ -247,6 +248,7 @@ class ServiceConnection:
             settings=settings.to_proto(),
             batch_size=batch_size,
             poll_interval_seconds=poll_interval_seconds,
+            objectives=objectives,
         )
         request = spb.ServerRequest(sweep_scheduler_init=init)
 
