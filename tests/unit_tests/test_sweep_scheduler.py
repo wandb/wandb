@@ -521,6 +521,40 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
 
         return WandbOptimizer(sweep=sweep)
 
+    @pytest.mark.parametrize("goal", ["maximize", "MAXIMIZE"])
+    def test_hyperband_stops_the_lowest_run_for_a_maximize_goal(
+        self, goal: str
+    ) -> None:
+        """The `sweeps` search reads the goal case-sensitively; we must not."""
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+        config = dict(SCHEDULER_GRID_SWEEP_CONFIG)
+        config["metric"] = {"name": "acc", "goal": goal}
+        optimizer = WandbOptimizer(sweep=make_scheduler_grid_sweep(config=config))
+        finished, low, high = optimizer.ask_n_runs(3)
+        optimizer.tell_run(
+            finished.run_id,
+            make_run(
+                finished,
+                state=RunState.FINISHED,
+                summary={"acc": 5.0},
+                history=[{"acc": a, "_step": i} for i, a in enumerate([1, 5, 5])],
+            ),
+        )
+        runs = [
+            make_run(
+                suggestion,
+                state=RunState.RUNNING,
+                summary={"acc": acc},
+                history=[{"acc": 1.0, "_step": 0}, {"acc": acc, "_step": 1}],
+            )
+            for suggestion, acc in [(low, 2.0), (high, 4.0)]
+        ]
+
+        pruned = optimizer.prune_runs([low.run_id, high.run_id], runs)
+
+        assert pruned == [low.run_id]
+
     def test_forget_run_reproposes_grid_point(self, optimizer: Optimizer) -> None:
         """Forgetting deletes the sample, so grid offers the point again."""
         first_run = next(iter(optimizer.ask_n_runs(1)))

@@ -17,6 +17,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
+    metric_goal,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -38,6 +39,22 @@ def _to_sweeps_state(state: RunState) -> Any:
         return sweeps.RunState.pending
 
 
+def _with_lowercase_goals(config: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of a sweep config with each metric goal lowercased.
+
+    The `sweeps` search compares the goal to `"maximize"` case-sensitively.
+    """
+    search_config = dict(config)
+    if isinstance(config.get("metric"), dict):
+        metric = config["metric"]
+        search_config["metric"] = {**metric, "goal": metric_goal(metric)}
+    if isinstance(config.get("metrics"), list):
+        search_config["metrics"] = [
+            {**metric, "goal": metric_goal(metric)} for metric in config["metrics"]
+        ]
+    return search_config
+
+
 class WandbOptimizer(Optimizer):
     """`Optimizer` driven by the `sweeps` search algorithms.
 
@@ -48,6 +65,7 @@ class WandbOptimizer(Optimizer):
     @override
     def __init__(self, sweep: SweepInfo):
         super().__init__(sweep)
+        self._search_config = _with_lowercase_goals(sweep.config)
         self._runs: dict[str, sweeps.SweepRun] = {}
         self._pruned: set[str] = set()
         self._run_counter = 0
@@ -108,7 +126,9 @@ class WandbOptimizer(Optimizer):
         Args:
             n: The maximum number of runs to propose.
         """
-        suggested = sweeps.next_runs(self._sweep.config, list(self._runs.values()), n=n)
+        suggested = sweeps.next_runs(
+            self._search_config, list(self._runs.values()), n=n
+        )
         suggestions: list[RunSuggestion] = []
         for sweep_run in suggested:
             # grid search returns None once the search space is exhausted.
@@ -180,7 +200,7 @@ class WandbOptimizer(Optimizer):
             return []
         try:
             to_stop = sweeps.stop_runs(
-                self._sweep.config,
+                self._search_config,
                 self._sweep_runs_for_stop_runs(run_ids, runs),
             )
         except Exception:

@@ -266,15 +266,20 @@ def _experiment_objectives(client: ax.Client) -> list[tuple[str, bool]]:
     return [(name, weight < 0) for name, weight in weights]
 
 
-def _objective_expression(names: list[str], goals: list[str]) -> str:
-    """Return the `configure_optimization` objective matching the sweep goals.
+def _objective_fix_hint(names: list[str], goals: list[str]) -> str:
+    """Return how to configure an Ax client to match the sweep goals.
 
     Ax minimizes a metric written with a leading `-` and maximizes one without.
+    The expression is offered only when Ax's parser can read every name.
     """
-    return ", ".join(
+    hint = "call configure_sweep_objective(client, config)"
+    if not all(name.isidentifier() for name in names):
+        return hint
+    expression = ", ".join(
         f"-{name}" if goal != "maximize" else name
         for name, goal in zip(names, goals, strict=True)
     )
+    return f"{hint}, or configure the client with objective={expression!r}"
 
 
 class AxOptimizer(Optimizer):
@@ -352,12 +357,10 @@ class AxOptimizer(Optimizer):
         ):
             goal = "minimize" if minimize else "maximize"
             if goal != sweep_goal:
-                expression = _objective_expression(sweep_names, sweep_goals)
+                hint = _objective_fix_hint(sweep_names, sweep_goals)
                 raise ValueError(
                     f"The Ax client's objective {goal}s {metric_name!r}, but the "
-                    f"sweep config's metric goal is {sweep_goal!r}; configure the "
-                    f"client with objective={expression!r}, or call "
-                    "configure_sweep_objective(client, config)."
+                    f"sweep config's metric goal is {sweep_goal!r}; {hint}."
                 )
             if metric_name != sweep_name:
                 raise ValueError(

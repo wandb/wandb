@@ -19,6 +19,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     _experiment,
     _experiment_objectives,
     build_ax_optimizer,
+    configure_sweep_objective,
     create_default_client,
     sweep_parameter_to_parameter,
 )
@@ -285,6 +286,24 @@ class TestMultiObjective:
 
         with pytest.raises(ValueError, match=r"objective='-loss, accuracy'"):
             AxOptimizer(client, sweep)
+
+    def test_a_mismatched_direction_skips_an_unparseable_expression(
+        self,
+    ) -> None:
+        """Ax's parser rejects "acc %", so only the helper is suggested."""
+        client = make_client()
+        configure_sweep_objective(
+            client, {"metric": {"name": "acc %", "goal": "minimize"}}
+        )
+        sweep = make_scheduler_grid_sweep(
+            config={"metric": {"name": "acc %", "goal": "maximize"}}
+        )
+
+        with pytest.raises(ValueError) as error:
+            AxOptimizer(client, sweep)
+
+        assert "configure_sweep_objective(client, config)." in str(error.value)
+        assert "objective=" not in str(error.value)
 
 
 class TestRouteLibraryLogs:
