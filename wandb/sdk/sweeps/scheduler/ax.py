@@ -59,10 +59,9 @@ def _check_one_type(name: str, values: list[Any]) -> None:
     """Raise if a choice list mixes value types, which Ax cannot hold.
 
     Raises:
-        ValueError: If the values are not all bools, all numbers, or all of
-            one other type.
+        ValueError: If the values are not all the same type.
     """
-    # Ints and floats share a number type; a bool is never one.
+    # Ax accepts mixed Int and float types only
     kinds = {
         "bool"
         if isinstance(v, bool)
@@ -74,7 +73,7 @@ def _check_one_type(name: str, values: list[Any]) -> None:
     if len(kinds) > 1:
         raise ValueError(
             f"Sweep parameter {name!r} mixes value types ({', '.join(sorted(kinds))}),"
-            " which the Ax engine does not support. List values of one type, or"
+            " which the Ax engine does not support. Choose values of one type, or"
             " use the wandb or optuna engine."
         )
 
@@ -553,15 +552,10 @@ class AxOptimizer(Optimizer):
         parameters = _experiment(self.client).search_space.parameters
         if not all(name in config for name in parameters):
             return None
-        params = {}
-        for name, parameter in parameters.items():
-            try:
-                params[name] = parameter.python_type(config[name])
-            except (TypeError, ValueError) as e:
-                raise ValueError(
-                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
-                ) from e
-        return params
+        return {
+            name: parameter.python_type(config[name])
+            for name, parameter in parameters.items()
+        }
 
 
 # ---------------------------------------------------------------------------
