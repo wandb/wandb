@@ -418,6 +418,34 @@ def test_clearing_when_not_logged_in(tmp_path: pathlib.Path):
     assert browser_login.clear_credentials(tmp_path / "nope.json", HOST) is None
 
 
+def test_clearing_an_identity_token_exchange_keeps_the_browser_login(
+    tmp_path: pathlib.Path,
+):
+    path = tmp_path / "credentials.json"
+    workload = {
+        "expires_at": "2030-01-01 00:00:00",
+        "access_token": "wb_at_federated",
+    }
+    path.write_text(
+        json.dumps(
+            {
+                "credentials": {
+                    "https://test-host": workload,
+                    "https://other-host": workload,
+                }
+            }
+        )
+    )
+    browser_login.save_credentials(path, HOST, some_tokens())
+
+    assert browser_login.clear_identity_token_exchange(path, HOST) is True
+    assert browser_login.clear_identity_token_exchange(path, HOST) is False
+
+    contents = json.loads(path.read_text())
+    assert contents["credentials"] == {"https://other-host": workload}
+    assert browser_login.load_credentials(path, HOST) == some_tokens()
+
+
 def test_can_open_browser_rejects_a_remote_shell(monkeypatch: pytest.MonkeyPatch):
     """SSH would open the browser on the wrong machine."""
     monkeypatch.setenv("SSH_CONNECTION", "10.0.0.1 22 10.0.0.2 22")

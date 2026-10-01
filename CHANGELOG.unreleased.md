@@ -20,6 +20,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - LEET shows the system metrics of runs opened from a W&B server with `wandb leet <run-url>` or from a project view (@jacobromero, @dmitryduev in https://github.com/wandb/wandb/pull/13217)
 - In LEET, the system metrics of a remote run that is still running update every 15 seconds along with its history (@dmitryduev in https://github.com/wandb/wandb/pull/13219)
 - The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
+- `wandb login --browser` logs in through your browser instead of asking for an API key. It uses the session you already have, so it works the same whether your organization signs in with SAML, OIDC, or a password, and the credentials it stores are scoped to one organization and renewed for you until the login expires. Plain `wandb login` still asks for an API key, and a browser login already on this machine is reused by `wandb login` and `wandb.init()` like any other credential. `wandb login --relogin` logs in again the way you are logged in now: it asks for a new API key, runs the browser login again, or exchanges the identity token again (@ckacal in https://github.com/wandb/wandb/pull/13084)
 
 ### Changed
 
