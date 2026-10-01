@@ -10,7 +10,6 @@ import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any, Concatenate, NamedTuple
-from urllib.parse import urlsplit
 
 import requests
 from opentelemetry._logs import SeverityNumber
@@ -603,10 +602,7 @@ class OpenTelemetryProxy:
         This is the W&B API host behind a CoreWeave Forge base URL,
         and the base URL otherwise.
         """
-        base_url = self._settings.base_url
-        if upstream := urls.FORGE_HOSTS.get(urlsplit(base_url).hostname or ""):
-            return f"https://{upstream}"
-        return base_url
+        return urls.forge_upstream_url(self._settings.base_url)
 
     def _server_supported(self) -> bool:
         """Return whether the server supports the proxy API, probing on first use.

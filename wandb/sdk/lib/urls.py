@@ -44,6 +44,13 @@ def is_forge_host(url: str) -> bool:
     return urlsplit(url).hostname in FORGE_HOSTS
 
 
+def forge_upstream_url(url: str) -> str:
+    """Returns the W&B API URL behind a CoreWeave Forge URL, or the URL as is."""
+    if upstream := FORGE_HOSTS.get(urlsplit(url).hostname or ""):
+        return f"https://{upstream}"
+    return url
+
+
 def validate_forge_base_url(url: str) -> None:
     """Require Forge server URLs to use the W&B API path over HTTPS.
 

@@ -668,6 +668,10 @@ def test_ces_base_url(monkeypatch):
     monkeypatch.delenv("CES_BASE_URL", raising=False)
     assert ces._ces_base_url("https://api.wandb.ai") == "https://evaluations.wandb.ai"
     assert (
+        ces._ces_base_url("https://forge.coreweave.com/api/wandb")
+        == "https://evaluations.wandb.ai"
+    )
+    assert (
         ces._ces_base_url("https://example.test") == "https://example.test/evaluations"
     )
 
