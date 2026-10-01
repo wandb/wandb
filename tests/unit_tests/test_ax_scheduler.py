@@ -225,7 +225,7 @@ class TestBuildAxSchedulerOptimizer:
         source = tmp_path / "optimizer.py"
         source.write_text(
             "from ax.api.client import Client\n"
-            "from wandb.sweeps.ax import (\n"
+            "from wandb.sdk.sweeps.scheduler.ax import (\n"
             "    configure_sweep_objective,\n"
             "    sweep_config_to_search_space,\n"
             ")\n"

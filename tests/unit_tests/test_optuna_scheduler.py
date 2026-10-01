@@ -221,7 +221,7 @@ class TestBuildOptunaSchedulerOptimizer:
         source = tmp_path / "optimizer.py"
         source.write_text(
             "import optuna\n"
-            "from wandb.sweeps.optuna import sweep_directions\n"
+            "from wandb.sdk.sweeps.scheduler.optuna import sweep_directions\n"
             "\n"
             "def make_study(sweep):\n"
             "    return optuna.create_study(\n"

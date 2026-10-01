@@ -251,7 +251,7 @@ def load_optimizer_config(
     # TODO: link to documentation with scheduler.optimizer examples.
     requirement = (
         f"scheduler.optimizer must name a function that takes a"
-        f" wandb.sweeps.SweepInfo argument and returns an instance of"
+        f" SweepInfo argument and returns an instance of"
         f" {optimizer_type} or a ({optimizer_type}, {terminator_type}) tuple."
     )
 

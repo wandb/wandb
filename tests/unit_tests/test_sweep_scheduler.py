@@ -13,8 +13,8 @@ import importlib.util
 import logging
 from collections.abc import Sequence
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
@@ -835,89 +835,80 @@ class TestLoadSourceObject:
             scheduler_client.load_source_object(str(source), "configure")
 
 
-def write_factory(tmp_path: Path, definition: str) -> str:
-    """Write a `scheduler.optimizer` source whose engine type is SimpleNamespace."""
-    source = tmp_path / "optimizer.py"
-    source.write_text(
-        "from types import SimpleNamespace\n\n" + definition, encoding="utf-8"
-    )
-    return str(source)
+class _Engine:
+    """Stands in for an engine's optimizer type, like optuna.Study."""
 
 
 class TestLoadOptimizerConfig:
-    def test_returns_bare_optimizer(self, tmp_path: Path) -> None:
-        source = write_factory(
-            tmp_path,
-            "def configure(sweep):\n    return SimpleNamespace(sweep=sweep)\n",
+    def test_returns_bare_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        optimizer = _Engine()
+        configure = MagicMock(return_value=optimizer)
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
         )
+
         sweep = make_scheduler_grid_sweep()
 
         loaded, terminator = scheduler_client.load_optimizer_config(
-            source, "configure", SimpleNamespace, sweep
+            "optimizer.py", "configure", _Engine, sweep
         )
 
-        assert loaded.sweep is sweep
+        configure.assert_called_once_with(sweep)
+        assert loaded is optimizer
         assert terminator is None
 
-    def test_returns_optimizer_and_terminator(self, tmp_path: Path) -> None:
-        source = write_factory(
-            tmp_path,
-            "def configure(sweep):\n"
-            "    return SimpleNamespace(), lambda optimizer: True\n",
+    def test_returns_optimizer_and_terminator(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        optimizer = _Engine()
+        terminator = MagicMock(return_value=True)
+        configure = MagicMock(return_value=(optimizer, terminator))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, loaded_terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
+        )
+
+        assert loaded is optimizer
+        assert loaded_terminator is terminator
+
+    def test_returns_only_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        optimizer = _Engine()
+        configure = MagicMock(return_value=(optimizer, None))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
         )
 
         loaded, terminator = scheduler_client.load_optimizer_config(
-            source, "configure", SimpleNamespace, make_scheduler_grid_sweep()
+            "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
         )
 
-        assert isinstance(loaded, SimpleNamespace)
-        assert terminator is not None
-        assert terminator(loaded) is True
-
-    def test_returns_only_optimizer(self, tmp_path: Path) -> None:
-        source = write_factory(
-            tmp_path,
-            "def configure(sweep):\n    return SimpleNamespace(), None\n",
-        )
-
-        loaded, terminator = scheduler_client.load_optimizer_config(
-            source, "configure", SimpleNamespace, make_scheduler_grid_sweep()
-        )
-
-        assert isinstance(loaded, SimpleNamespace)
+        assert loaded is optimizer
         assert terminator is None
 
-    def test_non_callable_terminator_raises(self, tmp_path: Path) -> None:
-        source = write_factory(
-            tmp_path,
-            "def configure(sweep):\n    return SimpleNamespace(), 'not-callable'\n",
+    def test_non_callable_terminator_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        configure = MagicMock(return_value=(_Engine(), "not-callable"))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
         )
 
         with pytest.raises(ValueError, match="terminator.*Callable"):
             scheduler_client.load_optimizer_config(
-                source, "configure", SimpleNamespace, make_scheduler_grid_sweep()
+                "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
             )
 
     @pytest.mark.parametrize(
-        "definition, problem",
+        "factory, problem",
         [
-            ("configure = 3\n", "is int, not a function"),
-            (
-                "def configure():\n    return SimpleNamespace()\n",
-                "cannot be called with one SweepInfo argument",
-            ),
-            (
-                "def configure(sweep):\n    return object()\n",
-                "returned object instead of",
-            ),
-            (
-                "def configure(sweep):\n    return object(), None\n",
-                "returned object instead of",
-            ),
-            (
-                "def configure(sweep):\n    return SimpleNamespace(), None, None\n",
-                "returned a tuple of 3 items",
-            ),
+            (3, "is int, not a function"),
+            (lambda: _Engine(), "cannot be called with one SweepInfo argument"),
+            (lambda sweep: object(), "returned object instead of"),
+            (lambda sweep: (object(), None), "returned object instead of"),
+            (lambda sweep: (_Engine(), None, None), "returned a tuple of 3 items"),
         ],
         ids=[
             "not-callable",
@@ -928,13 +919,13 @@ class TestLoadOptimizerConfig:
         ],
     )
     def test_rejects_a_factory_of_the_wrong_type(
-        self, tmp_path: Path, definition: str, problem: str
+        self, monkeypatch: pytest.MonkeyPatch, factory: object, problem: str
     ) -> None:
-        source = write_factory(tmp_path, definition)
+        monkeypatch.setattr(scheduler_client, "load_source_object", lambda *_: factory)
 
         with pytest.raises(ValueError, match=problem) as error:
             scheduler_client.load_optimizer_config(
-                source, "configure", SimpleNamespace, make_scheduler_grid_sweep()
+                "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
             )
 
         assert "scheduler.optimizer must name a function" in str(error.value)
