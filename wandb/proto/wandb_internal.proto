@@ -297,18 +297,6 @@ message HistoryRecord {
   _RecordInfo _info = 200;
 }
 
-// A logged value with its type.
-message HistoryValue {
-  oneof value {
-    google.protobuf.NullValue none = 1;
-    bool boolean = 2;
-    sint64 integer = 3;
-    double number = 4;
-    string text = 5;
-    string json = 6;
-  }
-}
-
 /*
  * HistoryItem:
  *
@@ -322,7 +310,14 @@ message HistoryItem {
 
   // The typed form of `value_json`. A writer may set one,
   // or both. A reader prefers `value` and falls back to `value_json`.
-  HistoryValue value = 3;
+  oneof value {
+    google.protobuf.NullValue none = 3;
+    bool boolean = 4;
+    sint64 integer = 5;
+    double number = 6;
+    string text = 7;
+    string json = 8;
+  }
 
   string value_json = 16;
 }
@@ -1727,4 +1722,7 @@ enum ServerFeature {
 
   // Indicates that the server supports automation action ARIA.
   AUTOMATION_ACTION_ARIA = 37;
+
+  // Indicates that the server supports CoreWeave Evaluation Service.
+  EVAL_TABLES_CES = 38;
 }

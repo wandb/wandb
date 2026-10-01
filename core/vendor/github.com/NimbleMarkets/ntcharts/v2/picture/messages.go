@@ -1,5 +1,7 @@
 package picture
 
+import "github.com/NimbleMarkets/ntcharts/v2/internal/kittyshm"
+
 // KittyFrameMsg carries the result of building a Kitty APC payload + grid for
 // a specific generation of the Model. Update() ignores frames whose modelID
 // (a per-Model atomic counter, unforgeable from outside the package) does not
@@ -13,4 +15,9 @@ type KittyFrameMsg struct {
 	Seq     uint64
 	APC     string
 	Grid    string
+	// Format reports how this frame's pixels were transmitted (PNG or RGBA).
+	Format KittyFormat
+	// Medium reports the transport actually used, including any direct fallback.
+	Medium       KittyMedium
+	sharedMemory *kittyshm.Object
 }

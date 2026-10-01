@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/internal/kittyshm"
 	"github.com/NimbleMarkets/pixterm/pkg/ansimage"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -72,6 +73,8 @@ const (
 
 // Config configures a Model at construction.
 type Config struct {
+	// KittyZ sets placement depth; negative values place graphics under text.
+	KittyZ     int
 	KittyID    int         // default 43
 	Background color.Color // default color.Transparent (no compositing)
 
@@ -106,12 +109,22 @@ type Config struct {
 	// fidelity of Glyph mode is desirable. Out-of-range values clamp
 	// to 1.0.
 	KittyResolutionFactor float64
+
+	// KittyFormat selects how Kitty frames are transmitted: PNG (default;
+	// small on the wire, one encode per frame) or raw RGBA (no encode or
+	// decode, about 5.3 bytes per pixel through the terminal stream).
+	KittyFormat KittyFormat
+
+	// KittyMedium chooses direct transmission (default) or shared memory.
+	// Shared memory always uses raw RGBA; KittyFormat selects the direct fallback.
+	KittyMedium KittyMedium
 }
 
 // Model renders an image.Image as half-blocks or Kitty graphics inside a
 // Bubble Tea program. The Model has no notion of where images come from;
 // callers feed it via SetImage. For URL-driven fetching, see pictureurl.
 type Model struct {
+	kittyZ     int
 	modelID    uint64
 	mode       PictureMode
 	cols, rows int
@@ -134,6 +147,11 @@ type Model struct {
 	// kittyResolutionFactor scales the effective per-cell pixel
 	// resolution used for Kitty encoding (see Config.KittyResolutionFactor).
 	kittyResolutionFactor float64
+
+	// kittyFormat selects PNG or raw RGBA transmission (see Config.KittyFormat).
+	kittyFormat KittyFormat
+	kittyMedium KittyMedium
+	kittyShared *kittySharedState
 
 	// lastRenderedGeom records the (cols, rows, cellPixelW, cellPixelH)
 	// of the most recently *applied* KittyFrame — i.e. the geometry
@@ -185,12 +203,16 @@ func NewWithConfig(cfg Config) Model {
 	}
 	return Model{
 		modelID:               nextModelID.Add(1),
+		kittyZ:                cfg.KittyZ,
 		mode:                  PictureGlyph,
 		kittyID:               cfg.KittyID,
 		background:            cfg.Background,
 		cellPixelW:            cfg.CellPixelWidth,
 		cellPixelH:            cfg.CellPixelHeight,
 		kittyResolutionFactor: cfg.KittyResolutionFactor,
+		kittyFormat:           normalizeKittyFormat(cfg.KittyFormat),
+		kittyMedium:           normalizeKittyMedium(cfg.KittyMedium),
+		kittyShared:           &kittySharedState{},
 		fit:                   cfg.Fit,
 		anchor:                cfg.Anchor,
 	}
@@ -198,7 +220,9 @@ func NewWithConfig(cfg Config) Model {
 
 // SetImage sets the image to render. Pass nil to clear. Returns a tea.Cmd if
 // rendering needs to be scheduled (Kitty mode), or a cleanup Cmd if Kitty was
-// previously placed and is now being cleared, or nil otherwise.
+// previously placed and is now being cleared, or nil otherwise. Clearing also
+// releases pending shared-memory objects; call SetImage(nil) when disposing
+// a model, even if the returned terminal cleanup command will not be run.
 //
 // In Kitty mode with a non-nil new image, the previous placeholder grid is
 // preserved until the new KittyFrameMsg arrives. The grid is a pure function
@@ -213,6 +237,7 @@ func (m *Model) SetImage(img image.Image) tea.Cmd {
 	m.invalidateGlyph()
 
 	if img == nil {
+		m.kittyShared.clear(m.seq)
 		m.invalidateKitty()
 		if m.mode == PictureKitty && prev != nil {
 			// Image gone from the terminal: clear the geom snapshot so
@@ -278,6 +303,9 @@ func (m *Model) Toggle() tea.Cmd {
 	}
 	m.seq++
 
+	if prev == PictureKitty {
+		m.kittyShared.clear(m.seq)
+	}
 	if prev == PictureKitty && m.img != nil {
 		// Leaving Kitty: the Kitty image is being deleted from the
 		// terminal registry; the placeholder grid would resolve to
@@ -390,6 +418,37 @@ func (m *Model) SetKittyResolutionFactor(f float64) tea.Cmd {
 	return m.renderCmd()
 }
 
+// KittyFormat returns how Kitty frames are transmitted. See Config.KittyFormat.
+func (m *Model) KittyFormat() KittyFormat { return m.kittyFormat }
+
+// SetKittyFormat switches Kitty frames between PNG and raw RGBA
+// transmission. Unknown values normalise to PNG. Returns a render Cmd if
+// the format changed and a Kitty image is currently placed; otherwise nil.
+func (m *Model) SetKittyFormat(f KittyFormat) tea.Cmd {
+	f = normalizeKittyFormat(f)
+	if f == m.kittyFormat {
+		return nil
+	}
+	m.kittyFormat = f
+	m.seq++
+	return m.renderCmd()
+}
+
+// KittyMedium returns the requested transport (frames report the actual medium).
+func (m *Model) KittyMedium() KittyMedium { return m.kittyMedium }
+
+// SetKittyMedium changes the transport, normalizing unknown values to Direct.
+// Returns a render command when a Kitty image is present.
+func (m *Model) SetKittyMedium(medium KittyMedium) tea.Cmd {
+	medium = normalizeKittyMedium(medium)
+	if medium == m.kittyMedium {
+		return nil
+	}
+	m.kittyMedium = medium
+	m.seq++
+	return m.renderCmd()
+}
+
 // String returns the rendered image content as a plain string.
 func (m *Model) String() string { return m.View().Content }
 
@@ -439,7 +498,11 @@ func IsPictureMsg(msg tea.Msg) bool {
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case KittyFrameMsg:
-		if msg.modelID != m.modelID || msg.Seq != m.seq {
+		if msg.modelID != m.modelID {
+			return nil
+		}
+		if msg.Seq != m.seq || (msg.sharedMemory != nil && !m.kittyShared.submit(msg.Seq, msg.sharedMemory)) {
+			_ = msg.sharedMemory.Unlink()
 			return nil
 		}
 		// Record the geometry now: lastRenderedGeom is consumed by the
@@ -573,7 +636,11 @@ func (m *Model) kittyCellPixelSize() (int, int) {
 }
 
 func (m *Model) renderCmd() tea.Cmd {
+	if m.kittyShared == nil {
+		m.kittyShared = &kittySharedState{}
+	}
 	if m.mode != PictureKitty || m.img == nil || m.cols <= 0 || m.rows <= 0 {
+		m.kittyShared.clear(m.seq)
 		return nil
 	}
 	// Capture inputs by value; defer the heavy work (prepareSource's
@@ -584,6 +651,9 @@ func (m *Model) renderCmd() tea.Cmd {
 	modelID, id, cols, rows, seq := m.modelID, m.kittyID, m.cols, m.rows, m.seq
 	fit := m.fit
 	anchor := m.anchor
+	format, medium, z := m.kittyFormat, m.kittyMedium, m.kittyZ
+	shared := m.kittyShared
+	shared.begin(seq)
 	// Apply kittyResolutionFactor to the cell-pixel dims used for the
 	// transmitted image. The placement rectangle (cols × rows cells) is
 	// unchanged, so the terminal upscales the smaller source image to
@@ -595,19 +665,31 @@ func (m *Model) renderCmd() tea.Cmd {
 		if prepared == nil {
 			return nil
 		}
-		// prepareSource just ran a CatmullRom 4-tap scale over the full
-		// cell-rect; give JS a slice before the PNG encode (no-op on
-		// native). Without this, WASM holds the thread for the entire
-		// scale+encode duration and queued fetch resolves / key events
-		// can't drain.
-		yieldToJS()
-		apc := buildKittyAPC(prepared, id, cols, rows)
-		yieldToJS()
+		actualMedium, actualFormat := KittyMediumDirect, format
+		var apc string
+		var object *kittyshm.Object
+		if medium == KittyMediumSharedMemory {
+			var err error
+			apc, object, err = buildKittySharedMemoryAPC(prepared, id, cols, rows, z)
+			if err == nil {
+				actualMedium, actualFormat = KittyMediumSharedMemory, KittyFormatRGBA
+			}
+		}
+		if actualMedium == KittyMediumDirect {
+			// Yield around expensive direct encoding, including shared-memory
+			// fallback, so browser events can drain. Native yields are no-ops.
+			yieldToJS()
+			apc = buildKittyAPC(prepared, id, cols, rows, format, z)
+			yieldToJS()
+		}
+		if !shared.replace(seq, object) {
+			return nil
+		}
 		currGeom := kittyGeom{cols: cols, rows: rows, cellPixelW: cpw, cellPixelH: cph, fit: fit, anchor: anchor}
 		if prevGeom != (kittyGeom{}) && prevGeom != currGeom {
 			apc = kittyDeleteImage(id) + apc
 		}
 		grid := buildKittyGrid(cols, rows, id)
-		return KittyFrameMsg{modelID: modelID, ID: id, Seq: seq, APC: apc, Grid: grid}
+		return KittyFrameMsg{modelID: modelID, ID: id, Seq: seq, APC: apc, Grid: grid, Format: actualFormat, Medium: actualMedium, sharedMemory: object}
 	}
 }

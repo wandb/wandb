@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi/kitty"
 )
 
-// encodeKittyGraphicsData frames already-encoded PNG bytes.
+// encodeKittyGraphicsData frames encoded image bytes or a shared-memory name.
 // It does not compress data. Keep this compatibility helper
 // private until Charm's payload encoder is released, then use that API instead.
 // Options and APC serialization remain owned by the upstream ANSI package.
@@ -20,7 +20,7 @@ func encodeKittyGraphicsData(w io.Writer, data []byte, o *kitty.Options) error {
 	}
 	payload := base64.StdEncoding.AppendEncode(nil, data)
 	if !o.Chunk {
-		_, err := io.WriteString(w, ansi.KittyGraphics(payload, o.Options()...))
+		_, err := io.WriteString(w, ansi.KittyGraphics(payload, kittyPlacementOptions(o)...))
 		return err
 	}
 	for first := true; ; first = false {
@@ -30,7 +30,7 @@ func encodeKittyGraphicsData(w io.Writer, data []byte, o *kitty.Options) error {
 		n := min(len(payload), kitty.MaxChunkSize)
 		var opts []string
 		if first {
-			opts = o.Options()
+			opts = kittyPlacementOptions(o)
 		} else {
 			quiet := o.Quiet
 			if o.Quite > 0 {
@@ -62,4 +62,14 @@ func encodeKittyGraphicsData(w io.Writer, data []byte, o *kitty.Options) error {
 		}
 		payload = payload[n:]
 	}
+}
+
+// The pinned ANSI serializer emits z only when positive. Kitty supports signed
+// placement depth, so preserve negative values until that dependency fixes it.
+func kittyPlacementOptions(o *kitty.Options) []string {
+	opts := o.Options()
+	if o.Z < 0 {
+		opts = append(opts, fmt.Sprintf("z=%d", o.Z))
+	}
+	return opts
 }

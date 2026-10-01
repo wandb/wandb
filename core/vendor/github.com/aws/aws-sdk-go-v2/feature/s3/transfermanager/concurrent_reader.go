@@ -99,9 +99,9 @@ func (r *concurrentReader) Read(p []byte) (int, error) {
 			ch <- getChunk{part: r.index + 1, index: r.index}
 		} else {
 			ch <- getChunk{withRange: r.byteRange(), index: r.index}
+			r.pos += r.partSize
 		}
 
-		r.pos += r.partSize
 		r.index++
 	}
 
@@ -154,28 +154,32 @@ func (r *concurrentReader) downloadChunk(ctx context.Context, chunk getChunk, cl
 		return nil, err
 	}
 
-	if params.Range != nil && out.ContentRange != nil {
-		reqStart, reqEnd, err := getReqRange(aws.ToString(params.Range))
+	respStart := int64(-1)
+	respEnd := int64(-1)
+	if out.ContentRange != nil {
+		respStart, respEnd, err = getRespRange(aws.ToString(out.ContentRange))
 		if err != nil {
 			return nil, err
 		}
-		respStart, respEnd, err := getRespRange(aws.ToString(out.ContentRange))
-		if err != nil {
-			return nil, err
-		}
-		// don't validate first chunk since object size is unknown when getting that
-		if reqStart != 0 && (reqStart != respStart || reqEnd != respEnd) {
-			return nil, fmt.Errorf("range mismatch between request %d-%d and response %d-%d", reqStart, reqEnd, respStart, respEnd)
+		if params.Range != nil {
+			reqStart, reqEnd, err := getReqRange(aws.ToString(params.Range))
+			if err != nil {
+				return nil, err
+			}
+			// don't validate first chunk since object size is unknown when getting that
+			if reqStart != 0 && (reqStart != respStart || reqEnd != respEnd) {
+				return nil, fmt.Errorf("range mismatch between request %d-%d and response %d-%d", reqStart, reqEnd, respStart, respEnd)
+			}
 		}
 	}
 
 	defer out.Body.Close()
 	buf, err := io.ReadAll(out.Body)
-
 	if err != nil {
 		return nil, err
 	}
-	r.ch <- outChunk{body: bytes.NewReader(buf), index: chunk.index, length: aws.ToInt64(out.ContentLength)}
+
+	r.ch <- outChunk{body: bytes.NewReader(buf), index: chunk.index, length: aws.ToInt64(out.ContentLength), rangeStart: respStart, rangeEnd: respEnd}
 
 	output := &GetObjectOutput{}
 	output.mapFromGetObjectOutput(out, params.ChecksumMode)
@@ -199,8 +203,10 @@ type outChunk struct {
 	body  io.Reader
 	index int32
 
-	length int64
-	cur    int64
+	rangeStart int64
+	rangeEnd   int64
+	length     int64
+	cur        int64
 }
 
 func (r *concurrentReader) read(p []byte) (int, error) {
@@ -226,7 +232,7 @@ func (r *concurrentReader) partRead(p []byte) (int, error) {
 
 		if written >= cap(p) {
 			// don't return yet, parts already dispatched up to capacity may
-			// still be downloading or sitting in r.ch, and the receive loop
+			// still be downloading or sitting in r.ch, and the received loop
 			// below is what drains them
 			break
 		}
@@ -236,6 +242,20 @@ func (r *concurrentReader) partRead(p []byte) (int, error) {
 			// possible unequal parts' sizes can break all offset read for part GET,
 			// must break and wait for next consecutive part
 			break
+		}
+
+		//if e, a := r.pos-r.offset-r.written, written; e != a {
+		if c.rangeStart >= 0 {
+			if es, as := int64(written), c.rangeStart+c.cur-r.written; es != as {
+				r.setErr(fmt.Errorf("range mismatch between computed start position %d and actual start position %d for part %d in p", es, as, c.index+1))
+				r.clean()
+				return 0, r.getErr()
+			}
+			if ee, ae := int64(written)+c.length-c.cur, c.rangeEnd-r.written+1; ee != ae {
+				r.setErr(fmt.Errorf("range mismatch between computed end position %d and actual end position %d for part %d in p", ee, ae, c.index+1))
+				r.clean()
+				return 0, r.getErr()
+			}
 		}
 
 		n, err := c.body.Read(p[written:])
@@ -273,6 +293,18 @@ func (r *concurrentReader) partRead(p []byte) (int, error) {
 
 		// only directly feed into p if this is the next neighbor part
 		if oc.index == r.consecutiveIndex && written < cap(p) {
+			if oc.rangeStart >= 0 {
+				if es, as := int64(written), oc.rangeStart-r.written; es != as {
+					r.setErr(fmt.Errorf("range mismatch between computed start position %d and actual start position %d for part %d in p", es, as, oc.index+1))
+					r.clean()
+					return 0, r.getErr()
+				}
+				if ee, ae := int64(written)+oc.length, oc.rangeEnd-r.written+1; ee != ae {
+					r.setErr(fmt.Errorf("range mismatch between computed end position %d and actual end position %d for part %d in p", ee, ae, oc.index+1))
+					r.clean()
+					return 0, r.getErr()
+				}
+			}
 			n, err := oc.body.Read(p[written:])
 			oc.cur += int64(n)
 			written += n
@@ -420,7 +452,9 @@ func (r *concurrentReader) setErr(err error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	r.err = err
+	if r.err == nil {
+		r.err = err
+	}
 }
 
 func (r *concurrentReader) getErr() error {
