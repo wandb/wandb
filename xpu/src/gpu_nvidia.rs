@@ -318,6 +318,7 @@ impl NvidiaGpu {
     /// This function should return an error only if an internal NVML call fails.
     pub fn get_metrics(&mut self) -> Result<Sample, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
+        let mut averages: Vec<(String, f64)> = vec![];
         let mut gpu_pids = HashMap::new();
 
         metrics.push((
@@ -690,14 +691,8 @@ impl NvidiaGpu {
                     device.pcie_throughput(PcieUtilCounter::Receive),
                 ) {
                     (Ok(tx), Ok(rx)) => {
-                        metrics.push((
-                            format!("gpu.{}.pcieTxBytes", di),
-                            MetricValue::Float(tx as f64 * 1024.0),
-                        ));
-                        metrics.push((
-                            format!("gpu.{}.pcieRxBytes", di),
-                            MetricValue::Float(rx as f64 * 1024.0),
-                        ));
+                        averages.push((format!("gpu.{}.pcieTxBytes", di), tx as f64 * 1024.0));
+                        averages.push((format!("gpu.{}.pcieRxBytes", di), rx as f64 * 1024.0));
                     }
                     _ => {
                         availability.pcie_throughput = false;
@@ -726,9 +721,9 @@ impl NvidiaGpu {
                                             results.iter().zip(GPM_METRICS)
                                         {
                                             if let Ok(m) = result {
-                                                metrics.push((
+                                                averages.push((
                                                     format!("gpu.{}.{}", di, name),
-                                                    MetricValue::Float(m.value * scale),
+                                                    m.value * scale,
                                                 ));
                                             }
                                         }
@@ -748,7 +743,11 @@ impl NvidiaGpu {
             }
         }
 
-        Ok(Sample { metrics, gpu_pids })
+        Ok(Sample {
+            metrics,
+            averages,
+            gpu_pids,
+        })
     }
 
     /// Extract metadata about the GPUs in the system from the provided samples.
