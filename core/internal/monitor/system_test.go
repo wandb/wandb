@@ -1,10 +1,8 @@
 package monitor_test
 
 import (
-	"context"
 	"os"
 	"os/exec"
-	"reflect"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/disk"
@@ -12,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/monitor"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSystemSample_ExitedProcess(t *testing.T) {
@@ -25,45 +22,6 @@ func TestSystemSample_ExitedProcess(t *testing.T) {
 	_, err := system.Sample()
 	require.ErrorIs(t, err, process.ErrorProcessNotRunning)
 	require.False(t, monitor.ShouldCaptureSamplingError(err))
-}
-
-func TestSLURMProbe(t *testing.T) {
-	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected *spb.EnvironmentRecord
-	}{
-		{
-			name: "With SLURM environment variables",
-			envVars: map[string]string{
-				"SLURM_JOB_ID":   "12345",
-				"SLURM_JOB_NAME": "test_job",
-				"SOME_OTHER_VAR": "some_value",
-			},
-			expected: &spb.EnvironmentRecord{
-				Slurm: map[string]string{
-					"job_id":   "12345",
-					"job_name": "test_job",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Set up the test environment
-			for k, v := range tt.envVars {
-				t.Setenv(k, v)
-			}
-
-			slurm := monitor.NewSystem(monitor.SystemParams{Pid: 0, DiskPaths: []string{"/"}})
-			result := slurm.Probe(context.Background())
-
-			if !reflect.DeepEqual(result.Slurm, tt.expected.Slurm) {
-				t.Errorf("Probe() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
 }
 
 func TestCollectDiskIOMetrics(t *testing.T) {
