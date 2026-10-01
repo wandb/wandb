@@ -221,6 +221,40 @@ class TestBuildAxSchedulerOptimizer:
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
 
+    def test_builds_the_client_from_an_optimizer_factory(self, tmp_path) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "from ax.api.client import Client\n"
+            "from wandb.sweeps.ax import (\n"
+            "    configure_sweep_objective,\n"
+            "    sweep_config_to_search_space,\n"
+            ")\n"
+            "\n"
+            "def make_client(sweep):\n"
+            "    client = Client()\n"
+            "    client.configure_experiment(\n"
+            "        parameters=sweep_config_to_search_space(sweep.config)\n"
+            "    )\n"
+            "    configure_sweep_objective(client, sweep.config)\n"
+            "    return client\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metric": {"name": "val-loss", "goal": "minimize"},
+            "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "ax",
+                "source": str(source),
+                "optimizer": "make_client",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        assert set(suggestion.config.config) == {"x"}
+
 
 class TestUnparseableMetricName:
     def test_hyphenated_metric_completes_its_trial(self) -> None:

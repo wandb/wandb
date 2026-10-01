@@ -229,18 +229,19 @@ def load_source_object(source: str, name: str) -> Any:
 
 
 def load_optimizer_config(
-    source: str, name: str, optimizer_class: type
+    source: str, name: str, optimizer_class: type, sweep: SweepInfo
 ) -> tuple[Any, Callable[[Any], bool] | None]:
     """Run a configured optimizer factory and normalize its return value.
 
-    The factory takes no arguments and returns either an instance of
-    `optimizer_class` or an `(optimizer, terminator)` tuple. A terminator,
+    The factory takes the sweep's SweepInfo and returns either an instance
+    of `optimizer_class` or an `(optimizer, terminator)` tuple. A terminator,
     when present, must be callable.
 
     Args:
         source: The python file that defines the factory.
         name: The factory's name in `source`.
         optimizer_class: The engine's optimizer type, such as optuna's Study.
+        sweep: The sweep to pass to the factory.
 
     Raises:
         ValueError: If the factory or what it returns has the wrong type.
@@ -249,9 +250,9 @@ def load_optimizer_config(
     terminator_type = f"Callable[[{optimizer_type}], bool]"
     # TODO: link to documentation with scheduler.optimizer examples.
     requirement = (
-        f"scheduler.optimizer must name a function that takes no arguments and"
-        f" returns an instance of {optimizer_type} or a ({optimizer_type},"
-        f" {terminator_type}) tuple."
+        f"scheduler.optimizer must name a function that takes a"
+        f" wandb.sweeps.SweepInfo argument and returns an instance of"
+        f" {optimizer_type} or a ({optimizer_type}, {terminator_type}) tuple."
     )
 
     factory = load_source_object(source, name)
@@ -261,13 +262,14 @@ def load_optimizer_config(
             f" {requirement}"
         )
     try:
-        inspect.signature(factory).bind()
+        inspect.signature(factory).bind(sweep)
     except TypeError:
         raise ValueError(
-            f"{name!r} in {source} requires arguments. {requirement}"
+            f"{name!r} in {source} cannot be called with one SweepInfo argument."
+            f" {requirement}"
         ) from None
 
-    configured: object = factory()
+    configured: object = factory(sweep)
     optimizer, terminator = configured, None
     if isinstance(configured, tuple):
         parts = cast("tuple[object, ...]", configured)
