@@ -596,8 +596,8 @@ def build_ax_optimizer(
 ) -> AxOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
 
-    `scheduler.optimizer` names a zero-argument function in
-    `scheduler.source`. The function may return either an Ax `Client` or a
+    `scheduler.optimizer` names a function in `scheduler.source` that takes
+    the sweep's SweepInfo. The function may return either an Ax `Client` or a
     `(Client, terminator)` tuple. A terminator is a one-argument function
     that receives the client after each generation and finishes the sweep by
     returning `True`.
@@ -611,7 +611,7 @@ def build_ax_optimizer(
     if optimizer_name:
         try:
             client, terminator = load_optimizer_config(
-                source, optimizer_name, ax.Client
+                source, optimizer_name, ax.Client, sweep
             )
         except ValueError as e:
             raise wandb.Error(str(e)) from e

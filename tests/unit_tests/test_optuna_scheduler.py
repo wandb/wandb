@@ -217,6 +217,41 @@ class TestBuildOptunaSchedulerOptimizer:
 
         assert isinstance(optimizer, OptunaImperativeOptimizer)
 
+    def test_builds_the_study_from_an_optimizer_factory(self, tmp_path) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "import optuna\n"
+            "from wandb.sweeps.optuna import sweep_directions\n"
+            "\n"
+            "def make_study(sweep):\n"
+            "    return optuna.create_study(\n"
+            "        directions=sweep_directions(sweep.config),\n"
+            "        sampler=optuna.samplers.RandomSampler(),\n"
+            "    )\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metrics": [
+                {"name": "loss", "goal": "minimize"},
+                {"name": "accuracy", "goal": "maximize"},
+            ],
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "optimizer": "make_study",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer.study.sampler, optuna.samplers.RandomSampler)
+        assert [d.name.lower() for d in optimizer.study.directions] == [
+            "minimize",
+            "maximize",
+        ]
+
     @pytest.mark.parametrize(
         "definition, problem",
         [

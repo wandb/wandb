@@ -709,21 +709,27 @@ def load_trial_constructor(source: str, name: str) -> TrialConstructor:
 # ---------------------------------------------------------------------------
 
 
-def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
-    """Build an optuna study from a sweep config's metric objective(s).
+def sweep_directions(config: dict[str, Any]) -> list[str]:
+    """Return the Optuna study directions for a sweep's metric objective(s).
 
-    When `config["metrics"]` is set, a multi-objective study is created with
-    `directions=` derived from each entry's `goal` (default `"minimize"`).
-    Otherwise a single-objective study is created from
-    `config["metric"]["goal"]`.
+    Pass the result as `optuna.create_study(directions=...)`. A sweep with
+    `metrics` gets one direction per entry, and a sweep with `metric` gets
+    one. Each direction is the metric's `goal`, defaulting to `"minimize"`.
+
+    Args:
+        config: A sweep config, such as `SweepInfo.config`.
     """
     metrics = config.get("metrics")
-    pruner = optuna.pruners.NopPruner()
-    if metrics is not None:
-        directions = [str(metric.get("goal", "minimize")).lower() for metric in metrics]
-        return optuna.create_study(directions=directions, pruner=pruner)
-    goal = (config.get("metric") or {}).get("goal", "minimize")
-    return optuna.create_study(direction=goal, pruner=pruner)
+    if metrics is None:
+        metrics = [config.get("metric") or {}]
+    return [str(metric.get("goal", "minimize")).lower() for metric in metrics]
+
+
+def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
+    """Build an optuna study from a sweep config's metric objective(s)."""
+    return optuna.create_study(
+        directions=sweep_directions(config), pruner=optuna.pruners.NopPruner()
+    )
 
 
 def make_optimizer(
@@ -754,8 +760,8 @@ def build_optuna_optimizer(
 ) -> OptunaOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
 
-    `scheduler.optimizer` names a zero-argument function in
-    `scheduler.source`. The function may return either an Optuna `Study` or
+    `scheduler.optimizer` names a function in `scheduler.source` that takes
+    the sweep's SweepInfo. The function may return either an Optuna `Study` or
     a `(Study, terminator)` tuple. A terminator is a one-argument function
     that receives the study after each generation and finishes the sweep by
     returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
@@ -781,7 +787,7 @@ def build_optuna_optimizer(
         terminator = None
         if optimizer_name:
             study, terminator = load_optimizer_config(
-                source, optimizer_name, optuna.Study
+                source, optimizer_name, optuna.Study, sweep
             )
         else:
             study = create_study_from_sweep_config(sweep.config)
