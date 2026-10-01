@@ -244,9 +244,7 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                self._logger.warning(
-                    f"The optimizer rejected run {data.wandb_run_id}: {e}"
-                )
+                self._logger.warning(f"Optimizer rejected run {data.wandb_run_id}: {e}")
 
         for data in task.active_runs:
             run = _to_run(data)
@@ -259,9 +257,7 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                self._logger.warning(
-                    f"The optimizer rejected run {data.wandb_run_id}: {e}"
-                )
+                self._logger.warning(f"Optimizer rejected run {data.wandb_run_id}: {e}")
                 continue
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)
