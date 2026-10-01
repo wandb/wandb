@@ -6,7 +6,10 @@
 //! - Nvidia GPUs via NVML and DCGM (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
+//! - Google TPUs via libtpu (Linux only)
+//! - Host CPU, memory, disk, network and cgroup limits via procfs and sysfs (Linux only)
 
+mod host;
 mod metrics;
 mod monitors;
 mod record;
@@ -188,7 +191,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         let metadata = self
             .metadata
             .get_or_init(|| async {
-                let sample = self.collectors.collect_metrics().await;
+                let sample = self.collectors.collect_metrics(Vec::new()).await;
                 let samples: HashMap<String, &metrics::MetricValue> = sample
                     .metrics
                     .iter()
@@ -197,9 +200,12 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
                 self.collectors.collect_metadata(&samples).await
             })
             .await;
+        let mut metadata = metadata.clone();
+        self.collectors
+            .probe(&request.into_inner().disk_paths, &mut metadata);
 
         let record = Record {
-            record_type: Some(RecordType::Environment(metadata.clone())),
+            record_type: Some(RecordType::Environment(metadata)),
             ..Default::default()
         };
 
