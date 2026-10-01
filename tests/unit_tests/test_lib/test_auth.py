@@ -1,3 +1,4 @@
+import datetime
 import pathlib
 import textwrap
 from unittest.mock import MagicMock
@@ -8,12 +9,15 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.wbauth import (
     AuthApiKey,
+    AuthBrowserLogin,
     AuthIdentityTokenFile,
     authenticate_session,
+    browser_login,
     session_credentials,
     use_explicit_auth,
     validation,
 )
+from wandb.sdk.lib.wbauth.settings import set_auth_settings
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
@@ -191,6 +195,119 @@ def test_reads_netrc(
     mock_wandb_log.assert_logged(
         f"[test] Loaded credentials for https://example.com from {netrc}"
     )
+
+
+@pytest.fixture
+def stored_browser_login(monkeypatch: pytest.MonkeyPatch) -> pathlib.Path:
+    """Store a browser login for https://example.com, with nothing above it."""
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
+
+    credentials_file = pathlib.Path(wandb_setup.singleton().settings.credentials_file)
+    browser_login.save_credentials(
+        credentials_file,
+        wbauth.HostUrl("https://example.com"),
+        browser_login.TokenSet(
+            access_token="wb_at_stored",
+            refresh_token="wb_rt_stored",
+            expires_at=datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc),
+        ),
+    )
+    return credentials_file
+
+
+def test_loads_a_stored_browser_login(
+    mock_wandb_log: MockWandbLog,
+    stored_browser_login: pathlib.Path,
+):
+    result = authenticate_session(host="https://example.com", source="test")
+
+    assert isinstance(result, AuthBrowserLogin)
+    assert result.host.is_same_url("https://example.com")
+    assert result.credentials_path == stored_browser_login.absolute()
+    mock_wandb_log.assert_logged(
+        "[test] Loaded credentials for https://example.com"
+        + f" from {stored_browser_login}."
+    )
+
+
+def test_browser_login_is_scoped_to_host(stored_browser_login: pathlib.Path):
+    with pytest.raises(UsageError, match="No API key configured"):
+        authenticate_session(host="https://other.invalid", source="test")
+
+
+@pytest.mark.parametrize(
+    "env_var, value, expected_type",
+    [
+        ("WANDB_API_KEY", "from_env" * 5, AuthApiKey),
+        ("WANDB_IDENTITY_TOKEN_FILE", "file.jwt", AuthIdentityTokenFile),
+    ],
+)
+def test_environment_outranks_a_browser_login(
+    monkeypatch: pytest.MonkeyPatch,
+    stored_browser_login: pathlib.Path,
+    env_var: str,
+    value: str,
+    expected_type: type,
+):
+    monkeypatch.setenv(env_var, value)
+
+    result = authenticate_session(host="https://example.com", source="test")
+
+    assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize("source", ["netrc", "settings"])
+def test_browser_login_outranks_stored_api_keys(
+    stored_browser_login: pathlib.Path,
+    source: str,
+):
+    if source == "netrc":
+        wbauth.write_netrc_auth(host="https://example.com", api_key="netrc" * 8)
+    else:
+        settings = wandb_setup.singleton().settings
+        settings.base_url = "https://example.com"
+        settings.api_key = "settings" * 5
+
+    result = authenticate_session(host="https://example.com", source="test")
+
+    assert isinstance(result, AuthBrowserLogin)
+
+
+def test_browser_login_verifies_against_the_server(
+    monkeypatch: pytest.MonkeyPatch,
+    stored_browser_login: pathlib.Path,
+):
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_browser_login_validity", check_validity)
+
+    authenticate_session(host="https://example.com", source="test", verify=True)
+
+    check_validity.assert_called_once()
+    assert check_validity.call_args.kwargs["credentials_file"] == (
+        stored_browser_login.absolute()
+    )
+
+
+def test_browser_login_settings_leave_no_other_credentials(
+    stored_browser_login: pathlib.Path,
+):
+    settings = wandb_setup.singleton().settings.model_copy()
+    settings.api_key = "settings" * 5
+    settings.identity_token_file = "file.jwt"
+
+    set_auth_settings(
+        settings,
+        AuthBrowserLogin(
+            host="https://example.com",
+            credentials_file=stored_browser_login,
+        ),
+    )
+
+    assert settings.api_key is None
+    assert settings.identity_token_file is None
+    assert settings.credentials_file == str(stored_browser_login.absolute())
+    assert settings.base_url == "https://example.com"
 
 
 @pytest.mark.parametrize("source", ["settings", "environment", "netrc", "identity"])

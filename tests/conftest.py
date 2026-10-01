@@ -163,6 +163,16 @@ def local_netrc(filesystem_isolate):
         yield
 
 
+@pytest.fixture(scope="function", autouse=True)
+def local_credentials_file(filesystem_isolate):
+    """Never use our real browser logins, put them in their own isolated dir."""
+    with unittest.mock.patch.dict(
+        "os.environ",
+        {"WANDB_CREDENTIALS_FILE": os.path.realpath("credentials.json")},
+    ):
+        yield
+
+
 @pytest.fixture
 def dummy_api_key() -> str:
     return "1824812581259009ca9981580f8f8a9012409eee"

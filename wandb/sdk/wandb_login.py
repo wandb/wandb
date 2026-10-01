@@ -120,14 +120,14 @@ def login(
     if not logged_in and not prompt:
         return False
 
-    _update_system_settings(
+    update_system_settings(
         global_settings.read_system_settings(),
         host=host,
     )
     return logged_in
 
 
-def _update_system_settings(
+def update_system_settings(
     system_settings: settings_file.SettingsFiles,
     *,
     host: str | None,
