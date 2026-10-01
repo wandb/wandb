@@ -80,7 +80,7 @@ class OptunaOptions:
     terminates early.
     """
 
-    study: optuna.Study | None = None
+    study: optuna.Study
     distributions: dict[str, optuna.distributions.BaseDistribution] | None = None
     search_space: TrialConstructor | None = None
     terminator: TerminatorCallback | None = None
@@ -732,9 +732,7 @@ def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     )
 
 
-def make_optimizer(
-    study: optuna.Study, sweep: SweepInfo, options: OptunaOptions
-) -> OptunaOptimizer:
+def make_optimizer(sweep: SweepInfo, options: OptunaOptions) -> OptunaOptimizer:
     """Build the optimizer flavor the options select.
 
     Exactly one of `options.distributions` (define-and-run) or
@@ -747,17 +745,15 @@ def make_optimizer(
         raise ValueError("provide exactly one of `distributions` or `search_space`")
     if options.distributions is not None:
         return OptunaDeclarativeOptimizer(
-            study, options.distributions, sweep, options.terminator
+            options.study, options.distributions, sweep, options.terminator
         )
     assert options.search_space is not None  # guaranteed by the check above
     return OptunaImperativeOptimizer(
-        study, options.search_space, sweep, options.terminator
+        options.study, options.search_space, sweep, options.terminator
     )
 
 
-def build_optuna_optimizer(
-    sweep: SweepInfo, scheduler_config: dict[str, Any]
-) -> OptunaOptimizer:
+def build_optuna_optimizer(sweep: SweepInfo) -> OptunaOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
 
     `scheduler.optimizer` names a function in `scheduler.source` that takes
@@ -766,6 +762,7 @@ def build_optuna_optimizer(
     that receives the study after each generation and finishes the sweep by
     returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
     """
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     optimizer_name: str = scheduler_config.get("optimizer", "")
     search_space_name: str | None = scheduler_config.get("search_space")
     source: str = scheduler_config.get("source", "")
@@ -795,7 +792,6 @@ def build_optuna_optimizer(
         raise wandb.Error(str(e)) from e
 
     return make_optimizer(
-        study,
         sweep,
         OptunaOptions(
             study=study,

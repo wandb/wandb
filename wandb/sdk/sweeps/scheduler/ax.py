@@ -593,9 +593,7 @@ def create_default_client(config: dict[str, Any]) -> ax.Client:
     return client
 
 
-def build_ax_optimizer(
-    sweep: SweepInfo, scheduler_config: dict[str, Any]
-) -> AxOptimizer:
+def build_ax_optimizer(sweep: SweepInfo) -> AxOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
 
     `scheduler.optimizer` names a function in `scheduler.source` that takes
@@ -604,6 +602,7 @@ def build_ax_optimizer(
     that receives the client after each generation and finishes the sweep by
     returning `True`.
     """
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     optimizer_name: str = scheduler_config.get("optimizer", "")
     source: str = scheduler_config.get("source", "")
 
