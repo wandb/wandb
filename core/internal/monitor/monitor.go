@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"strings"
 	"sync"
@@ -16,8 +15,6 @@ import (
 	"github.com/google/wire"
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/simplejsonext"
@@ -560,18 +557,6 @@ func ShouldCaptureSamplingError(err error) bool {
 
 	// The caller went away, e.g. the run finished mid-sample.
 	if errors.Is(err, context.Canceled) {
-		return false
-	}
-
-	// The wandb-xpu sidecar closed its stream.
-	if errors.Is(err, io.EOF) {
-		return false
-	}
-
-	// Transient gRPC connectivity to the wandb-xpu sidecar, or a request
-	// canceled by the caller.
-	if s, ok := status.FromError(err); ok &&
-		(s.Code() == codes.Unavailable || s.Code() == codes.Canceled) {
 		return false
 	}
 
