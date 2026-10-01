@@ -222,6 +222,10 @@ class TestBuildAxSchedulerOptimizer:
                 },
                 "parameters.x is invalid: q must be positive",
             ),
+            (
+                {"parameters": {"x": {"min": "a", "max": 1.0}}},
+                "parameters.x has a value of the wrong type.*min is 'a'",
+            ),
             ({"parameters": {"x": {"min": 2.0, "max": 1.0}}}, "Upper bound of x"),
             ({"parameters": None}, "parameters must map"),
             ({"metric": None}, "set metric.name"),
@@ -233,6 +237,7 @@ class TestBuildAxSchedulerOptimizer:
             "none-value",
             "dict-value",
             "zero-q",
+            "string-min",
             "inverted-bounds",
             "null-parameters",
             "null-metric",

@@ -351,7 +351,12 @@ def convert_parameters(
                 f"parameters.{name} is missing {e.args[0]!r}, which its"
                 " distribution requires."
             ) from None
-        except (TypeError, ValueError) as e:
+        except TypeError as e:
+            raise ValueError(
+                f"parameters.{name} has a value of the wrong type; min, max and"
+                f" q must be numbers and values must be a list ({e})."
+            ) from e
+        except ValueError as e:
             raise ValueError(f"parameters.{name} is invalid: {e}") from e
     return converted
 

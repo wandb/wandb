@@ -91,6 +91,16 @@ def _infer_distribution_name(parameter: dict[str, Any]) -> str:
     return "int_uniform" if _is_int(lo) and _is_int(hi) else "uniform"
 
 
+def _check_bounds_are_numbers(parameter: dict[str, Any]) -> None:
+    """Raise TypeError if the spec's min, max or q is not a number."""
+    for key in ("min", "max", "q"):
+        value = parameter.get(key)
+        if key in parameter and (
+            isinstance(value, bool) or not isinstance(value, (int, float))
+        ):
+            raise TypeError(f"{key} is {value!r}")
+
+
 def _choice_config_for(name: str, parameter: dict[str, Any]) -> Any:
     """Build a choice config from a `values` list or a lone `value`."""
     if "value" in parameter and "values" not in parameter:
@@ -105,7 +115,7 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
     objects Ax's `Client.configure_experiment(parameters=[...])` accepts.
     Distributions with no Ax equivalent (normal, beta, inv_log_uniform, ...,
     and `q_log_uniform_values` with `q != 1`, which would need a quantized
-    log range) raise ValueError.
+    log range) raise ValueError. A non-numeric min, max or q raises TypeError.
     """
     # Constant / categorical shorthands: `distribution` is optional in W&B.
     if "value" in parameter or (
@@ -118,6 +128,8 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
 
     if dist in ("categorical", "constant"):
         return _choice_config_for(name, parameter)
+
+    _check_bounds_are_numbers(parameter)
 
     if dist == "int_uniform":
         return ax.RangeParameterConfig(

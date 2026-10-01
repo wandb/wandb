@@ -244,8 +244,8 @@ def load_source_object(source: str, name: str, key: str) -> Any:
     except Exception as e:
         # The user's own module failed; its error is theirs to fix.
         raise ValueError(
-            f"Importing scheduler.source file {source} failed{_error_location(e)}:"
-            f" {type(e).__name__}: {e}"
+            f"Importing scheduler.source file {source} failed"
+            f"{_error_location(e, path)}: {type(e).__name__}: {e}"
         ) from e
     try:
         return getattr(module, name)
@@ -256,9 +256,20 @@ def load_source_object(source: str, name: str, key: str) -> Any:
         ) from None
 
 
-def _error_location(error: BaseException) -> str:
-    """Return " at <file>:<line>" for where `error` was raised, or ""."""
-    frames = traceback.extract_tb(error.__traceback__)
+def _error_location(error: BaseException, source: pathlib.Path) -> str:
+    """Return " at <file>:<line>" for the last line of `source` that ran.
+
+    Returns "" for a SyntaxError, whose message already names the line, or
+    if `error` was not raised from within `source`.
+    """
+    if isinstance(error, SyntaxError):
+        return ""
+    resolved = source.resolve()
+    frames = [
+        frame
+        for frame in traceback.extract_tb(error.__traceback__)
+        if pathlib.Path(frame.filename).resolve() == resolved
+    ]
     if not frames:
         return ""
     return f" at {frames[-1].filename}:{frames[-1].lineno}"

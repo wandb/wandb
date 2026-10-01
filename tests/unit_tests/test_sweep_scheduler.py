@@ -17,6 +17,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import wandb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
 from wandb.sdk.sweeps.scheduler.optimizer import (
@@ -24,6 +25,9 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    check_sweep_metrics,
+    convert_parameters,
+    make_optimizer,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -862,11 +866,15 @@ class TestLoadSourceObject:
     @pytest.mark.parametrize(
         "text, problem",
         [
-            ("def configure(:\n", "SyntaxError"),
+            ("def configure(:\n", r"failed: SyntaxError: .*source\.py, line 1"),
             ("import definitely_not_a_module\n", "ModuleNotFoundError"),
             ("X = 1\nY = 1 / 0\n", r"source\.py:2: ZeroDivisionError"),
+            (
+                "import json\nX = 1\njson.loads('{')\n",
+                r"source\.py:3: JSONDecodeError",
+            ),
         ],
-        ids=["syntax-error", "import-error", "runtime-error"],
+        ids=["syntax-error", "import-error", "runtime-error", "library-error"],
     )
     def test_failed_import_raises(
         self, tmp_path: Path, text: str, problem: str
@@ -874,8 +882,11 @@ class TestLoadSourceObject:
         source = tmp_path / "source.py"
         source.write_text(text, encoding="utf-8")
 
-        with pytest.raises(ValueError, match=f"Importing scheduler.source.*{problem}"):
+        with pytest.raises(
+            ValueError, match=f"Importing scheduler.source.*{problem}"
+        ) as e:
             scheduler_client.load_source_object(str(source), "configure", "optimizer")
+        assert "<frozen" not in str(e.value)
 
 
 class TestSchedulerSetting:
@@ -898,15 +909,22 @@ class TestConvertParameters:
             ({"x": 5}, "parameters.x must be a mapping"),
             ({"x": {"min": 0}}, "parameters.x is missing 'max'"),
             ({"x": {"min": 0, "max": "a"}}, "parameters.x is invalid: bad max"),
+            ({"x": {"min": 0, "max": None}}, "parameters.x has a value of the wrong"),
         ],
-        ids=["not-a-mapping", "spec-not-a-mapping", "missing-key", "bad-value"],
+        ids=[
+            "not-a-mapping",
+            "spec-not-a-mapping",
+            "missing-key",
+            "bad-value",
+            "wrong-type",
+        ],
     )
     def test_malformed_parameters_name_the_parameter(
         self, parameters: object, problem: str
     ) -> None:
-        from wandb.sdk.sweeps.scheduler.optimizer import convert_parameters
-
         def convert(name: str, spec: dict[str, Any]) -> float:
+            if spec["max"] is None:
+                raise TypeError("max is None")
             if not isinstance(spec["max"], float):
                 raise ValueError("bad max")  # noqa: TRY004
             return spec["max"]
@@ -927,8 +945,6 @@ class TestCheckSweepMetrics:
         ids=["none", "null-metric", "metric", "metrics"],
     )
     def test_accepts_mappings(self, config: dict[str, Any]) -> None:
-        from wandb.sdk.sweeps.scheduler.optimizer import check_sweep_metrics
-
         check_sweep_metrics(config)
 
     @pytest.mark.parametrize(
@@ -951,17 +967,12 @@ class TestCheckSweepMetrics:
         ],
     )
     def test_rejects_non_mappings(self, config: dict[str, Any], problem: str) -> None:
-        from wandb.sdk.sweeps.scheduler.optimizer import check_sweep_metrics
-
         with pytest.raises(ValueError, match=problem):
             check_sweep_metrics(config)
 
 
 class TestMakeOptimizer:
     def test_scheduler_that_is_not_a_mapping_is_rejected(self) -> None:
-        import wandb
-        from wandb.sdk.sweeps.scheduler.optimizer import make_optimizer
-
         sweep = make_scheduler_grid_sweep(
             config={**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": "optuna"}
         )
