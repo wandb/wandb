@@ -21,34 +21,41 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type GetStatsRequest struct {
+type SubscribeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Seconds between the samples delivered to this subscriber, 0.1 or more.
+	//
+	// The service samples the hardware once for all of its subscribers and may
+	// sample more often than this to serve a subscriber with a shorter interval.
+	// Metrics that describe the time since the previous sample, such as GPM
+	// utilization, are averaged over this interval.
+	IntervalSeconds float64 `protobuf:"fixed64,1,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
 	// Capture the system metrics for the process with this PID, in addition to
 	// system-wide metrics.
-	Pid int32 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Pid int32 `protobuf:"varint,2,opt,name=pid,proto3" json:"pid,omitempty"`
 	// GPU device IDs to capture metrics for.
 	//
 	// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
 	// If not set, metrics for all GPUs will be captured.
-	GpuDeviceIds  []int32 `protobuf:"varint,2,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
+	GpuDeviceIds  []int32 `protobuf:"varint,3,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetStatsRequest) Reset() {
-	*x = GetStatsRequest{}
+func (x *SubscribeRequest) Reset() {
+	*x = SubscribeRequest{}
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetStatsRequest) String() string {
+func (x *SubscribeRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetStatsRequest) ProtoMessage() {}
+func (*SubscribeRequest) ProtoMessage() {}
 
-func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
+func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -60,26 +67,33 @@ func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetStatsRequest.ProtoReflect.Descriptor instead.
-func (*GetStatsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeRequest) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetStatsRequest) GetPid() int32 {
+func (x *SubscribeRequest) GetIntervalSeconds() float64 {
+	if x != nil {
+		return x.IntervalSeconds
+	}
+	return 0
+}
+
+func (x *SubscribeRequest) GetPid() int32 {
 	if x != nil {
 		return x.Pid
 	}
 	return 0
 }
 
-func (x *GetStatsRequest) GetGpuDeviceIds() []int32 {
+func (x *SubscribeRequest) GetGpuDeviceIds() []int32 {
 	if x != nil {
 		return x.GpuDeviceIds
 	}
 	return nil
 }
 
-type GetStatsResponse struct {
+type SubscribeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// System metrics.
 	Record        *Record `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
@@ -87,20 +101,20 @@ type GetStatsResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetStatsResponse) Reset() {
-	*x = GetStatsResponse{}
+func (x *SubscribeResponse) Reset() {
+	*x = SubscribeResponse{}
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetStatsResponse) String() string {
+func (x *SubscribeResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetStatsResponse) ProtoMessage() {}
+func (*SubscribeResponse) ProtoMessage() {}
 
-func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
+func (x *SubscribeResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -112,12 +126,12 @@ func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetStatsResponse.ProtoReflect.Descriptor instead.
-func (*GetStatsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeResponse.ProtoReflect.Descriptor instead.
+func (*SubscribeResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetStatsResponse) GetRecord() *Record {
+func (x *SubscribeResponse) GetRecord() *Record {
 	if x != nil {
 		return x.Record
 	}
@@ -281,19 +295,20 @@ var File_wandb_proto_wandb_system_monitor_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\n" +
-	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"I\n" +
-	"\x0fGetStatsRequest\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12$\n" +
-	"\x0egpu_device_ids\x18\x02 \x03(\x05R\fgpuDeviceIds\"B\n" +
-	"\x10GetStatsResponse\x12.\n" +
+	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"u\n" +
+	"\x10SubscribeRequest\x12)\n" +
+	"\x10interval_seconds\x18\x01 \x01(\x01R\x0fintervalSeconds\x12\x10\n" +
+	"\x03pid\x18\x02 \x01(\x05R\x03pid\x12$\n" +
+	"\x0egpu_device_ids\x18\x03 \x03(\x05R\fgpuDeviceIds\"C\n" +
+	"\x11SubscribeResponse\x12.\n" +
 	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x14\n" +
 	"\x12GetMetadataRequest\"E\n" +
 	"\x13GetMetadataResponse\x12.\n" +
 	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x11\n" +
 	"\x0fTearDownRequest\"\x12\n" +
-	"\x10TearDownResponse2\x92\x02\n" +
-	"\x14SystemMonitorService\x12O\n" +
-	"\bGetStats\x12\x1f.wandb_internal.GetStatsRequest\x1a .wandb_internal.GetStatsResponse\"\x00\x12X\n" +
+	"\x10TearDownResponse2\x97\x02\n" +
+	"\x14SystemMonitorService\x12T\n" +
+	"\tSubscribe\x12 .wandb_internal.SubscribeRequest\x1a!.wandb_internal.SubscribeResponse\"\x000\x01\x12X\n" +
 	"\vGetMetadata\x12\".wandb_internal.GetMetadataRequest\x1a#.wandb_internal.GetMetadataResponse\"\x00\x12O\n" +
 	"\bTearDown\x12\x1f.wandb_internal.TearDownRequest\x1a .wandb_internal.TearDownResponse\"\x00B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
@@ -311,8 +326,8 @@ func file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP() []byte {
 
 var file_wandb_proto_wandb_system_monitor_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_wandb_proto_wandb_system_monitor_proto_goTypes = []any{
-	(*GetStatsRequest)(nil),     // 0: wandb_internal.GetStatsRequest
-	(*GetStatsResponse)(nil),    // 1: wandb_internal.GetStatsResponse
+	(*SubscribeRequest)(nil),    // 0: wandb_internal.SubscribeRequest
+	(*SubscribeResponse)(nil),   // 1: wandb_internal.SubscribeResponse
 	(*GetMetadataRequest)(nil),  // 2: wandb_internal.GetMetadataRequest
 	(*GetMetadataResponse)(nil), // 3: wandb_internal.GetMetadataResponse
 	(*TearDownRequest)(nil),     // 4: wandb_internal.TearDownRequest
@@ -320,12 +335,12 @@ var file_wandb_proto_wandb_system_monitor_proto_goTypes = []any{
 	(*Record)(nil),              // 6: wandb_internal.Record
 }
 var file_wandb_proto_wandb_system_monitor_proto_depIdxs = []int32{
-	6, // 0: wandb_internal.GetStatsResponse.record:type_name -> wandb_internal.Record
+	6, // 0: wandb_internal.SubscribeResponse.record:type_name -> wandb_internal.Record
 	6, // 1: wandb_internal.GetMetadataResponse.record:type_name -> wandb_internal.Record
-	0, // 2: wandb_internal.SystemMonitorService.GetStats:input_type -> wandb_internal.GetStatsRequest
+	0, // 2: wandb_internal.SystemMonitorService.Subscribe:input_type -> wandb_internal.SubscribeRequest
 	2, // 3: wandb_internal.SystemMonitorService.GetMetadata:input_type -> wandb_internal.GetMetadataRequest
 	4, // 4: wandb_internal.SystemMonitorService.TearDown:input_type -> wandb_internal.TearDownRequest
-	1, // 5: wandb_internal.SystemMonitorService.GetStats:output_type -> wandb_internal.GetStatsResponse
+	1, // 5: wandb_internal.SystemMonitorService.Subscribe:output_type -> wandb_internal.SubscribeResponse
 	3, // 6: wandb_internal.SystemMonitorService.GetMetadata:output_type -> wandb_internal.GetMetadataResponse
 	5, // 7: wandb_internal.SystemMonitorService.TearDown:output_type -> wandb_internal.TearDownResponse
 	5, // [5:8] is the sub-list for method output_type

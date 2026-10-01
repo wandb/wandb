@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SystemMonitorService_GetStats_FullMethodName    = "/wandb_internal.SystemMonitorService/GetStats"
+	SystemMonitorService_Subscribe_FullMethodName   = "/wandb_internal.SystemMonitorService/Subscribe"
 	SystemMonitorService_GetMetadata_FullMethodName = "/wandb_internal.SystemMonitorService/GetMetadata"
 	SystemMonitorService_TearDown_FullMethodName    = "/wandb_internal.SystemMonitorService/TearDown"
 )
@@ -32,8 +32,9 @@ const (
 //
 // This service is used to collect system metrics from the host machine.
 type SystemMonitorServiceClient interface {
-	// GetStats samples system metrics.
-	GetStats(ctx context.Context, in *GetStatsRequest, opts ...grpc.CallOption) (*GetStatsResponse, error)
+	// Subscribe streams system metrics sampled at the subscriber's interval
+	// until the client cancels the stream.
+	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeResponse], error)
 	// GetMetadata returns static metadata about the system.
 	GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*GetMetadataResponse, error)
 	// TearDown instructs the system monitor to shut down.
@@ -48,15 +49,24 @@ func NewSystemMonitorServiceClient(cc grpc.ClientConnInterface) SystemMonitorSer
 	return &systemMonitorServiceClient{cc}
 }
 
-func (c *systemMonitorServiceClient) GetStats(ctx context.Context, in *GetStatsRequest, opts ...grpc.CallOption) (*GetStatsResponse, error) {
+func (c *systemMonitorServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetStatsResponse)
-	err := c.cc.Invoke(ctx, SystemMonitorService_GetStats_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &SystemMonitorService_ServiceDesc.Streams[0], SystemMonitorService_Subscribe_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[SubscribeRequest, SubscribeResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SystemMonitorService_SubscribeClient = grpc.ServerStreamingClient[SubscribeResponse]
 
 func (c *systemMonitorServiceClient) GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*GetMetadataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -86,8 +96,9 @@ func (c *systemMonitorServiceClient) TearDown(ctx context.Context, in *TearDownR
 //
 // This service is used to collect system metrics from the host machine.
 type SystemMonitorServiceServer interface {
-	// GetStats samples system metrics.
-	GetStats(context.Context, *GetStatsRequest) (*GetStatsResponse, error)
+	// Subscribe streams system metrics sampled at the subscriber's interval
+	// until the client cancels the stream.
+	Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[SubscribeResponse]) error
 	// GetMetadata returns static metadata about the system.
 	GetMetadata(context.Context, *GetMetadataRequest) (*GetMetadataResponse, error)
 	// TearDown instructs the system monitor to shut down.
@@ -102,8 +113,8 @@ type SystemMonitorServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSystemMonitorServiceServer struct{}
 
-func (UnimplementedSystemMonitorServiceServer) GetStats(context.Context, *GetStatsRequest) (*GetStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetStats not implemented")
+func (UnimplementedSystemMonitorServiceServer) Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[SubscribeResponse]) error {
+	return status.Error(codes.Unimplemented, "method Subscribe not implemented")
 }
 func (UnimplementedSystemMonitorServiceServer) GetMetadata(context.Context, *GetMetadataRequest) (*GetMetadataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMetadata not implemented")
@@ -132,23 +143,16 @@ func RegisterSystemMonitorServiceServer(s grpc.ServiceRegistrar, srv SystemMonit
 	s.RegisterService(&SystemMonitorService_ServiceDesc, srv)
 }
 
-func _SystemMonitorService_GetStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetStatsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _SystemMonitorService_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(SystemMonitorServiceServer).GetStats(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SystemMonitorService_GetStats_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SystemMonitorServiceServer).GetStats(ctx, req.(*GetStatsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(SystemMonitorServiceServer).Subscribe(m, &grpc.GenericServerStream[SubscribeRequest, SubscribeResponse]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SystemMonitorService_SubscribeServer = grpc.ServerStreamingServer[SubscribeResponse]
 
 func _SystemMonitorService_GetMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetMetadataRequest)
@@ -194,10 +198,6 @@ var SystemMonitorService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*SystemMonitorServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetStats",
-			Handler:    _SystemMonitorService_GetStats_Handler,
-		},
-		{
 			MethodName: "GetMetadata",
 			Handler:    _SystemMonitorService_GetMetadata_Handler,
 		},
@@ -206,6 +206,12 @@ var SystemMonitorService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SystemMonitorService_TearDown_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Subscribe",
+			Handler:       _SystemMonitorService_Subscribe_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "wandb/proto/wandb_system_monitor.proto",
 }

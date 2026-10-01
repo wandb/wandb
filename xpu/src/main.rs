@@ -10,6 +10,7 @@
 mod metrics;
 mod monitors;
 mod record;
+mod subscriptions;
 #[allow(dead_code)]
 mod wandb_internal;
 
@@ -39,35 +40,26 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
-use tokio_stream::wrappers::TcpListenerStream;
+use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 use tonic::{Request, Response, Status, transport::Server};
 
-use chrono::Utc;
-use prost_types::Timestamp;
 use wandb_internal::{
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Record,
-    StatsRecord, TearDownRequest, TearDownResponse,
+    EnvironmentRecord, GetMetadataRequest, GetMetadataResponse, Record, SubscribeRequest,
+    SubscribeResponse, TearDownRequest, TearDownResponse,
     record::RecordType,
-    stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
 };
 
 use monitors::Collectors;
+use subscriptions::Subscriptions;
 
 // Unix-specific imports
 #[cfg(not(target_os = "windows"))]
 use tokio::net::UnixListener;
 #[cfg(not(target_os = "windows"))]
 use tokio_stream::wrappers::UnixListenerStream;
-
-fn current_timestamp() -> Timestamp {
-    let now = Utc::now();
-    Timestamp {
-        seconds: now.timestamp(),
-        nanos: now.timestamp_subsec_nanos() as i32,
-    }
-}
 
 /// Command-line arguments for the system metrics service.
 #[derive(Parser, Debug)]
@@ -114,7 +106,11 @@ pub struct SystemMonitorServiceImpl {
     /// Handle to the task that monitors the parent process.
     parent_monitor_handle: Option<JoinHandle<()>>,
     /// The hardware metric sources available on this machine.
-    collectors: Collectors,
+    collectors: Arc<Collectors>,
+    /// The clients receiving metrics and the clock that serves them.
+    subscriptions: Arc<Subscriptions>,
+    /// Static facts about the hardware, gathered on the first request.
+    metadata: OnceCell<EnvironmentRecord>,
 }
 
 impl SystemMonitorServiceImpl {
@@ -123,10 +119,19 @@ impl SystemMonitorServiceImpl {
         enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
+        let collectors = Arc::new(Collectors::new(enable_dcgm_profiling));
+        let subscriptions = Arc::new(Subscriptions::new());
+        tokio::spawn(subscriptions::run(
+            subscriptions.clone(),
+            collectors.clone(),
+        ));
+
         let mut system_monitor = SystemMonitorServiceImpl {
             shutdown_sender: shutdown_sender.clone(),
             parent_monitor_handle: None,
-            collectors: Collectors::new(enable_dcgm_profiling),
+            collectors,
+            subscriptions,
+            metadata: OnceCell::new(),
         };
 
         // An async task that monitors the parent process id, if provided.
@@ -180,17 +185,21 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<GetMetadataResponse>, Status> {
         debug!("Received a GetMetadata request: {:?}", request);
 
-        let sample = self.collectors.collect_metrics().await;
-        let samples: HashMap<String, &metrics::MetricValue> = sample
-            .metrics
-            .iter()
-            .map(|(name, value)| (name.to_string(), value))
-            .collect();
-
-        let metadata = self.collectors.collect_metadata(&samples).await;
+        let metadata = self
+            .metadata
+            .get_or_init(|| async {
+                let sample = self.collectors.collect_metrics().await;
+                let samples: HashMap<String, &metrics::MetricValue> = sample
+                    .metrics
+                    .iter()
+                    .map(|(name, value)| (name.to_string(), value))
+                    .collect();
+                self.collectors.collect_metadata(&samples).await
+            })
+            .await;
 
         let record = Record {
-            record_type: Some(RecordType::Environment(metadata)),
+            record_type: Some(RecordType::Environment(metadata.clone())),
             ..Default::default()
         };
 
@@ -201,33 +210,17 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         Ok(Response::new(response))
     }
 
-    /// Get system metrics.
-    async fn get_stats(
+    type SubscribeStream = ReceiverStream<Result<SubscribeResponse, Status>>;
+
+    /// Stream system metrics at the subscriber's interval.
+    async fn subscribe(
         &self,
-        request: Request<GetStatsRequest>,
-    ) -> Result<Response<GetStatsResponse>, Status> {
-        debug!("Received a request to get stats: {:?}", request);
+        request: Request<SubscribeRequest>,
+    ) -> Result<Response<Self::SubscribeStream>, Status> {
+        debug!("Received a Subscribe request: {:?}", request);
 
-        let request = request.into_inner();
-        let pids = record::process_tree(request.pid.max(0) as u32);
-
-        let sample = self.collectors.collect_metrics().await;
-
-        let record = Record {
-            record_type: Some(RecordType::Stats(StatsRecord {
-                timestamp: Some(current_timestamp()),
-                stats_type: StatsType::System as i32,
-                item: record::stats_items(&sample, &pids, &request.gpu_device_ids),
-                ..Default::default()
-            })),
-            ..Default::default()
-        };
-
-        let response = GetStatsResponse {
-            record: Some(record),
-        };
-
-        Ok(Response::new(response))
+        let rx = self.subscriptions.add(&request.into_inner())?;
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
 
