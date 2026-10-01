@@ -11,12 +11,14 @@ from __future__ import annotations
 import abc
 import asyncio
 import importlib.util
+import json
 import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
 import pytest
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.sweeps.run_state import RunState
@@ -609,11 +611,11 @@ class _OneTaskService:
         return handle
 
 
-def _generation_error(
+def _run_generation(
     optimizer: MagicMock,
     generation: sspb.SweepSchedulerServerGenerationTask,
-) -> str:
-    """Run one generation task and return the error message it reported."""
+) -> sspb.SweepSchedulerClientTaskResult:
+    """Run one generation task and return the result reported for it."""
     service = _OneTaskService(
         sspb.SweepSchedulerServerNextTaskResponse(generation=generation)
     )
@@ -622,8 +624,25 @@ def _generation_error(
     asyncio.run(exchange.run())
 
     (result,) = service.results
+    return result
+
+
+def _generation_error(
+    optimizer: MagicMock,
+    generation: sspb.SweepSchedulerServerGenerationTask,
+) -> str:
+    """Run one generation task and return the error message it reported."""
+    result = _run_generation(optimizer, generation)
     assert result.WhichOneof("result") == "error"
     return result.error.message
+
+
+def _suggesting_optimizer(config: dict[str, Any]) -> MagicMock:
+    """An optimizer that suggests one run with the given config."""
+    optimizer = MagicMock(spec=Optimizer)
+    optimizer.should_terminate_sweep.return_value = False
+    optimizer.ask_n_runs.return_value = [RunSuggestion(config=config, run_id="0")]
+    return optimizer
 
 
 class TestTaskErrors:
@@ -678,20 +697,25 @@ class TestTaskErrors:
 
         assert _generation_error(optimizer, generation) == f"{step} failed: boom"
 
-    def test_names_a_parameter_json_cannot_hold(self) -> None:
-        import numpy as np
+    def test_saves_a_numpy_scalar_as_a_plain_value(self) -> None:
+        optimizer = _suggesting_optimizer({"x": np.float32(0.5), "n": np.int64(3)})
 
-        optimizer = MagicMock(spec=Optimizer)
-        optimizer.should_terminate_sweep.return_value = False
-        optimizer.ask_n_runs.return_value = [
-            RunSuggestion(config={"lr": 0.1, "x": np.float32(0.5)}, run_id="0")
-        ]
+        result = _run_generation(
+            optimizer, sspb.SweepSchedulerServerGenerationTask(ask_up_to=1)
+        )
+
+        (suggestion,) = result.generation.suggestions
+        assert json.loads(suggestion.config_json) == {"x": 0.5, "n": 3}
+
+    def test_names_a_parameter_json_cannot_hold(self) -> None:
+        optimizer = _suggesting_optimizer({"lr": 0.1, "cb": object()})
 
         message = _generation_error(
             optimizer, sspb.SweepSchedulerServerGenerationTask(ask_up_to=1)
         )
 
-        assert "Parameter 'x' is a float32, which can't be saved" in message
+        assert "Parameter 'cb' has a value of type 'object'" in message
+        assert "scheduler.search_space function must return" in message
 
     def test_optimizer_error_does_not_promise_a_resume(self) -> None:
         done = sspb.SweepSchedulerServerDoneTask(
@@ -829,15 +853,11 @@ class TerminatorContractTests(abc.ABC):
         terminator.assert_called_once_with(callback_arg)
 
     def test_accepts_a_numpy_bool(self) -> None:
-        import numpy as np
-
         optimizer, _ = self.make_optimizer(lambda target: np.bool_(True))
 
         assert optimizer.should_terminate_sweep() is True
 
     def test_rejects_a_numpy_bool_array(self) -> None:
-        import numpy as np
-
         optimizer, _ = self.make_optimizer(lambda target: np.array([True, False]))
 
         with pytest.raises(ValueError, match="it must return True or False"):

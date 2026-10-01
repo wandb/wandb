@@ -575,7 +575,8 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
             trial = self.study.ask(self.distributions)
         except ValueError as e:
             raise ValueError(
-                f"The Optuna study could not sample the sweep's parameters: {e}"
+                "The study returned by the scheduler.optimizer function could not"
+                f" sample the sweep's parameters: {e}"
             ) from e
         return self._track(trial, trial.params)
 
@@ -654,58 +655,53 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
     @override
     def _ask_suggestion(self) -> RunSuggestion:
         """Sample one trial, running the constructor to define its params."""
-        trial = self.study.ask()
-        try:
-            # A define-by-run constructor returns the flat {param: value} map.
-            params = self.trial_constructor(trial)
-        except Exception as e:
-            raise ValueError(
-                f"The scheduler.search_space function raised {type(e).__name__}: {e}"
-            ) from e
-        return self._track(trial, _search_space_params(params))
+        return self._construct(self.study.ask(), replayed_config=None)
 
     @override
     def _ask_replay(self, config: dict[str, Any]) -> RunSuggestion:
-        """Ask for a trial fixed to a prior run's config.
-
-        Raises:
-            ValueError: If the config doesn't fit the search space, or the
-                search_space function raises while replaying it.
-            TypeError: If the search_space function doesn't return a dict.
-        """
+        """Ask for a trial fixed to a prior run's config."""
         # Never skip_if_exists: two prior runs can share a config, and a
         # skipped enqueue would leave ask() free to sample a fresh point that
         # then gets told this run's result -- teaching the study a value the
         # params never produced. Repeated params are a faithful warm start.
         self.study.enqueue_trial(config)
-        trial = self.study.ask()
-        try:
-            params = self.trial_constructor(trial)
-        except Exception as e:
-            name = self._rejected_parameter(config)
-            if name is not None:
-                raise ValueError(
-                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
-                ) from e
-            raise ValueError(
-                f"The scheduler.search_space function raised {type(e).__name__}"
-                f" replaying a prior run's config: {e}"
-            ) from e
-        return self._track(trial, _search_space_params(params))
+        return self._construct(self.study.ask(), replayed_config=config)
 
-    def _rejected_parameter(self, config: dict[str, Any]) -> str | None:
-        """Name the config parameter the search_space function fails on.
+    def _construct(
+        self,
+        trial: optuna.Trial,
+        replayed_config: dict[str, Any] | None,
+    ) -> RunSuggestion:
+        """Run the constructor on an asked trial, failing the trial on error.
 
-        Replays the config on a FixedTrial, which leaves the study untouched,
-        and records the name of the suggestion that raises.
+        Args:
+            trial: The trial the study just handed out.
+            replayed_config: The prior run's config being replayed, if any.
+
+        Raises:
+            ValueError: If the search_space function raises.
+            TypeError: If the search_space function doesn't return a dict.
         """
-        recorder = _SuggestionRecorder(optuna.trial.FixedTrial(config))
         try:
-            self.trial_constructor(cast("optuna.Trial", recorder))
+            params = self._run_search_space(trial, replayed_config)
         except Exception:
-            if recorder.last_name in config:
-                return recorder.last_name
-        return None
+            self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
+            raise
+        return self._track(trial, params)
+
+    def _run_search_space(
+        self,
+        trial: optuna.Trial,
+        replayed_config: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Call the search_space function, naming the suggestion that fails."""
+        recorder = _SuggestionRecorder(trial)
+        try:
+            # A define-by-run constructor returns the flat {param: value} map.
+            params = self.trial_constructor(cast("optuna.Trial", recorder))
+        except Exception as e:
+            raise _search_space_error(e, recorder.failed_call, replayed_config) from e
+        return _search_space_params(params)
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
@@ -744,12 +740,41 @@ def _search_space_params(params: Any) -> dict[str, Any]:
     )
 
 
-class _SuggestionRecorder:
-    """Wraps a trial to remember the last parameter name it was asked for."""
+def _search_space_error(
+    error: Exception,
+    failed_call: tuple[str, str] | None,
+    replayed_config: dict[str, Any] | None,
+) -> ValueError:
+    """Describe an exception raised by the scheduler.search_space function.
 
-    def __init__(self, trial: optuna.trial.BaseTrial) -> None:
+    Args:
+        error: The exception the function raised.
+        failed_call: The trial method and parameter name of the suggest call
+            that raised, if one did.
+        replayed_config: The prior run's config being replayed, if any.
+    """
+    kind = type(error).__name__
+    if failed_call is None:
+        source = "The scheduler.search_space function"
+    else:
+        method, name = failed_call
+        if replayed_config is not None and name in replayed_config:
+            return ValueError(
+                f"Parameter {name!r} from a prior run's config was rejected by"
+                f" trial.{method}({name!r}) in the scheduler.search_space"
+                f" function: {kind}: {error}"
+            )
+        source = f"trial.{method}({name!r}) in the scheduler.search_space function"
+    context = "" if replayed_config is None else " while replaying a prior run's config"
+    return ValueError(f"{source} raised {kind}{context}: {error}")
+
+
+class _SuggestionRecorder:
+    """Wraps a trial to remember which suggest call raised, if any."""
+
+    def __init__(self, trial: optuna.Trial) -> None:
         self._trial = trial
-        self.last_name: str | None = None
+        self.failed_call: tuple[str, str] | None = None
 
     def __getattr__(self, attr: str) -> Any:
         value = getattr(self._trial, attr)
@@ -757,8 +782,12 @@ class _SuggestionRecorder:
             return value
 
         def suggest(*args: Any, **kwargs: Any) -> Any:
-            self.last_name = kwargs.get("name", args[0] if args else None)
-            return value(*args, **kwargs)
+            try:
+                return value(*args, **kwargs)
+            except Exception:
+                name = kwargs.get("name", args[0] if args else None)
+                self.failed_call = (attr, str(name))
+                raise
 
         return suggest
 

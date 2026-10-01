@@ -88,21 +88,30 @@ def _failing_step(step: str) -> Iterator[None]:
         raise RuntimeError(f"{step} failed: {e}") from e
 
 
+def _plain_scalar(value: object) -> object:
+    """Convert a numpy scalar, which json can't write, to a Python value."""
+    item = getattr(value, "item", None)
+    if getattr(value, "shape", None) == () and callable(item):
+        return item()
+    raise TypeError(f"{type(value).__name__} is not JSON serializable")
+
+
 def _config_json(suggestion: RunSuggestion) -> str:
     """Serialize a suggestion's config, naming a value JSON cannot hold."""
     config = suggestion.config.flat_dict()
     try:
-        return json.dumps(config)
+        return json.dumps(config, default=_plain_scalar)
     except (TypeError, ValueError) as e:
         error = e
     for name, value in config.items():
         try:
-            json.dumps(value)
+            json.dumps(value, default=_plain_scalar)
         except (TypeError, ValueError) as e:
             raise ValueError(
-                f"Parameter {name!r} is a {type(value).__name__}, which can't"
-                " be saved to a run's config; use a plain int, float, str,"
-                " bool, list or dict"
+                f"Parameter {name!r} has a value of type"
+                f" {type(value).__name__!r}, which can't be saved to a run's"
+                " config; the scheduler.search_space function must return"
+                " plain int, float, str, bool, list or dict values"
             ) from e
     raise ValueError(f"The run config can't be saved: {error}") from error
 

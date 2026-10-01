@@ -343,6 +343,17 @@ class TestImperativeWarmStart:
         assert [trial.values[0] for trial in trials] == [1.0, 2.0]
 
 
+def _replayed_run(config: dict[str, Any], state: RunState) -> RunWithMetrics:
+    """A prior run with the given config, to warm start or adopt."""
+    return RunWithMetrics(
+        config=RunConfig.from_values(config),
+        state=state,
+        wandb_run_id="wandb-run-id",
+        summary_metrics={"loss": 1.0},
+        history_metrics=[],
+    )
+
+
 class TestUserErrors:
     """Errors from the user's study or functions say where they came from."""
 
@@ -375,27 +386,56 @@ class TestUserErrors:
             optimizer.tell_existing_active_run(run)
         assert study.trials == []
 
-    @pytest.mark.parametrize("state", [RunState.FINISHED, RunState.RUNNING])
+    @pytest.mark.parametrize(
+        ("state", "method"),
+        [
+            (RunState.FINISHED, "tell_existing_finished_run"),
+            (RunState.RUNNING, "tell_existing_active_run"),
+        ],
+    )
     def test_replay_names_a_parameter_outside_the_space(
-        self, study, sweep, state: RunState
+        self, study, sweep, state: RunState, method: str
+    ) -> None:
+        search_space = MagicMock(
+            side_effect=lambda trial: {"bs": trial.suggest_categorical("bs", [16, 32])}
+        )
+        optimizer = OptunaImperativeOptimizer(study, search_space, sweep)
+        search_space.reset_mock()
+        run = _replayed_run({"bs": 99}, state)
+
+        with pytest.raises(ValueError, match="Parameter 'bs' from a prior run"):
+            getattr(optimizer, method)(run)
+        search_space.assert_called_once()
+        assert [trial.state for trial in study.trials] == [optuna.trial.TrialState.FAIL]
+
+    def test_replay_does_not_blame_a_parameter_for_an_unrelated_error(
+        self, study, sweep
     ) -> None:
         def search_space(trial: optuna.Trial) -> dict[str, Any]:
-            return {"bs": trial.suggest_categorical("bs", [16, 32])}
+            return {"x": trial.suggest_float("x", 0, 1), "y": {}["missing"]}
 
         optimizer = OptunaImperativeOptimizer(study, search_space, sweep)
-        run = RunWithMetrics(
-            config=RunConfig.from_values({"bs": 99}),
-            state=state,
-            wandb_run_id="wandb-run-id",
-            summary_metrics={"loss": 1.0},
-            history_metrics=[],
+        run = _replayed_run({"x": 5.0}, RunState.FINISHED)
+
+        with pytest.raises(ValueError) as error:
+            optimizer.tell_existing_finished_run(run)
+        assert str(error.value) == (
+            "The scheduler.search_space function raised KeyError while"
+            " replaying a prior run's config: 'missing'"
         )
 
-        with pytest.raises(ValueError, match="Parameter 'bs' does not fit"):
-            if state == RunState.FINISHED:
-                optimizer.tell_existing_finished_run(run)
-            else:
-                optimizer.tell_existing_active_run(run)
+    def test_names_a_suggestion_that_changes_distribution(self, study, sweep) -> None:
+        calls = iter([True, False])
+
+        def search_space(trial: optuna.Trial) -> dict[str, Any]:
+            if next(calls):
+                return {"x": trial.suggest_float("x", 0, 1)}
+            return {"x": trial.suggest_int("x", 0, 10)}
+
+        optimizer = OptunaImperativeOptimizer(study, search_space, sweep)
+
+        with pytest.raises(ValueError, match=r"trial\.suggest_int\('x'\) in the"):
+            optimizer.ask_n_runs(2)
 
     @pytest.mark.parametrize("value", [[1], None])
     def test_names_a_search_space_function_not_returning_a_dict(
@@ -413,7 +453,9 @@ class TestUserErrors:
         distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
         optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
 
-        with pytest.raises(ValueError, match="study could not sample"):
+        with pytest.raises(
+            ValueError, match="scheduler.optimizer function could not sample"
+        ):
             optimizer.ask_n_runs(1)
 
     def test_names_a_failing_search_space_function(self, study, sweep) -> None:
