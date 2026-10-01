@@ -5,7 +5,8 @@
 //! and each subscriber is served by the first sweep at least its interval
 //! after the one that last served it. Readings that describe the time since
 //! the previous sweep are averaged, weighted by that time, over the sweeps a
-//! subscriber sat out.
+//! subscriber sat out. Counters are reported as their increase since the
+//! subscriber's first sample.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -16,7 +17,7 @@ use prost_types::Timestamp;
 use tokio::sync::{Notify, mpsc};
 use tonic::Status;
 
-use crate::metrics::Sample;
+use crate::metrics::{Sample, Scope};
 use crate::monitors::Collectors;
 use crate::record;
 use crate::wandb_internal::{
@@ -34,13 +35,18 @@ const MIN_SWEEP_SPACING: Duration = Duration::from_secs(1);
 /// Samples a client has not read yet. Further ones are dropped.
 const QUEUE_DEPTH: usize = 4;
 
+/// How long a subscriber's counter baselines outlive its stream, so that a
+/// stream reopened under the same ID keeps counting.
+const BASELINE_RETENTION: Duration = Duration::from_secs(10 * 60);
+
 type Sender = mpsc::Sender<Result<SubscribeResponse, Status>>;
 pub type Receiver = mpsc::Receiver<Result<SubscribeResponse, Status>>;
 
 struct Subscription {
     interval: Duration,
-    pid: u32,
     gpu_device_ids: Vec<i32>,
+    scope: Scope,
+    baseline: BaselineKey,
     tx: Sender,
     /// The scheduled time of the sweep that last served this subscriber.
     last_delivery: Option<Instant>,
@@ -57,6 +63,22 @@ impl Subscription {
     }
 }
 
+/// Who a set of counter baselines belongs to: the client's subscriber ID,
+/// or the stream itself when the client gave none.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum BaselineKey {
+    Id(String),
+    Stream(u64),
+}
+
+/// The first value of each counter a subscriber saw.
+#[derive(Default)]
+struct Baseline {
+    counters: HashMap<String, f64>,
+    /// When the subscriber's last stream closed, if it is not live.
+    closed: Option<Instant>,
+}
+
 /// The scheduled times of the previous sweeps.
 #[derive(Clone, Copy)]
 struct Sweeps {
@@ -66,9 +88,17 @@ struct Sweeps {
     previous: Instant,
 }
 
+#[derive(Default)]
+struct State {
+    subs: Vec<Subscription>,
+    baselines: HashMap<BaselineKey, Baseline>,
+    /// Streams opened so far, numbering those without a subscriber ID.
+    streams: u64,
+}
+
 /// The current subscribers.
 pub struct Subscriptions {
-    inner: Mutex<Vec<Subscription>>,
+    inner: Mutex<State>,
     /// Signaled when a subscriber joins.
     changed: Notify,
 }
@@ -76,7 +106,7 @@ pub struct Subscriptions {
 impl Subscriptions {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(Vec::new()),
+            inner: Mutex::new(State::default()),
             changed: Notify::new(),
         }
     }
@@ -93,10 +123,18 @@ impl Subscriptions {
             .max(1.0) as u32;
 
         let (tx, rx) = mpsc::channel(QUEUE_DEPTH);
-        self.lock().push(Subscription {
+        let mut state = self.lock();
+        state.streams += 1;
+        let baseline = if request.subscriber_id.is_empty() {
+            BaselineKey::Stream(state.streams)
+        } else {
+            BaselineKey::Id(request.subscriber_id.clone())
+        };
+        state.subs.push(Subscription {
             interval: GRANULARITY * ticks,
-            pid: request.pid.max(0) as u32,
             gpu_device_ids: request.gpu_device_ids.clone(),
+            scope: Scope::from(request),
+            baseline,
             tx,
             last_delivery: None,
             sums: HashMap::new(),
@@ -113,7 +151,8 @@ impl Subscriptions {
     /// its first sample gets an extra sweep before the next grid sweep,
     /// MIN_SWEEP_SPACING after the previous sweep at the earliest.
     fn next_sweep(&self, last: Option<Sweeps>) -> Option<(Instant, bool)> {
-        let subs = self.lock();
+        let state = self.lock();
+        let subs = &state.subs;
         if subs.is_empty() {
             return None;
         }
@@ -132,18 +171,53 @@ impl Subscriptions {
         Some((grid, true))
     }
 
+    /// The distinct scopes of the current subscribers.
+    fn scopes(&self) -> Vec<Scope> {
+        let mut scopes: Vec<Scope> = Vec::new();
+        for sub in &self.lock().subs {
+            if !scopes.contains(&sub.scope) {
+                scopes.push(sub.scope.clone());
+            }
+        }
+        scopes
+    }
+
     /// Hands the sweep scheduled for `at` to the subscribers whose delivery
     /// is due and drops the subscribers whose clients went away.
     ///
     /// `weight` is the sweep's share of the averages, the time since the
     /// previous sweep.
     fn deliver(&self, sample: &Sample, at: Instant, weight: f64) {
-        let mut subs = self.lock();
+        let now = Instant::now();
+        let mut state = self.lock();
+        let State {
+            subs, baselines, ..
+        } = &mut *state;
         subs.retain(|sub| !sub.tx.is_closed());
+        baselines.retain(|_, baseline| {
+            baseline
+                .closed
+                .is_none_or(|closed| now < closed + BASELINE_RETENTION)
+        });
+        for (key, baseline) in baselines.iter_mut() {
+            if subs.iter().any(|sub| sub.baseline == *key) {
+                baseline.closed = None;
+            } else {
+                baseline.closed.get_or_insert(now);
+            }
+        }
 
         let mut process_trees: HashMap<u32, Vec<u32>> = HashMap::new();
         for sub in subs.iter_mut() {
-            for (key, value) in &sample.averages {
+            let scoped = sample.scoped.get(&sub.scope);
+            if scoped.is_none() && !sample.scoped.is_empty() {
+                continue;
+            }
+            let averages = sample
+                .averages
+                .iter()
+                .chain(scoped.into_iter().flat_map(|readings| &readings.averages));
+            for (key, value) in averages {
                 let (sum, total) = sub.sums.entry(key.clone()).or_default();
                 *sum += value * weight;
                 *total += weight;
@@ -153,16 +227,30 @@ impl Subscriptions {
             }
             sub.last_delivery = Some(at);
 
-            let averages: Vec<(String, f64)> = sub
+            let mut values: Vec<(String, f64)> = sub
                 .sums
                 .drain()
                 .filter(|(_, (_, total))| *total > 0.0)
                 .map(|(key, (sum, total))| (key, sum / total))
                 .collect();
+            let baseline = baselines.entry(sub.baseline.clone()).or_default();
+            let counters = sample
+                .counters
+                .iter()
+                .chain(scoped.into_iter().flat_map(|readings| &readings.counters));
+            for (key, value) in counters {
+                let base = baseline.counters.entry(key.clone()).or_insert(*value);
+                *base = base.min(*value);
+                values.push((key.clone(), value - *base));
+            }
+            if let Some(readings) = scoped {
+                values.extend(readings.metrics.iter().cloned());
+            }
+
             let pids = process_trees
-                .entry(sub.pid)
-                .or_insert_with(|| record::process_tree(sub.pid));
-            let items = record::stats_items(sample, &averages, pids, &sub.gpu_device_ids);
+                .entry(sub.scope.pid)
+                .or_insert_with(|| record::process_tree(sub.scope.pid));
+            let items = record::stats_items(sample, &values, pids, &sub.gpu_device_ids);
             if items.is_empty() {
                 continue;
             }
@@ -185,7 +273,7 @@ impl Subscriptions {
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Vec<Subscription>> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, State> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
@@ -203,7 +291,7 @@ pub async fn run(subscriptions: Arc<Subscriptions>, collectors: Arc<Collectors>)
             _ = subscriptions.changed.notified() => continue,
         }
 
-        let sample = sweep(&collectors).await;
+        let sample = sweep(&collectors, subscriptions.scopes()).await;
         let weight = last.map_or(1.0, |last| (at - last.previous).as_secs_f64());
         subscriptions.deliver(&sample, at, weight);
         last = Some(Sweeps {
@@ -218,9 +306,9 @@ pub async fn run(subscriptions: Arc<Subscriptions>, collectors: Arc<Collectors>)
 }
 
 /// One pass over the collectors, or an empty sample if a collector panics.
-async fn sweep(collectors: &Arc<Collectors>) -> Sample {
+async fn sweep(collectors: &Arc<Collectors>, scopes: Vec<Scope>) -> Sample {
     let collectors = collectors.clone();
-    match tokio::spawn(async move { collectors.collect_metrics().await }).await {
+    match tokio::spawn(async move { collectors.collect_metrics(scopes).await }).await {
         Ok(sample) => sample,
         Err(e) => {
             warn!("A collector panicked: {e}");
@@ -272,8 +360,8 @@ mod tests {
         assert_eq!(tick(&[0.1, 15.0]), Duration::from_millis(100));
     }
 
-    /// The value of the one averaged metric in the next queued sample.
-    fn next_average(rx: &mut Receiver) -> Option<String> {
+    /// The value of the one metric in the next queued sample.
+    fn next_value(rx: &mut Receiver) -> Option<String> {
         let response = rx.try_recv().ok()?.ok()?;
         let RecordType::Stats(stats) = response.record?.record_type? else {
             return None;
@@ -309,12 +397,45 @@ mod tests {
         deliver(15, 4.0);
         deliver(18, 5.0);
 
-        assert_eq!(next_average(&mut slow).as_deref(), Some("1.0"));
-        assert_eq!(next_average(&mut slow).as_deref(), Some("3.0"));
-        assert_eq!(next_average(&mut slow), None);
+        assert_eq!(next_value(&mut slow).as_deref(), Some("1.0"));
+        assert_eq!(next_value(&mut slow).as_deref(), Some("3.0"));
+        assert_eq!(next_value(&mut slow), None);
         for expected in ["1.0", "2.0", "3.0", "4.0"] {
-            assert_eq!(next_average(&mut fast).as_deref(), Some(expected));
+            assert_eq!(next_value(&mut fast).as_deref(), Some(expected));
         }
-        assert_eq!(next_average(&mut fast), None);
+        assert_eq!(next_value(&mut fast), None);
+    }
+
+    #[test]
+    fn counters_count_from_the_first_sample_and_survive_a_reopened_stream() {
+        let subscriptions = Subscriptions::new();
+        let subscribe = || {
+            subscriptions
+                .add(&SubscribeRequest {
+                    interval_seconds: 1.0,
+                    subscriber_id: "run".to_string(),
+                    ..Default::default()
+                })
+                .unwrap()
+        };
+        let start = Instant::now();
+        let deliver = |secs: u64, value: f64| {
+            let sample = Sample {
+                counters: vec![("network.sent".to_string(), value)],
+                ..Default::default()
+            };
+            subscriptions.deliver(&sample, start + Duration::from_secs(secs), 1.0);
+        };
+
+        let mut first = subscribe();
+        deliver(0, 100.0);
+        deliver(1, 150.0);
+        assert_eq!(next_value(&mut first).as_deref(), Some("0.0"));
+        assert_eq!(next_value(&mut first).as_deref(), Some("50.0"));
+
+        drop(first);
+        let mut second = subscribe();
+        deliver(2, 160.0);
+        assert_eq!(next_value(&mut second).as_deref(), Some("60.0"));
     }
 }
