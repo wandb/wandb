@@ -217,6 +217,56 @@ class TestBuildOptunaSchedulerOptimizer:
         assert isinstance(optimizer, OptunaImperativeOptimizer)
 
 
+class TestStudyObjectives:
+    """The study, not the sweep config, defines what is optimized."""
+
+    DISTRIBUTIONS = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+
+    def test_a_sweep_without_metric_reads_the_study_metric_names(self) -> None:
+        study = optuna.create_study(directions=["minimize", "maximize"])
+        study.set_metric_names(["loss", "accuracy"])
+        sweep = make_scheduler_grid_sweep(config={"parameters": {}})
+
+        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+
+        assert optimizer.metric_names() == ["loss", "accuracy"]
+        assert optimizer.metric_goals() == ["minimize", "maximize"]
+        assert optimizer.objective_values({"loss": 0.5, "accuracy": 0.9}) == [
+            0.5,
+            0.9,
+        ]
+
+    def test_a_study_without_metric_names_takes_the_sweep_metric(self) -> None:
+        study = optuna.create_study(direction="maximize")
+        sweep = make_scheduler_grid_sweep(
+            config={"metric": {"name": "accuracy", "goal": "maximize"}}
+        )
+
+        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+
+        assert optimizer.metric_names() == ["accuracy"]
+
+    @pytest.mark.parametrize(
+        "config, problem",
+        [
+            ({"parameters": {}}, "study.set_metric_names"),
+            (
+                {"metric": {"name": "loss", "goal": "minimize"}},
+                "Study has 2 objectives but the sweep config declares 1",
+            ),
+        ],
+        ids=["no-metric-anywhere", "too-few-sweep-metrics"],
+    )
+    def test_rejects_an_objective_without_a_metric_name(
+        self, config: dict[str, Any], problem: str
+    ) -> None:
+        study = optuna.create_study(directions=["minimize", "maximize"])
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        with pytest.raises(ValueError, match=problem):
+            OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+
+
 class TestExhaustibleSampler:
     """A finite sampler must finish the sweep instead of re-running the grid.
 

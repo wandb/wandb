@@ -16,6 +16,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    declared_objectives,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -288,6 +289,11 @@ class AxOptimizer(Optimizer):
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
+        # The experiment, not the sweep config, defines what is optimized.
+        self._objectives = [
+            (name, "minimize" if is_minimized else "maximize")
+            for name, is_minimized in _experiment_objectives(client)
+        ]
         super().__init__(sweep)
 
     @override
@@ -323,22 +329,35 @@ class AxOptimizer(Optimizer):
         return self._terminator is not None and self._terminator(self.client)
 
     @override
+    def metric_names(self) -> list[str]:
+        """Return the experiment's objective metric names."""
+        return [name for name, _ in self._objectives]
+
+    @override
+    def metric_goals(self) -> list[str]:
+        """Return the experiment's objective goals, in `metric_names` order."""
+        return [goal for _, goal in self._objectives]
+
+    @override
     def validate_sweep_objective(self) -> None:
-        """Fail fast if experiment and sweep disagree on the objectives."""
-        objectives = _experiment_objectives(self.client)
-        sweep_names = self.metric_names()
-        sweep_goals = self.metric_goals()
-        if len(objectives) != len(sweep_names):
+        """Fail fast if experiment and sweep disagree on the objectives.
+
+        A sweep config that declares no metric leaves the objective to the
+        experiment.
+        """
+        declared = declared_objectives(self._sweep.config)
+        if not declared:
+            return
+        if len(self._objectives) != len(declared):
             raise ValueError(
                 "The Ax experiment and the sweep config disagree on the "
-                f"objectives: Ax optimizes {len(objectives)}, the sweep declares "
-                f"{len(sweep_names)}."
+                f"objectives: Ax optimizes {len(self._objectives)}, the sweep"
+                f" declares {len(declared)}."
             )
 
-        for (metric_name, minimize), sweep_name, sweep_goal in zip(
-            objectives, sweep_names, sweep_goals, strict=True
+        for (metric_name, goal), (sweep_name, sweep_goal) in zip(
+            self._objectives, declared, strict=True
         ):
-            goal = "minimize" if minimize else "maximize"
             if goal != sweep_goal:
                 raise ValueError(
                     f"Ax objective direction {goal!r} for {metric_name!r} does not "

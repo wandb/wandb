@@ -199,6 +199,24 @@ class TestBuildAxSchedulerOptimizer:
         assert optimizer.should_terminate_sweep() is False
 
 
+class TestExperimentObjectives:
+    def test_a_sweep_without_metric_reads_the_experiment_objective(self) -> None:
+        sweep = make_scheduler_grid_sweep(config={"parameters": {}})
+
+        optimizer = AxOptimizer(make_client(), sweep)
+
+        assert optimizer.metric_names() == ["loss"]
+        assert optimizer.metric_goals() == ["minimize"]
+
+    def test_a_declared_metric_must_match_the_experiment(self) -> None:
+        sweep = make_scheduler_grid_sweep(
+            config={"metric": {"name": "accuracy", "goal": "minimize"}}
+        )
+
+        with pytest.raises(ValueError, match="does not match the sweep metric"):
+            AxOptimizer(make_client(), sweep)
+
+
 class TestUnparseableMetricName:
     def test_hyphenated_metric_completes_its_trial(self) -> None:
         """A name Ax's objective parser splits in two still drives a sweep."""
