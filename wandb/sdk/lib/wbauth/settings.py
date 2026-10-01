@@ -2,7 +2,7 @@
 
 from wandb.sdk.wandb_settings import Settings
 
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile
+from .auth import Auth, AuthApiKey, AuthBrowserLogin, AuthIdentityTokenFile
 
 
 def set_auth_settings(settings: Settings, auth: Auth | None) -> None:
@@ -39,6 +39,13 @@ def set_auth_settings(settings: Settings, auth: Auth | None) -> None:
             auth.host.url,
         )
 
+    elif isinstance(auth, AuthBrowserLogin):
+        set_auth_settings_for_browser_login(
+            settings,
+            str(auth.credentials_path),
+            auth.host.url,
+        )
+
     else:
         raise NotImplementedError(str(auth))
 
@@ -61,5 +68,18 @@ def set_auth_settings_for_identity_token_file(
 ) -> None:
     settings.api_key = None
     settings.identity_token_file = identity_token_file
+    settings.credentials_file = credentials_file
+    settings.base_url = base_url
+
+
+def set_auth_settings_for_browser_login(
+    settings: Settings,
+    credentials_file: str,
+    base_url: str,
+) -> None:
+    # Core treats a refresh token in the credentials file as a browser login
+    # once the API key and identity token are unset.
+    settings.api_key = None
+    settings.identity_token_file = None
     settings.credentials_file = credentials_file
     settings.base_url = base_url

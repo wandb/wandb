@@ -7,8 +7,14 @@ from wandb import env
 from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
-from . import prompt, wbnetrc
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
+from . import browser_login, prompt, wbnetrc
+from .auth import (
+    Auth,
+    AuthApiKey,
+    AuthBrowserLogin,
+    AuthIdentityTokenFile,
+    AuthWithSource,
+)
 from .host_url import HostUrl
 from .settings import set_auth_settings
 
@@ -132,8 +138,11 @@ def authenticate_session(
             verify=verify,
         )
     except term.NotATerminalError:
+        # No terminal here, so point at WANDB_API_KEY rather than another prompt.
         raise UsageError(
-            "No API key configured. Use `wandb login` to log in."
+            "No API key configured, and no terminal to ask for one on."
+            " Set the WANDB_API_KEY environment variable, or run"
+            " `wandb login` somewhere interactive."
         ) from None
 
 
@@ -188,6 +197,7 @@ def _use_system_auth(
     """
     auth = (
         _try_env_auth(host=host)  #
+        or _try_browser_login_auth(host=host)
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
     if auth is None:
@@ -247,6 +257,19 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
         )
 
     return None
+
+
+def _try_browser_login_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Stored browser login, if any. Above .netrc, below environment variables."""
+    credentials_file = wandb_setup.singleton().settings.credentials_file
+
+    if not browser_login.load_credentials(credentials_file, host):
+        return None
+
+    return AuthWithSource(
+        auth=AuthBrowserLogin(host=host, credentials_file=credentials_file),
+        source=str(credentials_file),
+    )
 
 
 def _use_prompted_auth(

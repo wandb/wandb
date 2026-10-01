@@ -45,6 +45,9 @@ xpu/target/
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
 
+# CLI debug log written into the package directory when developing from the repo root.
+wandb/debug-cli.*.log
+
 # Cached protoc binaries downloaded by wandb/proto/generate-proto.sh.
 .protoc/
 
