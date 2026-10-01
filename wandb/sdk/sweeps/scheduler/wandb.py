@@ -9,7 +9,6 @@ from typing_extensions import override
 
 import wandb
 from wandb import util
-from wandb.sdk.sweeps.errors import format_caught_error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
@@ -184,10 +183,8 @@ class WandbOptimizer(Optimizer):
                 self._sweep.config,
                 self._sweep_runs_for_stop_runs(run_ids, runs),
             )
-        except Exception:
-            wandb.termwarn(
-                format_caught_error("Early termination failed; no runs were stopped.")
-            )
+        except Exception as e:
+            wandb.termwarn(f"Early termination failed; no runs were stopped: {e}")
             return []
         to_stop_names = {run.name for run in to_stop}
         pruned: list[str] = []

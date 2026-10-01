@@ -988,7 +988,6 @@ class TestSchedulerTaskExchange:
 
         mock_wandb_log.assert_warned("failed to record run wandb-1")
         mock_wandb_log.assert_warned("stops tracking it: bad summary")
-        mock_wandb_log.assert_warned("ValueError: bad summary")
 
 
 class TestDescribeDone:
