@@ -1,6 +1,6 @@
 # wandb-xpu as the system telemetry service
 
-Status: proposal, phase 1 implemented. Owner: SDK team. Scope: `core/internal/monitor`, `xpu`, `wandb/proto/wandb_system_monitor.proto`.
+Status: implemented through phase 4 on Linux and macOS; the remaining work is listed in section 9. Owner: SDK team. Scope: `core/internal/monitor`, `xpu`, `wandb/proto/wandb_system_monitor.proto`.
 
 ## Decisions in one screen
 
@@ -10,7 +10,7 @@ Status: proposal, phase 1 implemented. Owner: SDK team. Scope: `core/internal/mo
 | Keep the name `xpu`? | Yes. Keep the binary name `wandb-xpu`; redefine it as "system telemetry for any processing unit". Rename only the internal Rust trait (`GpuMonitor` to `Collector`). |
 | Client model | Replace per-run polling (`GetStats`) with subscriptions. The service owns the sampling clock, samples each source once per tick, and fans out per subscriber. |
 | Different sampling intervals per run | Allowed. The clock ticks at a base period derived from its subscribers; a subscriber is served by the first tick at least its interval after its previous sample. The service may sample more often than a run asked for and never delivers more often. |
-| Topology | Phases 1 to 3: one service per wandb-core, as today. Phase 4: one shared daemon per node and user, discovered through a fixed socket, behind a setting until proven. The protocol is identical in both modes. |
+| Topology | By default one service per wandb-core, as today. With `x_stats_shared_xpu`, one shared daemon per machine and user, discovered through a fixed socket; the client falls back to a private service when the shared one cannot be reached. The protocol is identical in both modes. |
 
 ## 1. Why the current model does not scale
 
@@ -209,21 +209,21 @@ Each subscriber has a bounded outbound queue; when the client falls behind, the 
 - `client.go`: locate or start the service, connect, restart the sidecar with backoff when it exits or fails to start, and resubscribe. In the shared-daemon phase the same path reconnects and re-elects.
 - `monitor.go`: build `SubscribeRequest` from settings, forward `StatsRecord`s into the stream, append the `/l:<label>` suffix, feed the `x_stats_buffer_size` buffer, close the stream on `Pause` and reopen it on `Resume`, call `Probe` and merge the result with `probeExecutionContext()` and the user overrides.
 - `cwgate.go`: the `OrganizationCoreWeaveOrganizationID` GraphQL check that decides whether CoreWeave metadata is fetched.
-- `openmetrics.go`, `dcgm_exporter.go`, the HTTP half of `cwmetadata.go`, and `trainium.go`, unchanged in what they read but created once per process. A registry injected like `XPUResourceManager` (`core/internal/stream/streaminject.go`) hands every `SystemMonitor` with the same (url, headers, filters) the same scraper, and the scraper fans one scrape out to its subscribers on the first subscriber's interval.
+- `openmetrics.go`, `dcgm_exporter.go`, the HTTP half of `cwmetadata.go`, and `trainium.go`, unchanged in what they read. `ScraperRegistry`, injected like `XPUResourceManager` (`core/internal/stream/streaminject.go`), hands every `SystemMonitor` with the same (url, headers, filters) the same OpenMetrics or DCGM exporter scraper. The scraper runs at the smallest of its subscribers' intervals and once more when a subscriber joins; each subscriber's next sample is the latest scrape it has not seen, or that scrape's error, which it triages as its own. It keeps running while its runs are paused and stops when the last one finishes. Trainium and CoreWeave metadata stay per run.
 
 Deleted: `system.go`, `cgroup.go`, `querymap.go`, and the symon-only host resources (`cpu.go`, `host.go`, `processes.go`) once the host collector carries their keys. `buffer.go` stays. gopsutil and procfs leave wandb-core's dependency graph, which continues the binary-size work. LEET's `symon` becomes a 2 s subscriber of the same client.
 
 ### 3.6 Lifecycle
 
-Private sidecar mode: lazily started by the first subscriber in a wandb-core, portfile handshake, `TearDown` when the last subscriber leaves, exits when the parent dies. Once the host collectors live in the sidecar, a sidecar that is missing or dies takes every system metric with it, so from phase 2 on the client treats the sidecar as restartable: a failed start or an ended stream is captured once, then retried with backoff from 1 s to 1 min, and each run resubscribes under its `subscriber_id` when the service is back. A wheel built with `WANDB_BUILD_SKIP_WANDB_XPU` has no system metrics at all; that is documented, and the Go collectors remain for a platform until its Rust port passes the fixtures in section 6.
+Private sidecar mode: lazily started by the first subscriber in a wandb-core, portfile handshake, `TearDown` when the last subscriber leaves, exits when the parent dies. Since the host collectors live in the sidecar on Linux, a sidecar that is missing or dies takes every system metric with it, so the client treats the sidecar as restartable: a failed start or an ended stream is captured once, then retried with backoff from 1 s to 1 min, and each run resubscribes under its `subscriber_id` when the service is back. A wheel built with `WANDB_BUILD_SKIP_WANDB_XPU` collects no system metrics on Linux; `xpu/hatch.py` says so, and the Go collectors remain for a platform until its Rust port passes the fixtures in section 6.
 
-Node-shared mode (phase 4, Unix only at first):
+Node-shared mode (`x_stats_shared_xpu`, Linux and macOS; the setting is ignored on Windows):
 
 - The shared scope is the processes that share a mount and pid namespace: the daemon reads procfs and cgroup files through the subscriber's pid, so runs in different network or cgroup scopes inside that namespace are served correctly, and a container gets its own daemon.
-- Socket at `${XDG_RUNTIME_DIR:-/tmp}/wandb-xpu-<uid>/<build-id>.sock`, directory mode 0700, where the build id is embedded in both binaries at build time. Different wandb versions on one machine get different sockets and never talk to the wrong binary.
-- A client connects; on failure it takes a non-blocking `flock` on the lock file beside the socket. The holder unlinks a stale socket, spawns the daemon detached with `--idle-timeout`, waits until it can connect, and releases the lock. Others block on the lock briefly, then connect. Any failure falls back to private-sidecar mode.
-- The daemon exits after 60 s with no subscribers: it takes the lock, checks again that it has no subscribers, unlinks its socket, releases the lock and exits, so a client that connected in between is never left talking to a process that is going away. A client whose stream ends with EOF re-runs the election once before falling back. The daemon is not tied to a parent pid.
-- Collectors that are off by default (DCGM profiling) are enabled per subscriber through the request, not through the daemon's command line, so the first client's flags do not decide what later clients get.
+- Socket at `${XDG_RUNTIME_DIR:-/tmp}/wandb-xpu-<uid>/<id>.sock`, directory mode 0700 and owned by the user, socket mode 0600, where the id is the first 16 hex digits of the SHA-256 of the `wandb-xpu` binary. Different wandb versions on one machine get different sockets and never talk to the wrong binary. A path longer than the socket address limit falls back to the private sidecar.
+- A client connects; on failure it takes an exclusive `flock` on `<socket>.lock` (bounded by 10 s), probes again, unlinks a stale socket, spawns `wandb-xpu --listen <socket> --idle-timeout 600` in its own session with detached stdio, waits until it can connect, and releases the lock. The lock file is never removed. A daemon that finds the socket already served exits with status 1. Any failure falls back to private-sidecar mode with one debug line.
+- The daemon exits after ten minutes with no subscribers, which outlives the baselines it retains for a paused run: it takes the lock, checks again that it has no subscribers, unlinks its socket, releases the lock and exits, so a client that connected in between is never left talking to a process that is going away. A client whose stream ends re-runs the election through the restart path above. The daemon is not tied to a parent pid and exits on SIGTERM and SIGINT, unlinking its socket.
+- Collectors that are off by default (DCGM profiling) should be enabled per subscriber through the request rather than the daemon's command line, so that the first client's flags do not decide what later clients get. Today the socket name carries the flag, so processes with and without DCGM profiling share two daemons instead of one; the request field is open work.
 - On a daemon crash every client reconnects, re-elects, and resubscribes under its `subscriber_id`; cumulative metrics stay continuous because their raw counters are host-monotonic and the baseline lives with the subscriber id. The new daemon has no baselines, so the first sample after a crash restarts the counters; that is the one case where they reset.
 
 ### 3.7 Observability
@@ -257,7 +257,7 @@ Consequences to document for users: `x_stats_sampling_interval` stays per run an
 | `trn.*` | Go, `neuron-monitor` child | Go, one child per process | Shared through the registry; `LOCAL_RANK` filtering per run as today. |
 | `openmetrics.<name>.<metric>.<idx>` | Go | Go, one scrape per endpoint per process | Label index map per (endpoint, filters), shared by the runs of a process. |
 | DCGM exporter PromQL | Go | Go, one PromQL round per process | Same parsing of `gpu`/`device` labels. |
-| Metadata: cpu counts, memory total, disk info, SLURM vars | Go | `Probe` | SLURM vars from the request's `env`. |
+| Metadata: cpu counts, memory total, disk info | Go | `GetMetadata` on Linux, Go elsewhere | SLURM vars stay in Go (`probeExecutionContext`), with the other settings-derived environment. |
 | Metadata: GPU inventory, CUDA version, Apple, TPU | Rust and Go | `Probe` | Unchanged content. |
 | CoreWeave metadata | Go, GraphQL + HTTP | Go | Unchanged. |
 | `_system_metrics` buffer, `/l:<label>`, setting overrides, `probeExecutionContext` | Go | Go | Not monitoring; unchanged. |
@@ -293,10 +293,10 @@ The shared clock and typed snapshots make these cheap; none is required for the 
 
 ## 9. Migration plan
 
-1. **Protocol and scheduler (this stack).** The collectors sample every device once per sweep and the per-request parts (device filter, `gpu.process.N.*` mirror) move into the response. `Subscribe`, the registry, the clock and the fan-out replace `GetStats` in `xpu`; the Go `XPU` resource and LEET subscribe; `GetMetadata` is cached. Core and the service always ship in one wheel, so no cross-version compatibility is needed. This alone fixes the N-runs-per-core cost and the GPM bug.
-2. **Host collectors in Rust.** First the client's restart-and-resubscribe path and `subscriber_id`, which the host collectors' cumulative metrics need. Then Linux through procfs with the fixture tests, cut over by `runtime.GOOS`; then macOS and Windows through `sysinfo`; delete `system.go`, `cgroup.go` and the symon host resources as each platform switches.
-3. **Shared Go collectors.** The registry for OpenMetrics, the DCGM exporter, CoreWeave metadata and `neuron-monitor`, one instance per process. Move `symon` onto the client for everything the host collector serves.
-4. **Node-shared daemon.** Discovery, election, idle exit, reconnect and resubscribe. Opt-in through a setting, then default on Linux and macOS after a release of telemetry.
+1. **Protocol and scheduler.** Done: the collectors sample every device once per sweep and the per-request parts (device filter, `gpu.process.N.*` mirror) move into the response; `Subscribe`, the registry, the clock and the fan-out replace `GetStats` in `xpu`; the Go `XPU` resource and LEET subscribe; `GetMetadata` is cached; the client restarts the service and resubscribes. Core and the service always ship in one wheel, so no cross-version compatibility is needed.
+2. **Host collectors in Rust.** Done on Linux: `xpu/src/host.rs` reads procfs and sysfs with fixture tests, wandb-core and `symon` skip the Go `System` resource by `runtime.GOOS`. Open: macOS and Windows through `sysinfo`, then deleting `system.go`, `cgroup.go` and the symon host resources (`cpu.go`, `host.go`, `processes.go`); per-collector clocks; the `Subscribed` and `CollectorStatus` events.
+3. **Shared Go collectors.** Done for OpenMetrics and the DCGM exporter through `ScraperRegistry`. Trainium stays per run (its `neuron-monitor` output is filtered per pid) and CoreWeave metadata is probe-only.
+4. **Node-shared daemon.** Done behind `x_stats_shared_xpu`: discovery, election, idle exit, reconnect through the restart path. Open: the per-subscriber DCGM profiling flag, then default on Linux and macOS after a release of telemetry.
 
 ## 10. Risks
 
