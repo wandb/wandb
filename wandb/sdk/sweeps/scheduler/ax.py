@@ -72,7 +72,8 @@ def _check_distinct_text(name: str, values: list[Any]) -> None:
         other = seen.setdefault(text, value)
         if other is value:
             continue
-        if type(other) is not type(value) or other != value:
+        # Same type and text is a duplicate, e.g. two NaNs.
+        if type(other) is not type(value):
             raise ValueError(
                 f"Sweep parameter {name!r} lists {other!r} and {value!r}, "
                 "which the Ax engine cannot tell apart because it stores "
@@ -331,7 +332,7 @@ class AxOptimizer(Optimizer):
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
-        self._mixed_choices = _mixed_choices(sweep.config.get("parameters", {}))
+        self._mixed_choices = _mixed_choices(sweep.config.get("parameters") or {})
         super().__init__(sweep)
 
     @override
@@ -440,7 +441,8 @@ class AxOptimizer(Optimizer):
     def _to_ax_value(self, name: str, value: Any, python_type: type) -> Any:
         """Cast a run's config value to the type Ax declared for `name`."""
         choices = self._mixed_choices.get(name)
-        if choices is None:
+        # A custom Ax client may declare the parameter with another type.
+        if choices is None or python_type is not str:
             return python_type(value)
         exact = next(
             (c for c in choices if type(c) is type(value) and c == value), None

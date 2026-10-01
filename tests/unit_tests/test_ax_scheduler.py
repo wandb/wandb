@@ -319,14 +319,14 @@ class TestMixedTypeChoices:
     def test_warm_start_prefers_the_value_of_the_same_type(self) -> None:
         config = {
             "metric": {"name": "loss", "goal": "minimize"},
-            "parameters": {"p": {"values": [1, 1.0, "a"]}},
+            "parameters": {"p": {"values": [1.0, 1, "a"]}},
         }
         optimizer = AxOptimizer(
             create_default_client(config),
             make_scheduler_grid_sweep(config=config),
         )
         run = RunWithMetrics(
-            config=RunConfig.from_values({"p": 1.0}),
+            config=RunConfig.from_values({"p": 1}),
             state=RunState.FINISHED,
             wandb_run_id="old-run",
             summary_metrics={"loss": 0.5},
@@ -336,7 +336,7 @@ class TestMixedTypeChoices:
         optimizer.tell_existing_finished_run(run)
 
         trial = _experiment(optimizer.client).trials[0]
-        assert trial.arm.parameters == {"p": "1.0"}
+        assert trial.arm.parameters == {"p": "1"}
 
     @pytest.mark.parametrize(
         "parameter",
@@ -365,6 +365,33 @@ class TestMixedTypeChoices:
         got = _suggested_values({"values": values})
 
         assert all((type(v), v) in [(type(c), c) for c in values] for v in got)
+
+    def test_custom_client_keeps_its_own_parameter_type(self, client: Client) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"values": [1, "two", 0.5]}},
+        }
+        optimizer = AxOptimizer(client, make_scheduler_grid_sweep(config=config))
+        run = RunWithMetrics(
+            config=RunConfig.from_values({"x": 1}),
+            state=RunState.FINISHED,
+            wandb_run_id="old-run",
+            summary_metrics={"loss": 0.5},
+            history_metrics=[],
+        )
+
+        optimizer.tell_existing_finished_run(run)
+
+        trial = _experiment(optimizer.client).trials[0]
+        assert trial.arm.parameters == {"x": 1.0}
+
+    def test_custom_client_with_null_parameters(self, client: Client) -> None:
+        config = {"metric": {"name": "loss", "goal": "minimize"}, "parameters": None}
+
+        AxOptimizer(client, make_scheduler_grid_sweep(config=config))
+
+    def test_repeated_nan_is_a_duplicate(self) -> None:
+        sweep_parameter_to_parameter("p", {"values": [float("nan"), float("nan"), "a"]})
 
     def test_values_with_the_same_text_are_rejected(self) -> None:
         with pytest.raises(ValueError, match="cannot tell apart"):
