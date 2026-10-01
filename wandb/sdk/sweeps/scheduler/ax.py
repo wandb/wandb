@@ -8,6 +8,7 @@ from typing_extensions import override
 
 import wandb
 from wandb import util
+from wandb.sdk.sweeps.errors import format_caught_error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
@@ -16,7 +17,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
-    format_caught_error,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo

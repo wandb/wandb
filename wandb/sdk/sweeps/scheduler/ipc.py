@@ -18,13 +18,13 @@ from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
+from wandb.sdk.sweeps.errors import format_caught_error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
     RunConfig,
     RunWithMetrics,
-    format_caught_error,
     is_terminal_state,
 )
 
