@@ -194,7 +194,7 @@ class TestBuildAxSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+        optimizer = build_ax_optimizer(sweep)
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
@@ -228,7 +228,7 @@ class TestBuildAxSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+        optimizer = build_ax_optimizer(sweep)
 
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         assert set(suggestion.config.config) == {"x"}
