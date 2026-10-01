@@ -283,8 +283,7 @@ class SchedulerTaskExchange:
             except Exception as e:
                 term.termwarn(
                     f"The optimizer failed to record run {data.wandb_run_id};"
-                    " the scheduler stops tracking it.\n"
-                    f"{traceback.format_exc().rstrip()}"
+                    f" the scheduler stops tracking it: {e}"
                 )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(
