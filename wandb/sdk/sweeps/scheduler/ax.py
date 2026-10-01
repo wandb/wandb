@@ -605,10 +605,17 @@ class AxOptimizer(Optimizer):
         parameters = _experiment(self.client).search_space.parameters
         if not all(name in config for name in parameters):
             return None
-        return {
-            name: self._to_ax_value(name, config[name], parameter.python_type)
-            for name, parameter in parameters.items()
-        }
+        params = {}
+        for name, parameter in parameters.items():
+            try:
+                params[name] = self._to_ax_value(
+                    name, config[name], parameter.python_type
+                )
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Parameter {name!r} does not fit the sweep's search space: {e}"
+                ) from e
+        return params
 
 
 # ---------------------------------------------------------------------------
