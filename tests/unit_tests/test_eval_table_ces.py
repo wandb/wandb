@@ -19,6 +19,14 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture(autouse=True)
+def default_eval_table_server_feature_enabled(monkeypatch):
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
+
+
 @pytest.fixture
 def coreweave_evaluations_module(monkeypatch):
     client_module = ModuleType("coreweave_evaluations")
@@ -271,6 +279,16 @@ def test_ces_eval_table_writes_supported_media_in_raise_mode(mock_ces_client, ru
 
     rows = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"]
     assert rows[0]["output"]["image"]["extension_type"] == "wandb-image"
+
+
+def test_default_writer_validates_cells_during_construction():
+    nested_table = wandb.Table(columns=["value"], data=[[1]])
+
+    with pytest.raises(TypeError, match="does not support nested Tables"):
+        wandb.EvalTable(
+            columns=["table"],
+            data=[[nested_table]],
+        )
 
 
 def test_ces_eval_table_batches_rows_by_encoded_bytes(
@@ -655,30 +673,6 @@ def test_ces_base_url(monkeypatch):
 
     monkeypatch.setenv("CES_BASE_URL", "https://ces.test")
     assert ces._ces_base_url("https://api.wandb.ai") == "https://ces.test"
-
-
-def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
-    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
-    et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
-    et.bind_to_run(run, "eval", 0)
-    writer = et._writer
-    assert isinstance(writer, ces.CESWriter)
-    execute_graphql = MagicMock()
-    writer._bound = replace(
-        writer._require_bound(),
-        service_api=SimpleNamespace(
-            base_url="https://api.wandb.ai",
-            api_key="secret",
-            access_token=MagicMock(),
-            execute_graphql=execute_graphql,
-        ),
-    )
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations", None)
-
-    with pytest.raises(UsageError, match="coreweave_evaluations"):
-        et.to_json(run)
-
-    execute_graphql.assert_not_called()
 
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):

@@ -226,7 +226,7 @@ func InitRun(
 	upserter.params.StartingStep = startState.StartStep
 	upserter.params.Runtime = startState.StartRuntime
 
-	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
+	upserter.startRuntime = upserter.params.Runtime
 
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()

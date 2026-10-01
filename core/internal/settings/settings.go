@@ -619,6 +619,11 @@ func (s *Settings) GetStatsNoCgroup() bool {
 	return s.Proto.XStatsNoCgroup.GetValue()
 }
 
+// Whether to report the CPU and memory used by wandb's own processes.
+func (s *Settings) GetStatsSelfUsage() bool {
+	return s.Proto.XStatsSelfUsage.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
