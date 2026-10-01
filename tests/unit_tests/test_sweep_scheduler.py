@@ -1010,9 +1010,7 @@ class TestSchedulerTaskExchange:
 
         assert [r.error.message for r in reported] == ["bad terminator"]
 
-    def test_warns_with_a_traceback_when_a_tell_fails(
-        self, mock_wandb_log: MockWandbLog
-    ) -> None:
+    def test_warns_when_a_tell_fails(self, mock_wandb_log: MockWandbLog) -> None:
         optimizer = MagicMock(spec=Optimizer)
         optimizer.tell_run.side_effect = ValueError("bad summary")
         optimizer.should_terminate_sweep.return_value = True
@@ -1034,7 +1032,7 @@ class TestSchedulerTaskExchange:
         asyncio.run(exchange.run())
 
         mock_wandb_log.assert_warned("failed to record run wandb-1")
-        mock_wandb_log.assert_warned("ValueError: bad summary")
+        mock_wandb_log.assert_warned("stops tracking it: bad summary")
 
 
 class TestDescribeDone:
