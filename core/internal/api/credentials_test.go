@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -101,10 +102,8 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tokenFile.Close())
 
-	credentialsFile := "credentials.json"
-	defer func() {
-		_ = os.Remove(credentialsFile)
-	}()
+	// Temp dir: the provider writes a lock file next to this.
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
 
 	token := "fake-token"
 	expiresIn := time.Hour
@@ -180,9 +179,12 @@ func TestNewOAuth2CredentialProvider_TrimsTokenWhitespace(t *testing.T) {
 
 	exchanges := server.Requests()
 	require.Len(t, exchanges, 1)
+	form, err := url.ParseQuery(string(exchanges[0].Body))
+	require.NoError(t, err)
+	assert.Equal(t, "id-token", form.Get("assertion"))
 	assert.Equal(t,
-		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=id-token",
-		string(exchanges[0].Body))
+		"urn:ietf:params:oauth:grant-type:jwt-bearer",
+		form.Get("grant_type"))
 }
 
 func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
@@ -212,12 +214,12 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 
 	// if the token is going to expire in 3 minutes, it should be refreshed
 	expiration := time.Now().UTC().Add(time.Minute * 3).Format("2006-01-02 15:04:05")
-	// write expired access token to file
+	// write soon-to-expire access token to file
 	_, err = credsFile.WriteString(`{
 		"credentials":{
 			"` + server.URL + `":{
 				"access_token": "test",
-				"expires_in": "` + expiration + `"
+				"expires_at": "` + expiration + `"
 			}
 		}
 	}`)
@@ -289,7 +291,7 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 		"credentials": {
 			"` + server.URL + `":{
 				"access_token": "test",
-				"expires_in": "` + expiration + `"
+				"expires_at": "` + expiration + `"
 			}
 		}
 	}`)

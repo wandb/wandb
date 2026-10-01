@@ -4,17 +4,20 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/rogpeppe/go-internal/lockedfile"
 
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
@@ -49,6 +52,21 @@ const (
 	// request from another process. Requests to the W&B server carry their
 	// own per-attempt deadline, which bounds the exchange instead.
 	tokenExchangeTimeout = 60 * time.Second
+
+	// Tighter than the assertion grant. Re-sending a refresh token looks like
+	// a replay, and the server only forgives that for a short grace period.
+	// Worst case is about 28s: 3 attempts of 8s plus the waits.
+	refreshExchangeRetryMax       = 2
+	refreshExchangeAttemptTimeout = 8 * time.Second
+	refreshExchangeRetryWaitMin   = time.Second
+	refreshExchangeRetryWaitMax   = 3 * time.Second
+
+	// Bounds one refresh including retries. Longer than this outlives the
+	// grace period above.
+	refreshExchangeTimeout = 30 * time.Second
+
+	// Public OAuth client id. PKCE proves the request, not this string.
+	CLIClientID = "wandb-cli"
 )
 
 // CredentialProvider adds credentials to HTTP requests.
@@ -65,41 +83,60 @@ type AccessTokenProvider interface {
 
 // NewCredentialProvider creates a new credential provider based on the SDK
 // settings. Settings for JWT authentication are prioritized above API key
-// authentication.
+// authentication, and a browser login is used only when neither is configured.
 func NewCredentialProvider(
 	s *settings.Settings,
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
+	// The exchange must not use a credential provider: supplying its
+	// credentials is what it is being used to make possible.
+	newExchangeClient := func(o ClientOptions) RetryableClient {
+		o.RetryPolicy = TokenExchangeRetryPolicy
+
+		o.Proxy = s.GetProxyFn()
+		o.ProxyConnectHeader = s.GetProxyConnectHeader()
+
+		o.InsecureDisableSSL = s.IsInsecureDisableSSL()
+		o.Logger = logger
+
+		o.PreRetryLayers = httplayers.DefaultHeaders(s.GetExtraHTTPHeaders())
+
+		return NewClient(o)
+	}
+
 	if s.GetIdentityTokenFile() != "" {
-		// The exchange must not use a credential provider: supplying its
-		// credentials is what it is being used to make possible.
-		exchangeClient := NewClient(ClientOptions{
-			RetryMax:        TokenExchangeRetryMax,
-			RetryWaitMin:    tokenExchangeRetryWaitMin,
-			RetryWaitMax:    tokenExchangeRetryWaitMax,
-			RetryPolicy:     TokenExchangeRetryPolicy,
-			NonRetryTimeout: tokenExchangeAttemptTimeout,
-
-			Proxy:              s.GetProxyFn(),
-			ProxyConnectHeader: s.GetProxyConnectHeader(),
-
-			InsecureDisableSSL: s.IsInsecureDisableSSL(),
-			Logger:             logger,
-
-			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
-		})
-
 		return NewOAuth2CredentialProvider(
 			s.GetBaseURL(),
 			s.GetIdentityTokenFile(),
 			s.GetCredentialsFile(),
-			exchangeClient,
+			newExchangeClient(ClientOptions{
+				RetryMax:        TokenExchangeRetryMax,
+				RetryWaitMin:    tokenExchangeRetryWaitMin,
+				RetryWaitMax:    tokenExchangeRetryWaitMax,
+				NonRetryTimeout: tokenExchangeAttemptTimeout,
+			}),
 			logger,
 		)
 	}
 
 	if apiKey := s.GetAPIKey(); apiKey != "" {
 		return &apiKeyCredentialProvider{apiKey: apiKey}, nil
+	}
+
+	// A browser login is only a refresh token in the credentials file.
+	// Absence is the normal logged-out case, not an error.
+	if hasStoredRefreshToken(s.GetCredentialsFile(), s.GetBaseURL()) {
+		return NewRefreshTokenCredentialProvider(
+			s.GetBaseURL(),
+			s.GetCredentialsFile(),
+			newExchangeClient(ClientOptions{
+				RetryMax:        refreshExchangeRetryMax,
+				RetryWaitMin:    refreshExchangeRetryWaitMin,
+				RetryWaitMax:    refreshExchangeRetryWaitMax,
+				NonRetryTimeout: refreshExchangeAttemptTimeout,
+			}),
+			logger,
+		), nil
 	}
 
 	return NoopCredentialProvider{}, nil
@@ -178,14 +215,214 @@ func NewOAuth2CredentialProvider(
 	if _, err := readIdentityToken(identityTokenFilePath); err != nil {
 		return nil, err
 	}
+	return newOAuth2CredentialProvider(
+		baseURL,
+		credentialsFilePath,
+		&assertionExchange{
+			baseURL:               baseURL,
+			identityTokenFilePath: identityTokenFilePath,
+			httpClient:            httpClient,
+		},
+		logger,
+	), nil
+}
+
+// NewRefreshTokenCredentialProvider creates a provider for a browser login.
+//
+// Same cache and expiry check as the identity-token provider. A refresh
+// rotates, so the replacement has to be written back or the login is lost.
+func NewRefreshTokenCredentialProvider(
+	baseURL string,
+	credentialsFilePath string,
+	httpClient RetryableClient,
+	logger *slog.Logger,
+) CredentialProvider {
+	return newOAuth2CredentialProvider(
+		baseURL,
+		credentialsFilePath,
+		&refreshTokenExchange{
+			baseURL:    baseURL,
+			httpClient: httpClient,
+		},
+		logger,
+	)
+}
+
+func newOAuth2CredentialProvider(
+	baseURL string,
+	credentialsFilePath string,
+	exchange tokenExchange,
+	logger *slog.Logger,
+) *oauth2CredentialProvider {
 	return &oauth2CredentialProvider{
-		baseURL:               baseURL,
-		identityTokenFilePath: identityTokenFilePath,
-		credentialsFilePath:   credentialsFilePath,
-		httpClient:            httpClient,
-		tokenMu:               &sync.RWMutex{},
-		logger:                logger,
+		baseURL:             baseURL,
+		credentialsFilePath: credentialsFilePath,
+		exchange:            exchange,
+		// Beside the file, so readers that take no lock are unaffected.
+		fileMu:  lockedfile.MutexAt(credentialsFilePath + ".lock"),
+		tokenMu: &sync.RWMutex{},
+		logger:  logger,
+	}
+}
+
+// tokenExchange obtains an access token. The grants share the cache, the
+// lock, and the Authorization header.
+type tokenExchange interface {
+	// exchange trades stored for a fresh access token. The refresh grant
+	// consumes stored.RefreshToken; the assertion grant re-reads its JWT.
+	exchange(ctx context.Context, stored accessTokenInfo) (accessTokenInfo, error)
+
+	// rotates reports whether the exchange invalidates what it consumed.
+	// When it does, failing to persist the result loses the login.
+	rotates() bool
+}
+
+// assertionExchange trades an identity token for an access token using the JWT
+// Bearer flow of RFC 7523.
+type assertionExchange struct {
+	baseURL               string
+	identityTokenFilePath string
+	httpClient            RetryableClient
+}
+
+func (e *assertionExchange) rotates() bool { return false }
+
+func (e *assertionExchange) exchange(
+	ctx context.Context,
+	_ accessTokenInfo,
+) (accessTokenInfo, error) {
+	// Re-read each time. Identity tokens are re-minted to the same path.
+	identityToken, err := readIdentityToken(e.identityTokenFilePath)
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, tokenExchangeTimeout)
+	defer cancel()
+
+	return postTokenRequest(ctx, e.httpClient, e.baseURL, url.Values{
+		"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
+		"assertion":  {identityToken},
+	})
+}
+
+// refreshTokenExchange trades a refresh token for a new access token, and for
+// its own replacement, using the refresh grant of RFC 6749 section 6.
+type refreshTokenExchange struct {
+	baseURL    string
+	httpClient RetryableClient
+}
+
+func (e *refreshTokenExchange) rotates() bool { return true }
+
+func (e *refreshTokenExchange) exchange(
+	ctx context.Context,
+	stored accessTokenInfo,
+) (accessTokenInfo, error) {
+	if stored.RefreshToken == "" {
+		// Nothing to refresh, and retrying will not help.
+		return accessTokenInfo{}, &TokenExchangeError{
+			StatusCode: http.StatusUnauthorized,
+			Body:       "no refresh token stored; run `wandb login` again",
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, refreshExchangeTimeout)
+	defer cancel()
+
+	refreshed, err := postTokenRequest(ctx, e.httpClient, e.baseURL, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {stored.RefreshToken},
+		"client_id":     {CLIClientID},
+	})
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+
+	if refreshed.RefreshToken == "" {
+		// Keeping the spent token would look like a replay on the next refresh.
+		return accessTokenInfo{}, errors.New(
+			"api: refresh response did not include a replacement refresh token")
+	}
+
+	return refreshed, nil
+}
+
+// postTokenRequest performs one token endpoint request and parses the response.
+func postTokenRequest(
+	ctx context.Context,
+	httpClient RetryableClient,
+	baseURL string,
+	form url.Values,
+) (accessTokenInfo, error) {
+	// Own subtask: this exchange serves every request waiting on the token.
+	op := wboperation.Get(ctx).Subtask("retrieving credentials")
+	defer op.Finish()
+
+	tokenURL := fmt.Sprintf("%s/oidc/token", baseURL)
+	req, err := retryablehttp.NewRequestWithContext(
+		op.Context(ctx), http.MethodPost, tokenURL, []byte(form.Encode()))
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return accessTokenInfo{}, err
+		}
+
+		if isExchangeRejection(resp.StatusCode) {
+			return accessTokenInfo{}, &TokenExchangeError{
+				StatusCode: resp.StatusCode,
+				Body:       string(body),
+			}
+		}
+
+		return accessTokenInfo{}, fmt.Errorf(
+			"failed to retrieve access token: HTTP %d: %s",
+			resp.StatusCode, string(body))
+	}
+
+	var tokenResponse struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int    `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
+		return accessTokenInfo{}, err
+	}
+
+	return accessTokenInfo{
+		AccessToken:  tokenResponse.AccessToken,
+		RefreshToken: tokenResponse.RefreshToken,
+		ExpiresAt: ExpiresAt(
+			time.Now().UTC().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second)),
 	}, nil
+}
+
+// hasStoredRefreshToken reports whether a browser login is stored for baseURL.
+func hasStoredRefreshToken(credentialsFilePath string, baseURL string) bool {
+	contents, err := os.ReadFile(credentialsFilePath)
+	if err != nil {
+		return false
+	}
+
+	var credsFile CredentialsFile
+	if err := json.Unmarshal(contents, &credsFile); err != nil {
+		return false
+	}
+
+	return credsFile.Credentials[baseURL].RefreshToken != ""
 }
 
 // TokenExchangeError is a definitive rejection of an identity token
@@ -258,17 +495,18 @@ type oauth2CredentialProvider struct {
 	// The URL of the W&B API.
 	baseURL string
 
-	// The path of the file supplying the identity token.
-	identityTokenFilePath string
-
 	// The access token and its metadata.
 	tokenInfo accessTokenInfo
 
 	// The file path to the access token and its metadata.
 	credentialsFilePath string
 
-	// The client used to exchange the identity token for an access token.
-	httpClient RetryableClient
+	// How a fresh access token is obtained.
+	exchange tokenExchange
+
+	// Serializes exchanges against other processes sharing the credentials
+	// file. tokenMu only covers this one.
+	fileMu *lockedfile.Mutex
 
 	tokenMu *sync.RWMutex
 
@@ -307,6 +545,9 @@ type accessTokenInfo struct {
 
 	// The access token to use for authentication.
 	AccessToken string `json:"access_token"`
+
+	// Set for a browser login. Omitted for identity-token logins.
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 func (c *accessTokenInfo) IsTokenExpiring() bool {
@@ -378,35 +619,49 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 	c.tokenMu.Lock()
 	defer c.tokenMu.Unlock()
 
-	// if the access token has already been refreshed, return early
 	if !c.tokenInfo.IsTokenExpiring() {
 		return nil
 	}
 
-	// The wait for the lock is not bounded by the context, whose deadline
-	// may have passed, like when the previous holder spent it on a failed
-	// exchange. Don't start an exchange that cannot succeed.
+	// The lock wait ignores the context, so the deadline may already have passed.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	credsFile, ok := c.tryLoadCredentialsFromFile()
-	if ok {
-		accessToken, ok := credsFile.Credentials[c.baseURL]
-		if ok && !accessToken.IsTokenExpiring() {
-			c.tokenInfo = accessToken
-			return nil
-		}
+	// One lock across processes. Overlapping refreshes of a rotating token
+	// retire each other's access tokens. Failing to lock is not fatal: the
+	// server allows a short grace period for that case.
+	if unlock, err := c.fileMu.Lock(); err != nil {
+		c.logger.Warn("failed to lock credentials file; refreshing anyway",
+			"file path", c.credentialsFilePath,
+			"error", err,
+		)
+	} else {
+		defer unlock()
 	}
 
-	token, err := c.fetchAccessToken(ctx)
+	// The previous lock holder may have already refreshed.
+	credsFile, _ := c.tryLoadCredentialsFromFile()
+	stored := credsFile.Credentials[c.baseURL]
+	if !stored.IsTokenExpiring() {
+		c.tokenInfo = stored
+		return nil
+	}
+
+	token, err := c.exchange.exchange(ctx, stored)
 	if err != nil {
 		return fmt.Errorf("api: couldn't fetch access token: %w", err)
 	}
+
+	if err := c.saveCredentialsToFile(credsFile, token); err != nil {
+		if c.exchange.rotates() {
+			// The stored refresh token is spent. Losing the replacement ends the login.
+			return fmt.Errorf("api: couldn't save refreshed credentials: %w", err)
+		}
+		c.logger.Warn("failed to update credentials file", "error", err.Error())
+	}
+
 	c.tokenInfo = token
-
-	c.trySaveCredentialsToFile(credsFile)
-
 	return nil
 }
 
@@ -435,101 +690,49 @@ func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile
 	return credsFile, true
 }
 
-// Attempts to save the access token to the credentials file.
-func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials CredentialsFile) {
+// saveCredentialsToFile stores token for this provider's base URL.
+//
+// Replaced via a temp file. A partial write would drop a spent refresh token.
+func (c *oauth2CredentialProvider) saveCredentialsToFile(
+	credentials CredentialsFile,
+	token accessTokenInfo,
+) error {
 	if credentials.Credentials == nil {
 		credentials.Credentials = make(map[string]accessTokenInfo)
 	}
-	credentials.Credentials[c.baseURL] = c.tokenInfo
+	credentials.Credentials[c.baseURL] = token
 
-	file, err := json.MarshalIndent(credentials, "", "  ")
+	contents, err := json.MarshalIndent(credentials, "", "  ")
 	if err != nil {
-		c.logger.Warn("failed to update credentials file", "error", err.Error())
-		return
-	}
-	err = os.WriteFile(c.credentialsFilePath, file, 0o600)
-	if err != nil {
-		c.logger.Warn("failed to write credentials file", "error", err.Error())
-	}
-}
-
-// Reads the identity token from a file and exchanges it for
-// an access token from the authorization server using the JWT Bearer flow defined
-// in OAuth RFC 7523. The access token is then returned with its expiration time.
-func (c *oauth2CredentialProvider) fetchAccessToken(
-	ctx context.Context,
-) (accessTokenInfo, error) {
-	// Read the file for each exchange: short-lived identity tokens are
-	// re-minted to the same path, and an exchange must use the current
-	// file contents rather than the token present at startup.
-	identityToken, err := readIdentityToken(c.identityTokenFilePath)
-	if err != nil {
-		return accessTokenInfo{}, err
+		return err
 	}
 
-	// The exchange reports its retries on its own subtask, not as the
-	// outer request's status: it serves every request waiting on the
-	// token, not just the one whose context this is.
-	op := wboperation.Get(ctx).Subtask("retrieving credentials")
-	defer op.Finish()
-
-	ctx, cancel := context.WithTimeout(op.Context(ctx), tokenExchangeTimeout)
-	defer cancel()
-
-	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
-	data := fmt.Sprintf(
-		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
-		url.QueryEscape(identityToken),
-	)
-	req, err := retryablehttp.NewRequestWithContext(
-		ctx, http.MethodPost, tokenURL, []byte(data))
+	dir := filepath.Dir(c.credentialsFilePath)
+	temp, err := os.CreateTemp(dir, ".credentials-*.json")
 	if err != nil {
-		return accessTokenInfo{}, err
+		return err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return accessTokenInfo{}, err
-	}
+	tempPath := temp.Name()
 	defer func() {
-		_ = resp.Body.Close()
+		_ = os.Remove(tempPath)
 	}()
 
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return accessTokenInfo{}, err
-		}
-
-		// Repeating a rejected exchange cannot succeed, so the requests
-		// that depend on it must fail immediately instead of retrying.
-		if isExchangeRejection(resp.StatusCode) {
-			return accessTokenInfo{}, &TokenExchangeError{
-				StatusCode: resp.StatusCode,
-				Body:       string(body),
-			}
-		}
-
-		return accessTokenInfo{}, fmt.Errorf(
-			"failed to retrieve access token: HTTP %d: %s",
-			resp.StatusCode, string(body))
+	if err := temp.Chmod(0o600); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if _, err := temp.Write(contents); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	// Flush before rename so a crash cannot leave an empty credentials file.
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
 	}
 
-	var tokenResponse struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
-		return accessTokenInfo{}, err
-	}
-
-	// Calculate the time at which the accessTokenInfo will expire from the expires_in seconds
-	// from the response.
-	expiresAt := time.Now().UTC().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second)
-
-	return accessTokenInfo{
-		AccessToken: tokenResponse.AccessToken,
-		ExpiresAt:   ExpiresAt(expiresAt),
-	}, nil
+	return os.Rename(tempPath, c.credentialsFilePath)
 }
