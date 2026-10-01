@@ -3210,6 +3210,26 @@ pub struct SubscribeRequest {
     /// If not set, metrics for all GPUs will be captured.
     #[prost(int32, repeated, tag = "3")]
     pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
+    /// Identifies the subscriber across streams, such as the run's writer ID.
+    ///
+    /// Metrics that count since the subscription started keep counting when a
+    /// stream with the same ID reopens, as after a pause or a reconnect.
+    #[prost(string, tag = "4")]
+    pub subscriber_id: ::prost::alloc::string::String,
+    /// Whether process metrics cover the descendants of the process as well.
+    #[prost(bool, tag = "5")]
+    pub track_process_tree: bool,
+    /// Processes whose CPU and memory use, with their children's, is reported
+    /// as wandb.cpu and wandb.memory.rssMB.
+    #[prost(int32, repeated, tag = "7")]
+    pub wandb_pids: ::prost::alloc::vec::Vec<i32>,
+    /// Paths whose file systems' usage and device I/O are reported.
+    #[prost(string, repeated, tag = "8")]
+    pub disk_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Whether to ignore the cgroup limits that apply to the process when
+    /// reporting memory and CPU usage.
+    #[prost(bool, tag = "9")]
+    pub disable_cgroup: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubscribeResponse {
@@ -3217,8 +3237,12 @@ pub struct SubscribeResponse {
     #[prost(message, optional, tag = "1")]
     pub record: ::core::option::Option<Record>,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct GetMetadataRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GetMetadataRequest {
+    /// Paths whose file systems' size and usage are reported.
+    #[prost(string, repeated, tag = "1")]
+    pub disk_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetMetadataResponse {
     /// Static metadata about the system.
