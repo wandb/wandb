@@ -58,12 +58,16 @@ func NewTaskResolver(
 	if err != nil {
 		return nil, nil, err
 	}
+	metricKeys, err := objectiveMetricKeys(req.GetObjectives())
+	if err != nil {
+		return nil, nil, err
+	}
 
 	scheduler := NewScheduler(SchedulerParams{
 		API:          sweepAPI,
 		Logger:       logger,
 		SweepNodeID:  facts.NodeID,
-		MetricKeys:   cfg.metricKeys(),
+		MetricKeys:   metricKeys,
 		BatchSize:    int(req.BatchSize),
 		RunCap:       cfg.RunCap,
 		PollInterval: secondsToDuration(req.PollIntervalSeconds),
