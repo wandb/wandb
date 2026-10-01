@@ -26,6 +26,7 @@ import (
 func InjectStream(
 	commit GitCommitHash,
 	xpuResourceManager *monitor.XPUResourceManager,
+	scraperRegistry *monitor.ScraperRegistry,
 	debugCorePath DebugCorePath,
 	logLevel slog.Level,
 	settings *settings.Settings,

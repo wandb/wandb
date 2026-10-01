@@ -28,7 +28,7 @@ import (
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, scraperRegistry *monitor.ScraperRegistry, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	openTelemetryProxy := streamOTelProxy(settings2)
@@ -52,6 +52,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		RunHandle:          runHandle,
 		Settings:           settings2,
 		XPUResourceManager: xpuResourceManager,
+		ScraperRegistry:    scraperRegistry,
 		GraphqlClient:      client,
 		WriterID:           clientID,
 	}
