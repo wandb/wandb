@@ -941,12 +941,14 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 type factoryFixture struct {
 	client                *gqlmock.MockClient
 	localSchedulerEnabled bool
+	objectives            []*spb.SweepSchedulerObjective
 }
 
 func newFactoryFixture() *factoryFixture {
 	return &factoryFixture{
 		client:                gqlmock.NewMockClient(),
 		localSchedulerEnabled: true,
+		objectives:            []*spb.SweepSchedulerObjective{objective("loss", minimize)},
 	}
 }
 
@@ -1000,33 +1002,73 @@ func (f *factoryFixture) startSession(t *testing.T) (
 			SweepId:             "test-sweep",
 			BatchSize:           2,
 			PollIntervalSeconds: 5,
+			Objectives:          f.objectives,
 		},
 		sweepAPI,
 		observability.NewNoOpLogger())
 }
 
+// objective is an objective for the init request.
+func objective(name string, goal spb.SweepSchedulerGoal) *spb.SweepSchedulerObjective {
+	return &spb.SweepSchedulerObjective{MetricName: name, Goal: goal}
+}
+
+const (
+	minimize = spb.SweepSchedulerGoal_SWEEP_SCHEDULER_GOAL_MINIMIZE
+	maximize = spb.SweepSchedulerGoal_SWEEP_SCHEDULER_GOAL_MAXIMIZE
+)
+
+// warmStartRequest runs the first step and returns the warm-start query's request.
+func warmStartRequest(
+	t *testing.T,
+	f *factoryFixture,
+	resolver scheduler.TaskResolver,
+) *graphql.Request {
+	t.Helper()
+	f.client.StubMatchOnce(
+		gqlmock.WithOpName("SweepRunsWithHistory"), warmJSON("RUNNING", false, ""))
+
+	done := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
+	go func() { done <- resolver.Step(context.Background(), nil) }()
+	schedulertest.Receive(t, done)
+
+	for _, request := range f.client.AllRequests() {
+		if request.OpName == "SweepRunsWithHistory" {
+			return request
+		}
+	}
+	require.FailNow(t, "no warm-start request")
+	return nil
+}
+
 func TestFactoryStartsASession(t *testing.T) {
 	t.Run("single objective", func(t *testing.T) {
 		fixture := newFactoryFixture()
-		fixture.stubSweep("metric:\n  name: loss\nrun_cap: 10\n")
+		fixture.stubSweep("method: custom\nrun_cap: 10\n")
 
 		resolver, init, err := fixture.startSession(t)
 
 		require.NoError(t, err)
 		assert.NotNil(t, resolver)
-		assert.Equal(t, "metric:\n  name: loss\nrun_cap: 10\n", init.SweepConfig)
+		assert.Equal(t, "method: custom\nrun_cap: 10\n", init.SweepConfig)
 		assert.Equal(t, "loss-sweep", init.DisplayName)
 		assert.Equal(t, "sweep-controller-run", init.ControllerRunName)
 	})
 
 	t.Run("multi objective", func(t *testing.T) {
 		fixture := newFactoryFixture()
-		fixture.stubSweep("metrics:\n  - name: loss\n  - name: latency\n")
+		fixture.stubSweep("method: custom\n")
+		fixture.objectives = []*spb.SweepSchedulerObjective{
+			objective("loss", minimize), objective("accuracy", maximize),
+		}
 
 		resolver, _, err := fixture.startSession(t)
 
 		require.NoError(t, err)
-		assert.NotNil(t, resolver)
+		gqlmock.AssertVariables(t,
+			warmStartRequest(t, fixture, resolver),
+			gqlmock.GQLVar("historySpecs",
+				historySpecsWantKeys("loss", "accuracy", "_step")))
 	})
 }
 
@@ -1058,30 +1100,24 @@ func TestFactoryRefuses(t *testing.T) {
 			wantErrIs: scheduler.ErrSweepNotFound,
 		},
 		{
-			// An unnamed objective would leave the loop searching against
-			// fewer objectives than the sweep declares.
-			name: "an unnamed multi-objective metric",
+			name: "an init request without objectives",
 			setup: func(f *factoryFixture) {
-				f.stubSweep("metrics:\n  - name: loss\n  - goal: minimize\n")
+				f.stubSweep("method: custom\n")
+				f.objectives = nil
 			},
-			wantErrContains: "metrics[1] has no name",
+			wantErrContains: "the init request names no objectives",
 		},
 		{
-			// Setting both would silently mask metric with metrics.
-			name: "both metric and metrics",
+			name: "an objective without a metric name",
 			setup: func(f *factoryFixture) {
-				f.stubSweep("metric:\n  name: loss\nmetrics:\n  - name: latency\n")
+				f.stubSweep("method: custom\n")
+				f.objectives = []*spb.SweepSchedulerObjective{objective("", minimize)}
 			},
-			wantErrContains: "sets both metric and metrics",
-		},
-		{
-			name:            "a sweep without an objective",
-			setup:           func(f *factoryFixture) { f.stubSweep("method: bayes\n") },
-			wantErrContains: "names no objective metric",
+			wantErrContains: "objective 0 has no metric name",
 		},
 		{
 			name:            "a malformed sweep config",
-			setup:           func(f *factoryFixture) { f.stubSweep("metric: [unterminated\n") },
+			setup:           func(f *factoryFixture) { f.stubSweep("run_cap: [unterminated\n") },
 			wantErrContains: "parsing sweep config",
 		},
 	}
