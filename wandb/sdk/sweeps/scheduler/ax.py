@@ -8,7 +8,6 @@ from typing_extensions import override
 
 import wandb
 from wandb import util
-from wandb.sdk.sweeps.errors import format_caught_error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
@@ -498,10 +497,8 @@ class AxOptimizer(Optimizer):
         try:
             if not self.client.should_stop_trial_early(trial_index=trial_index):
                 return False
-        except Exception:
-            wandb.termwarn(
-                format_caught_error(f"Early stopping failed for trial {trial_index}.")
-            )
+        except Exception as e:
+            wandb.termwarn(f"Early stopping failed for trial {trial_index}: {e}")
             return False
         self._finalized.add(trial_index)
         self.client.mark_trial_early_stopped(trial_index=trial_index)

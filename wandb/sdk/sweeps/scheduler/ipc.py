@@ -245,9 +245,7 @@ class SchedulerTaskExchange:
                     )
                 )
                 self._logger.warning(
-                    format_caught_error(
-                        f"The optimizer rejected run {data.wandb_run_id}: {e}"
-                    )
+                    f"The optimizer rejected run {data.wandb_run_id}: {e}"
                 )
 
         for data in task.active_runs:
@@ -262,9 +260,7 @@ class SchedulerTaskExchange:
                     )
                 )
                 self._logger.warning(
-                    format_caught_error(
-                        f"The optimizer rejected run {data.wandb_run_id}: {e}"
-                    )
+                    f"The optimizer rejected run {data.wandb_run_id}: {e}"
                 )
                 continue
             if run_id is not None:
@@ -296,10 +292,8 @@ class SchedulerTaskExchange:
                 self._optimizer.tell_run(run_id, data)
             except Exception as e:
                 self._logger.warning(
-                    format_caught_error(
-                        f"The optimizer failed to record run {data.wandb_run_id};"
-                        f" the scheduler stops tracking it: {e}"
-                    )
+                    f"The optimizer failed to record run {data.wandb_run_id};"
+                    f" the scheduler stops tracking it: {e}"
                 )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(
