@@ -41,6 +41,7 @@ use env_logger::Builder;
 use log::{LevelFilter, debug};
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::OnceCell;
@@ -71,15 +72,29 @@ struct Args {
     /// File to write the gRPC server token to.
     ///
     /// Used to establish communication between the parent process (wandb-core) and the service.
-    /// Supports Unix and TCP sockets.
-    #[arg(long)]
-    portfile: String,
+    /// Supports Unix and TCP sockets. Optional with --listen.
+    #[arg(long, required_unless_present = "listen")]
+    portfile: Option<String>,
 
     /// Parent process ID.
     ///
     /// If provided, the program will exit if the parent process is no longer alive.
+    /// Ignored with --listen.
     #[arg(long, default_value_t = 0)]
     parent_pid: i32,
+
+    /// Unix socket path to listen on.
+    ///
+    /// If set, the program binds this path instead of a private socket and
+    /// serves every client that connects to it. Unix only.
+    #[arg(long, conflicts_with = "listen_on_localhost")]
+    listen: Option<PathBuf>,
+
+    /// Seconds without subscribers after which the program exits.
+    ///
+    /// Zero, the default, keeps the program running.
+    #[arg(long, default_value_t = 0, requires = "listen")]
+    idle_timeout: u64,
 
     /// Verbose logging.
     ///
@@ -252,6 +267,13 @@ enum ListenerType {
 
 /// Create and configure the appropriate listener based on platform and settings.
 async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error::Error>> {
+    if let Some(path) = &args.listen {
+        #[cfg(not(target_os = "windows"))]
+        return Ok(ListenerType::Unix(listen_at(path, args)?));
+        #[cfg(target_os = "windows")]
+        return Err("--listen is not supported on Windows".into());
+    }
+
     // On Windows, always use TCP; on other platforms, respect the flag
     #[cfg(target_os = "windows")]
     let use_tcp = true;
@@ -266,7 +288,7 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
 
         // Write the server port to the portfile
         let token = format!("sock={}", local_addr.port());
-        std::fs::write(&args.portfile, token)?;
+        write_portfile(args, &token)?;
         debug!("System metrics service listening on {}", local_addr);
 
         Ok(ListenerType::Tcp(stream))
@@ -296,7 +318,7 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
             // Use `to_str()` for a clean string representation without quotes
             if let Some(path_str) = socket_path.to_str() {
                 let token = format!("unix={}", path_str);
-                std::fs::write(&args.portfile, token)?;
+                write_portfile(args, &token)?;
                 debug!("System metrics service listening on {}", path_str);
 
                 // `UnixListener` does not unlink its socket file on drop;
@@ -323,6 +345,95 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
         {
             unreachable!("Unix sockets are not available on Windows")
         }
+    }
+}
+
+/// Writes the server's address to --portfile, if given.
+fn write_portfile(args: &Args, token: &str) -> std::io::Result<()> {
+    match &args.portfile {
+        Some(portfile) => std::fs::write(portfile, token),
+        None => Ok(()),
+    }
+}
+
+/// Binds the socket of a daemon shared by every wandb-core of one user on
+/// the node at `path`, replacing a socket file that nothing listens on.
+///
+/// SIGTERM and SIGINT unlink the socket and exit.
+#[cfg(not(target_os = "windows"))]
+fn listen_at(
+    path: &std::path::Path,
+    args: &Args,
+) -> Result<UnixListenerStream, Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+    use tokio::signal::unix::{SignalKind, signal};
+
+    match std::os::unix::net::UnixStream::connect(path) {
+        Ok(_) => return Err(format!("{} is already in use", path.display()).into()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => std::fs::remove_file(path)?,
+    }
+    let listener = UnixListener::bind(path)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    write_portfile(args, &format!("unix={}", path.display()))?;
+    debug!("System metrics service listening on {}", path.display());
+
+    let mut terminate = signal(SignalKind::terminate())?;
+    let path = path.to_path_buf();
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = terminate.recv() => {}
+        }
+        let _ = std::fs::remove_file(&path);
+        std::process::exit(0);
+    });
+
+    Ok(UnixListenerStream::new(listener))
+}
+
+/// Exits once there have been no subscribers for `timeout`.
+///
+/// The socket is unlinked under an exclusive flock on `<socket_path>.lock`,
+/// the file clients lock while electing a daemon, after checking again that
+/// no subscriber joined in the meantime.
+#[cfg(not(target_os = "windows"))]
+async fn exit_when_idle(
+    subscriptions: Arc<Subscriptions>,
+    socket_path: PathBuf,
+    timeout: std::time::Duration,
+    shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+) {
+    use nix::fcntl::{Flock, FlockArg};
+
+    let mut lock_path = socket_path.clone().into_os_string();
+    lock_path.push(".lock");
+    let idle = || {
+        subscriptions
+            .idle_since()
+            .is_some_and(|since| since.elapsed() >= timeout)
+    };
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        if !idle() {
+            continue;
+        }
+        let lock = std::fs::File::create(&lock_path).and_then(|file| {
+            Flock::lock(file, FlockArg::LockExclusive).map_err(|(_, errno)| errno.into())
+        });
+        if let Err(e) = &lock {
+            log::warn!("Failed to lock {}: {e}", lock_path.display());
+        }
+        if !idle() {
+            continue;
+        }
+        debug!("No subscribers for {timeout:?}; exiting");
+        let _ = std::fs::remove_file(&socket_path);
+        drop(lock);
+        if let Some(sender) = shutdown_sender.lock().await.take() {
+            sender.send(()).ok();
+        }
+        return;
     }
 }
 
@@ -424,10 +535,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = create_listener(&args).await?;
 
     let system_monitor_service = SystemMonitorServiceImpl::new(
-        args.parent_pid,
+        if args.listen.is_some() {
+            0
+        } else {
+            args.parent_pid
+        },
         args.enable_dcgm_profiling,
         shutdown_sender.clone(),
     );
+
+    #[cfg(not(target_os = "windows"))]
+    if let Some(path) = &args.listen
+        && args.idle_timeout > 0
+    {
+        tokio::spawn(exit_when_idle(
+            system_monitor_service.subscriptions.clone(),
+            path.clone(),
+            std::time::Duration::from_secs(args.idle_timeout),
+            shutdown_sender.clone(),
+        ));
+    }
 
     let server_builder =
         Server::builder().add_service(SystemMonitorServiceServer::new(system_monitor_service));
