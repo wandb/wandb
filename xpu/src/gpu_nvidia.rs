@@ -1,4 +1,4 @@
-use crate::metrics::MetricValue;
+use crate::metrics::{MetricValue, Sample};
 use crate::wandb_internal::{EnvironmentRecord, GpuNvidiaInfo};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, PcieUtilCounter, TemperatureSensor};
@@ -251,73 +251,23 @@ impl NvidiaGpu {
         })
     }
 
-    /// Check if a GPU is being used by a specific process or its descendants.
-    #[cfg(target_os = "linux")]
-    fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
-        let mut our_pids = vec![pid];
-        if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
-            our_pids.extend(descendant_pids);
-        }
-
-        let compute_processes = device.running_compute_processes().unwrap_or_default();
-        let graphics_processes = device.running_graphics_processes().unwrap_or_default();
-
-        let device_pids: Vec<i32> = compute_processes
-            .iter()
-            .chain(graphics_processes.iter())
-            .map(|p| p.pid as i32)
-            .collect();
-
-        our_pids.iter().any(|&p| device_pids.contains(&p))
-    }
-
-    /// Get descendant process IDs for a given parent PID.
-    #[cfg(target_os = "linux")]
-    fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
-        use std::collections::HashSet;
-        use std::fs::read_to_string;
-
-        let mut descendant_pids = Vec::new();
-        let mut visited_pids = HashSet::new();
-        let mut stack = vec![parent_pid];
-
-        while let Some(pid) = stack.pop() {
-            // Skip if we've already visited this PID
-            if !visited_pids.insert(pid) {
-                continue;
-            }
-
-            let children_path = format!("/proc/{}/task/{}/children", pid, pid);
-            match read_to_string(&children_path) {
-                Ok(contents) => {
-                    let child_pids: Vec<i32> = contents
-                        .split_whitespace()
-                        .filter_map(|s| s.parse::<i32>().ok())
-                        .collect();
-                    stack.extend(&child_pids);
-                    descendant_pids.extend(&child_pids);
-                }
-                Err(_) => {
-                    continue; // Skip to the next PID
-                }
-            }
-        }
-
-        Ok(descendant_pids)
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    fn gpu_in_use_by_process(&self, _device: &Device, _pid: i32) -> bool {
-        // TODO: Implement for other platforms
-        false
+    /// The PIDs of the processes running on a GPU.
+    fn device_pids(device: &Device) -> Vec<u32> {
+        device
+            .running_compute_processes()
+            .unwrap_or_default()
+            .into_iter()
+            .chain(device.running_graphics_processes().unwrap_or_default())
+            .map(|p| p.pid)
+            .collect()
     }
 
     /// Samples GPU metrics using NVML.
     ///
     /// This function collects various metrics from all available GPUs, including
-    /// utilization, memory usage, temperature, and power consumption. It also
-    /// checks if the specified process is using each GPU and collects process-specific
-    /// metrics if applicable.
+    /// utilization, memory usage, temperature, and power consumption, and lists
+    /// the processes running on each GPU so that a client's record can repeat the
+    /// metrics of the GPUs its process uses as `gpu.process.{i}.*`.
     ///
     /// Metrics captured include:
     /// cuda_version: The version of CUDA installed on the system.
@@ -350,9 +300,6 @@ impl NvidiaGpu {
     ///    is NVML's reading over a 20 ms window.
     /// gpu.{i}.cudaCores: The number of CUDA cores in the GPU at index i.
     /// gpu.{i}.architecture: The architecture of the GPU at index i (e.g., Ampere, Turing).
-    /// gpu.process.{i}.*: Various metrics specific to the monitored process
-    ///    (if the GPU is in use by the process). These include GPU utilization, memory utilization,
-    ///     temperature, and power consumption.
     ///
     /// GPM profiling metrics (Hopper+ only, via NVML GPU Performance Monitoring):
     /// gpu.{i}.smActive: SM utilization (%).
@@ -366,27 +313,12 @@ impl NvidiaGpu {
     ///
     /// Note that {i} represents the index of each GPU in the system, starting from 0.
     ///
-    /// # Arguments
-    ///
-    /// * `pid` - The process ID to monitor for GPU usage.
-    /// * `gpu_device_ids` - An optional list of GPU device IDs to monitor. If not provided,
-    ///  all GPUs are monitored.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tuples containing the metric name and value for each metric collected.
-    /// If an error occurs while collecting metrics, an `NvmlError` is returned.
-    ///
     /// # Errors
     ///
     /// This function should return an error only if an internal NVML call fails.
-    /// ```
-    pub fn get_metrics(
-        &mut self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
-    ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
+    pub fn get_metrics(&mut self) -> Result<Sample, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
+        let mut gpu_pids = HashMap::new();
 
         metrics.push((
             "_cuda_version".to_string(),
@@ -400,14 +332,6 @@ impl NvidiaGpu {
         let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _, _)| *id).collect();
 
         for di in 0..self.device_count {
-            // Skip GPU if not in the list of device IDs to monitor.
-            // If no device IDs are provided, monitor all GPUs.
-            if let Some(ref gpu_device_ids) = gpu_device_ids {
-                if !gpu_device_ids.contains(&(di as i32)) {
-                    continue;
-                }
-            }
-
             let device = match self.nvml.device_by_index(di) {
                 Ok(device) => device,
                 Err(_e) => {
@@ -447,11 +371,7 @@ impl NvidiaGpu {
                 ));
             }
 
-            // Collect dynamic metrics for the GPU if pid != 0
-            let gpu_in_use = match pid {
-                0 => false,
-                _ => self.gpu_in_use_by_process(&device, pid),
-            };
+            gpu_pids.insert(di, Self::device_pids(&device));
 
             let availability = &mut self.gpu_metric_availability[di as usize];
 
@@ -467,17 +387,6 @@ impl NvidiaGpu {
                             format!("gpu.{}.memory", di),
                             MetricValue::Int(utilization.memory as i64),
                         ));
-
-                        if gpu_in_use {
-                            metrics.push((
-                                format!("gpu.process.{}.gpu", di),
-                                MetricValue::Float(utilization.gpu as f64),
-                            ));
-                            metrics.push((
-                                format!("gpu.process.{}.memory", di),
-                                MetricValue::Int(utilization.memory as i64),
-                            ));
-                        }
                     }
                     Err(_) => {
                         availability.utilization = false;
@@ -503,17 +412,6 @@ impl NvidiaGpu {
                             format!("gpu.{}.memoryAllocatedBytes", di),
                             MetricValue::Int(memory_info.used as i64),
                         ));
-
-                        if gpu_in_use {
-                            metrics.push((
-                                format!("gpu.process.{}.memoryAllocated", di),
-                                MetricValue::Float(memory_allocated),
-                            ));
-                            metrics.push((
-                                format!("gpu.process.{}.memoryAllocatedBytes", di),
-                                MetricValue::Int(memory_info.used as i64),
-                            ));
-                        }
                     }
                     Err(_) => {
                         availability.memory_info = false;
@@ -529,12 +427,6 @@ impl NvidiaGpu {
                             format!("gpu.{}.temp", di),
                             MetricValue::Float(temperature as f64),
                         ));
-                        if gpu_in_use {
-                            metrics.push((
-                                format!("gpu.process.{}.temp", di),
-                                MetricValue::Float(temperature as f64),
-                            ));
-                        }
                     }
                     Err(_) => {
                         availability.temperature = false;
@@ -551,12 +443,6 @@ impl NvidiaGpu {
                             format!("gpu.{}.powerWatts", di),
                             MetricValue::Float(power_usage),
                         ));
-                        if gpu_in_use {
-                            metrics.push((
-                                format!("gpu.process.{}.powerWatts", di),
-                                MetricValue::Float(power_usage),
-                            ));
-                        }
 
                         if availability.enforced_power_limit {
                             match device.enforced_power_limit() {
@@ -571,17 +457,6 @@ impl NvidiaGpu {
                                         format!("gpu.{}.powerPercent", di),
                                         MetricValue::Float(power_percent),
                                     ));
-
-                                    if gpu_in_use {
-                                        metrics.push((
-                                            format!("gpu.process.{}.enforcedPowerLimitWatts", di),
-                                            MetricValue::Float(power_limit),
-                                        ));
-                                        metrics.push((
-                                            format!("gpu.process.{}.powerPercent", di),
-                                            MetricValue::Float(power_percent),
-                                        ));
-                                    }
                                 }
                                 Err(_) => {
                                     availability.enforced_power_limit = false;
@@ -873,7 +748,7 @@ impl NvidiaGpu {
             }
         }
 
-        Ok(metrics)
+        Ok(Sample { metrics, gpu_pids })
     }
 
     /// Extract metadata about the GPUs in the system from the provided samples.
