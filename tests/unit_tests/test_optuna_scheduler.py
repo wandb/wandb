@@ -551,6 +551,19 @@ class TestWarmStartValidation:
 
         assert optimizer.study.get_trials(deepcopy=False) == []
 
+    @pytest.mark.parametrize("value", [[1], None])
+    def test_imperative_rejects_a_search_space_not_returning_a_dict(
+        self, sweep: SweepInfo, is_active: bool, value: Any
+    ) -> None:
+        optimizer = OptunaImperativeOptimizer(
+            optuna.create_study(direction="minimize"), lambda trial: value, sweep
+        )
+
+        with pytest.raises(TypeError, match="search_space function returned .*dict"):
+            _warm_start(optimizer, {"x": 0.5}, is_active=is_active)
+
+        assert optimizer.study.get_trials(deepcopy=False) == []
+
 
 class TestIntermediateReporting:
     """Single-objective sweeps report intermediate values for pruning."""

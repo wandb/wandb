@@ -800,7 +800,7 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         # A replay finds the run's branch without adding a trial to the study.
         replay = _WarmStartTrial(config, self.study)
         try:
-            self.trial_constructor(replay)
+            params = self.trial_constructor(replay)
         except AttributeError as e:
             if e.obj is not replay:
                 raise
@@ -811,6 +811,12 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
                 f" from a prior run. Remove `trial.{e.name}` from the function"
                 " to warm-start from prior runs."
             ) from None
+        if not isinstance(params, dict):
+            kind = "None" if params is None else f"a {type(params).__name__}"
+            raise TypeError(
+                f"The scheduler.search_space function returned {kind}; it must"
+                " return a dict mapping parameter names to values"
+            )
         return replay.run_params
 
     @override
