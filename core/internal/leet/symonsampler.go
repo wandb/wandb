@@ -113,6 +113,7 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			DiskPaths:     defaultSymonDiskPaths(),
 			DisableCgroup: true,
 		},
+		false,
 	)
 
 	return sampler

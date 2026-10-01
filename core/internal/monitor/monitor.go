@@ -216,7 +216,13 @@ func (sm *SystemMonitor) initializeResources(
 	if sm.settings.GetStatsSelfUsage() {
 		request.WandbPids = []int32{int32(os.Getpid())}
 	}
-	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger, request)
+	sm.xpu = NewXPU(
+		sm.ctx,
+		xpuResourceManager,
+		sm.logger,
+		request,
+		sm.settings.GetStatsSharedXPU(),
+	)
 
 	if trainium := NewTrainium(
 		sm.logger,
