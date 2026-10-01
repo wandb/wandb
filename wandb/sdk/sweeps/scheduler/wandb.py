@@ -17,6 +17,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
+    sweep_objectives,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -47,18 +48,10 @@ class WandbOptimizer(Optimizer):
 
     @override
     def __init__(self, sweep: SweepInfo):
-        super().__init__(sweep)
+        super().__init__(sweep, sweep_objectives(sweep.config))
         self._runs: dict[str, sweeps.SweepRun] = {}
         self._pruned: set[str] = set()
         self._run_counter = 0
-
-    @override
-    def validate_sweep_objective(self) -> None:
-        """No-op: the sweep config is the only objective this optimizer reads.
-
-        There is no external study or experiment that could disagree with it.
-        """
-        return None
 
     def _new_run_id(self) -> str:
         run_id = f"{self._sweep.id}-{self._run_counter}"
