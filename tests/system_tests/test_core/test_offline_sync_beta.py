@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import pathlib
 import re
+import subprocess
+import sys
 from collections.abc import Callable
 from typing import cast
 
@@ -10,8 +12,10 @@ import looptime
 import pytest
 import wandb
 from click.testing import CliRunner
+from google.protobuf import text_format
 from typing_extensions import Any, TypeVar
 from wandb.cli import beta_sync, cli
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_sync_pb2
 from wandb.sdk import wandb_setup
@@ -174,6 +178,22 @@ def _unauthenticate_for_test() -> None:
     wbauth.unauthenticate_session(update_settings=True)
 
 
+def _read_history_records(sync_file: str) -> list[pb.HistoryRecord]:
+    inspected = subprocess.run(
+        [sys.executable, "-m", "wandb", "leet", "inspect", sync_file],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    history_records: list[pb.HistoryRecord] = []
+    for chunk in re.split(r"(?m)^# record \d+: [^\n]+\n", inspected.stdout):
+        if chunk.strip():
+            record = text_format.Parse(chunk, pb.Record())
+            if record.HasField("history"):
+                history_records.append(record.history)
+    return history_records
+
+
 def test_syncs_run(
     tmp_path: pathlib.Path,
     wandb_backend_spy: WandbBackendSpy,
@@ -210,6 +230,50 @@ def test_syncs_run(
 
         files = snapshot.uploaded_files(run_id=run.id)
         assert "test_file.txt" in files
+
+
+@pytest.mark.parametrize("encoding", ("json", "json,typed", "typed"))
+def test_syncs_history_values_from_completed_offline_run(
+    encoding: str,
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    _unauthenticate_for_test()
+    wide = 2**53 + 1
+    with wandb.init(
+        mode="offline",
+        settings=wandb.Settings(x_history_value_encoding=encoding),
+    ) as run:
+        run.log({"wide": wide, "first": 0}, step=2)
+        run.log({"second": False}, step=5)
+        run.log({"wide": wide + 2, "last": "done"}, step=9)
+
+    history_records = _read_history_records(run.settings.sync_file)
+
+    assert len(history_records) == 3
+    expect_json = "json" in encoding
+    expect_typed = "typed" in encoding
+    for history_record in history_records:
+        for item in history_record.item:
+            assert bool(item.value_json) is expect_json
+            assert (item.WhichOneof("value") is not None) is expect_typed
+
+    result = runner.invoke(cli.sync, [run.sync_dir])
+    assert result.exit_code == 0, result.output
+    assert "Finished syncing" in result.output
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 3
+        assert [history[i]["_step"] for i in range(3)] == [2, 5, 9]
+        assert history[0]["wide"] == wide
+        assert history[0]["first"] == 0
+        assert history[1]["second"] is False
+        assert history[2]["wide"] == wide + 2
+        assert history[2]["last"] == "done"
+        assert "wide" not in history[1]
+        assert "second" not in history[0]
+        assert "second" not in history[2]
 
 
 def test_sync_reports_init_error(
