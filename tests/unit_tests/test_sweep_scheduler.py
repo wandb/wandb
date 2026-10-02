@@ -847,10 +847,13 @@ class TestLoadOptimizerConfig:
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
+        sweep = make_scheduler_grid_sweep()
+
         loaded, terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", _Engine
+            "optimizer.py", "configure", _Engine, sweep
         )
 
+        configure.assert_called_once_with(sweep)
         assert loaded is optimizer
         assert terminator is None
 
@@ -865,7 +868,7 @@ class TestLoadOptimizerConfig:
         )
 
         loaded, loaded_terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", _Engine
+            "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
         )
 
         assert loaded is optimizer
@@ -879,7 +882,7 @@ class TestLoadOptimizerConfig:
         )
 
         loaded, terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", _Engine
+            "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
         )
 
         assert loaded is optimizer
@@ -894,20 +897,22 @@ class TestLoadOptimizerConfig:
         )
 
         with pytest.raises(ValueError, match="terminator.*Callable"):
-            scheduler_client.load_optimizer_config("optimizer.py", "configure", _Engine)
+            scheduler_client.load_optimizer_config(
+                "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
+            )
 
     @pytest.mark.parametrize(
         "factory, problem",
         [
             (3, "is int, not a function"),
-            (lambda study: _Engine(), "requires arguments"),
-            (lambda: object(), "returned object instead of"),
-            (lambda: (object(), None), "returned object instead of"),
-            (lambda: (_Engine(), None, None), "returned a tuple of 3 items"),
+            (lambda: _Engine(), "cannot be called with one SweepInfo argument"),
+            (lambda sweep: object(), "returned object instead of"),
+            (lambda sweep: (object(), None), "returned object instead of"),
+            (lambda sweep: (_Engine(), None, None), "returned a tuple of 3 items"),
         ],
         ids=[
             "not-callable",
-            "requires-arguments",
+            "takes-no-argument",
             "wrong-type",
             "wrong-type-in-tuple",
             "tuple-too-long",
@@ -919,6 +924,8 @@ class TestLoadOptimizerConfig:
         monkeypatch.setattr(scheduler_client, "load_source_object", lambda *_: factory)
 
         with pytest.raises(ValueError, match=problem) as error:
-            scheduler_client.load_optimizer_config("optimizer.py", "configure", _Engine)
+            scheduler_client.load_optimizer_config(
+                "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
+            )
 
         assert "scheduler.optimizer must name a function" in str(error.value)
