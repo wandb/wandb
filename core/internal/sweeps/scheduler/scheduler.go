@@ -505,7 +505,7 @@ func newSweepAPIFromSettings(
 		&observability.Peeker{},
 		clientSettings,
 		clientSettings.GetExtraHTTPHeaders(),
-		nil, /*traceStarter*/
+		logger.TelemetryRecorder,
 	)
 
 	return NewSweepAPI(
