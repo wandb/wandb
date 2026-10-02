@@ -1045,9 +1045,9 @@ def image_id_from_k8s() -> str | None:
         # malformed HTTP URLs raise http.client.InvalidURL instead.
         return None
     try:
-        return str(  # noqa: B005
+        return str(
             loads(body)["status"]["containerStatuses"][0]["imageID"]
-        ).strip("docker-pullable://")
+        ).removeprefix("docker-pullable://")
     except (ValueError, KeyError, IndexError):
         logger.exception("Error checking kubernetes for image id")
         return None

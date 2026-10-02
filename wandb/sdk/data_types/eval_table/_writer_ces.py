@@ -61,7 +61,7 @@ _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
 # Allow ten count-limited batches while failing fast on runaway tables.
-_MAX_ROWS_PER_TABLE = 100_000
+_MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
 _MAX_OVERSIZED_MEDIA_LOCATIONS = 5
@@ -176,8 +176,10 @@ class CESWriter:
     def __init__(
         self,
         *,
+        service_api: ServiceApi | None = None,
         unsupported_media_mode: str = "stub",
     ) -> None:
+        self._service_api = service_api
         self._unsupported_media_mode = unsupported_media_mode
         self._bound: _BoundRun | None = None
 
@@ -208,7 +210,7 @@ class CESWriter:
         self._bound = _BoundRun(
             entity=run.entity,
             project=run.project,
-            service_api=ServiceApi(run._settings),
+            service_api=self._service_api or ServiceApi(run._settings),
             idempotency_scope=hashlib.sha256(identity.encode()).hexdigest(),
             run=run,
             eval_table_key=key,
@@ -226,14 +228,8 @@ class CESWriter:
         bound_run = self._require_bound()
         base_url = _ces_base_url(bound_run.service_api.base_url)
 
-        # TODO: coreweave_evaluations is new and under development. This will become
-        # obsolete once we actually publish the package and add it to wandb deps.
-        try:
-            from coreweave_evaluations import Client
-        except ImportError as exc:
-            raise UsageError(
-                "CES EvalTable logging requires the coreweave_evaluations package."
-            ) from exc
+        # Import lazily so the CES client only loads when a CES EvalTable is written.
+        from coreweave_evaluations import Client
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
         self._record_media_telemetry(write_payloads)

@@ -52,19 +52,73 @@ func TestSuggestionsEnqueueAndAppear(t *testing.T) {
 	// The suggestion triggers a sweep re-check and an enqueue.
 	fixture.stubSweepConfig("RUNNING")
 	fixture.stubEnqueue("backend-name-1")
+	second := fixture.step(t, generationResult(suggest("opt-1")))
+
+	// The enqueued run is reported as pending at once, without a poll.
+	report := second.GetGeneration()
+	require.NotNil(t, report)
+	require.Len(t, report.Updates, 1)
+	assert.Equal(t, "backend-name-1", report.Updates[0].Run.WandbRunId)
+	assert.Equal(t, "opt-1", report.Updates[0].Run.OptimizerRunId)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_PENDING, report.Updates[0].Run.State)
+	assert.JSONEq(t, `{"param1": 1}`, report.Updates[0].Run.ConfigJson)
+	assert.Zero(t, report.AskUpTo)
+	assert.Empty(t, fixture.requestsFor("SweepWatchedRuns"))
+
 	// The minted run appears in the next poll under the enqueued id.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "backend-name-1", state: "pending"},
 	))
-	second := fixture.step(t, generationResult(suggest("opt-1")))
+	third := fixture.step(t, emptyIterResult())
 
-	task := second.GetGeneration()
+	task := third.GetGeneration()
 	require.NotNil(t, task)
 	require.Len(t, task.Updates, 1)
 	assert.Equal(t, "backend-name-1", task.Updates[0].Run.WandbRunId)
-	assert.Equal(t, "opt-1", task.Updates[0].Run.OptimizerRunId)
 	// One slot occupied by the joined run.
 	assert.EqualValues(t, 1, task.AskUpTo)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+func TestStopWhileEnqueueingReturnsDoneInsteadOfReporting(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("minted-1")
+	fixture.scheduler.Stop()
+	task := fixture.step(t, generationResult(suggest("opt-1")))
+
+	require.NotNil(t, task.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+		task.GetDone().Reason)
+	assert.Len(t, fixture.requestsFor("EnqueueSweepRun"), 1,
+		"a stop still enqueues the batch the client produced")
+}
+
+func TestEnqueueAfterThePollIntervalPollsInsteadOfReporting(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// The optimizer took longer than the poll interval.
+	fixture.clock.now = fixture.clock.now.Add(time.Minute)
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("minted-1")
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "minted-1", state: "running"},
+	))
+	task := fixture.step(t, generationResult(suggest("opt-1")))
+
+	updates := task.GetGeneration().Updates
+	require.Len(t, updates, 1)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_RUNNING, updates[0].Run.State)
 	assert.True(t, fixture.client.AllStubsUsed())
 }
 
@@ -76,11 +130,12 @@ func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
 
 	fixture.stubSweepConfig("RUNNING")
 	fixture.stubEnqueue("minted-1")
+	fixture.step(t, generationResult(suggest("opt-1")))
 
 	// The minted run never shows up: it was deleted before appearing.
 	// Two missing polls plus a confirming query reap it as failed.
 	fixture.stubPoll(pollJSON("RUNNING", false, ""))
-	first := fixture.step(t, generationResult(suggest("opt-1")))
+	first := fixture.step(t, emptyIterResult())
 	assert.Empty(t, first.GetGeneration().Updates)
 
 	fixture.client.StubMatchOnce(
@@ -96,29 +151,6 @@ func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
 	assert.Equal(t, "opt-1", updates[0].Run.OptimizerRunId)
 	assert.Equal(t,
 		spb.SweepRunState_SWEEP_RUN_STATE_FAILED, updates[0].Run.State)
-}
-
-func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubIdlePoll("RUNNING")
-	fixture.step(t, warmResult(nil))
-
-	fixture.scheduler.Stop()
-
-	// Graceful shutdown enqueues the batch the client already produced,
-	// then returns Done without another poll or ask.
-	fixture.stubSweepConfig("RUNNING")
-	fixture.stubEnqueue("minted-a")
-	fixture.stubEnqueue("minted-b")
-	done := fixture.step(t, generationResult(suggest("opt-a", "opt-b")))
-
-	require.NotNil(t, done.GetDone())
-	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
-		done.GetDone().Reason)
-	assert.True(t, fixture.client.AllStubsUsed(),
-		"must not poll again after enqueueing the in-flight suggestions")
 }
 
 // An enqueue that failed scheduled no run. Only a rate limit is worth

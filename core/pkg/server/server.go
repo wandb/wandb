@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/pkg/server/listeners"
 )
 
@@ -45,6 +46,9 @@ type Server struct {
 
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
+
+	// sweepSchedBroker implements `wandb sweep-scheduler` sessions.
+	sweepSchedBroker *scheduler.IPCSessionBroker
 
 	// xpuResourceManager manages costly resources for accelerator system metrics.
 	xpuResourceManager *monitor.XPUResourceManager
@@ -117,6 +121,7 @@ func NewServer(params ServerParams) *Server {
 		stopServer:         stopServer,
 		streamMux:          stream.NewStreamMux(),
 		runSyncManager:     runsync.NewRunSyncManager(),
+		sweepSchedBroker:   scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
 		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
 		connectionsWG:      sync.WaitGroup{},
 		parentPID:          params.ParentPID,
@@ -285,6 +290,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			Conn:               conn,
 			StreamMux:          s.streamMux,
 			RunSyncManager:     s.runSyncManager,
+			SweepSchedBroker:   s.sweepSchedBroker,
 			XPUResourceManager: s.xpuResourceManager,
 			Commit:             s.commit,
 			LoggerPath:         s.loggerPath,

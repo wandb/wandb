@@ -4,7 +4,12 @@ import atexit
 import pathlib
 from collections.abc import Callable
 
-from wandb.proto import wandb_api_pb2, wandb_settings_pb2, wandb_sync_pb2
+from wandb.proto import (
+    wandb_api_pb2,
+    wandb_settings_pb2,
+    wandb_sweep_scheduler_pb2,
+    wandb_sync_pb2,
+)
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
@@ -223,6 +228,60 @@ class ServiceConnection:
 
         handle = await self._client.deliver(request)
         return handle.map(lambda r: r.sync_status_response)
+
+    async def init_sweep_scheduler(
+        self,
+        settings: wandb_settings.Settings,
+        *,
+        entity: str,
+        project: str,
+        sweep_id: str,
+        batch_size: int,
+        poll_interval_seconds: float,
+    ) -> MailboxHandle[wandb_sweep_scheduler_pb2.SweepSchedulerServerInitResponse]:
+        """Send a SweepSchedulerClientInitRequest."""
+        init = wandb_sweep_scheduler_pb2.SweepSchedulerClientInitRequest(
+            entity=entity,
+            project=project,
+            sweep_id=sweep_id,
+            settings=settings.to_proto(),
+            batch_size=batch_size,
+            poll_interval_seconds=poll_interval_seconds,
+        )
+        request = spb.ServerRequest(sweep_scheduler_init=init)
+
+        handle = await self._client.deliver(request)
+        return handle.map(lambda r: r.sweep_scheduler_init_response)
+
+    async def sweep_scheduler_next_task(
+        self,
+        session_id: str,
+        result: wandb_sweep_scheduler_pb2.SweepSchedulerClientTaskResult | None,
+    ) -> MailboxHandle[wandb_sweep_scheduler_pb2.SweepSchedulerServerNextTaskResponse]:
+        """Send a SweepSchedulerClientNextTaskRequest.
+
+        This is a long poll: the response arrives once the scheduler's next
+        task is ready, up to roughly one poll interval later.
+        """
+        next_task = wandb_sweep_scheduler_pb2.SweepSchedulerClientNextTaskRequest(
+            session_id=session_id,
+            result=result,
+        )
+        request = spb.ServerRequest(sweep_scheduler_next_task=next_task)
+
+        handle = await self._client.deliver(request)
+        return handle.map(lambda r: r.sweep_scheduler_next_task_response)
+
+    async def stop_sweep_scheduler(self, session_id: str) -> None:
+        """Publish a SweepSchedulerClientStopRequest.
+
+        Fire-and-forget: the scheduler answers the outstanding long poll
+        with a Done task instead of responding to this request.
+        """
+        stop = wandb_sweep_scheduler_pb2.SweepSchedulerClientStopRequest(
+            session_id=session_id
+        )
+        await self._client.publish(spb.ServerRequest(sweep_scheduler_stop=stop))
 
     async def api_request_async(
         self,
