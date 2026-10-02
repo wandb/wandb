@@ -471,6 +471,12 @@ func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// handleResetLayout restores the default sidebar width.
+func (s *Symon) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	s.drag.reset()
+	return nil
+}
+
 func (s *Symon) handleToggleProcessSort(tea.KeyPressMsg) tea.Cmd {
 	s.sidebar.sortByMemory = !s.sidebar.sortByMemory
 	return nil
