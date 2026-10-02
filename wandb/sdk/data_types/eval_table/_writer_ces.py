@@ -5,11 +5,13 @@ import json
 import logging
 import math
 import os
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
+from wandb import env
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
 from wandb.apis.public.service_api import ServiceApi
@@ -170,6 +172,34 @@ def _iter_row_batches(
         yield batch
 
 
+class _DebugLog:
+    """Print elapsed-time-stamped CES write progress when WANDB_DEBUG is set."""
+
+    def __init__(self) -> None:
+        self.enabled = env.is_debug()
+        self._start = time.monotonic()
+
+    def __call__(self, message: str) -> None:
+        if self.enabled:
+            elapsed = time.monotonic() - self._start
+            wandb.termlog(f"EvalTable CES [+{elapsed:.1f}s] {message}")
+
+
+def _row_batch_summary(
+    batch_index: int,
+    nbatches: int,
+    row_batch: list[_CESRow],
+    ncols: int,
+) -> str:
+    """Describe the shape and encoded body size of one row-add request."""
+    body_bytes = len(_encode_json({"rows": row_batch}))
+    return (
+        f"uploading rows batch {batch_index + 1}/{nbatches}: "
+        f"{len(row_batch)} rows, {ncols} columns, "
+        f"{body_bytes:,} bytes ({body_bytes / (1 << 20):.2f} MiB)"
+    )
+
+
 class CESWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
@@ -225,6 +255,8 @@ class CESWriter:
         log_mode: LogMode,
     ) -> WriteResult:
         """Prepare and persist the CES resources, then return their history value."""
+        debug_log = _DebugLog()
+        debug_log(f"preparing {len(rows):,} rows")
         bound_run = self._require_bound()
         base_url = _ces_base_url(bound_run.service_api.base_url)
 
@@ -232,6 +264,9 @@ class CESWriter:
         from coreweave_evaluations import Client
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
+        nbatches = len(write_payloads.row_batches)
+        ncols = len(write_payloads.dataset_fields) + len(write_payloads.scorers)
+        debug_log(f"prepared {len(rows):,} rows into {nbatches} batches")
         self._record_media_telemetry(write_payloads)
         if write_payloads.oversized_media_cells:
             locations = ", ".join(write_payloads.oversized_locations)
@@ -243,18 +278,21 @@ class CESWriter:
                 f"{_media_ces.CES_MAX_CELL_BYTES / 1_000_000:g} MB limit. "
                 f"First affected: {locations}.",
             )
+        debug_log("resolving project scope")
         scope = self._resolve_scope_context(bound_run)
         with self._create_client(
             client_type=Client,
             base_url=base_url,
             scope=scope,
         ) as client:
+            debug_log(f"creating eval table at {base_url}")
             created = client.eval_tables.create(
                 namespace=_WANDB_SCOPE_NAMESPACE,
                 scope_id=scope.scope_id,
                 name=name,
                 idempotency_key=self._idempotency_key(bound_run, "create"),
             )
+            debug_log(f"creating {ncols} columns")
             client.eval_tables.columns.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
@@ -264,6 +302,10 @@ class CESWriter:
                 idempotency_key=self._idempotency_key(bound_run, "columns"),
             )
             for batch_index, row_batch in enumerate(write_payloads.row_batches):
+                if debug_log.enabled:
+                    debug_log(
+                        _row_batch_summary(batch_index, nbatches, row_batch, ncols)
+                    )
                 client.eval_tables.rows.add(
                     created.evaluation_id,
                     namespace=_WANDB_SCOPE_NAMESPACE,
@@ -273,12 +315,14 @@ class CESWriter:
                         bound_run, f"rows-{batch_index}"
                     ),
                 )
+            debug_log("creating version")
             version = client.eval_tables.versions.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
                 scope_id=scope.scope_id,
                 idempotency_key=self._idempotency_key(bound_run, "version"),
             )
+        debug_log("finished")
 
         _logger.debug(
             "CES EvalTable recorded namespace=%s scope_id=%s evaluation_version_id=%s",

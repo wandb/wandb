@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import replace
 from types import ModuleType, SimpleNamespace
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, DEFAULT, MagicMock
 
 import pytest
 import wandb
@@ -372,6 +373,83 @@ def test_ces_eval_table_batches_rows_by_count(
         "rows.add",
         "rows.add",
         "versions.create",
+    ]
+
+
+@pytest.mark.parametrize("debug", [True, False])
+def test_ces_eval_table_logs_progress_before_each_request_in_debug_mode(
+    mock_ces_client,
+    run,
+    monkeypatch,
+    debug,
+):
+    monkeypatch.setenv("WANDB_DEBUG", str(debug).lower())
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
+    events = []
+
+    def termlog(message):
+        events.append(re.sub(r"^EvalTable CES \[\+\d+\.\d+s\] ", "", message))
+
+    def record_request(name):
+        def side_effect(*_, **__):
+            events.append(f"<{name}>")
+            return DEFAULT
+
+        return side_effect
+
+    monkeypatch.setattr(wandb, "termlog", termlog)
+    resolve_scope_context = ces.CESWriter._resolve_scope_context
+
+    def record_then_resolve_scope_context(self, bound_run):
+        events.append("<scope>")
+        return resolve_scope_context(self, bound_run)
+
+    monkeypatch.setattr(
+        ces.CESWriter,
+        "_resolve_scope_context",
+        record_then_resolve_scope_context,
+    )
+    tables = mock_ces_client.eval_tables
+    tables.create.side_effect = record_request("create")
+    tables.columns.create.side_effect = record_request("columns")
+    tables.rows.add.side_effect = record_request("rows")
+    tables.versions.create.side_effect = record_request("version")
+    et = wandb.EvalTable(
+        columns=["prompt", "answer", "score"],
+        data=[["q", "a", 1.0]] * 3,
+        input_columns=["prompt"],
+        output_columns=["answer"],
+        score_columns=["score"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    if not debug:
+        assert all(event.startswith("<") for event in events)
+        return
+    body_sizes = [
+        len(ces._encode_json({"rows": call.kwargs["rows"]}))
+        for call in tables.rows.add.call_args_list
+    ]
+    assert events == [
+        "preparing 3 rows",
+        "prepared 3 rows into 2 batches",
+        "resolving project scope",
+        "<scope>",
+        "creating eval table at https://evaluations.example.test",
+        "<create>",
+        "creating 3 columns",
+        "<columns>",
+        f"uploading rows batch 1/2: 2 rows, 3 columns, {body_sizes[0]:,} bytes "
+        f"({body_sizes[0] / (1 << 20):.2f} MiB)",
+        "<rows>",
+        f"uploading rows batch 2/2: 1 rows, 3 columns, {body_sizes[1]:,} bytes "
+        f"({body_sizes[1] / (1 << 20):.2f} MiB)",
+        "<rows>",
+        "creating version",
+        "<version>",
+        "finished",
     ]
 
 
