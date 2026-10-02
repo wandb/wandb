@@ -161,7 +161,7 @@ const (
 	DefaultWorkspaceSystemGridCols  = 3
 
 	// Standalone system monitor mode.
-	DefaultSymonGridRows = 3
+	DefaultSymonGridRows = 2
 	DefaultSymonGridCols = 3
 )
 

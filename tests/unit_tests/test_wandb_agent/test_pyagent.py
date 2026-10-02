@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
+import pathlib
+import signal
+import subprocess
+import sys
 import threading
 
 import pytest
@@ -84,6 +89,27 @@ def test_agent_basic(wandb_agent_env):
     assert sweep_run_ids[0] != "also_ignored"
 
 
+def test_init_after_agent_does_not_reuse_sweep_run(wandb_agent_env):
+    sweep_run_ids = []
+
+    def train():
+        with wandb.init(mode="disabled") as run:
+            sweep_run_ids.append(run.id)
+
+    api = wandb_agent_env.mock_api()
+    api.agent_heartbeat.side_effect = sequence_heartbeat_responses(
+        [heartbeat_run_command("sweep-run", {"a": {"value": 1}})]
+    )
+    wandb_agent_env.monkeypatch.setenv("WANDB_CONSOLE", "off")
+    wandb_agent_env.run_pyagent(api, train, mock_finish=False)
+
+    with wandb.init(mode="disabled") as run:
+        assert sweep_run_ids == ["sweep-run"]
+        assert run.id != "sweep-run"
+        assert run.sweep_id is None
+        assert "a" not in run.config
+
+
 def test_agent_config_whitespace_py_agent(wandb_agent_env):
     ran = False
 
@@ -161,6 +187,32 @@ def test_agent_fails_fast_on_terminal_sweep_state(wandb_agent_env):
     # reaches the heartbeat loop.
     assert api.register_agent.call_count == 1
     api.agent_heartbeat.assert_not_called()
+    # No job ran, but a later wandb.init() must still not join the sweep.
+    assert os.environ.get(wandb.env.SWEEP_ID) is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX SIGINT")
+def test_pyagent_sigint_finishes_run_before_teardown(tmp_path):
+    script = pathlib.Path(__file__).parent / "scripts" / "pyagent_sigint.py"
+    proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        cwd=tmp_path,
+        env={**os.environ, "WANDB_DIR": str(tmp_path)},
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        lines = []
+        for line in proc.stdout:
+            lines.append(line.strip())
+            if lines[-1] == "training":
+                proc.send_signal(signal.SIGINT)
+        proc.wait(timeout=30)
+    finally:
+        proc.kill()
+
+    after_interrupt = lines[lines.index("training") + 1 :]
+    assert after_interrupt == ["finish 1", "teardown", "done"]
 
 
 def test_agent_sweep_deleted(wandb_agent_env):

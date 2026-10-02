@@ -2,6 +2,7 @@ package leet_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -58,4 +59,28 @@ func TestSymon_FilterLifecycle(t *testing.T) {
 	view := m.View().Content
 	require.Contains(t, view, "GPU Temp")
 	require.NotContains(t, view, "CPU Core")
+}
+
+func TestSymon_FirstPageOrderAndHeatmap(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.StatsMsg{
+		Timestamp: 100,
+		Metrics: map[string]float64{
+			"gpu.0.temp":        40,
+			"memory_percent":    50,
+			"cpu.0.cpu_percent": 20,
+			"cpu.1.cpu_percent": 60,
+		},
+	})
+
+	view := m.View().Content
+	cores := strings.Index(view, "CPU Core (%)")
+	memory := strings.Index(view, "System Memory (%)")
+	gpu := strings.Index(view, "GPU Temp")
+	require.True(t, cores >= 0 && cores < memory && memory < gpu, view)
+	require.Contains(t, view, "[heatmap]")
 }

@@ -45,7 +45,8 @@ var metricDefs = []MetricDef{
 	{Name: "Process CPU", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^cpu(/l:.+)?$`)},
 	{Name: "CPU Core", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
-		Regex: regexp.MustCompile(`^cpu\.\d+\.cpu_percent(/l:.+)?$`)},
+		ChartKind: MetricChartKindFrenchFries,
+		Regex:     regexp.MustCompile(`^cpu\.\d+\.cpu_percent(/l:.+)?$`)},
 	{Name: "Apple E-cores", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^cpu\.ecpu_percent(/l:.+)?$`)},
 	{Name: "Apple E-cores Freq", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,
@@ -103,13 +104,22 @@ var metricDefs = []MetricDef{
 	{Name: "Disk Write Total", Unit: UnitMiB, MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^disk\.out(/l:.+)?$`)},
 
-	// Network metrics - treat as rates instead of cumulative
+	// Per-device I/O rates derived by symon from the cumulative counters.
+	{Name: "Disk I/O", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^disk\.[^.]+\.(read|write)Bps$`)},
+
+	// Network metrics - CUMULATIVE
 	{Name: "Network Rx", Unit: UnitBytes, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.recv(/l:.+)?$`)},
 	{Name: "Network Tx", Unit: UnitBytes, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.sent(/l:.+)?$`)},
 	{Name: "Network TCP Retransmits", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.tcpRetransmits(/l:.+)?$`)},
+	// Network rates derived by symon from the cumulative counters.
+	{Name: "Network Rx", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.recvBps$`)},
+	{Name: "Network Tx", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.sentBps$`)},
 
 	// System power
 	{Name: "System Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
@@ -324,9 +334,13 @@ func ExtractBaseKey(metricName string) string {
 	parts := strings.Split(metricName, ".")
 
 	// Special handling for disk I/O metrics: disk.{device}.in/out -> disk.io_per_device
-	if len(parts) == 3 && parts[0] == "disk" &&
-		(parts[2] == "in" || parts[2] == "out") {
-		return "disk.io_per_device"
+	if len(parts) == 3 && parts[0] == "disk" {
+		switch parts[2] {
+		case "in", "out":
+			return "disk.io_per_device"
+		case "readBps", "writeBps":
+			return "disk.io_rate_per_device"
+		}
 	}
 
 	// Handle patterns like "gpu.0.temp" -> "gpu.temp"
@@ -359,15 +373,14 @@ func ExtractSeriesName(metricName string) string {
 
 	parts := strings.Split(metricName, ".")
 
-	// Handle disk I/O patterns like "disk.disk4.in", "disk.nvme0n1.out"
-	if len(parts) == 3 && parts[0] == "disk" &&
-		(parts[2] == "in" || parts[2] == "out") {
-		diskName := parts[1]
-		direction := parts[2]
-		if direction == "in" {
-			return diskName + " read"
+	// Handle disk I/O patterns like "disk.disk4.in", "disk.nvme0n1.writeBps"
+	if len(parts) == 3 && parts[0] == "disk" {
+		switch parts[2] {
+		case "in", "readBps":
+			return parts[1] + " read"
+		case "out", "writeBps":
+			return parts[1] + " write"
 		}
-		return diskName + " write"
 	}
 
 	// Handle patterns like "gpu.0.temp"
