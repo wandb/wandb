@@ -10,6 +10,7 @@ translated into a graceful stop request and the second one force-quits.
 from __future__ import annotations
 
 import importlib.util
+import logging
 import pathlib
 import signal
 from collections.abc import Callable
@@ -119,9 +120,13 @@ def run_scheduler(
     previous_handler = _install_sigint_handler(
         singleton.asyncer, service, init_response.session_id
     )
+    restore_library_logs = optimizer.route_library_logs(
+        _TermForwarder(level=logging.INFO)
+    )
     try:
         done = singleton.asyncer.run(exchange.run)
     finally:
+        restore_library_logs()
         if previous_handler is not None:
             signal.signal(signal.SIGINT, previous_handler)
 
@@ -132,6 +137,22 @@ def run_scheduler(
 
     term.termlog(f"Sweep scheduler for {sweep.name} exited: {message}.")
     return done
+
+
+class _TermForwarder(logging.Handler):
+    """Prints a search library's log records through `term`."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            message = f"{record.name}: {record.getMessage()}"
+            if record.levelno >= logging.ERROR:
+                term.termerror(message)
+            elif record.levelno >= logging.WARNING:
+                term.termwarn(message)
+            else:
+                term.termlog(message)
+        except Exception:
+            self.handleError(record)
 
 
 def _install_sigint_handler(

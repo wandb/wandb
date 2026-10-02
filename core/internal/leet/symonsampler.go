@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +42,11 @@ type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
 	logger    *observability.CoreLogger
+
+	// prev and prevAt are the previous sample's metrics and time, from
+	// which the next sample's I/O rates are derived.
+	prev   map[string]float64
+	prevAt time.Time
 }
 
 func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
@@ -65,6 +71,7 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			TrackProcessTree: false,
 			DiskPaths:        defaultSymonDiskPaths(),
 		}),
+		monitor.NewCPU(),
 		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
 	)
 
@@ -104,7 +111,6 @@ func (s *SymonSampler) Sample() StatsMsg {
 			record, err := resource.Sample()
 			if err != nil {
 				s.logSamplingError(err)
-				return nil
 			}
 			if record == nil {
 				return nil
@@ -126,7 +132,60 @@ func (s *SymonSampler) Sample() StatsMsg {
 	}
 
 	_ = g.Wait()
+
+	counters := maps.Clone(out.Metrics)
+	deriveRates(s.prev, out.Metrics, now.Sub(s.prevAt))
+	s.prev, s.prevAt = counters, now
+
+	// Disk usage is charted as a percentage and memory as used, so the
+	// flat used-bytes and available-memory lines only take up cells.
+	for key := range out.Metrics {
+		if strings.HasSuffix(key, ".usageGB") || key == "proc.memory.availableMB" {
+			delete(out.Metrics, key)
+		}
+	}
 	return out
+}
+
+// deriveRates replaces the cumulative network and disk I/O counters in cur
+// with bytes-per-second rates over the elapsed time since prev. The
+// counters are dropped even when prev lacks them, so the grid never charts
+// totals since the monitor started.
+func deriveRates(prev, cur map[string]float64, elapsed time.Duration) {
+	for key, value := range cur {
+		rateKey, scale, ok := ioRateKey(key)
+		if !ok {
+			continue
+		}
+		delete(cur, key)
+		before, ok := prev[key]
+		if !ok || elapsed <= 0 || value < before {
+			continue
+		}
+		cur[rateKey] = (value - before) * scale / elapsed.Seconds()
+	}
+}
+
+// ioRateKey maps a cumulative I/O counter to its rate key and the factor
+// that converts the counter's unit to bytes: monitor.System reports the
+// network counters in bytes and the disk counters in MiB.
+func ioRateKey(key string) (string, float64, bool) {
+	switch key {
+	case "network.recv":
+		return "network.recvBps", 1, true
+	case "network.sent":
+		return "network.sentBps", 1, true
+	}
+	const mib = 1024 * 1024
+	if dev, ok := strings.CutPrefix(key, "disk."); ok {
+		if dev, ok := strings.CutSuffix(dev, ".in"); ok {
+			return "disk." + dev + ".readBps", mib, true
+		}
+		if dev, ok := strings.CutSuffix(dev, ".out"); ok {
+			return "disk." + dev + ".writeBps", mib, true
+		}
+	}
+	return "", 0, false
 }
 
 // Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu

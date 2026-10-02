@@ -11,13 +11,14 @@ from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
     OptunaOptions,
+    build_optuna_optimizer,
     create_study_from_sweep_config,
     make_optimizer,
     sweep_parameter_to_distribution,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -177,6 +178,45 @@ class TestCreateStudyFromSweepConfig:
         assert isinstance(study.pruner, optuna.pruners.NopPruner)
 
 
+class TestBuildOptunaSchedulerOptimizer:
+    def test_builds_declarative_optimizer_from_parameters(self) -> None:
+        config = {
+            "metrics": [
+                {"name": "loss", "goal": "minimize"},
+                {"name": "accuracy", "goal": "maximize"},
+            ],
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "optuna"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, OptunaDeclarativeOptimizer)
+
+    def test_builds_imperative_optimizer_from_search_space(self, tmp_path) -> None:
+        source = tmp_path / "search_space.py"
+        source.write_text(
+            "def define_by_run(trial):\n"
+            "    return {'lr': trial.suggest_float('lr', 0.0, 1.0)}\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "search_space": "define_by_run",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, OptunaImperativeOptimizer)
+
+
 class TestExhaustibleSampler:
     """A finite sampler must finish the sweep instead of re-running the grid.
 
@@ -324,3 +364,43 @@ class TestIntermediateReporting:
 
         with pytest.raises(ValueError, match="_step"):
             optimizer.tell_run(suggestion.run_id, run)
+
+
+class TestRouteLibraryLogs:
+    """Optuna's records reach the handler the scheduler routes them to."""
+
+    @pytest.fixture
+    def optimizer(
+        self, study: optuna.Study, sweep: SweepInfo
+    ) -> OptunaDeclarativeOptimizer:
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+    def test_captures_study_creation(
+        self,
+        optimizer: OptunaDeclarativeOptimizer,
+        caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
+        optuna.create_study(study_name="routed-study")
+
+        assert any(
+            record.name.startswith("optuna.") and "routed-study" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_captures_trial_outcome(
+        self,
+        optimizer: OptunaDeclarativeOptimizer,
+        caplog: pytest.LogCaptureFixture,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        request.addfinalizer(optimizer.route_library_logs(caplog.handler))
+        suggestion = optimizer.ask_n_runs(1)[0]
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.FINISHED, summary={"loss": 1.0}),
+        )
+
+        assert [record.name for record in caplog.records] == ["optuna.wandb_scheduler"]

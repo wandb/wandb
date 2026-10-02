@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import wandb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -107,6 +109,20 @@ class Optimizer(ABC):
     def __init__(self, sweep: SweepInfo):
         self._sweep = sweep
         self.validate_sweep_objective()
+
+    def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
+        """Send the search library's log records to `handler`.
+
+        Replaces the library's own console output for the scheduler session,
+        so each record reaches the terminal exactly once.
+
+        Args:
+            handler: Receives the library's log records.
+
+        Returns:
+            A function that restores the library's own console output.
+        """
+        return lambda: None
 
     @abstractmethod
     def validate_sweep_objective(self) -> None:
@@ -248,6 +264,17 @@ class Optimizer(ABC):
         """The name of the sweep this optimizer searches."""
         return self._sweep.name
 
+    @property
+    def engine(self) -> str:
+        """The search engine named in the sweep's scheduler config.
+
+        Returns:
+            The `scheduler.engine` value, or `wandb` when the sweep
+            does not name one.
+        """
+        scheduler = self._sweep.config.get("scheduler") or {}
+        return str(scheduler.get("engine") or "wandb")
+
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
         """Return True if the run should be pruned.
 
@@ -284,3 +311,32 @@ class Optimizer(ABC):
     def should_terminate_sweep(self) -> bool:
         """Return True if the sweep should be terminated."""
         return False
+
+
+def make_optimizer(sweep: SweepInfo) -> Optimizer:
+    """Build the optimizer for the engine a scheduler-enabled sweep names.
+
+    The local scheduler only drives sweeps that opted out of server-side
+    search, which the `scheduler.engine` block records.
+
+    Raises:
+        wandb.Error: If the engine is missing or unsupported, or its
+            configuration can't be loaded.
+    """
+    # Each engine module is imported lazily so a missing engine dependency
+    # only fails sweeps that use it.
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
+    engine: str | None = scheduler_config.get("engine")
+    if engine == "wandb":
+        from wandb.sdk.sweeps.scheduler.wandb import build_wandb_optimizer
+
+        return build_wandb_optimizer(sweep, scheduler_config)
+    if engine == "optuna":
+        from wandb.sdk.sweeps.scheduler.optuna import build_optuna_optimizer
+
+        return build_optuna_optimizer(sweep, scheduler_config)
+    if engine == "ax":
+        from wandb.sdk.sweeps.scheduler.ax import build_ax_optimizer
+
+        return build_ax_optimizer(sweep, scheduler_config)
+    raise wandb.Error(f"Unsupported engine: {engine}")

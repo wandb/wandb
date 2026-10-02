@@ -6,17 +6,13 @@ import wandb
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
 
-@pytest.mark.usefixtures("user")  # test requires an online run
-def test_prints_run_messages(mock_wandb_log: MockWandbLog):
-    # This test may need to be rewritten if the message changes
-    # or if the setting is updated.
-    #
-    # Any way to make wandb-core reliably print works here.
-    settings = wandb.Settings(x_file_stream_max_line_bytes=10)
-
-    with wandb.init(settings=settings) as run:
-        run.log({"x": "too many bytes in this line"})
+@pytest.mark.parametrize("mode", ["online", "offline"])
+@pytest.mark.usefixtures("user")  # online mode requires an authenticated user
+def test_prints_run_messages(mock_wandb_log: MockWandbLog, mode: str):
+    with wandb.init(mode=mode) as run:
+        run.log({"x": 3}, step=3)
+        run.log({"x": 2}, step=2)
 
     mock_wandb_log.assert_warned(
-        "Skipped uploading run.log() data that exceeded size limit",
+        "Tried to log to step 2 that is less than the current step 3",
     )

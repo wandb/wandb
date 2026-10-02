@@ -96,6 +96,9 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
+	// lastPoll is when the latest backend poll of the sweep started.
+	lastPoll time.Time
+
 	runCap           int
 	finishedRunCount int
 
@@ -116,6 +119,9 @@ type Scheduler struct {
 	// scheduled; reported on the next task.
 	discards []string
 
+	// enqueued holds pending updates for runs enqueued since the last task.
+	enqueued []*spb.SweepSchedulerServerRunUpdate
+
 	// lastPruneCandidates is the candidate set offered by the latest
 	// generation task; prune ids outside it are ignored.
 	lastPruneCandidates map[string]bool
@@ -133,7 +139,6 @@ type Scheduler struct {
 }
 
 var _ TaskResolver = (*Scheduler)(nil)
-var _ TaskResolverFactory = NewTaskResolverFactory(nil)
 
 // NewScheduler builds a Scheduler from explicit parameters.
 func NewScheduler(params SchedulerParams) *Scheduler {
@@ -285,8 +290,7 @@ func (s *Scheduler) cancelOnStop(ctx context.Context, cancel context.CancelFunc)
 	}
 }
 
-// Step implements TaskResolver: apply the previous task's result, wait one
-// poll interval, and compute the next task.
+// Step implements TaskResolver: apply the result and compute the next task.
 func (s *Scheduler) Step(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
@@ -304,14 +308,32 @@ func (s *Scheduler) Step(
 		return s.warmStartStep(ctx)
 	}
 
-	if done := s.sleep(ctx); done != nil {
-		return done
+	switch {
+	case ctx.Err() != nil:
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
+	case s.sleepTime() > 0 && len(s.enqueued) > 0:
+		// do not delay reporting enqueued runs by the poll interval
+		// client will receive generation task on second roundtrip
+		return s.reportTask()
+	default:
+		return s.generationStep(ctx)
 	}
-	return s.generationStep(ctx)
 }
 
-// sleep waits one poll interval plus the failure slowdown, returning a
-// Done task if ctx is cancelled (session end or Stop) while waiting.
+// reportTask reports the runs just enqueued as pending, without polling.
+func (s *Scheduler) reportTask() *spb.SweepSchedulerServerNextTaskResponse {
+	enqueued := s.enqueued
+	s.enqueued = nil
+	return s.generationTask(enqueued, nil, 0)
+}
+
+// sleepTime is the poll interval plus slowdown left since the latest poll.
+func (s *Scheduler) sleepTime() time.Duration {
+	return s.pollInterval + s.api.Slowdown() - s.clock.Now().Sub(s.lastPoll)
+}
+
+// sleep waits out sleepTime, or returns a Done task if ctx ends (session end or Stop).
 func (s *Scheduler) sleep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
@@ -320,7 +342,7 @@ func (s *Scheduler) sleep(
 			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
 	}
 
-	fire, stopTimer := s.clock.NewTimer(s.pollInterval + s.api.Slowdown())
+	fire, stopTimer := s.clock.NewTimer(s.sleepTime())
 	defer stopTimer()
 
 	select {
@@ -451,48 +473,6 @@ func summaryHasAllMetrics(summaryJSON string, metricKeys []string) bool {
 		}
 	}
 	return true
-}
-
-// NewTaskResolverFactory returns the factory the session broker uses
-// to start scheduler sessions.
-func NewTaskResolverFactory(
-	logger *observability.CoreLogger,
-) TaskResolverFactory {
-	return func(
-		reqCtx context.Context,
-		req *spb.SweepSchedulerClientInitRequest,
-		sweepAPI SweepAPI,
-	) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
-		if err := sweepAPI.CheckLocalSchedulerSupported(reqCtx); err != nil {
-			return nil, nil, err
-		}
-
-		facts, err := sweepAPI.FetchSweep(reqCtx)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		cfg, err := parseSweepConfig(facts.Config)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		scheduler := NewScheduler(SchedulerParams{
-			API:          sweepAPI,
-			Logger:       logger,
-			SweepNodeID:  facts.NodeID,
-			MetricKeys:   cfg.metricKeys(),
-			BatchSize:    int(req.BatchSize),
-			RunCap:       cfg.RunCap,
-			PollInterval: secondsToDuration(req.PollIntervalSeconds),
-		})
-
-		return scheduler, &spb.SweepSchedulerServerInitResponse{
-			SweepConfig:       facts.Config,
-			DisplayName:       facts.DisplayName,
-			ControllerRunName: facts.ControllerRunName,
-		}, nil
-	}
 }
 
 // newSweepAPIFromSettings opens the sweep's API against the backend the

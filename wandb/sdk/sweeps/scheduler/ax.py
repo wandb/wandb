@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from typing_extensions import override
 
+import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
@@ -288,6 +291,29 @@ class AxOptimizer(Optimizer):
         super().__init__(sweep)
 
     @override
+    def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
+        """Swap Ax's root stderr handler for `handler`.
+
+        Ax's public root logger stops propagation, so it alone sees every
+        record the library emits.
+        """
+        from ax.utils.common import logger as ax_logger
+
+        root = ax_logger.ROOT_LOGGER
+        default = ax_logger.ROOT_STREAM_HANDLER
+        has_default = default in root.handlers
+        if has_default:
+            root.removeHandler(default)
+        root.addHandler(handler)
+
+        def restore() -> None:
+            root.removeHandler(handler)
+            if has_default:
+                root.addHandler(default)
+
+        return restore
+
+    @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
 
@@ -430,15 +456,17 @@ class AxOptimizer(Optimizer):
 
     @override
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
-        """Return True if Ax's early-stopping strategy says to stop the run.
+        """Return True if the early-stopping strategy says to stop the run.
 
-        A run whose trial was already finalized is never pruned again.
+        Only a client configured with `Client.set_early_stopping_strategy`
+        prunes. A run whose trial was already finalized is never pruned again.
         """
-        # On the first call Ax lazily configures a default (Percentile) early
-        # stopping strategy if none was set explicitly, then judges this trial's
-        # attached progressions against its peers at the same step.
         trial_index = int(run_id)
         if trial_index in self._finalized:
+            return False
+        # Ax installs a default strategy on the first should_stop_trial_early,
+        # and exposes no public getter to check for one first.
+        if getattr(self.client, "_maybe_early_stopping_strategy", None) is None:
             return False
         try:
             if not self.client.should_stop_trial_early(trial_index=trial_index):
@@ -561,3 +589,33 @@ def create_default_client(config: dict[str, Any]) -> ax.Client:
     client.configure_experiment(parameters=sweep_config_to_search_space(config))
     configure_sweep_objective(client, config)
     return client
+
+
+def build_ax_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> AxOptimizer:
+    """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
+
+    `scheduler.optimizer` names a zero-argument function in
+    `scheduler.source`. The function may return either an Ax `Client` or a
+    `(Client, terminator)` tuple. A terminator is a one-argument function
+    that receives the client after each generation and finishes the sweep by
+    returning `True`.
+    """
+    optimizer_name: str = scheduler_config.get("optimizer", "")
+    source: str = scheduler_config.get("source", "")
+
+    if scheduler_config.get("search_space") is not None:
+        wandb.termwarn("search_space config is not supported by the Ax engine.")
+    terminator = None
+    if optimizer_name:
+        try:
+            client, terminator = load_optimizer_config(
+                source, optimizer_name, "ax.api.client.Client"
+            )
+        except ValueError as e:
+            raise wandb.Error(str(e)) from e
+    else:
+        client = create_default_client(sweep.config)
+
+    return AxOptimizer(client, sweep, terminator)
