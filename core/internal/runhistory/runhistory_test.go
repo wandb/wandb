@@ -349,7 +349,7 @@ func TestSetFromRecord_TypedValuePreferredOverValueJson(t *testing.T) {
 	assert.JSONEq(t, `{"a": 1}`, string(encoded))
 }
 
-func TestSetFromRecord_FallsBackToValueJson(t *testing.T) {
+func TestSetFromRecord_FallsBackToValueJsonWhenNoTypedValue(t *testing.T) {
 	rh := runhistory.New()
 
 	// This is what an older SDK wrote: no typed value at all.
@@ -359,6 +359,19 @@ func TestSetFromRecord_FallsBackToValueJson(t *testing.T) {
 	encoded, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"a": 2}`, string(encoded))
+}
+
+func TestSetFromRecord_FailsWhenTypedValueIsInvalid(t *testing.T) {
+	rh := runhistory.New()
+
+	// If typed value is set, there is no fallback to ValueJson.
+	err := rh.SetFromRecord(&spb.HistoryItem{
+		Key:       "a",
+		Value:     &spb.HistoryItem_Json{Json: "invalid"},
+		ValueJson: "2",
+	})
+
+	require.Error(t, err)
 }
 
 func TestSetFromRecord_TypedNestedKey(t *testing.T) {
