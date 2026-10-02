@@ -3,6 +3,7 @@ package leet
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -50,6 +51,11 @@ type Symon struct {
 	width  int
 	height int
 
+	// hostname titles the header; latest holds the most recent sample for
+	// the values shown outside the charts.
+	hostname string
+	latest   map[string]float64
+
 	sampler *SymonSampler
 	logger  *observability.CoreLogger
 
@@ -84,14 +90,20 @@ func NewSymon(params SymonParams) *Symon {
 	)
 	grid.SetChartRank(symonChartRank)
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "System Metrics"
+	}
+
 	return &Symon{
-		ctx:    ctx,
-		cancel: cancel,
-		config: cfg,
-		keyMap: buildKeyMap(SymonKeyBindings()),
-		focus:  focus,
-		grid:   grid,
-		help:   help,
+		ctx:      ctx,
+		cancel:   cancel,
+		config:   cfg,
+		keyMap:   buildKeyMap(SymonKeyBindings()),
+		focus:    focus,
+		grid:     grid,
+		help:     help,
+		hostname: hostname,
 		sampler: NewSymonSampler(SymonSamplerParams{
 			Interval: params.SamplingInterval,
 			Logger:   logger,
@@ -172,6 +184,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
+		s.latest = msg.Metrics
 		s.grid.ProcessStats(msg)
 		s.grid.drawVisible()
 		cmd := s.sampleLaterCmd()
@@ -422,7 +435,7 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 func (s *Symon) renderMainView() string {
 	innerW := max(s.width-ContentPaddingCols, 0)
 	header := symonContainerStyle.Render(
-		renderSystemMetricsHeader(innerW, "System Metrics", "", s.grid))
+		renderSystemMetricsHeader(innerW, s.hostname, s.hostStatus(), s.grid))
 	bodyHeight := max(s.height-StatusBarHeight-symonHeaderLines, 0)
 	body := symonContainerStyle.Render(renderSystemMetricsBody(
 		innerW,
@@ -435,6 +448,38 @@ func (s *Symon) renderMainView() string {
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, header, body, statusBar)
 	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, fullView)
+}
+
+// hostStatus summarizes the host's uptime and load average from the latest
+// sample.
+func (s *Symon) hostStatus() string {
+	var parts []string
+	if uptime, ok := s.latest["system.uptime"]; ok {
+		parts = append(parts, "up "+formatUptime(time.Duration(uptime)*time.Second))
+	}
+	load1, ok1 := s.latest["system.load1"]
+	load5, ok5 := s.latest["system.load5"]
+	load15, ok15 := s.latest["system.load15"]
+	if ok1 && ok5 && ok15 {
+		parts = append(parts, fmt.Sprintf("load %.2f %.2f %.2f", load1, load5, load15))
+	}
+	return strings.Join(parts, " • ")
+}
+
+// formatUptime renders a duration the way uptime(1) does: days and hours,
+// hours and minutes, or minutes.
+func formatUptime(d time.Duration) string {
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd %dh", days, hours)
+	case hours > 0:
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	default:
+		return fmt.Sprintf("%dm", minutes)
+	}
 }
 
 // renderStatusBar renders the left-aligned state summary and right-aligned help

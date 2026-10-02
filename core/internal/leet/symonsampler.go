@@ -72,6 +72,7 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			DiskPaths:        defaultSymonDiskPaths(),
 		}),
 		monitor.NewCPU(),
+		monitor.NewHost(),
 		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
 	)
 

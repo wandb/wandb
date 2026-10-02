@@ -84,3 +84,23 @@ func TestSymon_FirstPageOrderAndHeatmap(t *testing.T) {
 	require.True(t, cores >= 0 && cores < memory && memory < gpu, view)
 	require.Contains(t, view, "[heatmap]")
 }
+
+func TestSymon_HeaderShowsUptimeAndLoad(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m, _ = m.Update(leet.StatsMsg{
+		Timestamp: 100,
+		Metrics: map[string]float64{
+			"memory_percent": 50,
+			"system.uptime":  93600 + 5*60,
+			"system.load1":   1.5,
+			"system.load5":   0.8,
+			"system.load15":  0.6,
+		},
+	})
+
+	require.Contains(t, m.View().Content, "up 1d 2h • load 1.50 0.80 0.60")
+}
