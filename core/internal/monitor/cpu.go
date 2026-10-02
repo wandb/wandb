@@ -54,6 +54,15 @@ func (c *CPU) Probe(context.Context) *spb.EnvironmentRecord {
 	return nil
 }
 
+// CPUModel returns the CPU model name, such as "Apple M4 Max".
+func CPUModel() string {
+	info, err := cpu.Info()
+	if err != nil || len(info) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(info[0].ModelName)
+}
+
 // cpuTemperatureSensors lists hwmon sensor key prefixes that read the CPU
 // temperature, most representative first: the package or die sensor, then
 // the individual cores, then SoC thermal zones.
