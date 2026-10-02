@@ -42,12 +42,13 @@ type Symon struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	config  *ConfigManager
-	keyMap  map[string]func(*Symon, tea.KeyPressMsg) tea.Cmd
-	focus   *Focus
-	grid    *SystemMetricsGrid
-	sidebar *symonSidebar
-	help    *HelpModel
+	config   *ConfigManager
+	keyMap   map[string]func(*Symon, tea.KeyPressMsg) tea.Cmd
+	focus    *Focus
+	focusMgr *FocusManager
+	grid     *SystemMetricsGrid
+	sidebar  *symonSidebar
+	help     *HelpModel
 
 	// drag owns mouse resizing of the sidebar border.
 	drag paneDragger
@@ -121,6 +122,20 @@ func NewSymon(params SymonParams) *Symon {
 		relayout: s.resizeGrid,
 		logger:   logger,
 	}
+	s.focusMgr = NewFocusManager([]FocusRegionDef{
+		{
+			Target:     FocusTargetProcessList,
+			Available:  func() bool { return s.sidebarWidth() > 0 && len(s.sidebar.procs.FilteredItems) > 0 },
+			Activate:   func(int) { s.sidebar.procs.Active = true },
+			Deactivate: func() { s.sidebar.procs.Active = false },
+		},
+		{
+			Target:     FocusTargetSystemMetrics,
+			Available:  func() bool { return s.grid.ChartCount() > 0 },
+			Activate:   func(int) { s.grid.NavigateFocus(0, 0) },
+			Deactivate: s.grid.ClearFocus,
+		},
+	})
 	return s
 }
 
@@ -182,6 +197,11 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.grid.handleFilterKey(msg)
 			return s, nil
 		}
+		if s.sidebar.filter.IsActive() {
+			s.sidebar.handleProcessFilterKey(msg)
+			s.focusMgr.Resolve()
+			return s, nil
+		}
 		if s.config.IsAwaitingGridConfig() {
 			s.handleConfigNumberKey(msg)
 			return s, nil
@@ -197,9 +217,10 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SymonSampleMsg:
 		s.latest = msg.Metrics
-		s.sidebar.procs = msg.Processes
+		s.sidebar.setProcesses(msg.Processes)
 		s.grid.ProcessStats(msg.StatsMsg)
 		s.grid.drawVisible()
+		s.focusMgr.Resolve()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
 
@@ -293,30 +314,72 @@ func (s *Symon) handleQuit(tea.KeyPressMsg) tea.Cmd {
 	return tea.Quit
 }
 
+// handleTab moves focus between the process list and the chart grid.
+func (s *Symon) handleTab(msg tea.KeyPressMsg) tea.Cmd {
+	direction := 1
+	if msg.String() == "shift+tab" {
+		direction = -1
+	}
+	s.focusMgr.Tab(direction)
+	return nil
+}
+
+func (s *Symon) processListFocused() bool {
+	return s.focusMgr.IsTarget(FocusTargetProcessList)
+}
+
 func (s *Symon) handlePrevPage(tea.KeyPressMsg) tea.Cmd {
+	if s.processListFocused() {
+		s.sidebar.procs.PageUp()
+		return nil
+	}
 	s.grid.Navigate(-1)
 	return nil
 }
 
 func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
+	if s.processListFocused() {
+		s.sidebar.procs.PageDown()
+		return nil
+	}
 	s.grid.Navigate(1)
 	return nil
 }
 
 func (s *Symon) handleNavHome(tea.KeyPressMsg) tea.Cmd {
+	if s.processListFocused() {
+		s.sidebar.procs.Home()
+		return nil
+	}
 	s.grid.NavigateHome()
 	return nil
 }
 
 func (s *Symon) handleNavEnd(tea.KeyPressMsg) tea.Cmd {
+	if s.processListFocused() {
+		s.sidebar.procs.End()
+		return nil
+	}
 	s.grid.NavigateEnd()
 	return nil
 }
 
+// handleGridNav moves the process cursor while the list has focus, and
+// the chart focus otherwise. Page, home and end keys have their own
+// handlers.
 func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
-	// Symon binds page/home/end to their own handlers via the key map;
-	// here we only handle chart-focus motion.
-	switch DecodeNav(msg) {
+	intent := DecodeNav(msg)
+	if s.processListFocused() {
+		switch intent {
+		case NavIntentUp:
+			s.sidebar.procs.Up()
+		case NavIntentDown:
+			s.sidebar.procs.Down()
+		}
+		return nil
+	}
+
+	switch intent {
 	case NavIntentUp:
 		s.grid.NavigateFocus(-1, 0)
 	case NavIntentDown:
@@ -326,6 +389,20 @@ func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
 	case NavIntentRight:
 		s.grid.NavigateFocus(0, 1)
 	}
+	if s.focus.Type == FocusSystemChart {
+		s.focusMgr.AdoptTarget(FocusTargetSystemMetrics)
+	}
+	return nil
+}
+
+func (s *Symon) handleEnterProcessFilter(tea.KeyPressMsg) tea.Cmd {
+	s.sidebar.filter.Activate()
+	return nil
+}
+
+func (s *Symon) handleClearProcessFilter(tea.KeyPressMsg) tea.Cmd {
+	s.sidebar.clearProcessFilter()
+	s.focusMgr.Resolve()
 	return nil
 }
 
@@ -357,7 +434,9 @@ func (s *Symon) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	if s.grid.FilterQuery() != "" {
 		s.grid.ClearFilter()
 	}
-	s.grid.NavigateFocus(0, 0)
+	if !s.processListFocused() {
+		s.grid.NavigateFocus(0, 0)
+	}
 	return nil
 }
 
@@ -367,6 +446,7 @@ func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
 		s.logger.Error(fmt.Sprintf("symon: failed to save sidebar visibility: %v", err))
 	}
 	s.resizeGrid()
+	s.focusMgr.Resolve()
 	return nil
 }
 
@@ -378,6 +458,7 @@ func (s *Symon) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
 
 func (s *Symon) handleToggleProcessSort(tea.KeyPressMsg) tea.Cmd {
 	s.sidebar.sortByMemory = !s.sidebar.sortByMemory
+	s.sidebar.sortProcesses()
 	return nil
 }
 
@@ -429,12 +510,18 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	mouse := msg.Mouse()
-	alt := mouse.Mod == tea.ModAlt
+	_, clicked := msg.(tea.MouseClickMsg)
 
-	if mouse.X < sidebarWidth ||
-		mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
-		if _, ok := msg.(tea.MouseClickMsg); ok {
-			s.grid.ClearFocus()
+	if mouse.X < sidebarWidth && mouse.Y < s.height-StatusBarHeight {
+		if clicked {
+			s.sidebar.selectProcessAt(mouse.Y)
+			s.focusMgr.SetTarget(FocusTargetProcessList, 1)
+		}
+		return nil
+	}
+	if mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
+		if clicked {
+			s.focusMgr.ClearAll()
 		}
 		return nil
 	}
@@ -449,16 +536,28 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
 		return nil
 	}
+	s.handleGridMouse(msg, adjustedX, adjustedY, dims)
+	return nil
+}
+
+// handleGridMouse focuses, inspects and zooms charts at grid coordinates.
+func (s *Symon) handleGridMouse(msg tea.MouseMsg, adjustedX, adjustedY int, dims GridDims) {
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
+	alt := msg.Mouse().Mod == tea.ModAlt
 
 	switch m := msg.(type) {
 	case tea.MouseClickMsg:
 		switch m.Button {
 		case tea.MouseLeft:
-			s.grid.HandleMouseClick(row, col)
+			if s.grid.HandleMouseClick(row, col) {
+				s.focusMgr.AdoptTarget(FocusTargetSystemMetrics)
+			} else {
+				s.focusMgr.ClearAll()
+			}
 		case tea.MouseRight:
 			s.grid.StartInspection(adjustedX, adjustedY, row, col, dims, alt)
+			s.focusMgr.AdoptTarget(FocusTargetSystemMetrics)
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -476,7 +575,6 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			s.grid.HandleWheel(adjustedX, row, col, dims, false)
 		}
 	}
-	return nil
 }
 
 // --------------------------------------------------------------------
@@ -571,6 +669,16 @@ func (s *Symon) buildStatusText() string {
 			s.grid.ChartCount(),
 		)
 	}
+	if s.sidebar.filter.IsActive() {
+		return fmt.Sprintf(
+			"Process filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+			s.sidebar.filter.Mode().String(),
+			s.sidebar.filter.Query(),
+			string(mediumShadeBlock),
+			len(s.sidebar.procs.FilteredItems),
+			len(s.sidebar.procs.Items),
+		)
+	}
 	if s.config.IsAwaitingGridConfig() {
 		return s.config.GridConfigStatus()
 	}
@@ -591,6 +699,15 @@ func (s *Symon) buildActiveStatus() string {
 			s.grid.FilterQuery(),
 			s.grid.FilteredChartCount(),
 			s.grid.ChartCount(),
+		))
+	}
+	if query := s.sidebar.filter.Query(); query != "" {
+		parts = append(parts, fmt.Sprintf(
+			"Process filter (%s): %q [%d/%d] (f to change, ctrl+f to clear)",
+			s.sidebar.filter.Mode().String(),
+			query,
+			len(s.sidebar.procs.FilteredItems),
+			len(s.sidebar.procs.Items),
 		))
 	}
 	if title := s.grid.FocusedChartTitle(); title != "" {
@@ -660,7 +777,7 @@ func (s *Symon) sidebarWidth() int {
 // isAwaitingUserInput reports whether a child component currently owns free-form
 // keyboard input.
 func (s *Symon) isAwaitingUserInput() bool {
-	return s.grid.IsFilterMode() || s.config.IsAwaitingGridConfig()
+	return s.grid.IsFilterMode() || s.sidebar.filter.IsActive() || s.config.IsAwaitingGridConfig()
 }
 
 // probeCmd gathers the host facts shown in the sidebar.

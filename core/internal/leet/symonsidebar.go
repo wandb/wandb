@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/monitor"
@@ -26,12 +27,74 @@ type symonSidebar struct {
 	visible bool
 	probe   SymonProbeMsg
 
-	procs        []monitor.ProcessStat
+	// procs pages through the processes that match filter, sorted by CPU
+	// or by memory. Its cursor is shown while the list has focus.
+	procs        PagedList[monitor.ProcessStat]
+	filter       *Filter
 	sortByMemory bool
+
+	// procRowsTop is the sidebar line of the first process row in the last
+	// render, so a click can select one.
+	procRowsTop int
 }
 
 func newSymonSidebar(config *ConfigManager) *symonSidebar {
-	return &symonSidebar{config: config, visible: config.SymonSidebarVisible()}
+	return &symonSidebar{
+		config:  config,
+		visible: config.SymonSidebarVisible(),
+		filter:  NewFilter(),
+	}
+}
+
+// setProcesses replaces the process table, keeping the sort, the filter
+// and the cursor position.
+func (sb *symonSidebar) setProcesses(procs []monitor.ProcessStat) {
+	sb.procs.Items = procs
+	sb.sortProcesses()
+}
+
+func (sb *symonSidebar) sortProcesses() {
+	slices.SortFunc(sb.procs.Items, func(a, b monitor.ProcessStat) int {
+		byCPU := cmp.Compare(b.CPUPercent, a.CPUPercent)
+		byMemory := cmp.Compare(b.RSS, a.RSS)
+		if sb.sortByMemory {
+			return cmp.Or(byMemory, byCPU)
+		}
+		return cmp.Or(byCPU, byMemory)
+	})
+	sb.applyProcessFilter()
+}
+
+// applyProcessFilter recomputes the visible processes by name or PID.
+func (sb *symonSidebar) applyProcessFilter() {
+	matcher := sb.filter.Matcher()
+	filtered := make([]monitor.ProcessStat, 0, len(sb.procs.Items))
+	for _, proc := range sb.procs.Items {
+		if matcher(proc.Name) || matcher(strconv.Itoa(int(proc.PID))) {
+			filtered = append(filtered, proc)
+		}
+	}
+	sb.procs.FilteredItems = filtered
+	sb.procs.SetItemsPerPage(sb.procs.ItemsPerPage())
+}
+
+func (sb *symonSidebar) handleProcessFilterKey(msg tea.KeyPressMsg) {
+	if sb.filter.HandleKey(msg) {
+		sb.applyProcessFilter()
+		sb.procs.Home()
+	}
+}
+
+func (sb *symonSidebar) clearProcessFilter() {
+	sb.filter.Clear()
+	sb.applyProcessFilter()
+	sb.procs.Home()
+}
+
+// selectProcessAt moves the cursor to the process row rendered at the
+// given sidebar line, if there is one.
+func (sb *symonSidebar) selectProcessAt(y int) {
+	sb.procs.SetPageAndLine(sb.procs.CurrentPage(), y-sb.procRowsTop)
 }
 
 // View renders the sidebar with its right border, highlighted while the
@@ -46,6 +109,7 @@ func (sb *symonSidebar) View(width, height int, latest map[string]float64, dragg
 		}
 		lines = append(lines, vitals...)
 	}
+	sb.procRowsTop = len(lines) + 3
 	if procs := sb.processLines(contentWidth, height-len(lines)-1); len(procs) > 0 {
 		lines = append(lines, "")
 		lines = append(lines, procs...)
@@ -217,39 +281,53 @@ func (sb *symonSidebar) vitalLines(width int, latest map[string]float64) []strin
 	return lines
 }
 
-// processLines renders the busiest processes in the rows available below
-// the vitals: a title, a column header and one row per process.
+// processLines renders the current page of processes in the rows available
+// below the vitals: a title with the page range, a column header and one
+// row per process, with the cursor row highlighted while the list has focus.
 func (sb *symonSidebar) processLines(width, rows int) []string {
-	if len(sb.procs) == 0 || rows < 3 {
+	if len(sb.procs.Items) == 0 || rows < 3 {
 		return nil
 	}
-
-	procs := slices.Clone(sb.procs)
-	slices.SortFunc(procs, func(a, b monitor.ProcessStat) int {
-		byCPU := cmp.Compare(b.CPUPercent, a.CPUPercent)
-		byMemory := cmp.Compare(b.RSS, a.RSS)
-		if sb.sortByMemory {
-			return cmp.Or(byMemory, byCPU)
-		}
-		return cmp.Or(byCPU, byMemory)
-	})
+	sb.procs.SetItemsPerPage(rows - 2)
 
 	sortKey := "CPU"
 	if sb.sortByMemory {
 		sortKey = "memory"
 	}
+	title := leftSidebarHeaderStyle.Render("Top processes by " + sortKey)
 	lines := []string{
-		leftSidebarHeaderStyle.Render(truncateValue("Top processes by "+sortKey, width)),
+		title + navInfoStyle.Render(truncateValue(
+			sb.processNavInfo(), max(width-lipgloss.Width(title), 0))),
 		runOverviewSidebarKeyStyle.Render(truncateValue(
 			fmt.Sprintf("%7s %6s %8s  %s", "PID", "CPU%", "MEM", "COMMAND"), width)),
 	}
-	for _, proc := range procs[:min(len(procs), rows-2)] {
-		lines = append(lines, runOverviewSidebarValueStyle.Render(truncateValue(
-			fmt.Sprintf("%7d %6.1f %8s  %s",
-				proc.PID, proc.CPUPercent, formatBytesBinary(float64(proc.RSS)), proc.Name),
-			width)))
+	start, end := sb.procs.PageBounds()
+	for i := start; i < end; i++ {
+		proc := sb.procs.FilteredItems[i]
+		line := truncateValue(fmt.Sprintf("%7d %6.1f %8s  %s",
+			proc.PID, proc.CPUPercent, formatBytesBinary(float64(proc.RSS)), proc.Name), width)
+		if sb.procs.Active && i-start == sb.procs.CurrentLine() {
+			lines = append(lines, runOverviewSidebarHighlightedItem.Width(width).Render(line))
+		} else {
+			lines = append(lines, runOverviewSidebarValueStyle.Render(line))
+		}
 	}
 	return lines
+}
+
+// processNavInfo reports the visible range of processes, and the filter's
+// effect when one is set.
+func (sb *symonSidebar) processNavInfo() string {
+	total := len(sb.procs.Items)
+	filtered := len(sb.procs.FilteredItems)
+	start, end := sb.procs.PageBounds()
+	if filtered == 0 {
+		return fmt.Sprintf(" [0 of %d]", total)
+	}
+	if filtered != total {
+		return fmt.Sprintf(" [%d-%d of %d filtered from %d]", start+1, end, filtered, total)
+	}
+	return fmt.Sprintf(" [%d-%d of %d]", start+1, end, total)
 }
 
 // symonSidebarRow lays out a label column, an optional meter and the value

@@ -13,6 +13,7 @@ const (
 	FocusTargetConsoleLogs
 	FocusTargetRecordList
 	FocusTargetRecordDetail
+	FocusTargetProcessList
 )
 
 // FocusRegionDef defines a focusable region with availability and activation hooks.
