@@ -104,6 +104,9 @@ type Config struct {
 	// SymonGrid is the dimensions for the standalone system monitor chart guides.
 	SymonGrid GridConfig `json:"symon_grid" leet:"desc=standalone system metrics grid"`
 
+	// SymonSidebarVisible controls whether symon opens with its vitals sidebar.
+	SymonSidebarVisible bool `json:"symon_sidebar_visible" leet:"desc=Show the vitals sidebar in the standalone system monitor by default."`
+
 	// Mouse-dragged pane proportions per view. Managed by drag-resize and
 	// the "0" reset key, not the config editor.
 	RunLayout       LayoutOverrides `json:"run_layout,omitzero"       leet:"-"`
@@ -253,6 +256,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultSymonGridRows,
 				Cols: DefaultSymonGridCols,
 			},
+			SymonSidebarVisible:           true,
 			StartupMode:                   DefaultStartupMode,
 			ChartGuides:                   DefaultChartGuides,
 			ColorScheme:                   DefaultColorScheme,
@@ -597,6 +601,18 @@ func (cm *ConfigManager) SetSymonRows(rows int) error {
 
 func (cm *ConfigManager) SetSymonCols(cols int) error {
 	return cm.setGridDim("cols", cols, func(c *Config) { c.SymonGrid.Cols = cols })
+}
+
+// SymonSidebarVisible returns whether symon opens with its vitals sidebar.
+func (cm *ConfigManager) SymonSidebarVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonSidebarVisible
+}
+
+// SetSymonSidebarVisible sets and persists the symon sidebar visibility.
+func (cm *ConfigManager) SetSymonSidebarVisible(visible bool) error {
+	return cm.set(func(c *Config) { c.SymonSidebarVisible = visible })
 }
 
 // RunLayout returns the single-run view's layout overrides.

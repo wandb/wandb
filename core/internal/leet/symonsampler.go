@@ -12,11 +12,19 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// SymonProbeMsg carries the host facts that do not change while symon runs.
+type SymonProbeMsg struct {
+	Env      *spb.EnvironmentRecord
+	CPUModel string
+}
 
 // DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
 // caller does not provide an explicit interval.
@@ -67,9 +75,10 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 
 	sampler.resources = append(sampler.resources,
 		monitor.NewSystem(monitor.SystemParams{
-			Pid:              0,
-			TrackProcessTree: false,
-			DiskPaths:        defaultSymonDiskPaths(),
+			Pid:                         0,
+			TrackProcessTree:            false,
+			DiskPaths:                   defaultSymonDiskPaths(),
+			DisableCgroupResourceLimits: true,
 		}),
 		monitor.NewCPU(),
 		monitor.NewHost(),
@@ -97,17 +106,7 @@ func (s *SymonSampler) Sample() StatsMsg {
 
 	for _, resource := range s.resources {
 		g.Go(func() error {
-			// Hardware sampling paths are known to panic (see SystemMonitor).
-			// A panic here would crash the whole TUI: bubbletea's panic
-			// recovery does not cover goroutines spawned by commands.
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.CaptureError(
-						"leet",
-						fmt.Errorf("symon: panic sampling resource: %v", r),
-					)
-				}
-			}()
+			defer s.recoverSamplingPanic()
 
 			record, err := resource.Sample()
 			if err != nil {
@@ -146,6 +145,19 @@ func (s *SymonSampler) Sample() StatsMsg {
 		}
 	}
 	return out
+}
+
+// recoverSamplingPanic logs a panic in a sampling goroutine. Hardware
+// sampling paths are known to panic (see SystemMonitor), and a panic here
+// would crash the whole TUI: bubbletea's panic recovery does not cover
+// goroutines spawned by commands.
+func (s *SymonSampler) recoverSamplingPanic() {
+	if r := recover(); r != nil {
+		s.logger.CaptureError(
+			"leet",
+			fmt.Errorf("symon: panic sampling resource: %v", r),
+		)
+	}
 }
 
 // deriveRates replaces the cumulative network and disk I/O counters in cur
@@ -187,6 +199,20 @@ func ioRateKey(key string) (string, float64, bool) {
 		}
 	}
 	return "", 0, false
+}
+
+// Probe gathers the host facts from every resource. Starting the wandb-xpu
+// sidecar can take seconds, so call it from a command, not from Update.
+func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
+	defer s.recoverSamplingPanic()
+
+	msg := SymonProbeMsg{Env: &spb.EnvironmentRecord{}, CPUModel: monitor.CPUModel()}
+	for _, resource := range s.resources {
+		if rec := resource.Probe(ctx); rec != nil {
+			proto.Merge(msg.Env, rec)
+		}
+	}
+	return msg
 }
 
 // Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu
