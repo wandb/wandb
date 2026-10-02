@@ -471,6 +471,11 @@ func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (s *Symon) handleToggleProcessSort(tea.KeyPressMsg) tea.Cmd {
+	s.sidebar.sortByMemory = !s.sidebar.sortByMemory
+	return nil
+}
+
 func (s *Symon) handleConfigSystemCols(tea.KeyPressMsg) tea.Cmd {
 	s.config.SetPendingGridConfig(gridConfigSymonCols)
 	return nil
