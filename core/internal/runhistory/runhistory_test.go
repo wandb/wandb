@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/simplejsonext"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
@@ -69,6 +70,153 @@ func TestNaN(t *testing.T) {
 	assert.Equal(t, asMap["+inf"], math.Inf(1))
 	assert.Equal(t, asMap["-inf"], math.Inf(-1))
 	assert.True(t, math.IsNaN(asMap["nan"].(float64))) // NaN != NaN
+}
+
+func TestToRecords(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     *spb.HistoryItem
+		wantJSON  string
+		wantTyped *spb.HistoryItem
+	}{
+		{
+			name:      "none",
+			input:     &spb.HistoryItem{Key: "none", ValueJson: "null"},
+			wantJSON:  "null",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_None{}},
+		},
+		{
+			name:      "boolean zero value",
+			input:     &spb.HistoryItem{Key: "boolean", ValueJson: "false"},
+			wantJSON:  "false",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{Boolean: false}},
+		},
+		{
+			name:      "maximum integer",
+			input:     &spb.HistoryItem{Key: "integer", ValueJson: "9223372036854775807"},
+			wantJSON:  "9223372036854775807",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{Integer: math.MaxInt64}},
+		},
+		{
+			name:      "minimum integer",
+			input:     &spb.HistoryItem{Key: "integer", ValueJson: "-9223372036854775808"},
+			wantJSON:  "-9223372036854775808",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{Integer: math.MinInt64}},
+		},
+		{
+			name:      "integral float",
+			input:     &spb.HistoryItem{Key: "float", ValueJson: "1.0"},
+			wantJSON:  "1",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: 1.0}},
+		},
+		{
+			name:      "zero float",
+			input:     &spb.HistoryItem{Key: "float", ValueJson: "0.0"},
+			wantJSON:  "0",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: 0}},
+		},
+		{
+			name:      "NaN",
+			input:     &spb.HistoryItem{Key: "float", ValueJson: "NaN"},
+			wantJSON:  "NaN",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: math.NaN()}},
+		},
+		{
+			name:      "positive infinity",
+			input:     &spb.HistoryItem{Key: "float", ValueJson: "Infinity"},
+			wantJSON:  "Infinity",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: math.Inf(1)}},
+		},
+		{
+			name:      "negative infinity",
+			input:     &spb.HistoryItem{Key: "float", ValueJson: "-Infinity"},
+			wantJSON:  "-Infinity",
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: math.Inf(-1)}},
+		},
+		{
+			name:      "empty text",
+			input:     &spb.HistoryItem{Key: "text", ValueJson: `""`},
+			wantJSON:  `""`,
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Text{Text: ""}},
+		},
+		{
+			name: "nested array with an object",
+			input: &spb.HistoryItem{
+				NestedKey: []string{"nested", "array"},
+				ValueJson: `[1, {"two": 2}, null]`,
+			},
+			wantJSON: `[1,{"two":2},null]`,
+			wantTyped: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
+				Json: `[1,{"two":2},null]`,
+			}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rh := runhistory.New()
+			require.NoError(t, rh.SetFromRecord(test.input))
+
+			formats := []struct {
+				includeTyped bool
+				includeJSON  bool
+			}{
+				{false, true},
+				{true, false},
+				{true, true},
+			}
+			for _, format := range formats {
+				records, err := rh.ToRecords(format.includeTyped, format.includeJSON)
+				require.NoError(t, err)
+				require.Len(t, records, 1)
+
+				record := records[0]
+				wantPath := test.input.NestedKey
+				if len(wantPath) == 0 {
+					wantPath = []string{test.input.Key}
+				}
+				assert.Equal(t, wantPath, record.NestedKey)
+
+				want := &spb.HistoryItem{
+					NestedKey: wantPath,
+				}
+				if format.includeTyped {
+					want.Value = test.wantTyped.Value
+				} else {
+					assert.Nil(t, record.Value)
+				}
+				if format.includeJSON {
+					want.ValueJson = test.wantJSON
+				} else {
+					assert.Empty(t, record.ValueJson)
+				}
+				assert.True(t, proto.Equal(want, record), "got %v", record)
+			}
+		})
+	}
+}
+
+func TestToRecords_TypedValuesRoundTrip(t *testing.T) {
+	rh := runhistory.New()
+	rh.SetInt(pathtree.PathOf("integer"), 1)
+	rh.SetFloat(pathtree.PathOf("float"), 1.0)
+
+	records, err := rh.ToRecords(true, true)
+	require.NoError(t, err)
+
+	decoded := runhistory.New()
+	for _, record := range records {
+		require.NoError(t, decoded.SetFromRecord(record))
+	}
+
+	integer, ok := decoded.GetInt(pathtree.PathOf("integer"))
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), integer)
+	_, ok = decoded.GetInt(pathtree.PathOf("float"))
+	assert.False(t, ok)
+	float, ok := decoded.GetNumber(pathtree.PathOf("float"))
+	assert.True(t, ok)
+	assert.Equal(t, 1.0, float)
 }
 
 func TestForEachNumber(t *testing.T) {
@@ -201,7 +349,7 @@ func TestSetFromRecord_TypedValuePreferredOverValueJson(t *testing.T) {
 	assert.JSONEq(t, `{"a": 1}`, string(encoded))
 }
 
-func TestSetFromRecord_FallsBackToValueJson(t *testing.T) {
+func TestSetFromRecord_FallsBackToValueJsonWhenNoTypedValue(t *testing.T) {
 	rh := runhistory.New()
 
 	// This is what an older SDK wrote: no typed value at all.
@@ -211,6 +359,19 @@ func TestSetFromRecord_FallsBackToValueJson(t *testing.T) {
 	encoded, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"a": 2}`, string(encoded))
+}
+
+func TestSetFromRecord_FailsWhenTypedValueIsInvalid(t *testing.T) {
+	rh := runhistory.New()
+
+	// If typed value is set, there is no fallback to ValueJson.
+	err := rh.SetFromRecord(&spb.HistoryItem{
+		Key:       "a",
+		Value:     &spb.HistoryItem_Json{Json: "invalid"},
+		ValueJson: "2",
+	})
+
+	require.Error(t, err)
 }
 
 func TestSetFromRecord_TypedNestedKey(t *testing.T) {
