@@ -462,6 +462,15 @@ func (s *Symon) handleToggleProcessSort(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
+	s.sidebar.visible = !s.sidebar.visible
+	if err := s.config.SetSymonSidebarVisible(s.sidebar.visible); err != nil {
+		s.logger.Error(fmt.Sprintf("symon: failed to save sidebar visibility: %v", err))
+	}
+	s.resizeGrid()
+	return nil
+}
+
 func (s *Symon) handleConfigSystemCols(tea.KeyPressMsg) tea.Cmd {
 	s.config.SetPendingGridConfig(gridConfigSymonCols)
 	return nil
