@@ -135,17 +135,30 @@ class Media(WBValue):
         assert run is not None, 'Argument "run" must not be None.'
         self._run = run
 
-        if self._extension is None:
-            _, extension = os.path.splitext(os.path.basename(self._path))
-        else:
-            extension = self._extension
-
         if id_ is None:
             id_ = self._sha256[:20]
 
-        file_path = _wb_filename(key, step, id_, extension)
+        file_path = _wb_filename(key, step, id_, self._file_extension())
         media_path = os.path.join(self.get_media_subdir(), file_path)
-        new_path = os.path.join(self._run.dir, media_path)
+        self._place_file(run, media_path, ignore_copy_err=ignore_copy_err)
+
+    def _file_extension(self) -> str:
+        assert self._path is not None
+        if self._extension is not None:
+            return self._extension
+        _, extension = os.path.splitext(os.path.basename(self._path))
+        return extension
+
+    def _place_file(
+        self,
+        run: wandb.Run,
+        media_path: str,
+        *,
+        ignore_copy_err: bool | None = None,
+    ) -> None:
+        """Move, link, or copy the file to `media_path` in the run and upload it."""
+        assert self._path is not None
+        new_path = os.path.join(run.dir, media_path)
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
         if self._is_tmp:
