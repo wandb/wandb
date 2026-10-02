@@ -63,6 +63,8 @@ object types:
     error:
       message: 'OBJECT InvalidObject2: must define one or more fields.'
       locations: [{line: 6, column: 6}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: check reserved names on type name
     input: |
       type __FooBar {
@@ -160,6 +162,8 @@ interfaces:
     error:
       message: 'INTERFACE InvalidInterface2: must define one or more fields.'
       locations: [{line: 6, column: 11}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
 
   - name: check reserved names on type name
     input: |
@@ -352,6 +356,8 @@ inputs:
     error:
       message: 'INPUT_OBJECT InvalidInput2: must define one or more input fields.'
       locations: [{line: 6, column: 7}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: check reserved names on type name
     input: |
       input __FooBar {
@@ -555,6 +561,8 @@ enums:
     error:
       message: 'ENUM InvalidEnum2: must define one or more unique enum values.'
       locations: [{line: 6, column: 6}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: cannot be duplicated enum value at same definition
     input: |
       enum A {

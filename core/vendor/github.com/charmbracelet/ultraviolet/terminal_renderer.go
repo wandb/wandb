@@ -145,8 +145,7 @@ type TerminalRenderer struct {
 	clear            bool         // whether to force clear the screen
 	caps             capabilities // terminal control sequence capabilities
 	atPhantom        bool         // whether the cursor is out of bounds and at a phantom cell
-	lineDrifted      bool         // whether the line currently being transformed may have left the cursor adrift
-	noWrapLine       bool         // whether autowrap is off for the line currently being transformed
+	noWrapLine       bool         // whether autowrap is off for the line currently being repainted
 	driftRows        []bool       // rows holding a cell the terminal may measure differently
 	termW, termH     int          // the size [TerminalRenderer.Resize] was last told
 	termResized      bool         // whether the terminal changed size since the last render
@@ -578,10 +577,6 @@ func (s *TerminalRenderer) putAttrCell(newbuf *RenderBuffer, cell *Cell) {
 	if s.cur.X >= newbuf.Width() {
 		s.atPhantom = true
 	}
-
-	if cellWidth > 1 {
-		s.lineDrifted = true
-	}
 }
 
 // putCellLR draws a cell at the lower right corner of the screen.
@@ -601,14 +596,7 @@ func (s *TerminalRenderer) putCellLR(newbuf *RenderBuffer, cell *Cell) {
 // updatePen updates the cursor pen styles.
 func (s *TerminalRenderer) updatePen(cell *Cell) {
 	if cell == nil {
-		if !s.cur.Style.IsZero() {
-			_, _ = s.buf.WriteString(ansi.ResetStyle)
-			s.cur.Style = Style{} // Reset style
-		}
-		if !s.cur.Link.IsZero() {
-			_, _ = s.buf.WriteString(ansi.ResetHyperlink())
-		}
-		return
+		cell = &EmptyCell
 	}
 
 	// Downsample pen when we don't have a [colorprofile.TrueColor],
@@ -873,15 +861,30 @@ func lineHasDrift(m ansi.Method, line Line) bool {
 	return false
 }
 
-// repaintLine repaints a line from scratch. Unlike
-// [TerminalRenderer.transformLine] it does not diff against the previous
-// frame: it erases the whole line from column 0 with [ansi.EraseLineRight]
-// and then writes the new frame's cells. Erasing from column 0 removes the
-// entire line including any wide cells the terminal painted at a different
-// width than the model measured, whose real extent the model cannot know.
-// The repaint then starts from a known-empty line and an absolute cursor
-// position, so the result does not depend on where the previous frame left
-// the cursor.
+// paintLine brings row y of the screen in line with newbuf. A drift-prone row,
+// or any row when force is set, is repainted; every other row is diffed.
+func (s *TerminalRenderer) paintLine(newbuf *RenderBuffer, y int, force bool) {
+	drift := lineHasDrift(s.method, s.curbuf.Line(y)) || lineHasDrift(s.method, newbuf.Line(y))
+	s.markDrift(y, newbuf.Height(), drift)
+	switch {
+	case drift && !s.flags.Contains(tGraphemeWidth):
+		// Clip a cluster the terminal measures wider than the model instead of
+		// letting it spill onto the next row, then put the cursor back.
+		s.noWrapLine = true
+		_, _ = s.buf.WriteString(ansi.ResetModeAutoWrap)
+		s.repaintLine(newbuf, y)
+		s.noWrapLine = false
+		_, _ = s.buf.WriteString(ansi.SetModeAutoWrap)
+		s.reanchorWideLine(newbuf)
+	case drift || force:
+		s.repaintLine(newbuf, y)
+	default:
+		s.transformLine(newbuf, y)
+	}
+}
+
+// repaintLine erases row y from column 0 and writes newbuf's cells, so the
+// result does not depend on what the model believes is on screen.
 func (s *TerminalRenderer) repaintLine(newbuf *RenderBuffer, y int) {
 	oldLine := s.curbuf.Line(y)
 	newLine := newbuf.Line(y)
@@ -944,61 +947,13 @@ func (s *TerminalRenderer) markDrift(y, height int, drift bool) {
 	s.driftRows[y] = drift
 }
 
-// transformLine transforms the given line in the current window to the
-// corresponding line in the new window. It uses [ansi.ICH] and [ansi.DCH] to
-// insert or delete characters.
+// transformLine diffs row y against the model and writes only what changed,
+// using [ansi.ICH] and [ansi.DCH] to shift cells. It must not see a drift-prone
+// row; [TerminalRenderer.paintLine] routes those to a repaint.
 func (s *TerminalRenderer) transformLine(newbuf *RenderBuffer, y int) {
 	var firstCell, oLastCell, nLastCell int // first, old last, new last index
 	oldLine := s.curbuf.Line(y)
 	newLine := newbuf.Line(y)
-
-	s.lineDrifted = false
-	defer s.reanchorWideLine(newbuf)
-
-	drift := lineHasDrift(s.method, oldLine) || lineHasDrift(s.method, newLine)
-	s.markDrift(y, newbuf.Height(), drift)
-
-	// A drift-prone line leaves the cursor somewhere the model cannot predict,
-	// so it needs the re-anchor below. A wide cell is the obvious case, and
-	// [TerminalRenderer.putAttrCell] flags it when one is written. It is not
-	// the only case: a cluster of width 1 the terminal measures as 2, such as
-	// an emoji with a variation selector, desynchronises the column just as
-	// thoroughly while every cell on the line stays one column wide.
-	s.lineDrifted = drift
-
-	// Paint a drift-prone line with autowrap off. A terminal that measures a
-	// cluster wider than we do runs past the right margin on a line the model
-	// believes fits, and the wrap spills that line onto the next row, or
-	// scrolls the whole screen when there is no next row. Neither shows up in
-	// the model, so the residue outlives every later frame. Clipping at the
-	// margin instead keeps a width disagreement inside the line that caused
-	// it, which is the same reason [TerminalRenderer.putCellLR] turns autowrap
-	// off for the corner cell. A line with no drift-prone cell cannot
-	// overflow, so it pays nothing.
-	if drift && !s.flags.Contains(tGraphemeWidth) {
-		s.noWrapLine = true
-		_, _ = s.buf.WriteString(ansi.ResetModeAutoWrap)
-		defer func() {
-			s.noWrapLine = false
-			_, _ = s.buf.WriteString(ansi.SetModeAutoWrap)
-		}()
-	}
-
-	// If either frame's line holds a cell that a cell-level diff cannot
-	// safely reposition across, repaint the whole line instead. A wide cell
-	// (width > 1) occupies several columns, so a diff that lands on a
-	// continuation column splits the character, and per DEC semantics (also
-	// implemented by ghostty and x/vt) an erase that splits a multi-cell
-	// character erases the whole character, including a head cell that
-	// belongs to the new frame. A cell whose width the terminal measures
-	// differently than the model (an emoji cluster, a keycap) leaves the
-	// real cursor at a column the model cannot predict, so a later erase in
-	// the same transform fires at the wrong column. Repainting depends only
-	// on an absolute cursor position and a known-empty line.
-	if drift {
-		s.repaintLine(newbuf, y)
-		return
-	}
 
 	// Find the first changed cell in the line
 	blank := newLine.At(0)
@@ -1202,11 +1157,6 @@ func (s *TerminalRenderer) transformLine(newbuf *RenderBuffer, y int) {
 // Recovering the column alone would then leave every following line painted one
 // row off, which is the drift this re-anchor exists to contain.
 func (s *TerminalRenderer) reanchorWideLine(newbuf *RenderBuffer) {
-	if !s.lineDrifted || s.flags.Contains(tGraphemeWidth) {
-		return
-	}
-	s.lineDrifted = false
-
 	// In relative cursor mode there is no absolute row to move to, so the
 	// column is all that can be recovered.
 	if s.flags.Contains(tRelativeCursor) {
@@ -1344,7 +1294,7 @@ func (s *TerminalRenderer) clearUpdate(newbuf *RenderBuffer) {
 	}
 	nonEmpty = s.clearBottom(newbuf, nonEmpty)
 	for i := 0; i < nonEmpty && i < newbuf.Height(); i++ {
-		s.transformLine(newbuf, i)
+		s.paintLine(newbuf, i, false)
 	}
 }
 
@@ -1419,6 +1369,9 @@ func (s *TerminalRenderer) reconcileSize(newbuf *RenderBuffer) sizeChange {
 		if fullscreen {
 			s.clear = true
 		}
+		// Nor does the application's touch list, which never saw rows that
+		// vanished and came back between two frames.
+		s.damage(0, newHeight)
 	}
 
 	// The terminal clips a row it measures wider than the model does, and the
@@ -1559,14 +1512,10 @@ func (s *TerminalRenderer) Render(newbuf *RenderBuffer) {
 
 		nonEmpty = s.clearBottom(newbuf, nonEmpty)
 		for i = 0; i < nonEmpty; i++ {
-			if size.repaintAll {
-				// The model still matches the frame, so a diff would emit
-				// nothing; the row has to be put back whatever the model says.
-				s.repaintLine(newbuf, i)
-				changedLines++
-			} else if s.damaged[i] || (newbuf.Touched[i] != nil &&
+			// A repaintAll row has to be put back whatever the model says.
+			if size.repaintAll || s.damaged[i] || (newbuf.Touched[i] != nil &&
 				(newbuf.Touched[i].FirstCell != -1 || newbuf.Touched[i].LastCell != -1)) {
-				s.transformLine(newbuf, i)
+				s.paintLine(newbuf, i, size.repaintAll)
 				changedLines++
 			}
 		}
@@ -1580,7 +1529,7 @@ func (s *TerminalRenderer) Render(newbuf *RenderBuffer) {
 	newbuf.growTouched()
 	resetTouched(newbuf.Touched)
 
-	s.updatePen(nil) // nil indicates a blank cell with no styles
+	s.updatePen(nil)
 }
 
 // Erase marks the screen to be fully erased on the next render.

@@ -2,9 +2,12 @@ package picture
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"image"
+	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/NimbleMarkets/ntcharts/v2/internal/kittyshm"
 	"github.com/charmbracelet/x/ansi/kitty"
@@ -17,7 +20,9 @@ const (
 	// KittyMediumDirect sends the configured PNG or RGBA format through the terminal.
 	KittyMediumDirect KittyMedium = iota
 	// KittyMediumSharedMemory sends raw RGBA through a named shared buffer.
-	// Unsupported environments fall back to Direct with the configured format.
+	// Unsupported environments, and native terminals that have not answered
+	// QueryKittySupport's t=s query with OK, fall back to Direct with the
+	// configured format.
 	KittyMediumSharedMemory
 )
 
@@ -36,9 +41,53 @@ func normalizeKittyMedium(m KittyMedium) KittyMedium {
 }
 
 // KittySharedMemorySupported reports whether this process can create shared buffers.
-// Native callers must also know that the terminal shares the same local OS
-// namespace and supports Kitty t=s; this function is not a terminal probe.
+// It is not a terminal probe: QueryKittySupport asks a native terminal whether
+// it can read them.
 func KittySharedMemorySupported() bool { return kittyshm.Supported() }
+
+// kittySharedProbeID is the image ID used for the shared-memory query.
+const kittySharedProbeID = kittyProbeID + 1
+
+var (
+	kittySharedCap   atomic.Int32 // KittyCapability of the t=s medium
+	kittySharedProbe atomic.Pointer[kittyshm.Object]
+)
+
+// kittySharedUsable reports whether frames may use t=s. A browser terminal
+// signals support by installing its registry; a native one must answer the query.
+func kittySharedUsable() bool {
+	return runtime.GOOS == "js" || KittyCapability(kittySharedCap.Load()) == KittyCapabilitySupported
+}
+
+// kittySharedProbeable reports whether this process has a medium to query.
+func kittySharedProbeable() bool { return runtime.GOOS != "js" && kittyshm.Supported() }
+
+// kittySharedQueryAPC returns a Kitty query (a=q) naming a one-pixel shared
+// object, or "" when there is nothing to probe. Only a terminal that can read
+// the object replies OK.
+func kittySharedQueryAPC() string {
+	if !kittySharedProbeable() {
+		return ""
+	}
+	obj, err := kittyshm.Create(4, func([]byte) error { return nil })
+	if err != nil {
+		return ""
+	}
+	_ = kittySharedProbe.Swap(obj).Unlink()
+	name := base64.StdEncoding.EncodeToString([]byte(obj.Name))
+	return tmuxWrap(fmt.Sprintf("\x1b_Ga=q,t=s,f=32,s=1,v=1,S=4,i=%d;%s\x1b\\", kittySharedProbeID, name))
+}
+
+// recordKittySharedResponse resolves the shared-memory query. A late OK
+// overrides the timeout, as in recordKittyResponse.
+func recordKittySharedResponse(ok bool) {
+	if ok {
+		kittySharedCap.Store(int32(KittyCapabilitySupported))
+	} else {
+		kittySharedCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
+	}
+	_ = kittySharedProbe.Swap(nil).Unlink()
+}
 
 func buildKittySharedMemoryAPC(img image.Image, id, cols, rows int, z ...int) (string, *kittyshm.Object, error) {
 	b := img.Bounds()
