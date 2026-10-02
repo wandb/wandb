@@ -14,12 +14,14 @@ from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, load_source_object
 from wandb.sdk.sweeps.scheduler.optimizer import (
+    Objective,
     Optimizer,
     Run,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
     is_terminal_state,
+    sweep_objectives,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -84,6 +86,7 @@ class OptunaOptions:
     distributions: dict[str, optuna.distributions.BaseDistribution] | None = None
     search_space: TrialConstructor | None = None
     terminator: TerminatorCallback | None = None
+    objectives: Sequence[Objective] = ()
 
 
 def _is_int(value: Any) -> bool:
@@ -217,6 +220,8 @@ class OptunaOptimizer(Optimizer):
         study: optuna.Study,
         sweep: SweepInfo,
         terminator: TerminatorCallback | None = None,
+        *,
+        objectives: Sequence[Objective],
     ):
         self.study = study
         # Live ask()'d trials kept by str(trial.number). The study only
@@ -232,7 +237,7 @@ class OptunaOptimizer(Optimizer):
         # Set when a sampler asks the study to stop; see `_tell_study`.
         self._stop_requested = False
 
-        super().__init__(sweep)
+        super().__init__(sweep, objectives)
 
     @override
     def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
@@ -353,71 +358,6 @@ class OptunaOptimizer(Optimizer):
         which never terminates early.
         """
         return self._terminator is not None and self._terminator(self.study)
-
-    @override
-    def validate_sweep_objective(self) -> None:
-        """Fail fast if the study and the sweep disagree on the objective.
-
-        The study's optimization direction(s) must match the sweep metric
-        goal(s), and — when the study declares metric names — its objective
-        names must match the sweep metric names. Otherwise the optimizer would
-        silently search the wrong way or against the wrong metric. The study
-        and sweep are supplied independently (e.g. via `resume_sweep` or a
-        user-provided study factory), so the two can drift; the sweep config is
-        the source of truth.
-        """
-        metrics = self._sweep.config.get("metrics")
-        if metrics is not None:
-            if len(self.study.directions) != len(metrics):
-                raise ValueError(
-                    f"Study has {len(self.study.directions)} objectives but the "
-                    f"sweep config declares {len(metrics)} metrics."
-                )
-            sweep_directions = [
-                str(metric.get("goal", "minimize")).lower() for metric in metrics
-            ]
-            study_directions = [d.name.lower() for d in self.study.directions]
-            if study_directions != sweep_directions:
-                raise ValueError(
-                    f"Study directions {study_directions!r} do not match the "
-                    f"sweep metric goals {sweep_directions!r}; create the study "
-                    f"with directions={sweep_directions!r}."
-                )
-            metric_names = getattr(self.study, "metric_names", None)
-            if metric_names:
-                sweep_names = [metric["name"] for metric in metrics if "name" in metric]
-                if sweep_names and list(metric_names) != sweep_names:
-                    raise ValueError(
-                        f"Study metric names {list(metric_names)!r} do not match "
-                        f"the sweep metric names {sweep_names!r}."
-                    )
-            return
-
-        if len(self.study.directions) != 1:
-            raise ValueError(
-                "OptunaOptimizer only supports single-objective studies; the "
-                f"study has {len(self.study.directions)} objectives."
-            )
-
-        metric = self._sweep.config.get("metric") or {}
-        goal = str(metric.get("goal", "minimize")).lower()
-        study_direction = self.study.direction.name.lower()
-        if study_direction != goal:
-            raise ValueError(
-                f"Study direction {study_direction!r} does not match the sweep "
-                f"metric goal {goal!r}; create the study with direction={goal!r}."
-            )
-
-        # optuna's objective names are optional metadata; validate only when
-        # set.
-        metric_names = getattr(self.study, "metric_names", None)
-        if metric_names:
-            metric_name = self.metric_key()
-            if metric_names[0] != metric_name:
-                raise ValueError(
-                    f"Study metric name {metric_names[0]!r} does not match the "
-                    f"sweep metric name {metric_name!r}."
-                )
 
     def trial_state(self, state: RunState) -> optuna.trial.TrialState:
         """Map a sweep `RunState` onto the optuna `TrialState` it stands for.
@@ -561,9 +501,11 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         distributions: dict[str, optuna.distributions.BaseDistribution],
         sweep: SweepInfo,
         terminator: TerminatorCallback | None = None,
+        *,
+        objectives: Sequence[Objective],
     ):
         self.distributions = distributions
-        super().__init__(study, sweep, terminator)
+        super().__init__(study, sweep, terminator, objectives=objectives)
 
     @override
     def _ask_suggestion(self) -> RunSuggestion:
@@ -616,9 +558,11 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         trial_constructor: TrialConstructor,
         sweep: SweepInfo,
         terminator: TerminatorCallback | None = None,
+        *,
+        objectives: Sequence[Objective],
     ):
         self.trial_constructor = trial_constructor
-        super().__init__(study, sweep, terminator)
+        super().__init__(study, sweep, terminator, objectives=objectives)
 
     @override
     def _ask_suggestion(self) -> RunSuggestion:
@@ -726,10 +670,41 @@ def sweep_directions(config: dict[str, Any]) -> list[str]:
 
 
 def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
-    """Build an optuna study from a sweep config's metric objective(s)."""
-    return optuna.create_study(
-        directions=sweep_directions(config), pruner=optuna.pruners.NopPruner()
+    """Build an optuna study from a sweep config's metric objective(s).
+
+    Raises:
+        ValueError: If the config declares no objectives or a malformed one.
+    """
+    objectives = sweep_objectives(config)
+    if not objectives:
+        raise ValueError(
+            "The sweep config declares no metric or metrics, and"
+            " scheduler.optimizer names no function to set the objectives."
+        )
+    study = optuna.create_study(
+        directions=[objective.goal for objective in objectives],
+        pruner=optuna.pruners.NopPruner(),
     )
+    study.set_metric_names([objective.metric_name for objective in objectives])
+    return study
+
+
+def study_objectives(study: optuna.Study) -> list[Objective]:
+    """Return the objectives the study optimizes.
+
+    Raises:
+        ValueError: If the study has not named its metrics.
+    """
+    if study.metric_names is None:
+        raise ValueError(
+            "The Optuna study names no metrics; call study.set_metric_names()"
+            " in the scheduler.optimizer function."
+        )
+    goals = [direction.name.lower() for direction in study.directions]
+    return [
+        Objective(name, goal)
+        for name, goal in zip(study.metric_names, goals, strict=True)
+    ]
 
 
 def make_optimizer(sweep: SweepInfo, options: OptunaOptions) -> OptunaOptimizer:
@@ -745,11 +720,19 @@ def make_optimizer(sweep: SweepInfo, options: OptunaOptions) -> OptunaOptimizer:
         raise ValueError("provide exactly one of `distributions` or `search_space`")
     if options.distributions is not None:
         return OptunaDeclarativeOptimizer(
-            options.study, options.distributions, sweep, options.terminator
+            options.study,
+            options.distributions,
+            sweep,
+            options.terminator,
+            objectives=options.objectives,
         )
     assert options.search_space is not None  # guaranteed by the check above
     return OptunaImperativeOptimizer(
-        options.study, options.search_space, sweep, options.terminator
+        options.study,
+        options.search_space,
+        sweep,
+        options.terminator,
+        objectives=options.objectives,
     )
 
 
@@ -788,6 +771,7 @@ def build_optuna_optimizer(sweep: SweepInfo) -> OptunaOptimizer:
             )
         else:
             study = create_study_from_sweep_config(sweep.config)
+        objectives = study_objectives(study)
     except ValueError as e:
         raise wandb.Error(str(e)) from e
 
@@ -798,5 +782,6 @@ def build_optuna_optimizer(sweep: SweepInfo) -> OptunaOptimizer:
             distributions=distributions,
             search_space=search_space,
             terminator=terminator,
+            objectives=objectives,
         ),
     )
