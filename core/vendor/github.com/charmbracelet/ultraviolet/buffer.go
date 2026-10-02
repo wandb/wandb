@@ -794,6 +794,22 @@ func (b *RenderBuffer) DeleteCellArea(x, y, n int, c *Cell, area Rectangle) {
 	b.TouchLine(x, y, n)
 }
 
+// Resize resizes the buffer and touches every cell it creates, since the
+// screen there still shows whatever the last render left.
+func (b *RenderBuffer) Resize(width, height int) {
+	curWidth, curHeight := b.Width(), b.Height()
+	b.Buffer.Resize(width, height)
+
+	if width > curWidth {
+		for y := range min(curHeight, height) {
+			b.TouchLine(curWidth, y, width-curWidth)
+		}
+	}
+	for y := curHeight; y < height; y++ {
+		b.TouchLine(0, y, width)
+	}
+}
+
 // Clear clears the buffer with space cells and marks all lines as touched.
 func (b *RenderBuffer) Clear() {
 	b.Buffer.Clear()

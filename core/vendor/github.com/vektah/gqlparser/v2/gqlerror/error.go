@@ -324,6 +324,37 @@ func WrapPath(path ast.Path, err error) *Error {
 	}
 }
 
+func WrapPos(pos *ast.Position, err error) *Error {
+	if err == nil {
+		return nil
+	}
+
+	var newErr *Error
+	if pos == nil {
+		newErr = ErrorLocf(
+			"",
+			-1,
+			-1,
+			"%s",
+			err.Error(),
+		)
+	} else {
+		newErr = ErrorLocf(
+			pos.Src.Name,
+			pos.Line,
+			pos.Column,
+			"%s",
+			err.Error(),
+		)
+	}
+
+	// Ensures that if the [Error.Err] field is set by
+	// [ErrorLocf] in the future, it isn't lost.
+	newErr.Err = errors.Join(err, newErr.Err)
+
+	return newErr
+}
+
 func Wrap(err error) *Error {
 	if err == nil {
 		return nil

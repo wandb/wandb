@@ -73,9 +73,22 @@ type Walker struct {
 
 	validatedFragmentSpreads map[string]bool
 	CurrentOperation         *ast.OperationDefinition
+
+	// fragments indexes Document.Fragments by name. Every fragment spread
+	// is looked up, and walking each fragment definition on its own enters
+	// every fragment it reaches again, so a linear scan per spread made a
+	// document of fragments spreading one another cubic in their count.
+	fragments map[string]*ast.FragmentDefinition
 }
 
 func (w *Walker) walk() {
+	w.fragments = make(map[string]*ast.FragmentDefinition, len(w.Document.Fragments))
+	for _, f := range w.Document.Fragments {
+		// ForName returns the first of duplicate names; so does this.
+		if _, ok := w.fragments[f.Name]; !ok {
+			w.fragments[f.Name] = f
+		}
+	}
 	for _, child := range w.Document.Operations {
 		w.validatedFragmentSpreads = make(map[string]bool)
 		w.walkOperation(child)
@@ -281,7 +294,7 @@ func (w *Walker) walkSelection(parentDef *ast.Definition, it ast.Selection) {
 		}
 
 	case *ast.FragmentSpread:
-		def := w.Document.Fragments.ForName(it.Name)
+		def := w.fragments[it.Name]
 		it.Definition = def
 		it.ObjectDefinition = parentDef
 
