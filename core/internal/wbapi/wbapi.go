@@ -152,6 +152,7 @@ func newFileTransferClient(
 		PreRetryLayers: httplayers.Concat(
 			httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
 			httplayers.LimitTo(baseURL, credentialProvider),
+			httplayers.PrefixPath(baseURL),
 		),
 	}
 

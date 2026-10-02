@@ -19,6 +19,7 @@ from typing_extensions import Never, ParamSpec
 
 from wandb import env
 from wandb.sdk import wandb_setup
+from wandb.sdk.lib import urls
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
@@ -594,6 +595,15 @@ class OpenTelemetryProxy:
         # export probes it.
         self._server_supports_proxy: bool | None = None
 
+    @property
+    def _endpoint(self) -> str:
+        """The server to send telemetry to.
+
+        This is the W&B API host behind a CoreWeave Forge base URL,
+        and the base URL otherwise.
+        """
+        return urls.forge_upstream_url(self._settings.base_url)
+
     def _server_supported(self) -> bool:
         """Return whether the server supports the proxy API, probing on first use.
 
@@ -603,7 +613,7 @@ class OpenTelemetryProxy:
         if self._server_supports_proxy is None:
             self._server_supports_proxy = _check_server_supports_open_telemetry_proxy(
                 self._session,
-                self._settings.base_url.rstrip("/") + _METRICS_PATH,
+                self._endpoint.rstrip("/") + _METRICS_PATH,
             )
         return self._server_supports_proxy
 
@@ -621,12 +631,12 @@ class OpenTelemetryProxy:
                 resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
                 self._meter_provider = self._build_meter_provider(
                     resource=resource,
-                    endpoint=self._settings.base_url,
+                    endpoint=self._endpoint,
                     session=self._session,
                 )
                 self._logger_provider = self._build_logger_provider(
                     resource=resource,
-                    endpoint=self._settings.base_url,
+                    endpoint=self._endpoint,
                     session=self._session,
                 )
                 atexit.register(self.shutdown)

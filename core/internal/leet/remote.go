@@ -10,11 +10,12 @@ import (
 //
 // Accepted shapes:
 //
-//	https://<host>/<entity>/<project>/<run-id>
-//	https://<host>/<entity>/<project>/runs/<run-id>
+//	https://<host>[/<base-path>]/<entity>/<project>/<run-id>
+//	https://<host>[/<base-path>]/<entity>/<project>/runs/<run-id>
 //
-// The host is used as-is; canonicalization (e.g. wandb.ai -> api.wandb.ai)
-// is the launcher's responsibility.
+// The base path, if any, is part of the server's base URL. The host is used
+// as-is; canonicalization (e.g. mapping an app URL to its API URL) is the
+// launcher's responsibility.
 func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	u, err := url.Parse(s)
 	if err != nil {
@@ -28,20 +29,30 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	}
 
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) == 4 && parts[2] == "runs" {
-		parts = []string{parts[0], parts[1], parts[3]}
+	n := len(parts)
+	var base, run []string
+	switch {
+	case n >= 4 && parts[n-2] == "runs":
+		base, run = parts[:n-4], []string{parts[n-4], parts[n-3], parts[n-1]}
+	case n >= 3:
+		base, run = parts[:n-3], parts[n-3:]
 	}
-	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+	if len(run) != 3 || run[0] == "" || run[1] == "" || run[2] == "" {
 		return nil, fmt.Errorf(
 			"remote URL must be https://<host>/<entity>/<project>/runs/<run-id>, got %q",
 			s,
 		)
 	}
 
+	baseURL := u.Scheme + "://" + u.Host
+	if len(base) > 0 {
+		baseURL += "/" + strings.Join(base, "/")
+	}
+
 	return &RemoteRunParams{
-		BaseURL: u.Scheme + "://" + u.Host,
-		Entity:  parts[0],
-		Project: parts[1],
-		RunID:   parts[2],
+		BaseURL: baseURL,
+		Entity:  run[0],
+		Project: run[1],
+		RunID:   run[2],
 	}, nil
 }

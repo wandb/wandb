@@ -8,6 +8,7 @@ import shlex
 from urllib.parse import urlsplit
 
 from wandb.errors import term
+from wandb.sdk.lib import urls
 
 from .auth import AuthApiKey, AuthWithSource
 from .host_url import HostUrl
@@ -75,7 +76,10 @@ def read_netrc_auth_with_source(*, host: HostUrl) -> AuthWithSource | None:
 
     if not (netloc := urlsplit(host.url).netloc):
         return None
-    if not (creds := netrc_file.authenticators(netloc)):
+    creds = netrc_file.authenticators(netloc)
+    if not creds and netloc in urls.FORGE_HOSTS:
+        creds = netrc_file.authenticators(urls.FORGE_HOSTS[netloc])
+    if not creds:
         return None
 
     _, _, password = creds
