@@ -505,6 +505,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Handler:     (*Symon).handleToggleSidebar,
 				},
 				{
+					Keys:        []string{"1"},
+					Description: "Toggle the live runs pane",
+					Handler:     (*Symon).handleToggleRunsPane,
+				},
+				{
 					Keys:        []string{"t"},
 					Description: "Sort the processes by CPU or by memory",
 					Handler:     (*Symon).handleToggleProcessSort,
@@ -535,7 +540,7 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 			Bindings: []KeyBinding[Symon]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus: processes ↔ charts",
+					Description: "Cycle focus: processes ↔ charts ↔ runs",
 					Handler:     (*Symon).handleTab,
 				},
 				{
@@ -543,7 +548,7 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 						NavKeysFor(NavIntentUp), NavKeysFor(NavIntentDown),
 						NavKeysFor(NavIntentLeft), NavKeysFor(NavIntentRight),
 					),
-					Description: "Move the chart focus, or the process cursor when the list has focus",
+					Description: "Move the chart focus, or the cursor of the focused list",
 					Handler:     (*Symon).handleGridNav,
 				},
 				{
