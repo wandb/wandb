@@ -237,3 +237,27 @@ func TestFormatXAxisTick_WideSystemChartsKeepInteriorLabels(t *testing.T) {
 	require.NotEqual(t, "...", label)
 	require.Regexp(t, `^\d{2}:?\d{2}$`, label)
 }
+
+func TestAddDataPoint_RetentionDropsOldSamples(t *testing.T) {
+	def := &leet.MetricDef{Name: "Mem", Unit: leet.UnitGiB, MinY: 0, MaxY: 32, AutoRange: true}
+	now := time.Unix(1_700_000_000, 0)
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  80,
+		Height: 20,
+		Def:    def,
+		BaseColor: leet.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"),
+			Dark:  lipgloss.Color("#FF00FF"),
+		},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+	ch.SetRetention(time.Hour)
+
+	ch.AddDataPoint("", now.Unix(), 100)
+	ch.AddDataPoint("", now.Add(2*time.Hour).Unix(), 5)
+
+	minimum, maximum := ch.ValueBounds()
+	require.Equal(t, 5.0, minimum, "the sample from two hours ago is gone")
+	require.Equal(t, 5.0, maximum)
+}

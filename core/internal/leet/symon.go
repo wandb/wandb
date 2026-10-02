@@ -95,6 +95,7 @@ func NewSymon(params SymonParams) *Symon {
 		logger,
 	)
 	grid.SetChartRank(symonChartRank)
+	grid.SetRetention(cfg.SymonHistory())
 
 	hostname, err := os.Hostname()
 	if err != nil {

@@ -153,6 +153,22 @@ func (s *Series) AddPoint(x, y float64) {
 	}
 }
 
+// TrimBefore drops the leading points with x below minX, assuming X is
+// sorted, and recomputes the bounds. It reports whether any point was
+// dropped.
+func (s *Series) TrimBefore(minX float64) bool {
+	n := sort.Search(len(s.X), func(i int) bool { return s.X[i] >= minX })
+	if n == 0 {
+		return false
+	}
+	s.X = slices.Delete(s.X, 0, n)
+	s.Y = slices.Delete(s.Y, 0, n)
+	s.xMin, s.xMax = math.Inf(1), math.Inf(-1)
+	s.yMin, s.yMax, s.yMinPositive = math.Inf(1), math.Inf(-1), math.Inf(1)
+	s.updateBounds(s.X, s.Y)
+	return true
+}
+
 // EpochLineChart is a line chart for epoch/step-based ML training data.
 //
 // It supports multiple series rendered with opaque compositing (painter's
