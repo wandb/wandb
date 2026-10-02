@@ -183,7 +183,8 @@ class WandbOptimizer(Optimizer):
                 self._sweep.config,
                 self._sweep_runs_for_stop_runs(run_ids, runs),
             )
-        except Exception:
+        except Exception as e:
+            wandb.termwarn(f"Early termination failed; no runs were stopped: {e}")
             return []
         to_stop_names = {run.name for run in to_stop}
         pruned: list[str] = []
