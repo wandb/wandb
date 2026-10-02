@@ -26,10 +26,11 @@ the selected direct format.
 | macOS without CGO; other platforms | Direct fallback |
 
 Native support requires a local terminal that implements Kitty `t=s` and can
-access the same shared-memory namespace. Use direct transmission over SSH or
-across container namespaces. `KittySharedMemorySupported()` checks producer
-support, not whether a native terminal can read the object; Kitty graphics
-support alone does not guarantee support for this medium.
+access the same shared-memory namespace. `QueryKittySupport` (batched by `Init`)
+checks this with a `t=s` query naming a one-pixel object; frames are sent direct
+unless the terminal answers `OK`, so remote hosts, container namespaces, and
+terminals without `t=s` fall back automatically. `KittySharedMemorySupported()` checks
+producer support only.
 
 Native objects use random `/ntc-` names, exclusive creation, and mode 0600.
 Descriptors and mappings are closed after filling. The terminal reads and
