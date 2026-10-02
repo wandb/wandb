@@ -509,6 +509,15 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Description: "Sort the processes by CPU or by memory",
 					Handler:     (*Symon).handleToggleProcessSort,
 				},
+				{
+					Keys:        []string{"drag border"},
+					Description: "Resize the sidebar with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset the sidebar width to the default",
+					Handler:     (*Symon).handleResetLayout,
+				},
 			},
 		},
 		{

@@ -49,6 +49,9 @@ type Symon struct {
 	sidebar *symonSidebar
 	help    *HelpModel
 
+	// drag owns mouse resizing of the sidebar border.
+	drag paneDragger
+
 	width  int
 	height int
 
@@ -96,7 +99,7 @@ func NewSymon(params SymonParams) *Symon {
 		hostname = "System Metrics"
 	}
 
-	return &Symon{
+	s := &Symon{
 		ctx:      ctx,
 		cancel:   cancel,
 		config:   cfg,
@@ -112,6 +115,13 @@ func NewSymon(params SymonParams) *Symon {
 		}),
 		logger: logger,
 	}
+	s.drag = paneDragger{
+		saved:    cfg.SymonLayout,
+		persist:  cfg.SetSymonLayout,
+		relayout: s.resizeGrid,
+		logger:   logger,
+	}
+	return s
 }
 
 // symonChartOrder lists the charts that open the first page by base key,
@@ -360,6 +370,12 @@ func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// handleResetLayout restores the default sidebar width.
+func (s *Symon) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	s.drag.reset()
+	return nil
+}
+
 func (s *Symon) handleToggleProcessSort(tea.KeyPressMsg) tea.Cmd {
 	s.sidebar.sortByMemory = !s.sidebar.sortByMemory
 	return nil
@@ -395,13 +411,26 @@ func (s *Symon) handleConfigNumberKey(msg tea.KeyPressMsg) {
 	s.resizeGrid()
 }
 
-// handleMouse maps mouse events in the terminal coordinate space onto the
-// system metrics grid.
+// handleMouse resizes the sidebar on border drags and maps other mouse
+// events in the terminal coordinate space onto the system metrics grid.
 func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	sidebarWidth := s.sidebarWidth()
+	layout := Layout{
+		leftSidebarWidth:       sidebarWidth,
+		mainContentAreaWidth:   max(s.width-sidebarWidth, 0),
+		totalContentAreaHeight: max(s.height-StatusBarHeight, 0),
+	}
+	if s.drag.handleMouse(msg, layout, dragTargets{
+		width:        s.width,
+		height:       s.height,
+		leftExpanded: sidebarWidth > 0,
+	}) {
+		return nil
+	}
+
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
 
-	sidebarWidth := s.sidebar.width(s.width)
 	if mouse.X < sidebarWidth ||
 		mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
 		if _, ok := msg.(tea.MouseClickMsg); ok {
@@ -457,7 +486,7 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 // renderMainView renders the sidebar, the header and system metrics grid,
 // and the status bar.
 func (s *Symon) renderMainView() string {
-	sidebarWidth := s.sidebar.width(s.width)
+	sidebarWidth := s.sidebarWidth()
 	contentHeight := max(s.height-StatusBarHeight, 0)
 	innerW := max(s.width-sidebarWidth-ContentPaddingCols, 0)
 
@@ -472,7 +501,8 @@ func (s *Symon) renderMainView() string {
 	))
 	mainView := lipgloss.JoinVertical(lipgloss.Left, header, body)
 	if sidebarWidth > 0 {
-		sidebar := s.sidebar.View(sidebarWidth, contentHeight, s.latest)
+		sidebar := s.sidebar.View(sidebarWidth, contentHeight, s.latest,
+			s.drag.cue().boundary == dragBoundaryLeftSidebar)
 		mainView = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainView)
 	}
 	statusBar := s.renderStatusBar()
@@ -610,9 +640,21 @@ func (s *Symon) resizeGrid() {
 		return
 	}
 	s.grid.Resize(
-		max(s.width-s.sidebar.width(s.width)-ContentPaddingCols, 0),
+		max(s.width-s.sidebarWidth()-ContentPaddingCols, 0),
 		max(s.height-StatusBarHeight-symonHeaderLines, 1),
 	)
+}
+
+// sidebarWidth returns the sidebar's width: the dragged fraction of the
+// terminal or the golden-ratio default, and zero when the sidebar is hidden
+// or the charts would not fit beside it.
+func (s *Symon) sidebarWidth() int {
+	if !s.sidebar.visible {
+		return 0
+	}
+	w := expandedSidebarWidth(s.width, false, s.drag.overrides().LeftSidebar)
+	w, _ = fitSidebarWidths(s.width, w, 0)
+	return w
 }
 
 // isAwaitingUserInput reports whether a child component currently owns free-form
