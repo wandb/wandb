@@ -146,7 +146,7 @@ func (s *Symon) Init() tea.Cmd {
 }
 
 // Update handles resize events, help/restart shortcuts, user input, and live
-// StatsMsg updates from the sampler.
+// samples from the sampler.
 func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
 		s.width, s.height = ws.Width, ws.Height
@@ -185,9 +185,10 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := s.handleMouse(msg)
 		return s, cmd
 
-	case StatsMsg:
+	case SymonSampleMsg:
 		s.latest = msg.Metrics
-		s.grid.ProcessStats(msg)
+		s.sidebar.procs = msg.Processes
+		s.grid.ProcessStats(msg.StatsMsg)
 		s.grid.drawVisible()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
@@ -356,6 +357,11 @@ func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
 		s.logger.Error(fmt.Sprintf("symon: failed to save sidebar visibility: %v", err))
 	}
 	s.resizeGrid()
+	return nil
+}
+
+func (s *Symon) handleToggleProcessSort(tea.KeyPressMsg) tea.Cmd {
+	s.sidebar.sortByMemory = !s.sidebar.sortByMemory
 	return nil
 }
 

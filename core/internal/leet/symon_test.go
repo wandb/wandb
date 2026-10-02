@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -19,10 +20,10 @@ func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m, _ = m.Update(leet.StatsMsg{
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
 		Timestamp: 100,
 		Metrics:   map[string]float64{"gpu.0.temp": 40},
-	})
+	}})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
 	m, _ = m.Update(tea.KeyPressMsg{Code: '5'})
@@ -43,13 +44,13 @@ func TestSymon_FilterLifecycle(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m, _ = m.Update(leet.StatsMsg{
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
 		Timestamp: 100,
 		Metrics: map[string]float64{
 			"gpu.0.temp":        40,
 			"cpu.0.cpu_percent": 50,
 		},
-	})
+	}})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
@@ -68,7 +69,7 @@ func TestSymon_FirstPageOrderAndHeatmap(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
-	m, _ = m.Update(leet.StatsMsg{
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
 		Timestamp: 100,
 		Metrics: map[string]float64{
 			"gpu.0.temp":        40,
@@ -76,7 +77,7 @@ func TestSymon_FirstPageOrderAndHeatmap(t *testing.T) {
 			"cpu.0.cpu_percent": 20,
 			"cpu.1.cpu_percent": 60,
 		},
-	})
+	}})
 
 	view := m.View().Content
 	cores := strings.Index(view, "CPU Core (%)")
@@ -92,7 +93,7 @@ func TestSymon_HeaderShowsUptimeAndLoad(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m, _ = m.Update(leet.StatsMsg{
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
 		Timestamp: 100,
 		Metrics: map[string]float64{
 			"memory_percent": 50,
@@ -101,7 +102,7 @@ func TestSymon_HeaderShowsUptimeAndLoad(t *testing.T) {
 			"system.load5":   0.8,
 			"system.load15":  0.6,
 		},
-	})
+	}})
 
 	require.Contains(t, m.View().Content, "up 1d 2h • load 1.50 0.80 0.60")
 }
@@ -112,14 +113,14 @@ func TestSymon_SidebarMetersAndToggle(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
-	m, _ = m.Update(leet.StatsMsg{
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
 		Timestamp: 100,
 		Metrics: map[string]float64{
 			"memory_percent":    50,
 			"cpu.0.cpu_percent": 20,
 			"cpu.1.cpu_percent": 60,
 		},
-	})
+	}})
 
 	cpuMeter := regexp.MustCompile(`CPU\s+\S+\s+40%`)
 	require.Regexp(t, cpuMeter, stripANSI(m.View().Content))
@@ -127,4 +128,27 @@ func TestSymon_SidebarMetersAndToggle(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
 	require.NotRegexp(t, cpuMeter, stripANSI(m.View().Content))
 	require.False(t, cfg.SymonSidebarVisible())
+}
+
+func TestSymon_ProcessesSortedByCPUThenMemory(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{
+		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
+		Processes: []monitor.ProcessStat{
+			{PID: 1, Name: "chrome", CPUPercent: 10, RSS: 8 << 30},
+			{PID: 2, Name: "python", CPUPercent: 300, RSS: 1 << 30},
+		},
+	})
+
+	view := m.View().Content
+	require.Contains(t, view, "python")
+	require.Less(t, strings.Index(view, "python"), strings.Index(view, "chrome"))
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	view = m.View().Content
+	require.Less(t, strings.Index(view, "chrome"), strings.Index(view, "python"))
 }
