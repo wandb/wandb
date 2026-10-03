@@ -37,6 +37,11 @@ type traceRequests struct {
 
 func (t traceRequests) WrapHTTP(send HTTPDoFunc) HTTPDoFunc {
 	return func(req *http.Request) (*http.Response, error) {
+		// If the parent span is not sampledwe can directly send the request.
+		if !traceapi.SpanContextFromContext(req.Context()).IsSampled() {
+			return send(req)
+		}
+
 		ctx, span := t.starter.StartSpan(
 			req.Context(),
 			"wandb.core.http.attempt",

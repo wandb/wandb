@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math/rand/v2"
 	"net/http"
 	"runtime"
 	"strings"
@@ -546,16 +547,30 @@ func (r *TelemetryRecorder) ErrorLog(
 	)
 }
 
-// StartSpan starts recording an OpenTelemetry span.
+// StartSpan starts an OpenTelemetry span when its trace is selected.
 func (r *TelemetryRecorder) StartSpan(
 	ctx context.Context,
 	name string,
 	options ...traceapi.SpanStartOption,
 ) (context.Context, traceapi.Span) {
-	if r == nil {
+	if r == nil || r.root == nil || r.root.shutdown.Load() {
 		return noopTracer.Start(ctx, name, options...)
 	}
+
+	if !r.shouldSample(ctx) {
+		return ctx, traceapi.SpanFromContext(ctx)
+	}
+
 	return r.root.startSpan(ctx, name, options...)
+}
+
+func (r *TelemetryRecorder) shouldSample(ctx context.Context) bool {
+	parent := traceapi.SpanContextFromContext(ctx)
+	if parent.IsValid() {
+		return parent.IsSampled()
+	}
+
+	return rand.Float64() < rootTraceSampleRate
 }
 
 // OpenTelemetryProxy sends telemetry signals through the W&B backend proxy.
@@ -841,13 +856,8 @@ func (o *OpenTelemetryProxy) setupTraces(
 	return oteltrace.NewTracerProvider(
 		oteltrace.WithResource(res),
 		oteltrace.WithSampler(
-			// ParentBased sampler always samples a span
-			// whose parent is being sampled,
-			//
-			// Otherwise a span is sampled based on rootTraceSampleRate.
-			oteltrace.ParentBased(
-				oteltrace.TraceIDRatioBased(rootTraceSampleRate),
-			),
+			// Trace sampling decision is made in TelemetryRecorder.StartSpan.
+			oteltrace.ParentBased(oteltrace.AlwaysSample()),
 		),
 		oteltrace.WithBatcher(
 			probedSpanExporter{exporter, o.serverSupported},

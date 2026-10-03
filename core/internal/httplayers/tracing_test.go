@@ -68,3 +68,51 @@ func TestTraceRequestsRecordsRedactedHTTPAttempt(t *testing.T) {
 		b3Header,
 	)
 }
+
+func TestTraceRequestsSkipsUnsampledTracing(t *testing.T) {
+	request, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"https://api.example.com/graphql",
+		http.NoBody,
+	)
+	require.NoError(t, err)
+
+	started := false
+	send := TraceRequests(traceStarterFunc(
+		func(
+			context.Context,
+			string,
+			...traceapi.SpanStartOption,
+		) (context.Context, traceapi.Span) {
+			started = true
+			return context.Background(), traceapi.SpanFromContext(
+				context.Background(),
+			)
+		},
+	)).WrapHTTP(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       http.NoBody,
+			Request:    req,
+		}, nil
+	})
+
+	_, err = send(request)
+	require.NoError(t, err)
+	assert.False(t, started, "unsampled tracing must not start an attempt span")
+}
+
+type traceStarterFunc func(
+	context.Context,
+	string,
+	...traceapi.SpanStartOption,
+) (context.Context, traceapi.Span)
+
+func (f traceStarterFunc) StartSpan(
+	ctx context.Context,
+	name string,
+	options ...traceapi.SpanStartOption,
+) (context.Context, traceapi.Span) {
+	return f(ctx, name, options...)
+}
