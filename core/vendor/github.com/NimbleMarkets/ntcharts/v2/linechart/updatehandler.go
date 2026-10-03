@@ -167,69 +167,66 @@ func YAxisNoZoomUpdateHandler(increment float64) UpdateHandler {
 
 // ZoomIn will update display X and Y values to simulate
 // zooming into the linechart by given increments.
+// Increments are distances in scale space: data units on a linear axis,
+// decades on a log axis, where each bound moves by a factor of 10^increment.
 func (m *Model) ZoomIn(x, y float64) {
 	m.SetViewXYRange(
-		m.viewMinX+x,
-		m.viewMaxX-x,
-		m.viewMinY+y,
-		m.viewMaxY-y,
+		m.xScale.shift(m.viewMinX, x),
+		m.xScale.shift(m.viewMaxX, -x),
+		m.yScale.shift(m.viewMinY, y),
+		m.yScale.shift(m.viewMaxY, -y),
 	)
 }
 
 // ZoomOut will update display X and Y values to simulate
 // zooming into the linechart by given increments.
+// Increments are distances in scale space, as for ZoomIn.
 func (m *Model) ZoomOut(x, y float64) {
 	m.SetViewXYRange(
-		m.viewMinX-x,
-		m.viewMaxX+x,
-		m.viewMinY-y,
-		m.viewMaxY+y,
+		m.xScale.shift(m.viewMinX, -x),
+		m.xScale.shift(m.viewMaxX, x),
+		m.yScale.shift(m.viewMinY, -y),
+		m.yScale.shift(m.viewMaxY, y),
 	)
 }
 
 // MoveLeft will update display Y values to simulate
-// moving left on the linechart by given increment
+// moving left on the linechart by given increment.
+// The increment is a distance in scale space: data units on a linear axis,
+// decades on a log axis, where the view shifts by a factor of 10^increment.
+// The same holds for MoveRight, MoveUp and MoveDown.
 func (m *Model) MoveLeft(i float64) {
-	if (m.viewMinX - i) >= m.MinX() {
-		m.SetViewXRange(m.viewMinX-i, m.viewMaxX-i)
-	} else {
-		i = m.viewMinX - m.MinX()
-		m.SetViewXRange(m.viewMinX-i, m.viewMaxX-i)
+	if m.xScale.shift(m.viewMinX, -i) < m.MinX() {
+		i = m.xScale.span(m.MinX(), m.viewMinX)
 	}
+	m.SetViewXRange(m.xScale.shift(m.viewMinX, -i), m.xScale.shift(m.viewMaxX, -i))
 }
 
 // MoveRight will update display Y values to simulate
 // moving right on the linechart by given increment.
 func (m *Model) MoveRight(i float64) {
-	if (m.viewMaxX + i) <= m.MaxX() {
-		m.SetViewXRange(m.viewMinX+i, m.viewMaxX+i)
-	} else {
-		i = m.MaxX() - m.viewMaxX
-		m.SetViewXRange(m.viewMinX+i, m.viewMaxX+i)
+	if m.xScale.shift(m.viewMaxX, i) > m.MaxX() {
+		i = m.xScale.span(m.viewMaxX, m.MaxX())
 	}
+	m.SetViewXRange(m.xScale.shift(m.viewMinX, i), m.xScale.shift(m.viewMaxX, i))
 }
 
 // MoveUp will update display X values to simulate
 // moving up on the linechart chart by given increment.
 func (m *Model) MoveUp(i float64) {
-	if (m.viewMaxY + i) <= m.MaxY() {
-		m.SetViewYRange(m.viewMinY+i, m.viewMaxY+i)
-	} else {
-		i = m.MaxY() - m.viewMaxY
-		m.SetViewYRange(m.viewMinY+i, m.viewMaxY+i)
+	if m.yScale.shift(m.viewMaxY, i) > m.MaxY() {
+		i = m.yScale.span(m.viewMaxY, m.MaxY())
 	}
+	m.SetViewYRange(m.yScale.shift(m.viewMinY, i), m.yScale.shift(m.viewMaxY, i))
 }
 
 // MoveDown will update display Y values to simulate
 // moving down on the linechart chart by given increment.
 func (m *Model) MoveDown(i float64) {
-	if (m.viewMinY - i) >= m.MinY() {
-		m.SetViewYRange(m.viewMinY-i, m.viewMaxY-i)
-	} else {
-		i = m.viewMinY - m.MinY()
-		m.SetViewYRange(m.viewMinY-i, m.viewMaxY-i)
+	if m.yScale.shift(m.viewMinY, -i) < m.MinY() {
+		i = m.yScale.span(m.MinY(), m.viewMinY)
 	}
-
+	m.SetViewYRange(m.yScale.shift(m.viewMinY, -i), m.yScale.shift(m.viewMaxY, -i))
 }
 
 // keyXYHandler handles keyboard messages for X and Y axis moving

@@ -120,24 +120,39 @@ type kittyProbeTickMsg struct{}
 //
 // Both messages are intercepted by Model.Update — consumers that
 // forward every tea.Msg to Model.Update don't need to handle them.
+//
+// Where this process can create shared-memory objects, the probe also
+// queries the t=s medium (even when the capability was forced to
+// Supported). KittyMediumSharedMemory frames are sent Direct unless the
+// terminal answers that query with OK.
 func QueryKittySupport() tea.Cmd {
 	var cmd tea.Cmd
 	kittyQueryOnce.Do(func() {
-		// If capability was already set (e.g., by ForceKittyCapability
-		// before any Model's Init ran), respect that and skip the probe.
-		if KittySupported() != KittyCapabilityUnknown {
+		var kittyQuery string
+		switch KittySupported() {
+		case KittyCapabilitySupported:
+			// Forced (e.g., by ForceKittyCapability before any Model's
+			// Init ran): only the shared-memory medium is left to probe.
+			if !kittySharedProbeable() {
+				return
+			}
+		case KittyCapabilityUnsupported:
 			return
+		default:
+			// If the environment doesn't indicate a Kitty-aware terminal,
+			// don't send any bytes — go straight to Unsupported.
+			if !kittyEnvSignal() {
+				kittyEnvSignalled.Store(false)
+				kittyCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
+				return
+			}
+			kittyEnvSignalled.Store(true)
+			kittyQuery = tmuxWrap(buildKittyQueryAPC(kittyProbeID))
 		}
-		// If the environment doesn't indicate a Kitty-aware terminal,
-		// don't send any bytes — go straight to Unsupported.
-		if !kittyEnvSignal() {
-			kittyEnvSignalled.Store(false)
-			kittyCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
-			return
-		}
-		kittyEnvSignalled.Store(true)
 		cmd = tea.Batch(
-			tea.Raw(tmuxWrap(buildKittyQueryAPC(kittyProbeID))),
+			// The shared-memory query goes first, so the medium is
+			// resolved by the time Kitty is.
+			func() tea.Msg { return tea.RawMsg{Msg: kittySharedQueryAPC() + kittyQuery} },
 			tea.Tick(kittyProbeTimeout, func(time.Time) tea.Msg {
 				return kittyProbeTickMsg{}
 			}),
@@ -207,6 +222,10 @@ func buildKittyQueryAPC(id int) string {
 // (Unknown after probe-but-no-tick, Unsupported after tick-but-late-
 // response) without overriding a Forced(Supported) that's already set.
 func recordKittyResponse(ev uv.KittyGraphicsEvent) {
+	if ev.Options.ID == kittySharedProbeID {
+		recordKittySharedResponse(string(ev.Payload) == "OK")
+		return
+	}
 	if ev.Options.ID != kittyProbeID {
 		return
 	}
@@ -220,4 +239,5 @@ func recordKittyResponse(ev uv.KittyGraphicsEvent) {
 // was already resolved (by an earlier response or by ForceKittyCapability).
 func recordKittyTimeout() {
 	kittyCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
+	recordKittySharedResponse(false)
 }

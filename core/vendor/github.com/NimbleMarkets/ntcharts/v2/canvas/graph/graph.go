@@ -1003,6 +1003,106 @@ func DrawCandlestickBottomToTop(m *canvas.Model, p canvas.Point, l, bl, bh, h fl
 	DrawCandlestickRune(m, canvas.Point{X: p.X, Y: p.Y - int(hf)}, hr, s)
 }
 
+// DrawCandlestickBottomToTopWide draws a candle whose body spans `width`
+// columns centered on p.X; the wick renders only in the center column.
+// Side columns are drawn as body-only candles (l=bl, h=bh), so the body
+// runes compose from the existing single-column primitive. width < 1 is
+// treated as 1; width 1 is exactly DrawCandlestickBottomToTop. Even widths
+// render as the next lower odd width plus one extra column on the right.
+// Columns outside the canvas are clipped by the underlying rune drawing.
+func DrawCandlestickBottomToTopWide(m *canvas.Model, p canvas.Point, width int, l, bl, bh, h float64, s lipgloss.Style) {
+	if width < 1 {
+		width = 1
+	}
+	left := p.X - (width-1)/2
+	for x := left; x < left+width; x++ {
+		q := canvas.Point{X: x, Y: p.Y}
+		if x == p.X {
+			DrawCandlestickBottomToTop(m, q, l, bl, bh, h, s)
+		} else {
+			DrawCandlestickBottomToTop(m, q, bl, bl, bh, bh, s)
+		}
+	}
+}
+
+// DrawCandlestickBlockBottomToTop draws a candle with a solid block body:
+// interior body cells are FullBlock, and each body boundary cell renders
+// the same POST-MERGE rune the line style would render at that junction —
+// a half block (▄/▀) where the line style keeps a half-tip, or FullBlock
+// where the line style upgrades the junction to a full heavy line (┃) —
+// so multi-cell bodies never show a half-cell slit against the interior.
+// Wick cells use the light line runes (│ ╵ ╷), again matching the line
+// style's post-merge rune where a wick tip adjoins the body. Where a body
+// boundary and a wick would share a cell, the block wins and the wick
+// continues in the adjacent cell. A body confined to a single cell renders
+// as one FullBlock. Value semantics of l, bl, bh, h match
+// DrawCandlestickBottomToTop; coordinates (0,0) is top left of canvas.
+func DrawCandlestickBlockBottomToTop(m *canvas.Model, p canvas.Point, l, bl, bh, h float64, s lipgloss.Style) {
+	set := func(row int, r rune) {
+		m.SetCell(canvas.Point{X: p.X, Y: p.Y - row}, canvas.NewCellWithStyle(r, s))
+	}
+	lf, blf := int(math.Floor(l)), int(math.Floor(bl))
+	bhf, hf := int(math.Floor(bh)), int(math.Floor(h))
+
+	// bottom wick — only rows below the body (the block wins shared cells).
+	// The line style merges this tip's ╷ with the body's upward segment
+	// into │ (graph.go DrawCandlestickBottomToTop, lines 845-851); mirror
+	// that merge here so the wick doesn't leave a slit against the body.
+	if lf < blf {
+		lr := runes.LineUp
+		if l-math.Floor(l) < 0.5 {
+			lr = runes.LineVertical // merged ╷ → │
+		}
+		set(lf, lr)
+		for i := lf + 1; i < blf; i++ {
+			set(i, runes.LineVertical)
+		}
+	}
+
+	// body
+	if blf == bhf {
+		set(blf, runes.FullBlock)
+	} else {
+		// The line style merges the body-bottom boundary's ╻ with the
+		// body-interior segment above it into ┃ (lines 863-868); mirror
+		// that merge as a full block so there's no slit against the
+		// interior. frac(bl) >= 0.5 is not merged by the line style, so
+		// it keeps the half-block (▀).
+		blr := runes.UpperHalfBlock // line style ╹
+		if bl-math.Floor(bl) < 0.5 {
+			blr = runes.FullBlock // merged ╻ → ┃
+		}
+		set(blf, blr)
+		for i := blf + 1; i < bhf; i++ {
+			set(i, runes.FullBlock)
+		}
+		// The line style merges the body-top boundary's ╹ with the
+		// body-interior segment below it into ┃ (lines 858-862); mirror
+		// that merge as a full block. frac(bh) < 0.5 is not merged by the
+		// line style, so it keeps the half-block (▄).
+		bhr := runes.LowerBlockFour // line style ╻ → ▄
+		if bh-math.Floor(bh) >= 0.5 {
+			bhr = runes.FullBlock // merged ╹ → ┃
+		}
+		set(bhf, bhr)
+	}
+
+	// top wick — only rows above the body. The line style merges this
+	// tip's ╵ with the body's downward segment into │ (lines 881-887);
+	// mirror that merge here so the wick doesn't leave a slit against
+	// the body.
+	if bhf < hf {
+		hr := runes.LineDown
+		if h-math.Floor(h) >= 0.5 {
+			hr = runes.LineVertical // merged ╵ → │
+		}
+		for i := bhf + 1; i < hf; i++ {
+			set(i, runes.LineVertical)
+		}
+		set(hf, hr)
+	}
+}
+
 // DrawCandlestickRune draws a canndlestick rune on to the canvas
 // at given (X,Y) coordinates with given style.
 // The function checks for existing candlestick runes already on the canvas and

@@ -35,6 +35,7 @@ const (
 	ArcUpLeft    = '\u256F' // ╯
 	ArcUpRight   = '\u2570' // ╰
 
+	UpperHalfBlock  = '▀'      // ▀
 	LowerBlockOne   = '\u2581' // ▁
 	LowerBlockTwo   = '\u2582' // ▂
 	LowerBlockThree = '\u2583' // ▃

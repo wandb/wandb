@@ -668,7 +668,7 @@ func (m *Model) renderCmd() tea.Cmd {
 		actualMedium, actualFormat := KittyMediumDirect, format
 		var apc string
 		var object *kittyshm.Object
-		if medium == KittyMediumSharedMemory {
+		if medium == KittyMediumSharedMemory && kittySharedUsable() {
 			var err error
 			apc, object, err = buildKittySharedMemoryAPC(prepared, id, cols, rows, z)
 			if err == nil {

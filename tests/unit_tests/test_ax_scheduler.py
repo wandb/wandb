@@ -129,6 +129,29 @@ class TestForgetRun:
         mark_failed.assert_called_once_with(trial_index=7)
 
 
+class TestCompleteTrial:
+    def test_attaches_final_data_at_the_last_step(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        """Early stopping drops, and warns about, data with no step."""
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(
+                suggestion,
+                state=RunState.FINISHED,
+                summary={"loss": 0.5, "_step": 4},
+                history=[],
+            ),
+        )
+
+        attached = _experiment(client).lookup_data().full_df
+        final = attached[attached["mean"] == 0.5]
+        assert final["step"].tolist() == [4]
+
+
 class TestPruneRun:
     def test_a_client_without_an_early_stopping_strategy_never_prunes(
         self, client: Client, sweep: SweepInfo

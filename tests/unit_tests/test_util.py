@@ -698,3 +698,29 @@ def test_has_internet(internet_state):
         mock_create_connection = mock.MagicMock(side_effect=OSError)
     with mock.patch("socket.create_connection", new=mock_create_connection):
         assert util._has_internet() is internet_state
+
+
+def test_image_id_from_k8s_removes_only_the_scheme(monkeypatch):
+    image_id = (
+        "ubuntu@sha256:9b8dec3bf938bc80fbe758d856e96fdfab5f56c39d44b0cff351e847bb1b01ea"
+    )
+    body = json.dumps(
+        {
+            "status": {
+                "containerStatuses": [{"imageID": "docker-pullable://" + image_id}]
+            }
+        }
+    ).encode()
+    response = mock.MagicMock()
+    response.__enter__.return_value.read.return_value = body
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("KUBERNETES_PORT_443_TCP_PORT", "443")
+    monkeypatch.setenv("HOSTNAME", "pod")
+
+    with (
+        mock.patch("wandb.util.os.path.exists", return_value=True),
+        mock.patch("builtins.open", mock.mock_open(read_data="token")),
+        mock.patch("ssl.create_default_context"),
+        mock.patch("urllib.request.urlopen", return_value=response),
+    ):
+        assert util.image_id_from_k8s() == image_id

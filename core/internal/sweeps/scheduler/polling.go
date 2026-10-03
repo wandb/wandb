@@ -298,13 +298,16 @@ func (s *Scheduler) pollWatched(ctx context.Context) (*pollSnapshot, error) {
 	}
 }
 
-// generationStep polls the sweep and assembles the next generation task.
+// generationStep waits out sleepTime, then polls and assembles a generation task.
 func (s *Scheduler) generationStep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
-	if done := s.doneFromError(ctx, phaseWarmStart, nil); done != nil {
+	if done := s.sleep(ctx); done != nil {
 		return done
 	}
+
+	// The poll reports the enqueued runs itself.
+	s.enqueued = nil
 
 	snapshot, err := s.pollWatched(ctx)
 	if err != nil {
@@ -655,6 +658,14 @@ func (s *Scheduler) enqueueOne(
 	run.state = TrackingInFlight
 	run.name = mintedID
 	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_PENDING
+	s.enqueued = append(s.enqueued, &spb.SweepSchedulerServerRunUpdate{
+		Run: &spb.SweepSchedulerServerRunData{
+			WandbRunId:     mintedID,
+			OptimizerRunId: id,
+			State:          run.runState,
+			ConfigJson:     suggestion.ConfigJson,
+		},
+	})
 	return nil
 }
 
