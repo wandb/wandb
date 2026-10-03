@@ -58,7 +58,6 @@ class AwsEnvironment(AbstractEnvironment):
 
         Arguments:
             region (str, optional): The AWS region.
-            verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
         Returns:
             AwsEnvironment: The AWS environment.
@@ -101,7 +100,6 @@ class AwsEnvironment(AbstractEnvironment):
 
         Arguments:
             config (dict): Configuration dictionary.
-            verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
         Returns:
             AwsEnvironment: The AWS environment.
@@ -238,7 +236,6 @@ class AwsEnvironment(AbstractEnvironment):
         Arguments:
             source (str): The path to the file or directory.
             destination (str): The URI of the storage.
-            recursive (bool, optional): If True, copy the directory recursively. Defaults to False.
 
         Raises:
             LaunchError: If the copy fails, the source path does not exist, or the

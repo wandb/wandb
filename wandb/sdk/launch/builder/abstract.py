@@ -38,7 +38,6 @@ class AbstractBuilder(ABC):
         """Initialize a builder.
 
         Arguments:
-            builder_config: The builder config.
             registry: The registry to use.
             verify: Whether to verify the functionality of the builder.
 
@@ -61,8 +60,6 @@ class AbstractBuilder(ABC):
             config: The config dictionary.
             environment: The environment to use.
             registry: The registry to use.
-            verify: Whether to verify the functionality of the builder.
-            login: Whether to login to the registry immediately.
 
         Returns:
             The builder.
@@ -80,7 +77,6 @@ class AbstractBuilder(ABC):
 
         Arguments:
             launch_project: The project to build.
-            build_ctx_path: The path to the build context.
 
         Returns:
             The image name.
