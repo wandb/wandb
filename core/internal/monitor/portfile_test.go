@@ -133,7 +133,7 @@ func TestRead_SuccessWithPolling(t *testing.T) {
 	defer cancel()
 
 	// This should block, poll, and eventually succeed.
-	target, err := pf.Read(ctx)
+	target, err := pf.Read(ctx, nil)
 
 	if err != nil {
 		t.Fatalf("Read() failed: %v", err)

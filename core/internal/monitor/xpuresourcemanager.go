@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// collectorStartupTimeout bounds how long Acquire waits for the
+	// collectorStartupTimeout bounds how long Client waits for the
 	// sidecar process to write its portfile.
 	collectorStartupTimeout = 5 * time.Second
 
@@ -33,12 +33,18 @@ type XPUResourceManagerRef int
 
 // XPUResourceManager manages the sidecar process that collects
 // GPU and TPU metrics.
+//
+// The sidecar runs while at least one reference is held and is started
+// again by the next Client call after it exits.
 type XPUResourceManager struct {
 	mu sync.Mutex
 
 	collectorProcess *exec.Cmd
 	collectorConn    *grpc.ClientConn
 	collectorClient  spb.SystemMonitorServiceClient
+
+	// collectorExited is closed when collectorProcess exits.
+	collectorExited chan struct{}
 
 	refs      map[XPUResourceManagerRef]struct{}
 	nextRefId int
@@ -53,26 +59,48 @@ func NewXPUResourceManager(enableDCGMProfiling bool) *XPUResourceManager {
 	}
 }
 
-// Acquire starts the sidecar if it is not running and registers a
-// reference to it. ctx bounds the start.
-func (m *XPUResourceManager) Acquire(ctx context.Context) (
-	spb.SystemMonitorServiceClient,
-	XPUResourceManagerRef,
-	error,
-) {
+// Acquire registers a reference to the sidecar.
+func (m *XPUResourceManager) Acquire() XPUResourceManagerRef {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if m.collectorConn == nil {
-		if err := m.startCollector(ctx); err != nil {
-			return nil, 0, err
-		}
-	}
 
 	refID := XPUResourceManagerRef(m.nextRefId)
 	m.nextRefId++
 	m.refs[refID] = struct{}{}
-	return m.collectorClient, refID, nil
+	return refID
+}
+
+// Client returns a client for the sidecar, starting it if it is not
+// running. ctx bounds the start.
+func (m *XPUResourceManager) Client(
+	ctx context.Context,
+	ref XPUResourceManagerRef,
+) (spb.SystemMonitorServiceClient, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.refs[ref]; !ok {
+		return nil, errors.New("monitor: xpu reference was released")
+	}
+
+	if m.collectorExited != nil {
+		select {
+		case <-m.collectorExited:
+			_ = m.collectorConn.Close()
+			m.collectorProcess = nil
+			m.collectorConn = nil
+			m.collectorClient = nil
+			m.collectorExited = nil
+		default:
+		}
+	}
+
+	if m.collectorConn == nil {
+		if err := m.startCollector(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return m.collectorClient, nil
 }
 
 func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
@@ -80,14 +108,16 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 	defer m.mu.Unlock()
 
 	delete(m.refs, ref)
-	if len(m.refs) > 0 {
+	if len(m.refs) > 0 || m.collectorConn == nil {
 		return
 	}
 
 	proc := m.collectorProcess
+	exited := m.collectorExited
 	conn := m.collectorConn
 	client := m.collectorClient
 	m.collectorProcess = nil
+	m.collectorExited = nil
 	m.collectorConn = nil
 	m.collectorClient = nil
 
@@ -102,7 +132,7 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 		_ = conn.Close()
 
 		context.AfterFunc(ctx, func() { _ = proc.Process.Kill() })
-		_ = proc.Wait()
+		<-exited
 	}()
 }
 
@@ -137,13 +167,18 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("monitor: could not start wandb-xpu binary: %v", err)
 	}
+	exited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(exited)
+	}()
 
 	ctx, cancel := context.WithTimeout(ctx, collectorStartupTimeout)
 	defer cancel()
-	targetURI, err := pf.Read(ctx)
+	targetURI, err := pf.Read(ctx, exited)
 	if err != nil {
 		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		<-exited
 		return fmt.Errorf("monitor: wandb-xpu binary failed to start: %w", err)
 	}
 
@@ -153,11 +188,12 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	)
 	if err != nil {
 		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		<-exited
 		return fmt.Errorf("monitor: could not connect to wandb-xpu binary: %v", err)
 	}
 
 	m.collectorProcess = cmd
+	m.collectorExited = exited
 	m.collectorConn = conn
 	m.collectorClient = spb.NewSystemMonitorServiceClient(conn)
 	return nil

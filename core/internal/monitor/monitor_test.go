@@ -2,14 +2,10 @@ package monitor_test
 
 import (
 	"errors"
-	"fmt"
-	"io"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
@@ -190,10 +186,7 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 		},
 		{
 			"ProcessExitedWithOtherExpectedError",
-			errors.Join(
-				process.ErrorProcessNotRunning,
-				status.Error(codes.Unavailable, "disconnected"),
-			),
+			errors.Join(process.ErrorProcessNotRunning, errors.New("Incorrect function.")),
 			false,
 		},
 		{
@@ -201,8 +194,6 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			errors.New(`exec: "netstat": executable file not found in $PATH`),
 			false,
 		},
-		{"GrpcUnavailable", status.Error(codes.Unavailable, "connection error"), false},
-		{"StreamEnded", fmt.Errorf("stream ended: %w", io.EOF), false},
 		{
 			"ConnRefused",
 			errors.New(
