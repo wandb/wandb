@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -216,8 +215,7 @@ func historyStep(h *spb.HistoryRecord) (int64, bool) {
 		if historyItemKey(item) != "_step" {
 			continue
 		}
-		v, err := strconv.ParseInt(strings.TrimSpace(item.GetValueJson()), 10, 64)
-		if err == nil {
+		if v, ok := historyItemStep(item); ok {
 			return v, true
 		}
 	}
