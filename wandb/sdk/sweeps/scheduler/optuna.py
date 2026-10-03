@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import numbers
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -456,18 +457,19 @@ class OptunaOptimizer(Optimizer):
                 if step <= last:
                     continue
                 value = self.metric_value(row)
-                if value is not None:
+                # Skips non-numbers; keeps NaN, which pruners prune on.
+                if isinstance(value, numbers.Real):
                     trial.report(value, step=step)
                     last = step
             self._last_reported_step[run_id] = last
 
         state = self.trial_state(data.state)
         if state == optuna.trial.TrialState.COMPLETE:
-            values = self.objective_values(data.summary_metrics)
+            values = self.final_objective_values(data)
             if values is None:
                 # A run that finished without every objective taught the
                 # search nothing; record a failure rather than telling the
-                # study a missing value.
+                # study a missing or unusable value.
                 self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
             elif self._is_multi_objective:
                 self._tell_study(trial, values, state=state)
@@ -570,19 +572,23 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         The flat search space is known up front, so add_trial() is the lightest
         faithful path — no extra ask(). Runs whose config doesn't cover the
         search space are skipped (create_trial requires an exact param match).
+        A finished run whose objective isn't a number is recorded as failed.
         """
         if not is_terminal_state(data.state):
             return
+        config = data.config.flat_dict()
+        if not all(name in config for name in self.distributions):
+            return
+        params = {name: config[name] for name in self.distributions}
         trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
         values = None
         if trial_state == optuna.trial.TrialState.COMPLETE:
             values = self.objective_values(data.summary_metrics)
             if values is None:
                 return  # finished but never logged every objective metric
-        config = data.config.flat_dict()
-        if not all(name in config for name in self.distributions):
-            return
-        params = {name: config[name] for name in self.distributions}
+            if not self.check_objective_values(data, values):
+                trial_state = optuna.trial.TrialState.FAIL
+                values = None
         self.study.add_trial(
             optuna.trial.create_trial(
                 params=params,

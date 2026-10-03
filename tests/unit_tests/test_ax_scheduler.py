@@ -244,6 +244,42 @@ class TestUnparseableMetricName:
         assert optimizer.client.summarize()["val-loss"].tolist() == [0.5]
 
 
+class TestUnusableObjectiveValue:
+    """A finished run whose objective isn't a number fails its trial."""
+
+    @pytest.mark.parametrize(
+        ("loss", "problem"),
+        [
+            (float("nan"), "NaN"),
+            ({"min": 0.1}, "a dict"),
+            ("0.5", "a string, not a number"),
+        ],
+        ids=["nan", "dict", "string"],
+    )
+    def test_fails_the_trial_and_warns(
+        self,
+        client: Client,
+        sweep: SweepInfo,
+        loss: Any,
+        problem: str,
+        mock_wandb_log,
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.FINISHED, summary={"loss": loss}),
+        )
+
+        trial = _experiment(client).trials[int(suggestion.run_id)]
+        assert trial.status.is_failed
+        mock_wandb_log.assert_warned(
+            f"Run wandb-run-id finished with metric 'loss' = {loss!r},"
+            f" which is {problem}"
+        )
+
+
 MULTI_OBJECTIVE_CONFIG = {
     "metrics": [
         {"name": "loss", "goal": "minimize"},
