@@ -11,9 +11,12 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func randomInRange(vmin, vmax float64) float64 {
@@ -118,6 +121,40 @@ func TestDCGM(t *testing.T) {
 			item.Key,
 		)
 	}
+}
+
+func TestSharedOpenMetrics(t *testing.T) {
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		_, _ = w.Write([]byte(randomMetrics()))
+	}))
+	defer server.Close()
+
+	logger := observability.NewNoOpLogger()
+	registry := monitor.NewScraperRegistry()
+	sample := func(r monitor.Resource) *spb.StatsRecord {
+		var record *spb.StatsRecord
+		assert.Eventually(t, func() bool {
+			record, _ = r.Sample()
+			return record != nil
+		}, 5*time.Second, 10*time.Millisecond)
+		return record
+	}
+
+	run1 := registry.OpenMetrics(logger, "dcgm", server.URL, nil, nil, time.Hour)
+	defer run1.(interface{ Close() }).Close()
+	sample(run1)
+
+	run2 := registry.OpenMetrics(logger, "dcgm", server.URL, nil, nil, time.Hour)
+	defer run2.(interface{ Close() }).Close()
+	record2 := sample(run2)
+	record1, _ := run1.Sample()
+	assert.True(t, proto.Equal(record1, record2))
+	assert.Equal(t, int32(2), requestCount.Load())
+
+	record1, _ = run1.Sample()
+	assert.Nil(t, record1)
 }
 
 func TestMetricFilters(t *testing.T) {
