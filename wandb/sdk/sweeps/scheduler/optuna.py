@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import logging
+import math
 from abc import abstractmethod
+from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from numbers import Real
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import override
@@ -29,6 +32,7 @@ if TYPE_CHECKING:
     import optuna
     import optuna.distributions
     import optuna.pruners
+    import optuna.samplers
     import optuna.trial
 else:
     optuna = util.get_module(
@@ -196,6 +200,53 @@ def search_space_from_sweep_config(
     }
 
 
+# GridSampler raises this when a parameter of an enqueued trial is missing.
+_GRID_ENQUEUE_ERROR = "All parameters must be specified when using GridSampler"
+
+# Stands in for NaN in held-point keys, since NaN never equals itself.
+_NAN_GRID_VALUE = object()
+
+
+def _grid_value_key(value: Any) -> Any:
+    """Return a hashable key for a grid value, equal for any two NaNs."""
+    if isinstance(value, Real) and math.isnan(value):
+        return _NAN_GRID_VALUE
+    return value
+
+
+def _first_unheld_grid_point(
+    sampler: optuna.samplers.GridSampler,
+    trials: Sequence[optuna.trial.FrozenTrial],
+) -> dict[str, Any] | None:
+    """Return the first grid point that no trial holds, or None.
+
+    Points are tried in the sampler's seeded order. A trial holds every
+    point that agrees with its params on the grid keys it has, whatever
+    its state: a define-by-run branch that skips a grid key covers each
+    value of that key.
+
+    Args:
+        sampler: The study's grid sampler.
+        trials: The study's trials, none of them waiting.
+    """
+    # GridSampler has no public accessor for its grid or its seeded order.
+    grid: dict[str, Sequence[Any]] = sampler._search_space
+    held: dict[tuple[str, ...], set[tuple[Any, ...]]] = defaultdict(set)
+    for trial in trials:
+        keys = tuple(sorted(key for key in trial.params if key in grid))
+        held[keys].add(tuple(_grid_value_key(trial.params[k]) for k in keys))
+
+    for values in sampler._all_grids:
+        point = dict(zip(grid, values, strict=True))
+        is_held = any(
+            tuple(_grid_value_key(point[key]) for key in keys) in held_values
+            for keys, held_values in held.items()
+        )
+        if not is_held:
+            return point
+    return None
+
+
 class OptunaOptimizer(Optimizer):
     """Base `Optimizer` driving a W&B sweep from an optuna study.
 
@@ -252,6 +303,11 @@ class OptunaOptimizer(Optimizer):
         """Whether the study optimizes more than one objective."""
         return len(self.study.directions) > 1
 
+    @property
+    def _is_grid_search(self) -> bool:
+        """Whether the study samples with optuna's GridSampler."""
+        return isinstance(self.study.sampler, optuna.samplers.GridSampler)
+
     def _tell_study(
         self,
         trial: optuna.Trial,
@@ -268,6 +324,10 @@ class OptunaOptimizer(Optimizer):
         tell error. The request is remembered instead, so the next ask
         reports the search as exhausted.
 
+        GridSampler's `after_trial` also raises KeyError for an enqueued
+        trial when one grid point is left, since only trials it sampled
+        carry a grid id. That is absorbed for the same reason.
+
         Args:
             trial: The live trial to finalize.
             values: The trial's objective value(s), or None if it has none.
@@ -276,6 +336,7 @@ class OptunaOptimizer(Optimizer):
         Raises:
             RuntimeError: Any error from `after_trial` other than a sampler
                 asking the study to stop.
+            KeyError: Any missing key other than GridSampler's grid id.
         """
         try:
             self.study.tell(trial, values, state=state)
@@ -283,6 +344,9 @@ class OptunaOptimizer(Optimizer):
             if _STOP_OUTSIDE_OPTIMIZE_LOOP not in str(e):
                 raise
             self._stop_requested = True
+        except KeyError as e:
+            if e.args != ("grid_id",) or not self._is_grid_search:
+                raise
         _logger.info(
             "Trial %d %s%s and parameters: %s.",
             trial.number,
@@ -294,20 +358,79 @@ class OptunaOptimizer(Optimizer):
     def _search_is_exhausted(self) -> bool:
         """Whether the study has no unexplored point left to propose.
 
-        A sampler over a finite space does not refuse a further ask: optuna's
-        GridSampler hands out a *duplicate* grid point (warning as it goes)
-        once the grid is spent, so asking again would re-run finished work
-        forever. Samplers over an unbounded space never report exhaustion.
+        A sampler over a finite space may report exhaustion through an
+        `is_exhausted` method or by stopping the study. Samplers over an
+        unbounded space never report exhaustion. GridSampler is handled by
+        `_enqueue_unheld_grid_point` instead.
         """
         if self._stop_requested:
             return True
-        # `is_exhausted` is GridSampler's; other samplers don't define it.
         is_exhausted = getattr(self.study.sampler, "is_exhausted", None)
         return is_exhausted is not None and bool(is_exhausted(self.study))
+
+    def _enqueue_unheld_grid_point(
+        self,
+        sampler: optuna.samplers.GridSampler,
+    ) -> bool:
+        """Queue a grid point no trial holds, unless a trial already waits.
+
+        GridSampler only skips points its own trials hold, so it proposes
+        duplicates of enqueued, adopted and warm-started runs, and of
+        define-by-run branches that skip a grid key. Points are picked
+        here instead, in the order GridSampler shuffled with its seed.
+
+        Args:
+            sampler: The study's grid sampler.
+
+        Returns:
+            False if every grid point is held, so the grid is spent.
+        """
+        trials = self.study.get_trials(deepcopy=False)
+        if any(trial.state == optuna.trial.TrialState.WAITING for trial in trials):
+            return True
+        point = _first_unheld_grid_point(sampler, trials)
+        if point is None:
+            return False
+        self.study.enqueue_trial(point)
+        return True
+
+    def _prepare_ask(self) -> bool:
+        """Ready the study's next ask, returning False if it is exhausted."""
+        sampler = self.study.sampler
+        if isinstance(sampler, optuna.samplers.GridSampler):
+            return self._enqueue_unheld_grid_point(sampler)
+        return not self._search_is_exhausted()
 
     @abstractmethod
     def _ask_suggestion(self) -> RunSuggestion:
         """Ask the study for one trial and describe it as a run to start."""
+
+    @abstractmethod
+    def _grid_mismatch_error(self, grid: dict[str, Any]) -> ValueError:
+        """Describe a parameter that has no value in GridSampler's grid.
+
+        Subclasses override this to name where the user declared it.
+
+        Args:
+            grid: GridSampler's grid.
+        """
+
+    def _ask_prepared_suggestion(self) -> RunSuggestion:
+        """Ask for the trial `_prepare_ask` readied.
+
+        Raises:
+            ValueError: If a parameter outside GridSampler's grid needs a
+                sampled value.
+        """
+        try:
+            return self._ask_suggestion()
+        except ValueError as e:
+            sampler = self.study.sampler
+            if not isinstance(sampler, optuna.samplers.GridSampler):
+                raise
+            if _GRID_ENQUEUE_ERROR not in str(e):
+                raise
+            raise self._grid_mismatch_error(sampler._search_space) from e
         ...
 
     def _track(self, trial: optuna.Trial, params: dict[str, Any]) -> RunSuggestion:
@@ -332,9 +455,9 @@ class OptunaOptimizer(Optimizer):
         """
         suggestions = []
         for _ in range(n):
-            if self._search_is_exhausted():
+            if not self._prepare_ask():
                 break
-            suggestions.append(self._ask_suggestion())
+            suggestions.append(self._ask_prepared_suggestion())
         return suggestions
 
     @override
@@ -489,13 +612,17 @@ class OptunaOptimizer(Optimizer):
         """Fail the trial of a proposed run that will never start.
 
         Failing (rather than leaving it running) frees the trial's slot in
-        samplers that limit concurrency.
+        samplers that limit concurrency. Under GridSampler the point is
+        enqueued again, since the failed trial still holds it.
         """
         trial = self.trials.pop(run_id, None)
         self._last_reported_step.pop(run_id, None)
         if trial is None:
             return
         self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
+        # Go never asks after an empty batch; ipc.py forgets before it asks.
+        if self._is_grid_search:
+            self.study.enqueue_trial(trial.params)
 
     @override
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
@@ -564,6 +691,20 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         return self._track(trial, trial.params)
 
     @override
+    def _grid_mismatch_error(self, grid: dict[str, Any]) -> ValueError:
+        """Name the sweep parameters that GridSampler's grid lacks."""
+        missing = [
+            name
+            for name, distribution in self.distributions.items()
+            if name not in grid and not distribution.single()
+        ]
+        return ValueError(
+            f"The sweep parameters {missing} are not in the grid of the"
+            " GridSampler that `scheduler.optimizer` returns. Add them to"
+            " the grid, or give each a single `value` in `parameters`."
+        )
+
+    @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Warm-start the study by recording a run as a historical trial.
 
@@ -618,6 +759,17 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         trial = self.study.ask()
         # A define-by-run constructor returns the flat {param: value} mapping.
         return self._track(trial, self.trial_constructor(trial))
+
+    @override
+    def _grid_mismatch_error(self, grid: dict[str, Any]) -> ValueError:
+        """Point at the `scheduler.search_space` function and the grid."""
+        return ValueError(
+            "The `scheduler.search_space` function suggests a parameter"
+            " that is not in the grid of the GridSampler that"
+            f" `scheduler.optimizer` returns, whose keys are {list(grid)}."
+            " Add every parameter it suggests to the grid, or suggest the"
+            " parameter with a single choice."
+        )
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
