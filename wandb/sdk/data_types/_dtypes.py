@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import datetime
 import math
+import sys
 import typing as t
 
+import wandb.util
 from wandb.util import (
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    get_module,
     is_numpy_array,
 )
-
-np = get_module("numpy")  # intentionally not required
 
 if t.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -30,12 +29,14 @@ class TypeRegistry:
 
     @staticmethod
     def types_by_name():
+        _register_numpy_types_if_available()
         if TypeRegistry._types_by_name is None:
             TypeRegistry._types_by_name = {}
         return TypeRegistry._types_by_name
 
     @staticmethod
     def types_by_class():
+        _register_numpy_types_if_available()
         if TypeRegistry._types_by_class is None:
             TypeRegistry._types_by_class = {}
         return TypeRegistry._types_by_class
@@ -360,61 +361,14 @@ class NumberType(Type):
     types: t.ClassVar[list[type]] = [int, float]
 
 
-if np:
-    NumberType.types.append(np.byte)
-    NumberType.types.append(np.short)
-    NumberType.types.append(np.ushort)
-    NumberType.types.append(np.intc)
-    NumberType.types.append(np.uintc)
-    NumberType.types.append(np.int_)
-    NumberType.types.append(np.uint)
-    NumberType.types.append(np.longlong)
-    NumberType.types.append(np.ulonglong)
-    NumberType.types.append(np.half)
-    NumberType.types.append(np.float16)
-    NumberType.types.append(np.single)
-    NumberType.types.append(np.double)
-    NumberType.types.append(np.longdouble)
-    NumberType.types.append(np.csingle)
-    NumberType.types.append(np.cdouble)
-    NumberType.types.append(np.clongdouble)
-    NumberType.types.append(np.int8)
-    NumberType.types.append(np.int16)
-    NumberType.types.append(np.int32)
-    NumberType.types.append(np.int64)
-    NumberType.types.append(np.uint8)
-    NumberType.types.append(np.uint16)
-    NumberType.types.append(np.uint32)
-    NumberType.types.append(np.uint64)
-    NumberType.types.append(np.intp)
-    NumberType.types.append(np.uintp)
-    NumberType.types.append(np.float32)
-    NumberType.types.append(np.float64)
-    NumberType.types.append(np.complex64)
-    NumberType.types.append(np.complex128)
-
-    numpy_major_version = np.__version__.split(".")[0]
-    if int(numpy_major_version) < 2:
-        NumberType.types.append(np.float_)
-        NumberType.types.append(np.complex_)
-
-
 class TimestampType(Type):
     name = "timestamp"
     types: t.ClassVar[list[type]] = [datetime.datetime, datetime.date]
 
 
-if np:
-    TimestampType.types.append(np.datetime64)
-
-
 class BooleanType(Type):
     name = "boolean"
     types: t.ClassVar[list[type]] = [bool]
-
-
-if np:
-    BooleanType.types.append(np.bool_)
 
 
 class PythonObjectType(Type):
@@ -758,8 +712,81 @@ class NDArrayType(Type):
         self._serialization_path = None
 
 
-if np:
+_numpy_types_registered = False
+
+
+def _register_numpy_types_if_available() -> None:
+    """Register numpy types with the TypeRegistry if numpy has been imported.
+
+    numpy is intentionally not required and not imported by this module:
+    if it hasn't been imported and loaded, then no numpy objects can exist
+    for the registry to resolve, so there is nothing to register.
+    """
+    global _numpy_types_registered
+
+    if _numpy_types_registered:
+        return
+
+    numpy_module = sys.modules.get("numpy")
+    if numpy_module is None or isinstance(numpy_module, wandb.util.LazyModule):
+        # Either not imported, or an unloaded lazy placeholder (such as
+        # wandb.util's module-level `np`). Checking isinstance() does not
+        # trigger the lazy load.
+        return
+
+    # Set the flag first: TypeRegistry.add() below re-enters
+    # types_by_name()/types_by_class(), which call this function.
+    _numpy_types_registered = True
+
+    import numpy as np
+
+    NumberType.types.extend(
+        [
+            np.byte,
+            np.short,
+            np.ushort,
+            np.intc,
+            np.uintc,
+            np.int_,
+            np.uint,
+            np.longlong,
+            np.ulonglong,
+            np.half,
+            np.float16,
+            np.single,
+            np.double,
+            np.longdouble,
+            np.csingle,
+            np.cdouble,
+            np.clongdouble,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.intp,
+            np.uintp,
+            np.float32,
+            np.float64,
+            np.complex64,
+            np.complex128,
+        ]
+    )
+
+    # numpy<2 also has np.float_ and np.complex_, but these are aliases of
+    # np.float64 and np.complex128 (the same class objects), which are
+    # registered above.
+
+    TimestampType.types.append(np.datetime64)
+    BooleanType.types.append(np.bool_)
     NDArrayType.types.append(np.ndarray)
+
+    for wb_type in (NumberType, TimestampType, BooleanType, NDArrayType):
+        TypeRegistry.add(wb_type)
+
 
 # class KeyPolicy:
 #     EXACT = "E"  # require exact key match
