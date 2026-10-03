@@ -997,6 +997,15 @@ class Settings(BaseModel, validate_assignment=True):
     in development and release-candidate versions, off in releases.
     """
 
+    x_stats_shared_xpu: bool = False
+    """Share one system metrics service between the W&B runs on this machine.
+
+    All W&B runs of the user on this machine use one system metrics service
+    instead of starting one per process. Linux and macOS only. The service
+    exits ten minutes after the last run ends. Falls back to a private
+    service if the shared one cannot be reached.
+    """
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
 

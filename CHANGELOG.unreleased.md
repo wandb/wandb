@@ -40,6 +40,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 - `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12900)
+- The `x_stats_shared_xpu` setting makes all W&B runs of a user on a machine share one system metrics service instead of starting one per process, on Linux and macOS. The service exits ten minutes after the last run ends, and a run falls back to a private service if the shared one cannot be reached (@dmitryduev in https://github.com/wandb/wandb/pull/13105)
 
 ### Changed
 

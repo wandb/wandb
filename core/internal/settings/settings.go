@@ -624,6 +624,12 @@ func (s *Settings) GetStatsSelfUsage() bool {
 	return s.Proto.XStatsSelfUsage.GetValue()
 }
 
+// Whether all W&B runs of the user on this machine share one wandb-xpu
+// service instead of starting one per process.
+func (s *Settings) GetStatsSharedXPU() bool {
+	return s.Proto.XStatsSharedXpu.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()

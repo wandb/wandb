@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -27,14 +28,33 @@ const (
 	// collectorShutdownTimeout bounds how long Release waits for the
 	// sidecar process to exit after asking it to tear down.
 	collectorShutdownTimeout = 5 * time.Second
+
+	// sharedCollectorProbeTimeout bounds one connection attempt to the
+	// shared collector's socket.
+	sharedCollectorProbeTimeout = 500 * time.Millisecond
 )
 
 type XPUResourceManagerRef int
 
-// XPUResourceManager manages the wandb-xpu sidecar process.
+// XPUResourceOptions says how a reference wants to reach wandb-xpu.
+type XPUResourceOptions struct {
+	// Shared asks for the collector shared by the user's processes on this
+	// machine instead of a sidecar private to this process.
+	Shared bool
+
+	// Logger receives a debug message when the shared collector cannot be
+	// reached and a private sidecar is started instead.
+	Logger *observability.CoreLogger
+}
+
+// XPUResourceManager manages the wandb-xpu process: a sidecar private
+// to this process, or the collector shared by the user's processes on
+// this machine.
 //
 // The sidecar runs while at least one reference is held and is started
-// again by the next Client call after it exits.
+// again by the next Client call after it exits. The shared collector is
+// joined, or started again, by the next Client call after it stops
+// accepting connections.
 type XPUResourceManager struct {
 	mu sync.Mutex
 
@@ -45,7 +65,15 @@ type XPUResourceManager struct {
 	// collectorExited is closed when collectorProcess exits.
 	collectorExited chan struct{}
 
-	refs      map[XPUResourceManagerRef]struct{}
+	// sharedSocket is the socket of the shared collector collectorConn
+	// is connected to, or empty for a private sidecar.
+	sharedSocket string
+
+	// sharedID names the shared collector's socket after the wandb-xpu
+	// binary it is built from. It is computed on first use.
+	sharedID string
+
+	refs      map[XPUResourceManagerRef]XPUResourceOptions
 	nextRefId int
 
 	enableDCGMProfiling bool
@@ -53,19 +81,24 @@ type XPUResourceManager struct {
 
 func NewXPUResourceManager(enableDCGMProfiling bool) *XPUResourceManager {
 	return &XPUResourceManager{
-		refs:                map[XPUResourceManagerRef]struct{}{},
+		refs:                map[XPUResourceManagerRef]XPUResourceOptions{},
 		enableDCGMProfiling: enableDCGMProfiling,
 	}
 }
 
-// Acquire registers a reference to the sidecar.
-func (m *XPUResourceManager) Acquire() XPUResourceManagerRef {
+// Acquire registers a reference to wandb-xpu.
+//
+// The options of the reference whose Client call starts wandb-xpu apply
+// to every reference in this process until it is started again.
+func (m *XPUResourceManager) Acquire(
+	opts XPUResourceOptions,
+) XPUResourceManagerRef {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	refID := XPUResourceManagerRef(m.nextRefId)
 	m.nextRefId++
-	m.refs[refID] = struct{}{}
+	m.refs[refID] = opts
 	return refID
 }
 
@@ -78,8 +111,13 @@ func (m *XPUResourceManager) Client(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.refs[ref]; !ok {
+	opts, ok := m.refs[ref]
+	if !ok {
 		return nil, errors.New("monitor: xpu reference was released")
+	}
+
+	if m.sharedSocket != "" && !probeSharedCollector(m.sharedSocket) {
+		m.disconnectSharedCollector()
 	}
 
 	if m.collectorExited != nil {
@@ -95,7 +133,7 @@ func (m *XPUResourceManager) Client(
 	}
 
 	if m.collectorConn == nil {
-		if err := m.startCollector(ctx); err != nil {
+		if err := m.startCollector(ctx, opts); err != nil {
 			return nil, err
 		}
 	}
@@ -108,6 +146,11 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 
 	delete(m.refs, ref)
 	if len(m.refs) > 0 || m.collectorConn == nil {
+		return
+	}
+
+	if m.sharedSocket != "" {
+		m.disconnectSharedCollector()
 		return
 	}
 
@@ -135,9 +178,20 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 	}()
 }
 
-func (m *XPUResourceManager) startCollector(ctx context.Context) error {
+func (m *XPUResourceManager) startCollector(
+	ctx context.Context,
+	opts XPUResourceOptions,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	if opts.Shared {
+		err := m.startSharedCollector(ctx)
+		if err == nil {
+			return nil
+		}
+		opts.Logger.Debug("monitor: starting a private wandb-xpu", "error", err)
 	}
 
 	pf := NewPortfile()
@@ -196,6 +250,25 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	m.collectorConn = conn
 	m.collectorClient = spb.NewSystemMonitorServiceClient(conn)
 	return nil
+}
+
+// probeSharedCollector reports whether something accepts connections
+// on socket.
+func probeSharedCollector(socket string) bool {
+	conn, err := net.DialTimeout("unix", socket, sharedCollectorProbeTimeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// disconnectSharedCollector drops the connection to the shared collector.
+func (m *XPUResourceManager) disconnectSharedCollector() {
+	_ = m.collectorConn.Close()
+	m.sharedSocket = ""
+	m.collectorConn = nil
+	m.collectorClient = nil
 }
 
 // getXPUCmdPath returns the path to the wandb-xpu sidecar binary.

@@ -375,6 +375,10 @@ message Settings {
   // `wandb.cpu` and `wandb.memory.rssMB`.
   google.protobuf.BoolValue x_stats_self_usage = 210;
 
+  // Whether all W&B runs of the user on this machine share one wandb-xpu
+  // service instead of starting one per process. Linux and macOS only.
+  google.protobuf.BoolValue x_stats_shared_xpu = 211;
+
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
   // processes in a distributed training job.
