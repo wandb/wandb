@@ -25,6 +25,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
+type testContextKey string
+
 // the mockAzureClients mock the azure client with the following containers/blobs:
 // account/container
 // |
@@ -296,6 +298,7 @@ type mockAzureBlockBlobClient struct {
 	t               *testing.T
 	contentExpected []byte
 	headers         map[string]string
+	contextExpected context.Context
 	shouldFail      bool
 }
 
@@ -307,6 +310,9 @@ func (m mockAzureBlockBlobClient) UploadStream(
 	if m.shouldFail {
 		return blockblob.UploadStreamResponse{}, fmt.Errorf("upload failed")
 	}
+	assert.Equal(m.t, m.contextExpected, ctx)
+	assert.Equal(m.t, int64(4*1024*1024), options.BlockSize)
+	assert.Equal(m.t, 4, options.Concurrency)
 	bodyBytes, err := io.ReadAll(body)
 	assert.NoError(m.t, err)
 	assert.Equal(m.t, m.contentExpected, bodyBytes)
@@ -330,6 +336,11 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 	mockAzureBlockBlobClient := mockAzureBlockBlobClient{
 		t:               t,
 		contentExpected: contentExpected,
+		contextExpected: context.WithValue(
+			context.Background(),
+			testContextKey("test-key"),
+			"test-value",
+		),
 		headers: map[string]string{
 			"Content-MD5":  contentMD5,
 			"Content-Type": "text/plain",
@@ -359,6 +370,7 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 		Path:    filename,
 		Url:     "https://account.blob.core.windows.net/container/test-upload-file.txt",
 		Headers: headers,
+		Context: mockAzureBlockBlobClient.contextExpected,
 	}
 
 	// Performing the upload
