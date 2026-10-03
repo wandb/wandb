@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+import sys
 from typing import Any
 
 import pytest
@@ -55,11 +57,87 @@ def test_typed_value_cases(value, field, expected):
 def test_typed_value_logged_float_stays_a_float():
     """A logged `1.0` is a float, not an int.
 
-    The JSON form cannot express this, so the two forms diverge here by
-    design. See the design doc's "Handling numeric Kinds consistently".
+    JSON can express 1.0. Go's current renderer later writes it as 1.
     """
     assert make_typed_value(1.0).WhichOneof("value") == "number"
     assert make_typed_value(1).WhichOneof("value") == "integer"
+
+
+def assert_value(expected: Any, actual: Any) -> None:
+    """Compare decoded JSON values without losing numeric type or NaN checks."""
+    assert type(actual) is type(expected)
+    if isinstance(expected, float) and math.isnan(expected):
+        assert math.isnan(actual)
+    elif isinstance(expected, float) and expected == 0:
+        assert math.copysign(1, actual) == math.copysign(1, expected)
+    elif isinstance(expected, list):
+        assert len(actual) == len(expected)
+        for want, got in zip(expected, actual, strict=True):
+            assert_value(want, got)
+    elif isinstance(expected, dict):
+        assert actual.keys() == expected.keys()
+        for key, want in expected.items():
+            assert_value(want, actual[key])
+    else:
+        assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "value, field",
+    [
+        (None, "none"),
+        (True, "boolean"),
+        (False, "boolean"),
+        (0, "integer"),
+        (-7, "integer"),
+        (2**53 + 1, "integer"),
+        (INT64_MIN, "integer"),
+        (INT64_MAX, "integer"),
+        (0.0, "number"),
+        (-0.0, "number"),
+        (1.0, "number"),
+        (1.25, "number"),
+        (sys.float_info.min, "number"),
+        (sys.float_info.max, "number"),
+        (float.fromhex("0x0.0000000000001p-1022"), "number"),
+        (float("nan"), "number"),
+        (float("inf"), "number"),
+        (float("-inf"), "number"),
+        ("", "text"),
+        ('café "\\\n', "text"),
+        ({}, "json"),
+        ([], "json"),
+        (
+            {
+                "array": [
+                    None,
+                    {"big": 2**53 + 1, "nan": float("nan"), "infinity": float("-inf")},
+                ]
+            },
+            "json",
+        ),
+        (INT64_MAX + 1, "json"),
+        (INT64_MIN - 1, "json"),
+    ],
+)
+def test_typed_and_json_history_values_codec_equivalence(value, field):
+    item = pb.HistoryItem(key="k")
+    set_history_value(item, value, json_form=True, typed_form=True)
+    decoded = pb.HistoryItem.FromString(item.SerializeToString())
+
+    assert decoded.value_json
+    assert decoded.HasField("value")
+    assert decoded.WhichOneof("value") == field
+    if field == "json":
+        assert decoded.json == decoded.value_json
+        typed_value = json.loads(decoded.json)
+    elif field == "none":
+        typed_value = None
+    else:
+        typed_value = getattr(decoded, field)
+
+    assert_value(value, typed_value)
+    assert_value(value, json.loads(decoded.value_json))
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
@@ -215,3 +293,35 @@ def test_publish_partial_history_defaults_to_json_only(mock_run, record_q):
     item = partial_history_items(record_q)["loss"]
     assert item.value_json == "0.5"
     assert not item.WhichOneof("value")
+
+
+def test_publish_partial_history_dual_write_mixed_row(mock_run, record_q):
+    run = mock_run(settings={"x_history_value_encoding": "json,typed"})
+    values = {
+        "int": 1,
+        "float": 1.0,
+        "null": None,
+        "nested": {"array": [False, 2**53 + 1]},
+    }
+
+    run.log(values)
+
+    items = partial_history_items(record_q)
+    for key, field in (
+        ("int", "integer"),
+        ("float", "number"),
+        ("null", "none"),
+        ("nested", "json"),
+    ):
+        item = pb.HistoryItem.FromString(items[key].SerializeToString())
+        assert item.value_json
+        assert item.WhichOneof("value") == field
+        typed = (
+            json.loads(item.json)
+            if field == "json"
+            else None
+            if field == "none"
+            else getattr(item, field)
+        )
+        assert_value(values[key], typed)
+        assert_value(values[key], json.loads(item.value_json))
