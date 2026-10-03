@@ -1,9 +1,19 @@
 """The XGBoost and LightGBM callbacks summarize each metric at its best step."""
 
+import importlib
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+
+
+def _import_or_skip(module: str):
+    # Installed but unloadable (e.g. no libomp on macOS runners) raises
+    # XGBoostError or OSError rather than ImportError, so skip on any error.
+    try:
+        return importlib.import_module(module)
+    except Exception as e:
+        pytest.skip(f"{module} is not usable here: {e}")
 
 
 @pytest.mark.parametrize(
@@ -17,11 +27,10 @@ import pytest
     ],
 )
 def test_xgboost_parameterized_metrics_get_a_best_summary(metric_name, summary):
-    pytest.importorskip("xgboost")
-    from wandb.integration.xgboost import WandbCallback
+    xgb_integration = _import_or_skip("wandb.integration.xgboost")
 
     with mock.patch("wandb.define_metric") as define_metric:
-        WandbCallback._define_metric(None, "validation_0", metric_name)
+        xgb_integration.WandbCallback._define_metric(None, "validation_0", metric_name)
 
     define_metric.assert_called_once_with(
         f"validation_0-{metric_name}".replace(".", "\\."), summary=summary
@@ -29,8 +38,7 @@ def test_xgboost_parameterized_metrics_get_a_best_summary(metric_name, summary):
 
 
 def test_lightgbm_uses_the_metric_direction_lightgbm_reports():
-    pytest.importorskip("lightgbm")
-    from wandb.integration.lightgbm import wandb_callback
+    wandb_callback = _import_or_skip("wandb.integration.lightgbm").wandb_callback
 
     callback = wandb_callback(log_params=False)
     env = SimpleNamespace(
