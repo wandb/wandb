@@ -74,6 +74,7 @@ impl Collectors {
             match collector.collect_metrics().await {
                 Ok(part) => {
                     sample.metrics.extend(part.metrics);
+                    sample.averages.extend(part.averages);
                     sample.gpu_pids.extend(part.gpu_pids);
                 }
                 Err(e) => warn!("Failed to collect metrics: {}", e),
@@ -252,9 +253,21 @@ impl DcgmGpuMonitor {
 #[cfg(target_os = "linux")]
 #[async_trait::async_trait]
 impl Collector for DcgmGpuMonitor {
+    /// DCGM's profiling fields are averages over its own update interval.
     async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+        let averages = self
+            .client
+            .get_metrics()
+            .await?
+            .into_iter()
+            .filter_map(|(key, value)| match value {
+                metrics::MetricValue::Float(value) => Some((key, value)),
+                metrics::MetricValue::Int(value) => Some((key, value as f64)),
+                metrics::MetricValue::String(_) => None,
+            })
+            .collect();
         Ok(Sample {
-            metrics: self.client.get_metrics().await?,
+            averages,
             ..Default::default()
         })
     }
