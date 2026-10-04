@@ -16,6 +16,15 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- `wandb leet symon` now shows the utilization of every CPU core and, on Linux, the CPU temperature (@dmitryduev in https://github.com/wandb/wandb/pull/13012)
+- `wandb leet symon` now charts network and disk throughput in bytes per second instead of totals since it started (@dmitryduev in https://github.com/wandb/wandb/pull/13013)
+- In W&B LEET TUI, the `CPU Core (%)` chart opens as a heatmap with one row per core; `y` switches it back to lines (@dmitryduev in https://github.com/wandb/wandb/pull/13014)
+- `wandb leet symon` now opens with the charts that matter most, CPU cores, memory, network and disk throughput, ahead of the rest, and no longer charts disk used bytes or available memory, which `Disk (%)` and the memory charts already show (@dmitryduev in https://github.com/wandb/wandb/pull/13014)
+- `wandb leet symon` shows the hostname, uptime and load average in its header and charts swap usage on Linux, Windows and Intel Macs (@dmitryduev in https://github.com/wandb/wandb/pull/13015)
+- `wandb leet symon` has a vitals sidebar: the machine's chip, cores, memory and GPUs, and live meters for CPU, memory, swap, disk and GPU use next to network and disk throughput, temperatures and power. `[` hides it (@dmitryduev in https://github.com/wandb/wandb/pull/13016)
+- `wandb leet symon` lists the processes using the most CPU in its sidebar; `t` sorts them by memory instead (@dmitryduev in https://github.com/wandb/wandb/pull/13017)
+- The `wandb leet symon` sidebar can be resized by dragging its border, and `0` restores the default width (@dmitryduev in https://github.com/wandb/wandb/pull/13018)
+- In `wandb leet symon`, `Tab` moves between the process list and the charts, and `f` filters the processes by name or PID (@dmitryduev in https://github.com/wandb/wandb/pull/13021)
 - `wandb leet inspect --summary` prints a run's state, latest metric values, config and last console lines from its local `.wandb` file, a quick way for a script or a coding agent to check on a run (@dmitryduev in https://github.com/wandb/wandb/pull/12951)
 - `wandb leet inspect --json` prints a run's records, one JSON object per line, or its `--summary` as one JSON object, and `--follow` (`-f`) keeps printing records as a running run writes them until it exits or its file goes `--idle-timeout` (10 minutes by default) without a write (@dmitryduev in https://github.com/wandb/wandb/pull/12952)
 - In W&B LEET TUI, `ctrl+a` selects every run matching the runs filter after you confirm with `y`, and `x` deselects all runs except the pinned one (@dmitryduev in https://github.com/wandb/wandb/pull/12904)
@@ -24,9 +33,17 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
 - System metrics now include PCIe throughput (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`) for NVIDIA GPUs older than Hopper (@dmitryduev in https://github.com/wandb/wandb/pull/12989)
 - System metrics now include each GPU's cumulative energy consumption in joules as `gpu.N.energyJoules`, for NVIDIA and AMD GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/12991)
+- System metrics now include `proc.cpu.throttledPercent`, the percentage of CPU scheduler periods in which the container's CPU limit throttled the run (@dmitryduev in https://github.com/wandb/wandb/pull/13001)
+- System metrics now include `proc.memory.oomKills`, how many processes in the run's container the out-of-memory killer has killed since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13002)
+- System metrics now include `network.tcpRetransmits`, the number of TCP segments retransmitted since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13003)
+- System metrics can include the CPU and memory used by W&B's own background processes, as `wandb.cpu` and `wandb.memory.rssMB`. They are on by default in development and release-candidate versions and off otherwise; turn them on with the `x_stats_self_usage` setting (@dmitryduev in https://github.com/wandb/wandb/pull/13004, https://github.com/wandb/wandb/pull/13038)
+- Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
+- `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
+- Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12900)
 
 ### Changed
 
+- The `wandb leet symon` status bar starts with a W&B LEET badge (@dmitryduev in https://github.com/wandb/wandb/pull/13022)
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
@@ -39,11 +56,16 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Single-element NumPy arrays stored in run config are now converted to native scalar values instead of strings. (@tandede, https://github.com/wandb/wandb/issues/1184)
+- Offline runs once again display warnings generated by `wandb-core`, including when `run.log()` data is ignored because its step is lower than the current step (@willtryagain in https://github.com/wandb/wandb/pull/13037)
+  - Regression introduced in 0.27.0
 - Resumed runs no longer report a huge or negative `_runtime` and run duration, a regression in v0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12999)
 - `wandb leet inspect` no longer prints "skipped corrupt data" forever when its output is piped and the file is not a `.wandb` log it can read; it now exits with an error (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
+- Calling `wandb.init()` after `wandb.agent(sweep_id, function=...)` returns now creates a new run instead of reusing and overwriting the last sweep run (@nathancy-wandb in https://github.com/wandb/wandb/pull/12970)
 - Fixed a memory leak where every `wandb.Api()` object permanently retained a few MiB in the background service process after it was garbage collected (@dmitryduev in https://github.com/wandb/wandb/pull/12920)
 - `Run.scan_history(keys=...)` no longer fails with `403 Forbidden` on W&B deployments that store run history in Amazon S3 (@dmitryduev in https://github.com/wandb/wandb/pull/12930)
 - Per-process GPU metrics (`gpu.process.*`) are logged again for NVIDIA GPUs used by the process that called `wandb.init()`. Since v0.18.2, they were logged only when a subprocess used the GPU (@dmitryduev in https://github.com/wandb/wandb/pull/12978)
 - NVIDIA PCIe and NVLink throughput system metrics from GPM (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`, `gpu.N.nvlinkTxBytes`, `gpu.N.nvlinkRxBytes`) are now reported in bytes per second as their names say. They were in mebibytes per second (@dmitryduev in https://github.com/wandb/wandb/pull/12988)
+- `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
+- The Docker image ID recorded for runs inside Kubernetes no longer loses the start of the image name and the end of the digest when the `docker-pullable://` prefix is removed (@David-Wu1119 in https://github.com/wandb/wandb/pull/13035)

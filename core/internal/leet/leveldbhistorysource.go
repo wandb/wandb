@@ -253,7 +253,7 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 				fields = make(map[string]string)
 				mediaFieldsByKey[mediaKey] = fields
 			}
-			fields[field] = trimJSONString(item.ValueJson)
+			fields[field] = historyItemString(item)
 			continue
 		}
 
@@ -261,7 +261,7 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		if key == "" {
 			continue
 		}
-		if val, err := strconv.ParseFloat(trimJSONString(item.ValueJson), 64); err == nil {
+		if val, ok := historyItemFloat(item); ok {
 			acc.values[key] = val
 		}
 	}

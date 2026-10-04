@@ -27,6 +27,11 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"TPU runtime HBM util", "tpu.0.runtimeHbmUtilization", "TPU Runtime HBM Utilization", "%"},
 		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration",
 			"TPU Tensorcore Idle Duration", ""},
+		{"Process CPU throttled", "proc.cpu.throttledPercent", "Process CPU Throttled", "%"},
+		{"Process OOM kills", "proc.memory.oomKills", "Process OOM Kills", ""},
+		{"Network TCP retransmits", "network.tcpRetransmits", "Network TCP Retransmits", ""},
+		{"W&B CPU", "wandb.cpu", "W&B CPU", "%"},
+		{"W&B memory", "wandb.memory.rssMB", "W&B Memory", "B"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -48,6 +53,7 @@ func TestExtractBaseKey(t *testing.T) {
 		{"gpu.0.temp/l:0:GPU0", "gpu.temp"},
 		{"gpu.process.2.temp", "gpu.process.temp"},
 		{"disk.disk4.out", "disk.io_per_device"},
+		{"disk.disk4.readBps", "disk.io_rate_per_device"},
 		{"cpu.0.cpu_percent", "cpu.cpu_percent"},
 		{"memory.used", "memory.used"},
 	}
@@ -67,6 +73,7 @@ func TestExtractSeriesName(t *testing.T) {
 		{"cpu.2.cpu_percent", "CPU 2"},
 		{"disk.disk4.in", "disk4 read"},
 		{"disk.disk4.out", "disk4 write"},
+		{"disk.disk4.writeBps", "disk4 write"},
 		{"memory.used", "Default"},
 	}
 	for _, tc := range cases {

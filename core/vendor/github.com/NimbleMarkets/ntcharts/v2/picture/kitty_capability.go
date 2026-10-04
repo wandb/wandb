@@ -56,7 +56,8 @@ var (
 
 // KittyEnvSignalled reports whether the env preflight saw a positive
 // indicator (TERM=xterm-{kitty,ghostty}, KITTY_*, GHOSTTY_*, WEZTERM_*,
-// recognized TERM_PROGRAM) at the time QueryKittySupport ran. Useful
+// recognized TERM_PROGRAM, or tmux passthrough enabled) at the time
+// QueryKittySupport ran. Useful
 // alongside KittySupported() for diagnostics: if KittySupported() ==
 // Unsupported AND KittyEnvSignalled() == true, the probe ran but no
 // response arrived within the timeout — likely a real terminal-side
@@ -103,6 +104,12 @@ type kittyProbeTickMsg struct{}
 // capable terminals whose env vars don't propagate (some ssh paths,
 // custom builds) — can opt in via ForceKittyCapability.
 //
+// tmux hides the outer terminal's environment, so when tmux
+// passthrough is enabled (see SetTmuxPassthrough) the probe is sent
+// through the passthrough wrapper regardless of other signals. Set
+// NTCHARTS_KITTY=unsupported or NTCHARTS_TMUX_PASSTHROUGH=false when
+// the terminal hosting tmux is known not to support Kitty graphics.
+//
 // Two messages drive resolution when a probe is sent:
 //   - uv.KittyGraphicsEvent with the probe's ID arrives if the terminal
 //     supports the protocol; Model.Update sets the capability to
@@ -113,24 +120,39 @@ type kittyProbeTickMsg struct{}
 //
 // Both messages are intercepted by Model.Update — consumers that
 // forward every tea.Msg to Model.Update don't need to handle them.
+//
+// Where this process can create shared-memory objects, the probe also
+// queries the t=s medium (even when the capability was forced to
+// Supported). KittyMediumSharedMemory frames are sent Direct unless the
+// terminal answers that query with OK.
 func QueryKittySupport() tea.Cmd {
 	var cmd tea.Cmd
 	kittyQueryOnce.Do(func() {
-		// If capability was already set (e.g., by ForceKittyCapability
-		// before any Model's Init ran), respect that and skip the probe.
-		if KittySupported() != KittyCapabilityUnknown {
+		var kittyQuery string
+		switch KittySupported() {
+		case KittyCapabilitySupported:
+			// Forced (e.g., by ForceKittyCapability before any Model's
+			// Init ran): only the shared-memory medium is left to probe.
+			if !kittySharedProbeable() {
+				return
+			}
+		case KittyCapabilityUnsupported:
 			return
+		default:
+			// If the environment doesn't indicate a Kitty-aware terminal,
+			// don't send any bytes — go straight to Unsupported.
+			if !kittyEnvSignal() {
+				kittyEnvSignalled.Store(false)
+				kittyCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
+				return
+			}
+			kittyEnvSignalled.Store(true)
+			kittyQuery = tmuxWrap(buildKittyQueryAPC(kittyProbeID))
 		}
-		// If the environment doesn't indicate a Kitty-aware terminal,
-		// don't send any bytes — go straight to Unsupported.
-		if !kittyEnvSignal() {
-			kittyEnvSignalled.Store(false)
-			kittyCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
-			return
-		}
-		kittyEnvSignalled.Store(true)
 		cmd = tea.Batch(
-			tea.Raw(buildKittyQueryAPC(kittyProbeID)),
+			// The shared-memory query goes first, so the medium is
+			// resolved by the time Kitty is.
+			func() tea.Msg { return tea.RawMsg{Msg: kittySharedQueryAPC() + kittyQuery} },
 			tea.Tick(kittyProbeTimeout, func(time.Time) tea.Msg {
 				return kittyProbeTickMsg{}
 			}),
@@ -145,6 +167,8 @@ func QueryKittySupport() tea.Cmd {
 // that may show the probe bytes as garbage.
 //
 // Recognized signals:
+//   - tmux passthrough enabled (TMUX set or NTCHARTS_TMUX_PASSTHROUGH=true):
+//     the outer terminal is unknown, so the probe is sent via passthrough
 //   - KITTY_WINDOW_ID, KITTY_INSTALLATION_DIR (kitty itself)
 //   - GHOSTTY_RESOURCES_DIR (Ghostty)
 //   - WEZTERM_EXECUTABLE, WEZTERM_PANE (WezTerm)
@@ -154,6 +178,9 @@ func QueryKittySupport() tea.Cmd {
 // Anything else returns false; consumers can override via
 // ForceKittyCapability if they have out-of-band knowledge.
 func kittyEnvSignal() bool {
+	if tmuxPassthroughEnabled.Load() {
+		return true
+	}
 	if os.Getenv("KITTY_WINDOW_ID") != "" || os.Getenv("KITTY_INSTALLATION_DIR") != "" {
 		return true
 	}
@@ -195,6 +222,10 @@ func buildKittyQueryAPC(id int) string {
 // (Unknown after probe-but-no-tick, Unsupported after tick-but-late-
 // response) without overriding a Forced(Supported) that's already set.
 func recordKittyResponse(ev uv.KittyGraphicsEvent) {
+	if ev.Options.ID == kittySharedProbeID {
+		recordKittySharedResponse(string(ev.Payload) == "OK")
+		return
+	}
 	if ev.Options.ID != kittyProbeID {
 		return
 	}
@@ -208,4 +239,5 @@ func recordKittyResponse(ev uv.KittyGraphicsEvent) {
 // was already resolved (by an earlier response or by ForceKittyCapability).
 func recordKittyTimeout() {
 	kittyCap.CompareAndSwap(int32(KittyCapabilityUnknown), int32(KittyCapabilityUnsupported))
+	recordKittySharedResponse(false)
 }

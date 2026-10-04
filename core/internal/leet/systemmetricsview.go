@@ -18,8 +18,9 @@ func renderSystemMetricsHeader(
 	runLabel string,
 	grid *SystemMetricsGrid,
 ) string {
-	title := headerStyle.Render(titleText)
 	navInfo := navInfoStyle.Render(buildSystemMetricsNavigationInfo(grid))
+	title := headerStyle.Render(
+		TruncateTitle(titleText, max(contentWidth-lipgloss.Width(navInfo), 0)))
 
 	left := title
 	if runLabel != "" {

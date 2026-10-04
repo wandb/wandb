@@ -1,3 +1,15 @@
+# v0.4.13 (2026-10-01)
+
+* No change notes available for this release.
+
+# v0.4.12 (2026-09-30)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.4.11 (2026-09-28)
+
+* **Bug Fix**: Add reassembly check for GetObject parts mode so mismatch between response part range and calculated position will throw error
+
 # v0.4.10 (2026-09-24)
 
 * **Dependency Update**: Updated to the latest SDK module versions
