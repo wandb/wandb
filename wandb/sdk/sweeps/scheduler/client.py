@@ -114,6 +114,15 @@ def run_scheduler(
         entity=entity,
         project=project,
         config=yaml.safe_load(init_response.sweep_config) or {},
+        controller_run_name=init_response.controller_run_name,
+    )
+
+    logger = _TermForwarder(
+        label="scheduler",
+        entity=sweep.entity,
+        project=sweep.project,
+        run_name=sweep.controller_run_name,
+        level=logging.INFO,
     )
     try:
         optimizer = make_optimizer(sweep)
@@ -121,7 +130,6 @@ def run_scheduler(
         term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
         raise
 
-    logger = _TermForwarder(level=logging.INFO)
     exchange = SchedulerTaskExchange(
         service, init_response.session_id, optimizer, logger
     )
@@ -149,9 +157,38 @@ def run_scheduler(
 class _TermForwarder(logging.Handler):
     """Prints a search library's log records through `term`."""
 
+    def __init__(
+        self, label: str, entity: str, project: str, run_name: str, level: int
+    ) -> None:
+        super().__init__(level=level)
+        self.run = wandb.init(
+            reinit="create_new",
+            settings=wandb.Settings(
+                console="off",
+                silent=True,
+                x_primary=False,
+                disable_git=True,
+                x_disable_machine_info=True,
+                x_disable_stats=True,
+                x_update_finish_state=False,
+                x_label=label,
+            ),
+            id=run_name,
+            entity=entity,
+            project=project,
+        )
+
+    def close(self) -> None:
+        self.run.finish()
+        super().close()
+
     def emit(self, record: logging.LogRecord) -> None:
+        # No logger-name prefix: each scheduler session owns this handler's
+        # terminal, so the name would only repeat what the terminal already
+        # identifies.
         try:
             message = record.getMessage()
+            self.run.write_logs(message)
             if record.levelno >= logging.ERROR:
                 term.termerror(message)
             elif record.levelno >= logging.WARNING:

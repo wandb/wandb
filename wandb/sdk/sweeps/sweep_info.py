@@ -24,3 +24,4 @@ class SweepInfo:
     entity: str
     project: str
     config: dict[str, Any]
+    controller_run_name: str
