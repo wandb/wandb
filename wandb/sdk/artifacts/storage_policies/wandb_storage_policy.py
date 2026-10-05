@@ -99,13 +99,11 @@ class WandbStoragePolicy(StoragePolicy):
         """
         from requests import HTTPError
 
-        if dest_path is not None:
-            self._cache._override_cache_path = dest_path
-
         path, hit, cache_open = self._cache.check_digest_obj_path(
             manifest_entry.digest,
             size=manifest_entry.size or 0,
             algorithm=manifest_entry.digest_algorithm(),
+            dest_path=dest_path,
         )
         if hit:
             return path
@@ -189,10 +187,7 @@ class WandbStoragePolicy(StoragePolicy):
         dest_path: str | None = None,
     ) -> FilePathStr | URIStr:
         assert manifest_entry.ref is not None
-        used_handler = self._handler._get_handler(manifest_entry.ref)
-        if hasattr(used_handler, "_cache") and (dest_path is not None):
-            used_handler._cache._override_cache_path = dest_path
-        return self._handler.load_path(manifest_entry, local)
+        return self._handler.load_path(manifest_entry, local, dest_path=dest_path)
 
     def _file_url(self, artifact: Artifact, entry: ArtifactManifestEntry) -> str:
         service_api = artifact._get_service_api()

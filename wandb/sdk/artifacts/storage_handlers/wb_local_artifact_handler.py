@@ -35,6 +35,7 @@ class WBLocalArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         raise NotImplementedError(
             "Should not be loading a path for an artifact entry with unresolved client id."

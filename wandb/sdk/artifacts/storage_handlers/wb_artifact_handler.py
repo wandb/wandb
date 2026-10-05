@@ -10,6 +10,7 @@ from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.lib.filesystem import safe_copy
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -45,6 +46,7 @@ class WBArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         """Load the file in the specified artifact given its corresponding entry.
 
@@ -70,7 +72,13 @@ class WBArtifactHandler(StorageHandler):
         dep_artifact = self.client._artifact_from_id(artifact_id)
         assert dep_artifact is not None
         link_target_path: URIStr | FilePathStr
-        if local:
+        if local and dest_path is not None:
+            # Skip the cache so the payload never lands there. Copy to exactly
+            # dest_path: the caller returns dest_path without checking it.
+            dep_entry = dep_artifact.get_entry(artifact_file_path)
+            local_path = dep_entry.download(skip_cache=True)
+            link_target_path = FilePathStr(safe_copy(local_path, dest_path))
+        elif local:
             link_target_path = dep_artifact.get_entry(artifact_file_path).download()
         else:
             link_target_path = dep_artifact.get_entry(artifact_file_path).ref_target()
