@@ -27,10 +27,11 @@ def _import_or_skip(module: str):
     ],
 )
 def test_xgboost_parameterized_metrics_get_a_best_summary(metric_name, summary):
-    xgb_integration = _import_or_skip("wandb.integration.xgboost")
+    _import_or_skip("xgboost")
+    from wandb.integration.xgboost import WandbCallback
 
     with mock.patch("wandb.define_metric") as define_metric:
-        xgb_integration.WandbCallback._define_metric(None, "validation_0", metric_name)
+        WandbCallback._define_metric(None, "validation_0", metric_name)
 
     define_metric.assert_called_once_with(
         f"validation_0-{metric_name}".replace(".", "\\."), summary=summary
@@ -38,7 +39,8 @@ def test_xgboost_parameterized_metrics_get_a_best_summary(metric_name, summary):
 
 
 def test_lightgbm_uses_the_metric_direction_lightgbm_reports():
-    wandb_callback = _import_or_skip("wandb.integration.lightgbm").wandb_callback
+    _import_or_skip("lightgbm")
+    from wandb.integration.lightgbm import wandb_callback
 
     callback = wandb_callback(log_params=False)
     env = SimpleNamespace(
