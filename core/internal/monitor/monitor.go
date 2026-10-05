@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"sync"
@@ -79,6 +80,9 @@ type SystemMonitor struct {
 	// The list of resources to monitor.
 	resources []*monitoredResource
 
+	// xpu streams accelerator metrics from the wandb-xpu sidecar.
+	xpu *XPU
+
 	// extraWork accepts outgoing messages for the run.
 	extraWork runwork.ExtraWork
 
@@ -147,7 +151,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		writerID:         f.WriterID,
 	}
 
-	if sm.settings.IsDisableStats() {
+	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
 		sm.logger.Debug("monitor: disabled")
 		return sm
 	}
@@ -194,7 +198,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.addResource(system)
 	}
 
-	sm.addResource(NewXPU(sm.ctx, xpuResourceManager, pid, gpuDeviceIds))
+	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger, pid, gpuDeviceIds)
 
 	if trainium := NewTrainium(
 		sm.logger,
@@ -313,7 +317,9 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	g, gctx := errgroup.WithContext(sm.ctx)
 	var mu sync.Mutex
 
-	for _, resource := range sm.resources {
+	probe := func(resource interface {
+		Probe(context.Context) *spb.EnvironmentRecord
+	}) {
 		g.Go(func() error {
 			defer func() {
 				if err := recover(); err != nil {
@@ -335,6 +341,12 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 			}
 			return nil
 		})
+	}
+	for _, resource := range sm.resources {
+		probe(resource)
+	}
+	if sm.xpu != nil {
+		probe(sm.xpu)
 	}
 
 	_ = g.Wait()
@@ -380,6 +392,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		sm.loop()
 	})
 	sm.wake()
+	sm.xpu.Subscribe(sm.samplingInterval, sm.publish)
 }
 
 // wake forces the system monitor to sample resources immediately.
@@ -426,6 +439,7 @@ func (sm *SystemMonitor) Probe() {
 func (sm *SystemMonitor) Pause() {
 	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
 		sm.logger.Debug("monitor: pausing")
+		sm.xpu.Unsubscribe()
 	}
 }
 
@@ -434,6 +448,7 @@ func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Debug("monitor: resuming")
 		sm.wake()
+		sm.xpu.Subscribe(sm.samplingInterval, sm.publish)
 	}
 }
 
@@ -486,35 +501,40 @@ func (sm *SystemMonitor) sample() {
 					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
 				}
 			}
-
-			if metrics == nil || len(metrics.Item) == 0 {
-				return // nothing to do
-			}
-
-			// Push metrics to the in-memory buffer when enabled.
-			if sm.buffer != nil {
-				sm.buffer.Push(metrics)
-			}
-
-			// Label for custom grouping of stats, e.g. per node in a multi-node run.
-			if label := sm.settings.GetLabel(); label != "" {
-				for _, item := range metrics.Item {
-					item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
-				}
-			}
-
-			// Publish metrics.
-			record := &spb.Record{
-				RecordType: &spb.Record_Stats{
-					Stats: metrics,
-				},
-			}
-			sm.extraWork.AddWorkOrCancel(
-				sm.ctx.Done(),
-				runwork.NoRequest(runwork.WorkFromRecord(record)),
-			)
+			sm.publish(sm.ctx, metrics)
 		})
 	}
+}
+
+// publish buffers a sample and sends it to the run.
+//
+// It may block until ctx is done.
+func (sm *SystemMonitor) publish(ctx context.Context, metrics *spb.StatsRecord) {
+	if len(metrics.GetItem()) == 0 {
+		return // nothing to do
+	}
+
+	// Push metrics to the in-memory buffer when enabled.
+	if sm.buffer != nil {
+		sm.buffer.Push(metrics)
+	}
+
+	// Label for custom grouping of stats, e.g. per node in a multi-node run.
+	if label := sm.settings.GetLabel(); label != "" {
+		for _, item := range metrics.Item {
+			item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
+		}
+	}
+
+	record := &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: metrics,
+		},
+	}
+	sm.extraWork.AddWorkOrCancel(
+		ctx.Done(),
+		runwork.NoRequest(runwork.WorkFromRecord(record)),
+	)
 }
 
 // ShouldCaptureSamplingError checks if a resource sampling error should be captured as a telemetry error.
@@ -540,6 +560,11 @@ func ShouldCaptureSamplingError(err error) bool {
 
 	// The caller went away, e.g. the run finished mid-sample.
 	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	// The wandb-xpu sidecar closed its stream.
+	if errors.Is(err, io.EOF) {
 		return false
 	}
 
@@ -615,5 +640,6 @@ func (sm *SystemMonitor) Finish() {
 			closer.Close()
 		}
 	}
+	sm.xpu.Close()
 	sm.logger.Debug("monitor: stopped")
 }
