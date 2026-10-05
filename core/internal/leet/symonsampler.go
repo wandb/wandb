@@ -52,9 +52,9 @@ type SymonSamplerParams struct {
 // resources.
 //
 // Each call to Sample reads the system resources and merges in the latest
-// accelerator metrics streamed by the wandb-xpu sidecar. The resulting
-// metrics are aligned to a single wall-clock timestamp before they are merged
-// into one StatsMsg for the UI.
+// metrics streamed by the wandb-xpu sidecar. The resulting metrics are
+// aligned to a single wall-clock timestamp before they are merged into one
+// StatsMsg for the UI.
 type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
@@ -62,8 +62,14 @@ type SymonSampler struct {
 	xpu       *monitor.XPU
 	logger    *observability.CoreLogger
 
-	// accelerators is the sidecar's latest sample.
-	accelerators atomic.Pointer[spb.StatsRecord]
+	// sidecar is the sidecar's latest sample with its I/O counters
+	// replaced by rates.
+	sidecar atomic.Pointer[map[string]float64]
+
+	// sidecarPrev and sidecarPrevAt are the previous sidecar sample's
+	// metrics and time, from which the next sample's I/O rates are derived.
+	sidecarPrev   map[string]float64
+	sidecarPrevAt time.Time
 
 	// prev and prevAt are the previous sample's metrics and time, from
 	// which the next sample's I/O rates are derived.
@@ -88,23 +94,24 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		logger:    logger,
 	}
 
-	sampler.resources = append(sampler.resources,
-		monitor.NewSystem(monitor.SystemParams{
+	sampler.resources = append(sampler.resources, monitor.NewCPU(), monitor.NewHost())
+	// On Linux, wandb-xpu collects the host metrics.
+	if runtime.GOOS != "linux" {
+		sampler.resources = append(sampler.resources, monitor.NewSystem(monitor.SystemParams{
 			Pid:                         0,
 			TrackProcessTree:            false,
 			DiskPaths:                   defaultSymonDiskPaths(),
 			DisableCgroupResourceLimits: true,
-		}),
-		monitor.NewCPU(),
-		monitor.NewHost(),
-	)
+		}))
+	}
 	sampler.xpu = monitor.NewXPU(
 		context.Background(),
 		monitor.NewXPUResourceManager(false),
 		logger,
 		&spb.SubscribeRequest{
-			SubscriberId: string(sharedmode.RandomClientID()),
-			DiskPaths:    defaultSymonDiskPaths(),
+			SubscriberId:  string(sharedmode.RandomClientID()),
+			DiskPaths:     defaultSymonDiskPaths(),
+			DisableCgroup: true,
 		},
 	)
 
@@ -122,9 +129,7 @@ func (s *SymonSampler) Interval() time.Duration {
 // The first call starts the sidecar, whose metrics arrive from the next
 // call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
-	s.xpu.Subscribe(s.interval, func(_ context.Context, record *spb.StatsRecord) {
-		s.accelerators.Store(record)
-	})
+	s.xpu.Subscribe(s.interval, s.storeSidecar)
 
 	now := time.Now()
 	out := SymonSampleMsg{StatsMsg: StatsMsg{
@@ -176,17 +181,14 @@ func (s *SymonSampler) Sample() SymonSampleMsg {
 
 	_ = g.Wait()
 
-	if record := s.accelerators.Load(); record != nil {
-		record.Timestamp = timestamppb.New(now)
-		if msg, ok := ParseStats("", record).(StatsMsg); ok {
-			maps.Copy(out.Metrics, msg.Metrics)
-		}
-	}
-
 	metrics := out.Metrics
 	counters := maps.Clone(metrics)
 	deriveRates(s.prev, metrics, now.Sub(s.prevAt))
 	s.prev, s.prevAt = counters, now
+
+	if sidecar := s.sidecar.Load(); sidecar != nil {
+		maps.Copy(metrics, *sidecar)
+	}
 
 	// Disk usage is charted as a percentage and memory as used, so the
 	// flat used-bytes and available-memory lines only take up cells.
@@ -209,6 +211,20 @@ func (s *SymonSampler) recoverSamplingPanic() {
 			fmt.Errorf("symon: panic sampling resource: %v", r),
 		)
 	}
+}
+
+// storeSidecar keeps a sidecar sample for the next Sample call, with its
+// I/O rates derived from the sample before it.
+func (s *SymonSampler) storeSidecar(_ context.Context, record *spb.StatsRecord) {
+	msg, ok := ParseStats("", record).(StatsMsg)
+	if !ok {
+		return
+	}
+	at := record.GetTimestamp().AsTime()
+	counters := maps.Clone(msg.Metrics)
+	deriveRates(s.sidecarPrev, msg.Metrics, at.Sub(s.sidecarPrevAt))
+	s.sidecarPrev, s.sidecarPrevAt = counters, at
+	s.sidecar.Store(&msg.Metrics)
 }
 
 // deriveRates replaces the cumulative network and disk I/O counters in cur
