@@ -94,6 +94,8 @@ struct State {
     baselines: HashMap<BaselineKey, Baseline>,
     /// Streams opened so far, numbering those without a subscriber ID.
     streams: u64,
+    /// When the subscriber set became empty, or None while it is not.
+    idle_since: Option<Instant>,
 }
 
 /// The current subscribers.
@@ -106,9 +108,17 @@ pub struct Subscriptions {
 impl Subscriptions {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(State::default()),
+            inner: Mutex::new(State {
+                idle_since: Some(Instant::now()),
+                ..Default::default()
+            }),
             changed: Notify::new(),
         }
+    }
+
+    /// When the last subscriber left, or None while there are subscribers.
+    pub fn idle_since(&self) -> Option<Instant> {
+        self.lock().idle_since
     }
 
     /// Adds a subscriber and returns the receiving end of its stream.
@@ -139,6 +149,7 @@ impl Subscriptions {
             last_delivery: None,
             sums: HashMap::new(),
         });
+        state.idle_since = None;
         self.changed.notify_one();
         Ok(rx)
     }
@@ -191,9 +202,15 @@ impl Subscriptions {
         let now = Instant::now();
         let mut state = self.lock();
         let State {
-            subs, baselines, ..
+            subs,
+            baselines,
+            idle_since,
+            ..
         } = &mut *state;
         subs.retain(|sub| !sub.tx.is_closed());
+        if subs.is_empty() {
+            idle_since.get_or_insert(now);
+        }
         baselines.retain(|_, baseline| {
             baseline
                 .closed
@@ -437,5 +454,23 @@ mod tests {
         let mut second = subscribe();
         deliver(2, 160.0);
         assert_eq!(next_value(&mut second).as_deref(), Some("60.0"));
+    }
+
+    #[test]
+    fn idle_since_is_cleared_by_a_join_and_set_when_the_last_subscriber_leaves() {
+        let subscriptions = Subscriptions::new();
+        assert!(subscriptions.idle_since().is_some());
+
+        let rx = subscriptions
+            .add(&SubscribeRequest {
+                interval_seconds: 1.0,
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(subscriptions.idle_since().is_none());
+
+        drop(rx);
+        subscriptions.deliver(&Sample::default(), Instant::now(), 1.0);
+        assert!(subscriptions.idle_since().is_some());
     }
 }
