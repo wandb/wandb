@@ -55,12 +55,18 @@ class Bokeh(Media):
                 b_json = json.load(file)
             self.b_obj = bokeh.document.Document.from_json(b_json)
             self._set_file(data_or_path, is_tmp=False, extension=".bokeh.json")
-        elif isinstance(data_or_path, bokeh.model.Model):
-            _data = bokeh.document.Document()
-            _data.add_root(data_or_path)
+        else:
+            if isinstance(data_or_path, bokeh.model.Model):
+                _data = bokeh.document.Document()
+                _data.add_root(data_or_path)
+                data_or_path = _data
+            if not isinstance(data_or_path, bokeh.document.Document):
+                raise TypeError(
+                    "Bokeh constructor accepts Bokeh document/model or path to Bokeh json file"
+                )
             # serialize/deserialize pairing followed by sorting attributes ensures
             # that the file's sha's are equivalent in subsequent calls
-            self.b_obj = bokeh.document.Document.from_json(_doc_to_json(_data))
+            self.b_obj = bokeh.document.Document.from_json(_doc_to_json(data_or_path))
             b_json = _doc_to_json(self.b_obj)
             roots = b_json.get("roots")
             if isinstance(roots, dict) and "references" in roots:
@@ -70,10 +76,6 @@ class Bokeh(Media):
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
-        elif not isinstance(data_or_path, bokeh.document.Document):
-            raise TypeError(
-                "Bokeh constructor accepts Bokeh document/model or path to Bokeh json file"
-            )
 
     def get_media_subdir(self):
         return os.path.join("media", "bokeh")
