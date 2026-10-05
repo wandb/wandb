@@ -996,3 +996,29 @@ func TestHandleDerivedSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleDeviceBinding_ForwardsWithoutPanic(t *testing.T) {
+	inChan := make(chan runwork.Work, 1)
+	h := makeHandler(t, inChan, "", false)
+
+	record := &spb.Record{RecordType: &spb.Record_DeviceBinding{
+		DeviceBinding: &spb.DeviceBindingRecord{Uuid: "GPU-aaa"},
+	}}
+	inChan <- runwork.NoRequest(runwork.WorkFromRecord(record))
+
+	out := (<-h.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+	assert.Equal(t, "GPU-aaa", out.GetDeviceBinding().GetUuid())
+}
+
+func TestHandleCommStats_ForwardsWithoutPanic(t *testing.T) {
+	inChan := make(chan runwork.Work, 1)
+	h := makeHandler(t, inChan, "", false)
+
+	record := &spb.Record{RecordType: &spb.Record_CommStats{
+		CommStats: &spb.CommStatsRecord{Status: "ok"},
+	}}
+	inChan <- runwork.NoRequest(runwork.WorkFromRecord(record))
+
+	out := (<-h.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+	assert.Equal(t, "ok", out.GetCommStats().GetStatus())
+}

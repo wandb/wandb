@@ -23,6 +23,15 @@ def test_telemetry_finish(wandb_backend_spy):
         assert "finish" in get_features(telemetry)
 
 
+def test_telemetry_provenance(wandb_backend_spy):
+    with wandb.init(settings=wandb.Settings(x_provenance=True)) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        telemetry = snapshot.telemetry(run_id=run.id)
+        assert "provenance_logs" in get_features(telemetry)
+
+
 def test_telemetry_imports(wandb_backend_spy):
     transformers_mock = mock.MagicMock()
     transformers_mock.__name__ = "transformers"

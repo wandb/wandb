@@ -55,6 +55,12 @@ type savedFile struct {
 
 	// Hash of the last successfully uploaded content (base64 MD5).
 	lastUploadedB64MD5 string
+
+	// onUploadFailed is called without f's lock after an upload task fails.
+	onUploadFailed func(...paths.RelativePath)
+
+	// onUploadSucceeded is called without f's lock after an upload task succeeds.
+	onUploadSucceeded func(...paths.RelativePath)
 }
 
 func newSavedFile(
@@ -65,15 +71,19 @@ func newSavedFile(
 	operations *wboperation.WandbOperations,
 	realPath string,
 	runPath paths.RelativePath,
+	onUploadFailed func(...paths.RelativePath),
+	onUploadSucceeded func(...paths.RelativePath),
 ) *savedFile {
 	return &savedFile{
-		beforeRunEndCtx: beforeRunEndCtx,
-		fs:              fs,
-		ftm:             ftm,
-		logger:          logger,
-		operations:      operations,
-		realPath:        realPath,
-		runPath:         runPath,
+		beforeRunEndCtx:   beforeRunEndCtx,
+		fs:                fs,
+		ftm:               ftm,
+		logger:            logger,
+		operations:        operations,
+		realPath:          realPath,
+		runPath:           runPath,
+		onUploadFailed:    onUploadFailed,
+		onUploadSucceeded: onUploadSucceeded,
 
 		wg: &sync.WaitGroup{},
 	}
@@ -188,6 +198,9 @@ func (f *savedFile) onFinishUpload(
 		})
 		// Record what we believe the server now has.
 		f.lastUploadedB64MD5 = uploadedB64MD5
+		f.onUploadSucceeded(f.runPath)
+	} else {
+		f.onUploadFailed(f.runPath)
 	}
 
 	f.Lock()

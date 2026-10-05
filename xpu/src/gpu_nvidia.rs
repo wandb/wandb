@@ -83,6 +83,7 @@ struct GpuMetricAvailability {
     max_link_width: bool,
     pcie_throughput: bool,
     gpm: bool,
+    throttle_reasons: bool,
 }
 
 impl Default for GpuMetricAvailability {
@@ -109,6 +110,7 @@ impl Default for GpuMetricAvailability {
             max_link_width: false,
             pcie_throughput: true,
             gpm: false,
+            throttle_reasons: true,
         }
     }
 }
@@ -385,6 +387,7 @@ impl NvidiaGpu {
         &mut self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
@@ -622,6 +625,16 @@ impl NvidiaGpu {
                     Err(_) => {
                         availability.sm_clock = false;
                     }
+                }
+            }
+
+            if availability.throttle_reasons && include_throttle_reasons {
+                match device.current_throttle_reasons() {
+                    Ok(reasons) => metrics.push((
+                        format!("gpu.{}.clockThrottleReasons", di),
+                        MetricValue::Int(reasons.bits() as i64),
+                    )),
+                    Err(_) => availability.throttle_reasons = false,
                 }
             }
 
@@ -877,7 +890,11 @@ impl NvidiaGpu {
     }
 
     /// Extract metadata about the GPUs in the system from the provided samples.
-    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> EnvironmentRecord {
+    pub fn get_metadata(
+        &self,
+        samples: &HashMap<String, &MetricValue>,
+        include_serial: bool,
+    ) -> EnvironmentRecord {
         let mut metadata = EnvironmentRecord {
             ..Default::default()
         };
@@ -942,6 +959,11 @@ impl NvidiaGpu {
                 if let MetricValue::Int(numa_node) = value {
                     gpu_nvidia.numa_node = Some(*numa_node as u32);
                 }
+            }
+            if include_serial
+                && let Ok(serial) = self.nvml.device_by_index(i).and_then(|d| d.serial())
+            {
+                gpu_nvidia.serial = serial;
             }
             metadata.gpu_nvidia.push(gpu_nvidia);
         }

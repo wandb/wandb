@@ -724,3 +724,43 @@ def test_infer_git_root_skips_if_disable_git(tmp_path):
     s.infer_git_root()
 
     assert s.git_root is None
+
+
+def test_x_provenance_to_proto():
+    assert Settings().x_provenance is False
+    assert Settings(x_provenance=True).to_proto().x_provenance.value is True
+
+
+def test_x_provenance_from_env():
+    s = Settings()
+    s.update_from_env_vars({"WANDB_X_PROVENANCE": "true"})
+    assert s.x_provenance is True
+
+
+def test_x_provenance_logs_is_rejected():
+    with pytest.raises(ValueError, match="x_provenance_logs"):
+        Settings(x_provenance_logs=True)
+
+
+def test_x_provenance_chunk_interval_to_proto():
+    assert not Settings().to_proto().HasField("x_provenance_chunk_interval")
+    # wandb-core owns the 300-3600 s clamp and the 1200 s default, so the SDK passes the value through.
+    proto = Settings(x_provenance_chunk_interval=60).to_proto()
+    assert proto.x_provenance_chunk_interval.value == 60.0
+
+
+def test_x_provenance_step_metric_to_proto():
+    assert Settings().x_provenance_step_metric is None
+    proto = Settings(x_provenance_step_metric="trainer/global_step").to_proto()
+    assert proto.x_provenance_step_metric.value == "trainer/global_step"
+
+
+def test_x_provenance_comm_to_proto():
+    assert Settings().x_provenance_comm is False
+    assert Settings(x_provenance_comm=True).to_proto().x_provenance_comm.value is True
+
+
+def test_x_provenance_flush_interval_to_proto():
+    assert Settings().to_proto().x_provenance_flush_interval.value == 60.0
+    proto = Settings(x_provenance_flush_interval=300).to_proto()
+    assert proto.x_provenance_flush_interval.value == 300.0

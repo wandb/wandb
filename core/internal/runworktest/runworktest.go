@@ -109,9 +109,13 @@ func (w *FakeRunWork) AddWork(work runwork.Work) {
 func (w *FakeRunWork) AddWorkOrCancel(
 	done <-chan struct{},
 	work runwork.Work,
-) {
+) bool {
 	w.wg.Add(1)
-	w.rw.AddWorkOrCancel(done, work)
+	if !w.rw.AddWorkOrCancel(done, work) {
+		w.wg.Done()
+		return false
+	}
+	return true
 }
 
 func (w *FakeRunWork) BeforeEndCtx() context.Context {

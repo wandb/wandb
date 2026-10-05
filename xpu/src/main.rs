@@ -157,6 +157,7 @@ impl SystemMonitorServiceImpl {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
@@ -171,7 +172,10 @@ impl SystemMonitorServiceImpl {
         ));
 
         // Collect metrics from all available GPU monitors
-        let gpu_metrics = self.gpu_monitors.collect_metrics(pid, gpu_device_ids).await;
+        let gpu_metrics = self
+            .gpu_monitors
+            .collect_metrics(pid, gpu_device_ids, include_throttle_reasons)
+            .await;
         all_metrics.extend(gpu_metrics);
 
         all_metrics
@@ -207,13 +211,16 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<GetMetadataResponse>, Status> {
         debug!("Received a GetMetadata request: {:?}", request);
 
-        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
+        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None, false).await;
         let samples: HashMap<String, &metrics::MetricValue> = all_metrics
             .iter()
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let metadata = self.gpu_monitors.collect_metadata(&samples).await;
+        let metadata = self
+            .gpu_monitors
+            .collect_metadata(&samples, request.get_ref().include_serial)
+            .await;
 
         let record = Record {
             record_type: Some(RecordType::Environment(metadata)),
@@ -242,7 +249,9 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             Some(request.gpu_device_ids)
         };
 
-        let all_metrics = self.sample(pid, gpu_device_ids).await;
+        let all_metrics = self
+            .sample(pid, gpu_device_ids, request.include_throttle_reasons)
+            .await;
 
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()
@@ -495,4 +504,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::wandb_internal::{EnvironmentRecord, GpuNvidiaInfo};
+    use std::sync::Mutex;
+
+    /// Records the include_serial flag of every metadata request it receives.
+    struct FakeMonitor {
+        include_serial: Arc<Mutex<Vec<bool>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl monitors::GpuMonitor for FakeMonitor {
+        async fn collect_metrics(
+            &self,
+            _pid: i32,
+            _gpu_device_ids: Option<Vec<i32>>,
+            _include_throttle_reasons: bool,
+        ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
+            Ok(vec![])
+        }
+
+        async fn collect_metadata(
+            &self,
+            _samples: &HashMap<String, &metrics::MetricValue>,
+            include_serial: bool,
+        ) -> EnvironmentRecord {
+            self.include_serial.lock().unwrap().push(include_serial);
+            EnvironmentRecord {
+                gpu_count: 1,
+                gpu_nvidia: vec![GpuNvidiaInfo::default()],
+                ..Default::default()
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn get_metadata_passes_include_serial_to_monitors() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let service = SystemMonitorServiceImpl {
+            shutdown_sender: Arc::new(tokio::sync::Mutex::new(None)),
+            parent_monitor_handle: None,
+            gpu_monitors: GpuMonitors {
+                monitors: vec![Box::new(FakeMonitor {
+                    include_serial: seen.clone(),
+                })],
+            },
+        };
+
+        for include_serial in [false, true] {
+            service
+                .get_metadata(Request::new(GetMetadataRequest { include_serial }))
+                .await
+                .unwrap();
+        }
+
+        assert_eq!(*seen.lock().unwrap(), vec![false, true]);
+    }
 }

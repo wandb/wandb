@@ -151,6 +151,7 @@ impl GpuMonitor for TpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, MetricValue)>, Box<dyn std::error::Error>> {
         Ok(self.collect_tpu_metrics().await)
     }
@@ -158,6 +159,7 @@ impl GpuMonitor for TpuMonitor {
     async fn collect_metadata(
         &self,
         _samples: &HashMap<String, &MetricValue>,
+        _include_serial: bool,
     ) -> EnvironmentRecord {
         EnvironmentRecord {
             tpu: Some(TpuInfo {
