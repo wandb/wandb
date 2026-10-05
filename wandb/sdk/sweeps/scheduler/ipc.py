@@ -141,9 +141,7 @@ class SchedulerTaskExchange:
             result.task_seq = response.task_seq
 
     def _log_run(self, run: Run) -> None:
-        self._logger.info(
-            f"Run {run.wandb_run_id} loaded as {run.state.name.lower()}."
-        )
+        self._logger.info(f"Run {run.wandb_run_id} loaded as {run.state.name.lower()}.")
 
     def _drop_enqueued(
         self,
@@ -191,9 +189,7 @@ class SchedulerTaskExchange:
                 continue
             else:
                 self._seen_states[run_id] = state
-            self._logger.info(
-                f"Run {update.run.wandb_run_id} is {state.name.lower()}."
-            )
+            self._logger.info(f"Run {update.run.wandb_run_id} is {state.name.lower()}.")
 
     def _execute(
         self,
@@ -244,9 +240,7 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                self._logger.warning(
-                    f"Optimizer rejected run {data.wandb_run_id}: {e}"
-                )
+                self._logger.warning(f"Optimizer rejected run {data.wandb_run_id}: {e}")
 
         for data in task.active_runs:
             run = _to_run(data)
@@ -259,9 +253,7 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                self._logger.warning(
-                    f"Optimizer rejected run {data.wandb_run_id}: {e}"
-                )
+                self._logger.warning(f"Optimizer rejected run {data.wandb_run_id}: {e}")
                 continue
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)

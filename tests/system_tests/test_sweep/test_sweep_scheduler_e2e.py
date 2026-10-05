@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any
@@ -111,7 +112,9 @@ def _start_scheduler(
         config=yaml.safe_load(init_response.sweep_config) or {},
     )
     optimizer = _SpyOptimizer(sweep)
-    exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
+    exchange = SchedulerTaskExchange(
+        service, init_response.session_id, optimizer, logging.NullHandler()
+    )
 
     future_list: list = []
 
