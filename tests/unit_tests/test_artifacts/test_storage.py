@@ -23,7 +23,7 @@ from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import ETag, md5_string, xxh128_string
+from wandb.sdk.lib.hashutil import ETag, b64_to_hex_id, md5_string, xxh128_string
 
 example_digest = md5_string("example")
 
@@ -802,39 +802,19 @@ def test_wbartifact_handler_load_path_dest_path(artifact_file_cache, tmp_path, m
 
     assert local_path == str(dest_path)
     assert dest_path.read_text() == contents
-    assert dep_file.read_text() == contents
+    # Nothing is staged in the dependency's download root or in the cache.
+    assert not dep_file.exists()
     assert _cache_files(artifact_file_cache) == []
 
 
-def test_wbartifact_handler_load_path_dest_path_dependency_already_downloaded(
+def test_wbartifact_handler_load_path_dest_path_replaces_stale_file(
     artifact_file_cache, tmp_path, mocker
 ):
-    handler, entry, dep_file, contents = _make_wb_reference(tmp_path, mocker)
-    # The nested download returns early when the file is already at its root.
-    dep_file.parent.mkdir(parents=True)
-    dep_file.write_text(contents)
-    dest_path = tmp_path / "dest" / "file.txt"
-
-    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
-
-    assert local_path == str(dest_path)
-    assert dest_path.read_text() == contents
-    assert _cache_files(artifact_file_cache) == []
-
-
-def test_wbartifact_handler_load_path_dest_path_overwrites_same_mtime(
-    artifact_file_cache, tmp_path, mocker
-):
-    handler, entry, dep_file, contents = _make_wb_reference(tmp_path, mocker)
-    dep_file.parent.mkdir(parents=True)
-    dep_file.write_text(contents)
-
-    # A stale file of the same size and mtime must still be replaced.
+    handler, entry, _, contents = _make_wb_reference(tmp_path, mocker)
+    # A same-size file with the wrong contents at the destination is replaced.
     dest_path = tmp_path / "dest" / "file.txt"
     dest_path.parent.mkdir()
     dest_path.write_text("jello")
-    dep_stat = dep_file.stat()
-    os.utime(dest_path, ns=(dep_stat.st_atime_ns, dep_stat.st_mtime_ns))
 
     local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
 
@@ -842,12 +822,12 @@ def test_wbartifact_handler_load_path_dest_path_overwrites_same_mtime(
     assert dest_path.read_text() == contents
 
 
-def test_wbartifact_handler_load_path_dest_path_replaces_modified_dependency(
+def test_wbartifact_handler_load_path_dest_path_ignores_dependency_root(
     artifact_file_cache, tmp_path, mocker
 ):
     handler, entry, dep_file, contents = _make_wb_reference(tmp_path, mocker)
-    # The dependency's own download root holds a same-size file with the wrong
-    # contents. The nested download must replace it rather than copy it onward.
+    # A same-size file with the wrong contents at the dependency's own download
+    # root must be neither copied onward nor touched.
     dep_file.parent.mkdir(parents=True)
     dep_file.write_text("jello")
     dest_path = tmp_path / "dest" / "file.txt"
@@ -856,7 +836,74 @@ def test_wbartifact_handler_load_path_dest_path_replaces_modified_dependency(
 
     assert local_path == str(dest_path)
     assert dest_path.read_text() == contents
-    assert dep_file.read_text() == contents
+    assert dep_file.read_text() == "jello"
+
+
+def test_wbartifact_handler_load_path_dest_path_same_named_dependencies(
+    artifact_file_cache, tmp_path, mocker
+):
+    """References to same-named artifacts from different projects do not collide.
+
+    `Artifact._default_root()` is `<artifact dir>/<name>:<version>` with no project or
+    entity, so two such dependencies share it. Loading into `dest_path` must not
+    stage anything there.
+    """
+    mocker.patch.dict(os.environ, {env.ARTIFACT_DIR: str(tmp_path / "artifacts")})
+    deps = {}
+    for i, contents in enumerate(["hello", "world"]):
+        source = tmp_path / f"source_{i}.txt"
+        source.write_text(contents)
+        dep_artifact = Artifact("model", type="dataset")
+        dep_entry = ArtifactManifestEntry(
+            path="weights.txt",
+            ref=source.as_uri(),
+            digest=md5_string(contents),
+            size=len(contents),
+        )
+        dep_entry._parent_artifact = dep_artifact
+        dep_artifact.get_entry = lambda _, e=dep_entry: e
+        deps[f"deadbee{i}"] = dep_artifact
+    roots = {dep._default_root() for dep in deps.values()}
+    assert len(roots) == 1
+    shared_root = Path(roots.pop())
+
+    handler = WBArtifactHandler()
+    handler._client = mocker.Mock()
+    handler._client._artifact_from_id.side_effect = lambda b64_id: deps[
+        b64_to_hex_id(b64_id)
+    ]
+
+    for i, contents in enumerate(["hello", "world"]):
+        entry = ArtifactManifestEntry(
+            path=f"project_{i}.txt",
+            ref=f"wandb-artifact://deadbee{i}/weights.txt",
+            digest=md5_string(contents),
+            size=0,
+        )
+        dest_path = tmp_path / "dest" / f"project_{i}.txt"
+        handler.load_path(entry, local=True, dest_path=str(dest_path))
+        assert dest_path.read_text() == contents
+
+    assert not shared_root.exists()
+
+
+def test_wbartifact_handler_load_path_dest_path_replaces_symlink(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, _, contents = _make_wb_reference(tmp_path, mocker)
+    # A symlink at the destination is replaced; its target is left alone.
+    protected = tmp_path / "unrelated.txt"
+    protected.write_text("precious user data")
+    dest_path = tmp_path / "dest" / "file.txt"
+    dest_path.parent.mkdir()
+    dest_path.symlink_to(protected)
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert not dest_path.is_symlink()
+    assert dest_path.read_text() == contents
+    assert protected.read_text() == "precious user data"
 
 
 class UnfinishedStoragePolicy(StoragePolicy):

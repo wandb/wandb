@@ -10,7 +10,6 @@ from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.filesystem import safe_copy
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -48,21 +47,21 @@ class WBArtifactHandler(StorageHandler):
         local: bool = False,
         dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
-        """Load the file in the specified artifact given its corresponding entry.
-
-        Download the referenced artifact; create and return a new symlink to the caller.
+        """Load the file in the referenced artifact given its corresponding entry.
 
         Args:
             manifest_entry (ArtifactManifestEntry): The index entry to load
+            local: Whether to download the referenced file or just resolve its target
+            dest_path: If set, download the referenced file to this path instead of
+                the referenced artifact's download root, bypassing the cache
 
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
         """
-        # We don't check for cache hits here. Since we have 0 for size (since this
-        # is a cross-artifact reference which and we've made the choice to store 0
-        # in the size field), we can't confirm if the file is complete. So we just
-        # rely on the dep_artifact entry's download() method to do its own cache
-        # check.
+        # We don't check for cache hits here. Cross-artifact references store 0
+        # in the size field, so we can't confirm if a file is complete. Without a
+        # dest_path we rely on the referenced entry's download() to do its own
+        # check; with one, the caller has already rejected the file at dest_path.
 
         # Parse the reference path and download the artifact if needed
         parsed = urlparse(manifest_entry.ref)
@@ -71,18 +70,23 @@ class WBArtifactHandler(StorageHandler):
 
         dep_artifact = self.client._artifact_from_id(artifact_id)
         assert dep_artifact is not None
-        link_target_path: URIStr | FilePathStr
-        if local and dest_path is not None:
-            # Skip the cache so the payload never lands there. Copy to exactly
-            # dest_path: the caller returns dest_path without checking it.
-            dep_entry = dep_artifact.get_entry(artifact_file_path)
-            local_path = dep_entry.download(skip_cache=True)
-            link_target_path = FilePathStr(safe_copy(local_path, dest_path))
-        elif local:
-            link_target_path = dep_artifact.get_entry(artifact_file_path).download()
-        else:
-            link_target_path = dep_artifact.get_entry(artifact_file_path).ref_target()
-        return link_target_path
+        dep_entry = dep_artifact.get_entry(artifact_file_path)
+        if not local:
+            return dep_entry.ref_target()
+        if dest_path is None:
+            return dep_entry.download()
+
+        # Skipping the cache: write the referenced file straight into dest_path
+        # through the dependency's storage policy. Staging it in the dependency's
+        # download root would share a path between same-named artifacts from
+        # different projects, and the policy's writer replaces dest_path
+        # atomically like any other skip-cache download.
+        policy = dep_artifact.manifest.storage_policy
+        if dep_entry.ref is not None:
+            return policy.load_reference(
+                dep_entry, local=True, dest_path=str(dest_path)
+            )
+        return policy.load_file(dep_artifact, dep_entry, dest_path=str(dest_path))
 
     def store_path(
         self,
