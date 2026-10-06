@@ -53,7 +53,8 @@ def build_wandb_xpu(
             "\n\n"
             "As a workaround, you can set the WANDB_BUILD_SKIP_WANDB_XPU"
             " environment variable to true to skip this step and build a wandb"
-            " package that doesn't collect hardware accelerator metrics."
+            " package that doesn't collect hardware accelerator metrics, or"
+            " any system metrics on Linux."
         ) from e
     for line in cargo_output.splitlines():
         if executable := json.loads(line).get("executable"):

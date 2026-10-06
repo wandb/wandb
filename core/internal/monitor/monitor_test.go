@@ -229,11 +229,6 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			false,
 		},
 		{"WinIncorrectFunction", errors.New("Incorrect function."), false},
-		{
-			"MissingProcDiskstats",
-			errors.New("open /proc/diskstats: no such file or directory"),
-			false,
-		},
 		{"OtherError", errors.New("some other error"), true},
 	}
 	for _, tt := range tests {
