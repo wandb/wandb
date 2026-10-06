@@ -77,8 +77,8 @@ def read_netrc_auth_with_source(*, host: HostUrl) -> AuthWithSource | None:
     if not (netloc := urlsplit(host.url).netloc):
         return None
     creds = netrc_file.authenticators(netloc)
-    if not creds and netloc in urls.FORGE_HOSTS:
-        creds = netrc_file.authenticators(urls.FORGE_HOSTS[netloc])
+    if not creds and (upstream := urls.forge_upstream_url(host.url)) != host.url:
+        creds = netrc_file.authenticators(urlsplit(upstream).netloc)
     if not creds:
         return None
 

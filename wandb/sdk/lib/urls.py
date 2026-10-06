@@ -13,7 +13,11 @@ FORGE_HOSTS = {
     "forge.coreweave.com": "api.wandb.ai",
     "qa.forge.coreweave.com": "api.qa.wandb.ai",
 }
-"""Maps each CoreWeave Forge host to the W&B API host behind its proxy."""
+"""Maps each CoreWeave Forge host to the W&B API host behind it.
+
+The API is proxied under FORGE_API_PATH on the Forge host and also served
+at the root of its `api.` subdomain.
+"""
 
 _URL_VALIDATOR = SchemaValidator(
     core_schema.url_schema(
@@ -39,15 +43,21 @@ def validate_url(url: object) -> None:
     _URL_VALIDATOR.validate_python(url)
 
 
+def forge_host(url: str) -> str | None:
+    """Returns the CoreWeave Forge host the URL points to, if any."""
+    hostname = (urlsplit(url).hostname or "").removeprefix("api.")
+    return hostname if hostname in FORGE_HOSTS else None
+
+
 def is_forge_host(url: str) -> bool:
     """Returns whether the URL points to a CoreWeave Forge host."""
-    return urlsplit(url).hostname in FORGE_HOSTS
+    return forge_host(url) is not None
 
 
 def forge_upstream_url(url: str) -> str:
     """Returns the W&B API URL behind a CoreWeave Forge URL, or the URL as is."""
-    if upstream := FORGE_HOSTS.get(urlsplit(url).hostname or ""):
-        return f"https://{upstream}"
+    if host := forge_host(url):
+        return f"https://{FORGE_HOSTS[host]}"
     return url
 
 

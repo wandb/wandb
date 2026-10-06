@@ -55,8 +55,8 @@ def print_results(failed_test_or_tests: str | list[str] | None, warning: bool) -
 
 
 def check_host(host: str) -> bool:
-    hostname = urlsplit(host if "://" in host else f"https://{host}").hostname
-    if hostname in urls.FORGE_HOSTS or hostname in urls.FORGE_HOSTS.values():
+    url = host if "://" in host else f"https://{host}"
+    if urls.is_forge_host(url) or urlsplit(url).hostname in urls.FORGE_HOSTS.values():
         print_results("Cannot run wandb verify against the W&B public cloud", False)
         return False
     return True
