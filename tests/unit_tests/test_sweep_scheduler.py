@@ -9,12 +9,14 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import asyncio
+import dataclasses
 import importlib.util
 import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
@@ -605,35 +607,98 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
 
 
 class TestRunSchedulerInit:
-    def test_server_response_error_becomes_wandb_error(self, monkeypatch):
-        """A raw ServerResponseError must not escape `run_scheduler`.
-
-        The CLI only knows to report `wandb.Error` failures cleanly, so
-        errors from wandb-core's init round trip must be wrapped.
-        """
-        from unittest.mock import MagicMock
-
-        import wandb
+    @pytest.fixture
+    def singleton(self, monkeypatch) -> MagicMock:
+        """A wandb singleton whose service fails the init round trip."""
         from wandb.sdk.mailbox.mailbox_handle import ServerResponseError
         from wandb.sdk.sweeps.scheduler import client
 
         monkeypatch.setattr(
             client.wbauth, "authenticate_session", lambda **kwargs: True
         )
+        monkeypatch.setattr(
+            client, "_fetch_sweep", lambda *args: make_scheduler_grid_sweep()
+        )
 
+        handle = MagicMock()
+        handle.wait_async = AsyncMock(side_effect=ServerResponseError("no sweep"))
         singleton = MagicMock()
-        singleton.asyncer.run.side_effect = ServerResponseError("sweep not found")
+        singleton.ensure_service.return_value.init_sweep_scheduler = AsyncMock(
+            return_value=handle
+        )
+        singleton.asyncer.run.side_effect = lambda fn: asyncio.run(fn())
         monkeypatch.setattr(client.wandb_setup, "singleton", lambda: singleton)
+        return singleton
+
+    def run_scheduler(self, make_optimizer: Any) -> None:
+        from wandb.sdk.sweeps.scheduler import client
+
+        client.run_scheduler(
+            entity="e",
+            project="p",
+            sweep_id="s",
+            make_optimizer=make_optimizer,
+            batch_size=1,
+            poll_interval=10,
+        )
+
+    def test_server_response_error_becomes_wandb_error(self, singleton) -> None:
+        """A raw ServerResponseError must not escape `run_scheduler`.
+
+        The CLI only knows to report `wandb.Error` failures cleanly, so
+        errors from wandb-core's init round trip must be wrapped.
+        """
+        import wandb
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
 
         with pytest.raises(wandb.Error, match="failed to initialize"):
-            client.run_scheduler(
-                entity="e",
-                project="p",
-                sweep_id="s",
-                make_optimizer=lambda sweep: None,
-                batch_size=1,
-                poll_interval=10,
-            )
+            self.run_scheduler(WandbOptimizer)
+
+    def test_init_request_carries_the_optimizer_objectives(self, singleton) -> None:
+        import wandb
+        from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+        def make_optimizer(sweep: SweepInfo) -> Optimizer:
+            config = MULTI_OBJECTIVE_SWEEP_CONFIG
+            return WandbOptimizer(dataclasses.replace(sweep, config=config))
+
+        with pytest.raises(wandb.Error):
+            self.run_scheduler(make_optimizer)
+
+        init = singleton.ensure_service.return_value.init_sweep_scheduler
+        assert init.call_args.kwargs["objectives"] == [
+            sspb.SweepSchedulerObjective(
+                metric_name="loss", goal=sspb.SWEEP_SCHEDULER_GOAL_MINIMIZE
+            ),
+            sspb.SweepSchedulerObjective(
+                metric_name="accuracy", goal=sspb.SWEEP_SCHEDULER_GOAL_MAXIMIZE
+            ),
+        ]
+
+    def test_optimizer_errors_stop_before_init(self, singleton) -> None:
+        import wandb
+
+        def make_optimizer(sweep: SweepInfo) -> Optimizer:
+            raise wandb.Error("bad config")
+
+        with pytest.raises(wandb.Error, match="bad config"):
+            self.run_scheduler(make_optimizer)
+
+        init = singleton.ensure_service.return_value.init_sweep_scheduler
+        init.assert_not_called()
+
+    def test_fetch_errors_become_wandb_error(self, singleton, monkeypatch) -> None:
+        import wandb
+        from wandb.sdk.sweeps.scheduler import client
+
+        def fetch_sweep(*args: Any) -> SweepInfo:
+            raise ValueError("Could not find sweep")
+
+        monkeypatch.setattr(client, "_fetch_sweep", fetch_sweep)
+
+        with pytest.raises(wandb.Error, match="could not fetch the sweep"):
+            self.run_scheduler(lambda sweep: None)
 
 
 class TestSchedulerHostOffMainThread:

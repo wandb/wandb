@@ -10,6 +10,7 @@ import pytest
 import wandb
 import yaml
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.sweeps.run_state import RunState
@@ -98,6 +99,11 @@ def _start_scheduler(
             sweep_id=sweep_id,
             batch_size=batch_size,
             poll_interval_seconds=_POLL_INTERVAL_SECONDS,
+            objectives=[
+                sspb.SweepSchedulerObjective(
+                    metric_name="loss", goal=sspb.SWEEP_SCHEDULER_GOAL_MINIMIZE
+                )
+            ],
         )
         return await handle.wait_async(timeout=_INIT_TIMEOUT_SECONDS)
 
