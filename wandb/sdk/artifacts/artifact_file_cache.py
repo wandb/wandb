@@ -102,7 +102,11 @@ class ArtifactFileCache:
         self, path: Path, size: int, skip_cache: bool = False
     ) -> tuple[FilePathStr, bool, Opener]:
         opener = self._opener(path, size, skip_cache=skip_cache)
-        hit = path.is_file() and path.stat().st_size == size
+        # When skipping the cache, `path` is the download destination, not a
+        # content-addressed cache object, so a same-size file there says nothing
+        # about its contents. Callers that can verify the destination do so
+        # before getting here; everyone else must download.
+        hit = not skip_cache and path.is_file() and path.stat().st_size == size
         return FilePathStr(path), hit, opener
 
     def cleanup(

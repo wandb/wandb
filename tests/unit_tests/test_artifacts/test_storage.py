@@ -173,6 +173,30 @@ def test_check_etag_obj_path_override(artifact_file_cache):
     assert exists is False
 
 
+def test_check_digest_obj_path_dest_path_ignores_existing_file(
+    artifact_file_cache, tmp_path
+):
+    # The caller has already rejected the file at `dest_path`, so a same-size
+    # file there must not be reported as a hit.
+    dest_path = tmp_path / "file.txt"
+    dest_path.write_text("jello")
+    _, exists, _ = artifact_file_cache.check_digest_obj_path(
+        md5_string("hello"), 5, dest_path=dest_path
+    )
+    assert exists is False
+
+
+def test_check_etag_obj_path_dest_path_ignores_existing_file(
+    artifact_file_cache, tmp_path
+):
+    dest_path = tmp_path / "file.txt"
+    dest_path.write_text("jello")
+    _, exists, _ = artifact_file_cache.check_etag_obj_path(
+        "http://my/url", "abc", 5, dest_path=dest_path
+    )
+    assert exists is False
+
+
 def test_check_etag_obj_path_returns_exists_if_exists(artifact_file_cache):
     size = 123
     _, exists, opener = artifact_file_cache.check_etag_obj_path(
@@ -398,7 +422,7 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
 
 
 def test_wandb_storage_policy_load_file_skip_cache_override_does_not_leak(
-    artifact_file_cache, tmp_path
+    artifact_file_cache, tmp_path, mocker
 ):
     """A skip-cache load must not redirect a later load that uses the cache.
 
@@ -410,10 +434,10 @@ def test_wandb_storage_policy_load_file_skip_cache_override_does_not_leak(
     contents_a, contents_b = "hello", "world"
     digest_a, digest_b = md5_string(contents_a), md5_string(contents_b)
 
-    # Artifact A was downloaded with `skip_cache=True`, directly into its destination.
+    # Artifact A is downloaded with `skip_cache=True` from a stubbed signed URL.
     dest_a = tmp_path / "download_a" / "file.txt"
-    dest_a.parent.mkdir()
-    dest_a.write_text(contents_a)
+    session = mocker.Mock()
+    session.get.return_value.iter_content.return_value = [contents_a.encode()]
 
     # Artifact B is already in the cache, so loading it needs no network access.
     cache_path_b, _, opener = artifact_file_cache.check_digest_obj_path(
@@ -423,12 +447,15 @@ def test_wandb_storage_policy_load_file_skip_cache_override_does_not_leak(
         f.write(contents_b)
 
     policy = WandbStoragePolicy()
+    policy._maybe_session = session
     artifact = Artifact("test", type="dataset")
     entry_a = ArtifactManifestEntry(path="file.txt", digest=digest_a, size=5)
+    entry_a._download_url = "https://example.invalid/file_a"
     entry_b = ArtifactManifestEntry(path="file.txt", digest=digest_b, size=5)
 
     # `skip_cache=True`: `ArtifactManifestEntry.download` passes the destination.
     assert policy.load_file(artifact, entry_a, dest_path=str(dest_a)) == str(dest_a)
+    assert dest_a.read_text() == contents_a
 
     # `skip_cache=False`: `ArtifactManifestEntry.download` passes `dest_path=None`.
     local_path_b = policy.load_file(artifact, entry_b, dest_path=None)
@@ -481,6 +508,38 @@ def test_wandb_storage_policy_load_reference_skip_cache_override_does_not_leak(
     assert local_path_b == cache_path_b
     assert Path(local_path_b).read_text() == contents_b
     assert dest_a.read_text() == contents_a
+
+
+def test_manifest_entry_download_skip_cache_replaces_stale_same_size_file(
+    artifact_file_cache, tmp_path
+):
+    """`skip_cache=True` must re-download over a same-size file with wrong contents.
+
+    The entry's checksum check rejects the stale file, and the skip-cache lookup
+    must not then accept it again on size alone.
+    """
+    contents = "hello"
+    source = tmp_path / "source.txt"
+    source.write_text(contents)
+
+    artifact = Artifact("test", type="dataset")
+    entry = ArtifactManifestEntry(
+        path="file.txt",
+        ref=source.as_uri(),
+        digest=md5_string(contents),
+        size=len(contents),
+    )
+    entry._parent_artifact = artifact
+
+    root = tmp_path / "root"
+    dest_path = root / "file.txt"
+    root.mkdir()
+    dest_path.write_text("jello")
+
+    local_path = entry.download(root=str(root), skip_cache=True)
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
 
 
 def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
@@ -781,6 +840,23 @@ def test_wbartifact_handler_load_path_dest_path_overwrites_same_mtime(
 
     assert local_path == str(dest_path)
     assert dest_path.read_text() == contents
+
+
+def test_wbartifact_handler_load_path_dest_path_replaces_modified_dependency(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, dep_file, contents = _make_wb_reference(tmp_path, mocker)
+    # The dependency's own download root holds a same-size file with the wrong
+    # contents. The nested download must replace it rather than copy it onward.
+    dep_file.parent.mkdir(parents=True)
+    dep_file.write_text("jello")
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    assert dep_file.read_text() == contents
 
 
 class UnfinishedStoragePolicy(StoragePolicy):
