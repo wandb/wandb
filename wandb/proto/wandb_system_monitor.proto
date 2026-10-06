@@ -10,8 +10,9 @@ option go_package = "core/pkg/service_go_proto";
 //
 // This service is used to collect system metrics from the host machine.
 service SystemMonitorService {
-  // GetStats samples system metrics.
-  rpc GetStats(GetStatsRequest) returns (GetStatsResponse) {}
+  // Subscribe streams system metrics sampled at the subscriber's interval
+  // until the client cancels the stream.
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {}
 
   // GetMetadata returns static metadata about the system.
   rpc GetMetadata(GetMetadataRequest) returns (GetMetadataResponse) {}
@@ -20,19 +21,27 @@ service SystemMonitorService {
   rpc TearDown(TearDownRequest) returns (TearDownResponse) {}
 }
 
-message GetStatsRequest {
+message SubscribeRequest {
+  // Seconds between the samples delivered to this subscriber, 0.1 or more.
+  //
+  // The service samples the hardware once for all of its subscribers and may
+  // sample more often than this to serve a subscriber with a shorter interval.
+  // Metrics that describe the time since the previous sample, such as GPM
+  // utilization, are averaged over this interval.
+  double interval_seconds = 1;
+
   // Capture the system metrics for the process with this PID, in addition to
   // system-wide metrics.
-  int32 pid = 1;
+  int32 pid = 2;
 
   // GPU device IDs to capture metrics for.
   //
   // Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
   // If not set, metrics for all GPUs will be captured.
-  repeated int32 gpu_device_ids = 2;
+  repeated int32 gpu_device_ids = 3;
 }
 
-message GetStatsResponse {
+message SubscribeResponse {
   // System metrics.
   Record record = 1;
 }
