@@ -129,6 +129,29 @@ class TestForgetRun:
         mark_failed.assert_called_once_with(trial_index=7)
 
 
+class TestCompleteTrial:
+    def test_attaches_final_data_at_the_last_step(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        """Early stopping drops, and warns about, data with no step."""
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(
+                suggestion,
+                state=RunState.FINISHED,
+                summary={"loss": 0.5, "_step": 4},
+                history=[],
+            ),
+        )
+
+        attached = _experiment(client).lookup_data().full_df
+        final = attached[attached["mean"] == 0.5]
+        assert final["step"].tolist() == [4]
+
+
 class TestPruneRun:
     def test_a_client_without_an_early_stopping_strategy_never_prunes(
         self, client: Client, sweep: SweepInfo
@@ -193,10 +216,44 @@ class TestBuildAxSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = build_ax_optimizer(sweep, config["scheduler"])
+        optimizer = build_ax_optimizer(sweep)
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
+
+    def test_builds_the_client_from_an_optimizer_factory(self, tmp_path) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "from ax.api.client import Client\n"
+            "from wandb.sdk.sweeps.scheduler.ax import (\n"
+            "    configure_sweep_objective,\n"
+            "    sweep_config_to_search_space,\n"
+            ")\n"
+            "\n"
+            "def make_client(sweep):\n"
+            "    client = Client()\n"
+            "    client.configure_experiment(\n"
+            "        parameters=sweep_config_to_search_space(sweep.config)\n"
+            "    )\n"
+            "    configure_sweep_objective(client, sweep.config)\n"
+            "    return client\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metric": {"name": "val-loss", "goal": "minimize"},
+            "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "ax",
+                "source": str(source),
+                "optimizer": "make_client",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = build_ax_optimizer(sweep)
+
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        assert set(suggestion.config.config) == {"x"}
 
 
 class TestUnparseableMetricName:

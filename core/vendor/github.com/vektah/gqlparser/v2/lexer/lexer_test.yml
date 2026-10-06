@@ -200,6 +200,60 @@ lexes strings:
         end: 34
         value: "unicode \u1234\u5678\u90AB\uCDEF"
 
+  - name: unicode surrogate pair
+    input: '"\uD83D\uDE00"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\U0001F600"
+
+  - name: unicode surrogate pair between text
+    input: '"a\uD83D\uDE00b"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 16
+        value: "a\U0001F600b"
+
+  - name: unicode lone leading surrogate
+    input: '"\uD83Da"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 9
+        value: "\uFFFDa"
+
+  - name: unicode lone trailing surrogate
+    input: '"\uDE00\uD83D"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\uFFFD\uFFFD"
+
+  - name: unicode two trailing surrogates
+    input: '"\uDE00\uDE00"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\uFFFD\uFFFD"
+
+  - name: unicode leading surrogate before a non-surrogate escape
+    input: '"\uD83D\u0041"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\uFFFDA"
+
 lex reports useful string errors:
   - name: unterminated
     input: '"'

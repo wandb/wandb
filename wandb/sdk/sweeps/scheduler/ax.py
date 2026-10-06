@@ -410,7 +410,9 @@ class AxOptimizer(Optimizer):
                 self._finalized.add(trial_index)
                 return
             self.client.complete_trial(
-                trial_index=trial_index, raw_data=self._raw_data(values)
+                trial_index=trial_index,
+                raw_data=self._raw_data(values),
+                progression=data.summary_metrics.get("_step"),
             )
         else:  # FAILED / CRASHED / KILLED / PREEMPTED
             self.client.mark_trial_failed(trial_index=trial_index)
@@ -591,17 +593,16 @@ def create_default_client(config: dict[str, Any]) -> ax.Client:
     return client
 
 
-def build_ax_optimizer(
-    sweep: SweepInfo, scheduler_config: dict[str, Any]
-) -> AxOptimizer:
+def build_ax_optimizer(sweep: SweepInfo) -> AxOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
 
-    `scheduler.optimizer` names a zero-argument function in
-    `scheduler.source`. The function may return either an Ax `Client` or a
+    `scheduler.optimizer` names a function in `scheduler.source` that takes
+    the sweep's SweepInfo. The function may return either an Ax `Client` or a
     `(Client, terminator)` tuple. A terminator is a one-argument function
     that receives the client after each generation and finishes the sweep by
     returning `True`.
     """
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     optimizer_name: str = scheduler_config.get("optimizer", "")
     source: str = scheduler_config.get("source", "")
 
@@ -611,7 +612,7 @@ def build_ax_optimizer(
     if optimizer_name:
         try:
             client, terminator = load_optimizer_config(
-                source, optimizer_name, "ax.api.client.Client"
+                source, optimizer_name, ax.Client, sweep
             )
         except ValueError as e:
             raise wandb.Error(str(e)) from e

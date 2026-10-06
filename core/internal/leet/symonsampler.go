@@ -12,11 +12,25 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// SymonProbeMsg carries the host facts that do not change while symon runs.
+type SymonProbeMsg struct {
+	Env      *spb.EnvironmentRecord
+	CPUModel string
+}
+
+// SymonSampleMsg is one sampling pass: the system metrics and the processes.
+type SymonSampleMsg struct {
+	StatsMsg
+	Processes []monitor.ProcessStat
+}
 
 // DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
 // caller does not provide an explicit interval.
@@ -41,6 +55,7 @@ type SymonSamplerParams struct {
 type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
+	processes *monitor.Processes
 	logger    *observability.CoreLogger
 
 	// prev and prevAt are the previous sample's metrics and time, from
@@ -61,17 +76,20 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 	}
 
 	sampler := &SymonSampler{
-		interval: interval,
-		logger:   logger,
+		interval:  interval,
+		processes: monitor.NewProcesses(),
+		logger:    logger,
 	}
 
 	sampler.resources = append(sampler.resources,
 		monitor.NewSystem(monitor.SystemParams{
-			Pid:              0,
-			TrackProcessTree: false,
-			DiskPaths:        defaultSymonDiskPaths(),
+			Pid:                         0,
+			TrackProcessTree:            false,
+			DiskPaths:                   defaultSymonDiskPaths(),
+			DisableCgroupResourceLimits: true,
 		}),
 		monitor.NewCPU(),
+		monitor.NewHost(),
 		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
 	)
 
@@ -83,30 +101,33 @@ func (s *SymonSampler) Interval() time.Duration {
 	return s.interval
 }
 
-// Sample gathers one aligned snapshot across all resources.
-func (s *SymonSampler) Sample() StatsMsg {
+// Sample gathers one aligned snapshot across all resources and the
+// process table.
+func (s *SymonSampler) Sample() SymonSampleMsg {
 	now := time.Now()
-	out := StatsMsg{
+	out := SymonSampleMsg{StatsMsg: StatsMsg{
 		Timestamp: now.Unix(),
 		Metrics:   make(map[string]float64),
-	}
+	}}
 
 	var mu sync.Mutex
 	var g errgroup.Group
 
+	g.Go(func() error {
+		defer s.recoverSamplingPanic()
+
+		procs, err := s.processes.Sample()
+		if err != nil {
+			s.logSamplingError(err)
+			return nil
+		}
+		out.Processes = procs
+		return nil
+	})
+
 	for _, resource := range s.resources {
 		g.Go(func() error {
-			// Hardware sampling paths are known to panic (see SystemMonitor).
-			// A panic here would crash the whole TUI: bubbletea's panic
-			// recovery does not cover goroutines spawned by commands.
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.CaptureError(
-						"leet",
-						fmt.Errorf("symon: panic sampling resource: %v", r),
-					)
-				}
-			}()
+			defer s.recoverSamplingPanic()
 
 			record, err := resource.Sample()
 			if err != nil {
@@ -133,18 +154,32 @@ func (s *SymonSampler) Sample() StatsMsg {
 
 	_ = g.Wait()
 
-	counters := maps.Clone(out.Metrics)
-	deriveRates(s.prev, out.Metrics, now.Sub(s.prevAt))
+	metrics := out.Metrics
+	counters := maps.Clone(metrics)
+	deriveRates(s.prev, metrics, now.Sub(s.prevAt))
 	s.prev, s.prevAt = counters, now
 
 	// Disk usage is charted as a percentage and memory as used, so the
 	// flat used-bytes and available-memory lines only take up cells.
-	for key := range out.Metrics {
+	for key := range metrics {
 		if strings.HasSuffix(key, ".usageGB") || key == "proc.memory.availableMB" {
-			delete(out.Metrics, key)
+			delete(metrics, key)
 		}
 	}
 	return out
+}
+
+// recoverSamplingPanic logs a panic in a sampling goroutine. Hardware
+// sampling paths are known to panic (see SystemMonitor), and a panic here
+// would crash the whole TUI: bubbletea's panic recovery does not cover
+// goroutines spawned by commands.
+func (s *SymonSampler) recoverSamplingPanic() {
+	if r := recover(); r != nil {
+		s.logger.CaptureError(
+			"leet",
+			fmt.Errorf("symon: panic sampling resource: %v", r),
+		)
+	}
 }
 
 // deriveRates replaces the cumulative network and disk I/O counters in cur
@@ -186,6 +221,20 @@ func ioRateKey(key string) (string, float64, bool) {
 		}
 	}
 	return "", 0, false
+}
+
+// Probe gathers the host facts from every resource. Starting the wandb-xpu
+// sidecar can take seconds, so call it from a command, not from Update.
+func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
+	defer s.recoverSamplingPanic()
+
+	msg := SymonProbeMsg{Env: &spb.EnvironmentRecord{}, CPUModel: monitor.CPUModel()}
+	for _, resource := range s.resources {
+		if rec := resource.Probe(ctx); rec != nil {
+			proto.Merge(msg.Env, rec)
+		}
+	}
+	return msg
 }
 
 // Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu
