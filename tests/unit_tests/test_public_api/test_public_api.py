@@ -10,7 +10,7 @@ from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.errors import UsageError
 from wandb.proto import wandb_api_pb2 as apb
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import wbauth
@@ -425,6 +425,20 @@ def test_initialize_api_uses_explicit_key(
     assert auth.host.url == "https://test-url"
     # The Api's own service API handle is reused for verification.
     assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
+
+
+def test_initialize_api_override_keeps_global_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(wandb_login, "_verify_login", MagicMock())
+    monkeypatch.setenv("WANDB_API_KEY", "1234" * 10)
+    global_settings = wandb_setup.singleton().settings
+    base_url = global_settings.base_url
+
+    api = Api(overrides={"base_url": "https://test-url"})
+
+    assert api.settings["base_url"] == "https://test-url"
+    assert global_settings.base_url == base_url
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
