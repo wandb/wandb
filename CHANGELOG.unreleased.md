@@ -44,7 +44,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - The `wandb leet symon` status bar starts with a W&B LEET badge (@dmitryduev in https://github.com/wandb/wandb/pull/13022)
-- The default W&B server is now CoreWeave Forge at `https://forge.coreweave.com/api/wandb`, and run, project, sweep and login links point to `https://forge.coreweave.com/wandb`. Existing API keys stored for `api.wandb.ai` keep working without logging in again, and an explicitly configured `base_url`, including `https://api.wandb.ai`, is used as before (@dmitryduev in https://github.com/wandb/wandb/pull/13077)
+- The default W&B server is now CoreWeave Forge at `https://forge.coreweave.com/api/wandb`, and run, project, sweep and login links point to `https://forge.coreweave.com/wandb`. Existing API keys stored for `api.wandb.ai` keep working without logging in again, and an explicitly configured `base_url`, including `https://api.wandb.ai` or `https://api.forge.coreweave.com`, is used as before (@dmitryduev in https://github.com/wandb/wandb/pull/13077)
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)

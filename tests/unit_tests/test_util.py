@@ -330,6 +330,13 @@ def test_image_from_docker_args_sha():
 ###############################################################################
 
 
+def test_api_to_app_url_forge_api_host():
+    assert (
+        util.api_to_app_url("https://api.forge.coreweave.com")
+        == "https://forge.coreweave.com/wandb"
+    )
+
+
 def test_app_url():
     with mock.patch.dict("os.environ", {"WANDB_APP_URL": "https://foo.com/bar/"}):
         assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
