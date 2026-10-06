@@ -95,6 +95,79 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
+@dataclass(frozen=True)
+class Objective:
+    """One metric an optimizer searches over.
+
+    Attributes:
+        metric_name: The run summary metric to optimize.
+        goal: Either "minimize" or "maximize".
+    """
+
+    metric_name: str
+    goal: str
+
+
+def sweep_objectives(config: dict[str, Any]) -> list[Objective]:
+    """Return the objectives a sweep config declares in metrics or metric.
+
+    Args:
+        config: A sweep config, such as `SweepInfo.config`.
+
+    Raises:
+        ValueError: If the config sets both, or a metric has no name.
+    """
+    metrics = config.get("metrics")
+    metric = config.get("metric")
+    if metrics and metric:
+        raise ValueError("The sweep config sets both metric and metrics.")
+    declared = metrics or ([metric] if metric else [])
+    objectives = []
+    for i, entry in enumerate(declared):
+        if not entry.get("name"):
+            raise ValueError(f"The sweep config's metric {i} has no name.")
+        objectives.append(Objective(entry["name"], entry.get("goal", "minimize")))
+    return objectives
+
+
+def check_objectives(config: dict[str, Any], objectives: Sequence[Objective]) -> None:
+    """Check an optimizer's objectives against the sweep config's.
+
+    A config that declares no objectives accepts any non-empty list.
+
+    Args:
+        config: The sweep's config.
+        objectives: The objectives the optimizer searches over.
+
+    Raises:
+        ValueError: If there are no objectives or they differ from the config's.
+    """
+    if not objectives:
+        raise ValueError(
+            "The optimizer has no objectives. Declare metric or metrics in the"
+            " sweep config, or set them in the scheduler.optimizer function."
+        )
+    declared = sweep_objectives(config)
+    if not declared:
+        return
+    if len(objectives) != len(declared):
+        raise ValueError(
+            f"The optimizer has {len(objectives)} objectives but the sweep"
+            f" config declares {len(declared)}."
+        )
+    for got, want in zip(objectives, declared, strict=True):
+        if got.metric_name != want.metric_name:
+            raise ValueError(
+                f"The optimizer's objective {got.metric_name!r} does not match"
+                f" the sweep config's metric {want.metric_name!r}."
+            )
+        if got.goal != want.goal:
+            raise ValueError(
+                f"The optimizer's goal for {got.metric_name!r} is {got.goal!r}"
+                f" but the sweep config's is {want.goal!r}."
+            )
+
+
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
@@ -106,9 +179,9 @@ class Optimizer(ABC):
     tells and prunes by id alone.
     """
 
-    def __init__(self, sweep: SweepInfo):
+    def __init__(self, sweep: SweepInfo, objectives: Sequence[Objective]):
         self._sweep = sweep
-        self.validate_sweep_objective()
+        self._objectives = tuple(objectives)
 
     def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
         """Send the search library's log records to `handler`.
@@ -123,14 +196,6 @@ class Optimizer(ABC):
             A function that restores the library's own console output.
         """
         return lambda: None
-
-    @abstractmethod
-    def validate_sweep_objective(self) -> None:
-        """Raise if the optimizer's objective disagrees with the sweep's.
-
-        Called from `__init__` so a mismatch surfaces before the sweep runs.
-        """
-        ...
 
     @abstractmethod
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:
@@ -210,43 +275,25 @@ class Optimizer(ABC):
         return None
 
     def metric_value(self, metrics: dict[str, Any]) -> Any:
-        """Return the objective value for the sweep's configured metric.
+        """Return the value of the first objective metric.
 
         Args:
             metrics: One run's metrics, keyed by metric name.
         """
-        return metrics.get(self.metric_key())
+        return metrics.get(self._objectives[0].metric_name)
 
-    def metric_key(self) -> str:
-        """Return the name of the sweep's objective metric.
-
-        Raises:
-            ValueError: If the sweep config declares no metric name.
-        """
-        metric = self._sweep.config.get("metric")
-        if not metric or "name" not in metric:
-            raise ValueError(
-                "Sweep config has no metric; cannot determine the objective value."
-            )
-        return metric["name"]
+    @property
+    def objectives(self) -> tuple[Objective, ...]:
+        """The objectives this optimizer searches over, in order."""
+        return self._objectives
 
     def metric_names(self) -> list[str]:
-        """Return the sweep's objective metric names, in declaration order.
-
-        A multi-objective sweep names them in `metrics`; a single-objective one
-        in `metric`.
-        """
-        metrics = self._sweep.config.get("metrics")
-        if metrics is not None:
-            return [metric["name"] for metric in metrics if "name" in metric]
-        return [self.metric_key()]
+        """Return the objective metric names, in the optimizer's order."""
+        return [objective.metric_name for objective in self._objectives]
 
     def metric_goals(self) -> list[str]:
-        """Return the sweep's objective goals, ordered as `metric_names`."""
-        metrics = self._sweep.config.get("metrics")
-        if metrics is None:
-            metrics = [self._sweep.config.get("metric") or {}]
-        return [str(metric.get("goal", "minimize")).lower() for metric in metrics]
+        """Return the objective goals, in `metric_names` order."""
+        return [objective.goal for objective in self._objectives]
 
     def objective_values(self, metrics: dict[str, Any]) -> list[Any] | None:
         """Return a run's objective values, or None if any of them is missing.
@@ -320,9 +367,20 @@ def make_optimizer(sweep: SweepInfo) -> Optimizer:
     search, which the `scheduler.engine` block records.
 
     Raises:
-        wandb.Error: If the engine is missing or unsupported, or its
-            configuration can't be loaded.
+        wandb.Error: If the engine is missing or unsupported, its
+            configuration can't be loaded, or its objectives differ from
+            the sweep config's.
     """
+    optimizer = _build_engine_optimizer(sweep)
+    try:
+        check_objectives(sweep.config, optimizer.objectives)
+    except ValueError as e:
+        raise wandb.Error(str(e)) from e
+    return optimizer
+
+
+def _build_engine_optimizer(sweep: SweepInfo) -> Optimizer:
+    """Build the optimizer for the sweep's `scheduler.engine`."""
     # Each engine module is imported lazily so a missing engine dependency
     # only fails sweeps that use it.
     scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}

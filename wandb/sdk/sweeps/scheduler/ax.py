@@ -11,6 +11,7 @@ from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
+    Objective,
     Optimizer,
     Run,
     RunConfig,
@@ -238,8 +239,8 @@ def _experiment(client: ax.Client) -> Any:
     )
 
 
-def _experiment_objectives(client: ax.Client) -> list[tuple[str, bool]]:
-    """Return `(metric_name, minimize)` for each objective the client optimizes.
+def experiment_objectives(client: ax.Client) -> list[Objective]:
+    """Return the objectives the client's experiment optimizes.
 
     Raises ValueError when the experiment has no objective, or optimizes a
     scalarized one — a weighted sum of metrics has no per-metric goal to check
@@ -262,7 +263,10 @@ def _experiment_objectives(client: ax.Client) -> list[tuple[str, bool]]:
     weights = list(objective.metric_weights)
     if not weights:
         raise ValueError("The Ax experiment's objective covers no metric.")
-    return [(name, weight < 0) for name, weight in weights]
+    return [
+        Objective(name, "minimize" if weight < 0 else "maximize")
+        for name, weight in weights
+    ]
 
 
 class AxOptimizer(Optimizer):
@@ -280,15 +284,16 @@ class AxOptimizer(Optimizer):
         client: ax.Client,
         sweep: SweepInfo,
         terminator: TerminatorCallback | None = None,
+        *,
+        objectives: Sequence[Objective],
     ):
-        # Set before super().__init__, which calls validate_sweep_objective().
         self.client = client
         self._terminator = terminator
         # Ax raises when a trial is finalized twice, so remember which
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
-        super().__init__(sweep)
+        super().__init__(sweep, objectives)
 
     @override
     def route_library_logs(self, handler: logging.Handler) -> Callable[[], None]:
@@ -321,35 +326,6 @@ class AxOptimizer(Optimizer):
         the default is `None`, which never terminates early.
         """
         return self._terminator is not None and self._terminator(self.client)
-
-    @override
-    def validate_sweep_objective(self) -> None:
-        """Fail fast if experiment and sweep disagree on the objectives."""
-        objectives = _experiment_objectives(self.client)
-        sweep_names = self.metric_names()
-        sweep_goals = self.metric_goals()
-        if len(objectives) != len(sweep_names):
-            raise ValueError(
-                "The Ax experiment and the sweep config disagree on the "
-                f"objectives: Ax optimizes {len(objectives)}, the sweep declares "
-                f"{len(sweep_names)}."
-            )
-
-        for (metric_name, minimize), sweep_name, sweep_goal in zip(
-            objectives, sweep_names, sweep_goals, strict=True
-        ):
-            goal = "minimize" if minimize else "maximize"
-            if goal != sweep_goal:
-                raise ValueError(
-                    f"Ax objective direction {goal!r} for {metric_name!r} does not "
-                    f"match the sweep metric goal {sweep_goal!r}; set the experiment "
-                    f"objective to {sweep_goal!r}."
-                )
-            if metric_name != sweep_name:
-                raise ValueError(
-                    f"Ax objective metric {metric_name!r} does not match the sweep "
-                    f"metric name {sweep_name!r}."
-                )
 
     @override
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:
@@ -618,5 +594,9 @@ def build_ax_optimizer(sweep: SweepInfo) -> AxOptimizer:
             raise wandb.Error(str(e)) from e
     else:
         client = create_default_client(sweep.config)
+    try:
+        objectives = experiment_objectives(client)
+    except ValueError as e:
+        raise wandb.Error(str(e)) from e
 
-    return AxOptimizer(client, sweep, terminator)
+    return AxOptimizer(client, sweep, terminator, objectives=objectives)

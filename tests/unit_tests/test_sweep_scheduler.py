@@ -20,10 +20,13 @@ import pytest
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
 from wandb.sdk.sweeps.scheduler.optimizer import (
+    Objective,
     Optimizer,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    check_objectives,
+    sweep_objectives,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -396,6 +399,77 @@ class TestObjectiveMetrics:
         assert optimizer.objective_values(summary) == values
 
 
+class TestSweepObjectives:
+    def test_keeps_goals_and_defaults_to_minimize(self) -> None:
+        config = {"metrics": [{"name": "loss"}, {"name": "acc", "goal": "maximize"}]}
+
+        assert sweep_objectives(config) == [
+            Objective("loss", "minimize"),
+            Objective("acc", "maximize"),
+        ]
+
+    def test_a_config_without_objectives_declares_none(self) -> None:
+        assert sweep_objectives({"method": "custom"}) == []
+
+    @pytest.mark.parametrize(
+        ("config", "problem"),
+        [
+            (
+                {"metric": {"name": "loss"}, "metrics": [{"name": "acc"}]},
+                "sets both metric and metrics",
+            ),
+            (
+                {"metrics": [{"name": "loss"}, {"goal": "minimize"}]},
+                "metric 1 has no name",
+            ),
+        ],
+        ids=["both", "unnamed"],
+    )
+    def test_rejects_a_malformed_declaration(
+        self, config: dict[str, Any], problem: str
+    ) -> None:
+        with pytest.raises(ValueError, match=problem):
+            sweep_objectives(config)
+
+
+class TestCheckObjectives:
+    def test_accepts_objectives_matching_the_config(self) -> None:
+        config = {"metric": {"name": "acc", "goal": "maximize"}}
+
+        check_objectives(config, [Objective("acc", "maximize")])
+
+    def test_accepts_any_objectives_when_the_config_declares_none(self) -> None:
+        check_objectives({"method": "custom"}, [Objective("acc", "maximize")])
+
+    @pytest.mark.parametrize(
+        ("config", "objectives", "problem"),
+        [
+            ({"method": "custom"}, [], "has no objectives"),
+            (
+                {"metric": {"name": "loss"}},
+                [Objective("loss", "minimize"), Objective("acc", "maximize")],
+                "has 2 objectives but the sweep config declares 1",
+            ),
+            (
+                {"metric": {"name": "loss"}},
+                [Objective("acc", "minimize")],
+                "'acc' does not match the sweep config's metric 'loss'",
+            ),
+            (
+                {"metric": {"name": "loss"}},
+                [Objective("loss", "maximize")],
+                "goal for 'loss' is 'maximize' but the sweep config's is 'minimize'",
+            ),
+        ],
+        ids=["none", "count", "name", "goal"],
+    )
+    def test_rejects_objectives_the_config_contradicts(
+        self, config: dict[str, Any], objectives: list[Objective], problem: str
+    ) -> None:
+        with pytest.raises(ValueError, match=problem):
+            check_objectives(config, objectives)
+
+
 class TestSweepSchedulerCli:
     """Tests for the `wandb sweep-scheduler` command's option handling."""
 
@@ -640,7 +714,12 @@ class TestOptunaDeclarativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
         distributions = {
             "param1": optuna.distributions.CategoricalDistribution([1, 2, 3])
         }
-        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+        return OptunaDeclarativeOptimizer(
+            study,
+            distributions,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
 
 
 class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
@@ -651,7 +730,12 @@ class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
         def trial_constructor(trial: Any) -> dict[str, Any]:
             return {"param1": trial.suggest_categorical("param1", [1, 2, 3])}
 
-        return OptunaImperativeOptimizer(study, trial_constructor, sweep)
+        return OptunaImperativeOptimizer(
+            study,
+            trial_constructor,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
 
 
 class TestOptunaMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
@@ -666,7 +750,12 @@ class TestOptunaMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests)
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         study = create_study_from_sweep_config(MULTI_OBJECTIVE_SWEEP_CONFIG)
         distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
-        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+        return OptunaDeclarativeOptimizer(
+            study,
+            distributions,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
 
     def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
         """A trial optuna was told nothing for has no values of its own."""
@@ -711,8 +800,13 @@ class TestOptunaOptimizerTermination(TerminatorContractTests):
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         study = optuna.create_study(direction="minimize")
         distributions = {"param1": optuna.distributions.IntDistribution(1, 3)}
+        sweep = make_scheduler_grid_sweep()
         optimizer = OptunaDeclarativeOptimizer(
-            study, distributions, make_scheduler_grid_sweep(), terminator
+            study,
+            distributions,
+            sweep,
+            terminator,
+            objectives=sweep_objectives(sweep.config),
         )
         return optimizer, study
 
@@ -750,14 +844,18 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
     @pytest.fixture
     def optimizer(self, sweep: SweepInfo) -> Optimizer:
         from ax.early_stopping.strategies import PercentileEarlyStoppingStrategy
-        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+        from wandb.sdk.sweeps.scheduler.ax import (
+            AxOptimizer,
+            create_default_client,
+            experiment_objectives,
+        )
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
         client.set_generation_strategy(
             _sequential_ax_generation_strategy("param1", [1, 2, 3])
         )
         client.set_early_stopping_strategy(PercentileEarlyStoppingStrategy())
-        return AxOptimizer(client, sweep)
+        return AxOptimizer(client, sweep, objectives=experiment_objectives(client))
 
     def prune(
         self,
@@ -780,9 +878,14 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
 class TestAxMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
     @pytest.fixture
     def optimizer(self, sweep: SweepInfo) -> Optimizer:
-        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+        from wandb.sdk.sweeps.scheduler.ax import (
+            AxOptimizer,
+            create_default_client,
+            experiment_objectives,
+        )
 
-        return AxOptimizer(create_default_client(MULTI_OBJECTIVE_SWEEP_CONFIG), sweep)
+        client = create_default_client(MULTI_OBJECTIVE_SWEEP_CONFIG)
+        return AxOptimizer(client, sweep, objectives=experiment_objectives(client))
 
     def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
         """Ax scores a completed trial only; a failed one holds no result."""
@@ -808,10 +911,20 @@ class TestAxMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
 @requires_ax
 class TestAxOptimizerTermination(TerminatorContractTests):
     def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
-        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+        from wandb.sdk.sweeps.scheduler.ax import (
+            AxOptimizer,
+            create_default_client,
+            experiment_objectives,
+        )
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
-        return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
+        optimizer = AxOptimizer(
+            client,
+            make_scheduler_grid_sweep(),
+            terminator,
+            objectives=experiment_objectives(client),
+        )
+        return optimizer, client
 
 
 class TestLoadSourceObject:
