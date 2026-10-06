@@ -1268,7 +1268,9 @@ class Settings(BaseModel, validate_assignment=True):
             return HISTORY_VALUE_ENCODING_DEFAULT
 
         if HISTORY_VALUE_ENCODING_JSON not in forms:
-            raise ValueError("Typed-only history encoding is unavailable. Use 'json,typed'.")
+            raise ValueError(
+                "Typed-only history encoding is unavailable. Use 'json,typed'."
+            )
 
         # Store the stripped, lowercased forms so that a reader can split
         # on "," and compare without parsing again.
