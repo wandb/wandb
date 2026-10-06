@@ -46,7 +46,6 @@ class TestMakeOptimizer:
         distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
 
         optimizer = make_optimizer(
-            study,
             sweep,
             OptunaOptions(study=study, distributions=distributions),
         )
@@ -63,7 +62,6 @@ class TestMakeOptimizer:
             return {"x": trial.suggest_float("x", 0.0, 1.0)}
 
         optimizer = make_optimizer(
-            study,
             sweep,
             OptunaOptions(study=study, search_space=trial_constructor),
         )
@@ -83,7 +81,7 @@ class TestMakeOptimizer:
         self, study: optuna.Study, sweep: SweepInfo, extra: dict[str, Any]
     ) -> None:
         with pytest.raises(ValueError, match="exactly one"):
-            make_optimizer(study, sweep, OptunaOptions(study=study, **extra))
+            make_optimizer(sweep, OptunaOptions(study=study, **extra))
 
     def test_forwards_the_terminator_to_the_optimizer(
         self, study: optuna.Study, sweep: SweepInfo
@@ -91,7 +89,6 @@ class TestMakeOptimizer:
         terminator = MagicMock()
 
         optimizer = make_optimizer(
-            study,
             sweep,
             OptunaOptions(study=study, distributions={}, terminator=terminator),
         )
@@ -191,7 +188,7 @@ class TestBuildOptunaSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+        optimizer = build_optuna_optimizer(sweep)
 
         assert isinstance(optimizer, OptunaDeclarativeOptimizer)
 
@@ -213,7 +210,7 @@ class TestBuildOptunaSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+        optimizer = build_optuna_optimizer(sweep)
 
         assert isinstance(optimizer, OptunaImperativeOptimizer)
 
@@ -244,7 +241,7 @@ class TestBuildOptunaSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
+        optimizer = build_optuna_optimizer(sweep)
 
         assert isinstance(optimizer.study.sampler, optuna.samplers.RandomSampler)
         assert [d.name.lower() for d in optimizer.study.directions] == [
@@ -286,7 +283,7 @@ class TestBuildOptunaSchedulerOptimizer:
         sweep = make_scheduler_grid_sweep(config=config)
 
         with pytest.raises(wandb.Error, match=problem) as error:
-            build_optuna_optimizer(sweep, config["scheduler"])
+            build_optuna_optimizer(sweep)
 
         assert "returns a dict of parameter values" in str(error.value)
 
