@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -33,8 +35,8 @@ type XPU struct {
 	resourceRef     XPUResourceManagerRef
 	logger          *observability.CoreLogger
 
-	pid          int32
-	gpuDeviceIds []int32
+	// request is the Subscribe request without its interval.
+	request *spb.SubscribeRequest
 
 	errorReported atomic.Bool
 
@@ -46,20 +48,20 @@ type XPU struct {
 
 // NewXPU returns an XPU resource whose sidecar start and requests are
 // canceled together with ctx.
+//
+// request describes what to subscribe to; its interval is set by Subscribe.
 func NewXPU(
 	ctx context.Context,
 	resourceManager *XPUResourceManager,
 	logger *observability.CoreLogger,
-	pid int32,
-	gpuDeviceIds []int32,
+	request *spb.SubscribeRequest,
 ) *XPU {
 	return &XPU{
 		ctx:             ctx,
 		resourceManager: resourceManager,
 		resourceRef:     resourceManager.Acquire(),
 		logger:          logger,
-		pid:             pid,
-		gpuDeviceIds:    gpuDeviceIds,
+		request:         request,
 	}
 }
 
@@ -149,11 +151,9 @@ func (a *XPU) subscribe(
 		return false, err
 	}
 
-	stream, err := client.Subscribe(ctx, &spb.SubscribeRequest{
-		IntervalSeconds: interval.Seconds(),
-		Pid:             a.pid,
-		GpuDeviceIds:    a.gpuDeviceIds,
-	})
+	request := proto.Clone(a.request).(*spb.SubscribeRequest)
+	request.IntervalSeconds = interval.Seconds()
+	stream, err := client.Subscribe(ctx, request)
 	if err != nil {
 		return false, fmt.Errorf("monitor: xpu subscribe failed: %w", err)
 	}
@@ -178,7 +178,9 @@ func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 		return nil
 	}
 
-	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{})
+	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{
+		DiskPaths: a.request.GetDiskPaths(),
+	})
 	if err != nil {
 		return nil
 	}
