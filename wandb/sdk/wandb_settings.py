@@ -1269,7 +1269,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         if HISTORY_VALUE_ENCODING_JSON not in forms:
             raise ValueError(
-                "Typed-only history encoding is unavailable. Use 'json,typed'."
+                "Typed-only history encoding is unavailable. Use 'json,typed' or 'json'."
             )
 
         # Store the stripped, lowercased forms so that a reader can split
