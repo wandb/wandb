@@ -339,6 +339,23 @@ def test_app_url():
     assert util.app_url("https://wandb.foo") == "https://wandb.foo"
 
 
+@pytest.mark.parametrize(
+    "program_dir, expected",
+    [
+        ("repo", "repo"),
+        ("repo/pkg", "repo-pkg"),
+        ("repo/pkg/sub", "repo-pkg_sub"),
+        ("repo2", "repo"),
+        ("other", "repo"),
+    ],
+)
+def test_auto_project_name(tmp_path, program_dir, expected):
+    program = tmp_path / program_dir / "train.py"
+    with mock.patch("wandb.sdk.lib.gitlib.GitRepo") as git_repo:
+        git_repo.return_value.root_dir = str(tmp_path / "repo")
+        assert util.auto_project_name(str(program)) == expected
+
+
 ###############################################################################
 # Test util.make_safe_for_json
 ###############################################################################

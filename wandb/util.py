@@ -1228,10 +1228,13 @@ def auto_project_name(program: str | None) -> str:
     if not os.path.isabs(program):
         program = os.path.join(os.curdir, program)
     prog_dir = os.path.dirname(os.path.abspath(program))
-    if not prog_dir.startswith(root_dir):
+    try:
+        sub_path = os.path.relpath(prog_dir, root_dir)
+    except ValueError:  # On Windows, the program is on a different drive.
+        return str(repo_name)
+    if sub_path == os.pardir or sub_path.startswith(os.pardir + os.sep):
         return str(repo_name)
     project = repo_name
-    sub_path = os.path.relpath(prog_dir, root_dir)
     if sub_path != ".":
         project += "-" + sub_path
     return str(project.replace(os.sep, "_"))
