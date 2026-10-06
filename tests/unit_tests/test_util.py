@@ -330,18 +330,18 @@ def test_image_from_docker_args_sha():
 ###############################################################################
 
 
-def test_api_to_app_url_forge_api_host():
-    assert (
-        util.api_to_app_url("https://api.forge.coreweave.com")
-        == "https://forge.coreweave.com/wandb"
-    )
+@pytest.mark.parametrize(
+    "api_url", ["https://api.forge.coreweave.com", "https://api.wandb.ai"]
+)
+def test_api_to_app_url_forge(api_url):
+    assert util.api_to_app_url(api_url) == "https://forge.coreweave.com/wandb"
 
 
 def test_app_url():
     with mock.patch.dict("os.environ", {"WANDB_APP_URL": "https://foo.com/bar/"}):
         assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
     assert util.app_url("http://api.wandb.test") == "http://app.wandb.test"
-    assert util.app_url("https://api.wandb.ai") == "https://wandb.ai"
+    assert util.app_url("https://api.wandb.ai") == "https://forge.coreweave.com/wandb"
     assert util.app_url("https://api.foo/bar") == "https://app.foo/bar"
     assert util.app_url("https://wandb.foo") == "https://wandb.foo"
 

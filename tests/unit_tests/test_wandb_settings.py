@@ -152,7 +152,7 @@ def test_base_url_validation():
 
 def test_app_url_default():
     s = Settings(base_url="https://api.wandb.ai")
-    assert s.app_url == "https://wandb.ai"
+    assert s.app_url == "https://forge.coreweave.com/wandb"
 
 
 def test_app_url_override():

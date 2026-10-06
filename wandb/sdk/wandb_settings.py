@@ -1757,7 +1757,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_local(self) -> bool:
-        return self.base_url != urls.DEFAULT_BASE_URL
+        return not urls.is_forge_host(self.base_url)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
