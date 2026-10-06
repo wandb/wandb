@@ -613,7 +613,7 @@ def build_ax_optimizer(
     if optimizer_name:
         try:
             client, terminator = load_optimizer_config(
-                source, optimizer_name, "ax.api.client.Client"
+                source, optimizer_name, ax.Client
             )
         except ValueError as e:
             raise wandb.Error(str(e)) from e
