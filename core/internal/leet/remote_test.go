@@ -81,6 +81,8 @@ func TestParseRemoteURL_Errors(t *testing.T) {
 		"wandb.ai/entity/project/runs/abc123",
 		"https:///entity/project/runs/abc123",
 		"https://wandb.ai/entity/project",
+		"https://wandb.ai/entity/project/sweeps/abc123",
+		"https://wandb.ai/entity/project/runs/abc123/extra",
 		"https://wandb.ai",
 	}
 	for _, url := range urls {

@@ -12,6 +12,7 @@ from functools import partial
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import click
 import requests
@@ -54,8 +55,9 @@ def print_results(failed_test_or_tests: str | list[str] | None, warning: bool) -
 
 
 def check_host(host: str) -> bool:
-    if urls.is_forge_host(host if "://" in host else f"https://{host}"):
-        print_results("Cannot run wandb verify against CoreWeave Forge", False)
+    hostname = urlsplit(host if "://" in host else f"https://{host}").hostname
+    if hostname in urls.FORGE_HOSTS or hostname in urls.FORGE_HOSTS.values():
+        print_results("Cannot run wandb verify against the W&B public cloud", False)
         return False
     return True
 

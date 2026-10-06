@@ -35,6 +35,7 @@ def test_validate_url_requires_string():
         "https://forge.coreweave.com",
         "https://forge.coreweave.com/wandb",
         "http://forge.coreweave.com/api/wandb",
+        "https://forge.coreweave.com:443/api/wandb",
     ],
 )
 def test_validate_forge_base_url(url: str):

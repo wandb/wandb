@@ -420,4 +420,4 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
             " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
-    return base_url, f"{base_url}{run_path}"
+    return base_url, f"{base_url}/{parts[0]}/{parts[1]}/runs/{parts[2]}"

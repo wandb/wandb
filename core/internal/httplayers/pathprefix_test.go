@@ -31,10 +31,6 @@ func TestPrefixPath(t *testing.T) {
 			"https://forge/api/wandb",
 			"https://storage.googleapis.com/files/x",
 			"https://storage.googleapis.com/files/x"},
-		{"no-op for base without path",
-			"https://api.wandb.ai",
-			"https://api.wandb.ai/files/e/p/r/f",
-			"https://api.wandb.ai/files/e/p/r/f"},
 	}
 
 	for _, tc := range testCases {

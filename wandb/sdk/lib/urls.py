@@ -59,7 +59,9 @@ def validate_forge_base_url(url: str) -> None:
     """
     parsed = urlsplit(url)
     if parsed.hostname in FORGE_HOSTS and (
-        parsed.scheme != "https" or parsed.path.rstrip("/") != FORGE_API_PATH
+        parsed.scheme != "https"
+        or parsed.port is not None
+        or parsed.path.rstrip("/") != FORGE_API_PATH
     ):
         raise ValueError(
             "Invalid Forge server address;"

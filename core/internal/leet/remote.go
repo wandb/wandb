@@ -34,8 +34,8 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	switch {
 	case n >= 4 && parts[n-2] == "runs":
 		base, run = parts[:n-4], []string{parts[n-4], parts[n-3], parts[n-1]}
-	case n >= 3:
-		base, run = parts[:n-3], parts[n-3:]
+	case n == 3:
+		run = parts
 	}
 	if len(run) != 3 || run[0] == "" || run[1] == "" || run[2] == "" {
 		return nil, fmt.Errorf(
