@@ -288,8 +288,8 @@ class SchedulerTaskExchange:
                 self._optimizer.tell_run(run_id, data)
             except Exception as e:
                 self._logger.warning(
-                    f"The optimizer failed to record run {data.wandb_run_id};"
-                    f" the scheduler stops tracking it: {e}"
+                    f"The optimizer failed to record run {data.wandb_run_id}"
+                    f" with error: {e}; the scheduler will stop tracking it."
                 )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(
@@ -400,7 +400,9 @@ def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:
     message, is_error = messages.get(reason, ("the scheduler stopped", False))
 
     # Optimizer errors were printed with their traceback when they happened.
-    is_reported = reason == sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR
-    if done.message and not is_reported:
+    already_reported = (
+        reason == sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR
+    )
+    if done.message and not already_reported:
         message = f"{message} ({done.message})"
     return message, is_error

@@ -12,7 +12,7 @@ import abc
 import asyncio
 import importlib.util
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -29,8 +29,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunWithMetrics,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
-
-from tests.fixtures.mock_wandb_log import MockWandbLog
 
 HAS_AX = importlib.util.find_spec("ax") is not None
 requires_ax = pytest.mark.skipif(
@@ -959,15 +957,10 @@ class _FakeHandle:
 
 
 class _FakeSchedulerService:
-    """Serves one task, then records the result it gets and answers Done."""
+    """Serves one task, then answers Done to its result."""
 
-    def __init__(
-        self,
-        task: sspb.SweepSchedulerServerNextTaskResponse,
-        on_result: Callable[[sspb.SweepSchedulerClientTaskResult], None],
-    ) -> None:
+    def __init__(self, task: sspb.SweepSchedulerServerNextTaskResponse) -> None:
         self._task = task
-        self._on_result = on_result
 
     async def sweep_scheduler_next_task(
         self,
@@ -976,7 +969,6 @@ class _FakeSchedulerService:
     ) -> _FakeHandle:
         if result is None:
             return _FakeHandle(self._task)
-        self._on_result(result)
         return _FakeHandle(
             sspb.SweepSchedulerServerNextTaskResponse(
                 done=sspb.SweepSchedulerServerDoneTask(
@@ -988,29 +980,22 @@ class _FakeSchedulerService:
 
 class TestSchedulerTaskExchange:
     def test_prints_an_optimizer_error_before_reporting_it(
-        self, mock_wandb_log: MockWandbLog
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
         optimizer = MagicMock(spec=Optimizer)
         optimizer.should_terminate_sweep.side_effect = RuntimeError("bad terminator")
-        reported: list[sspb.SweepSchedulerClientTaskResult] = []
+        exchange = SchedulerTaskExchange(MagicMock(), "sid", optimizer, caplog.handler)
 
-        def on_result(result: sspb.SweepSchedulerClientTaskResult) -> None:
-            mock_wandb_log.assert_errored("RuntimeError: bad terminator")
-            reported.append(result)
-
-        service = _FakeSchedulerService(
+        result = exchange._execute(
             sspb.SweepSchedulerServerNextTaskResponse(
                 generation=sspb.SweepSchedulerServerGenerationTask()
-            ),
-            on_result,
+            )
         )
-        exchange = SchedulerTaskExchange(cast(Any, service), "sid", optimizer)
 
-        asyncio.run(exchange.run())
+        assert "RuntimeError: bad terminator" in caplog.text
+        assert result.error.message == "bad terminator"
 
-        assert [r.error.message for r in reported] == ["bad terminator"]
-
-    def test_warns_when_a_tell_fails(self, mock_wandb_log: MockWandbLog) -> None:
+    def test_warns_when_a_tell_fails(self, caplog: pytest.LogCaptureFixture) -> None:
         optimizer = MagicMock(spec=Optimizer)
         optimizer.tell_run.side_effect = ValueError("bad summary")
         optimizer.should_terminate_sweep.return_value = True
@@ -1024,15 +1009,16 @@ class TestSchedulerTaskExchange:
         service = _FakeSchedulerService(
             sspb.SweepSchedulerServerNextTaskResponse(
                 generation=sspb.SweepSchedulerServerGenerationTask(updates=[update])
-            ),
-            lambda result: None,
+            )
         )
-        exchange = SchedulerTaskExchange(cast(Any, service), "sid", optimizer)
+        exchange = SchedulerTaskExchange(
+            cast(Any, service), "sid", optimizer, caplog.handler
+        )
 
         asyncio.run(exchange.run())
 
-        mock_wandb_log.assert_warned("failed to record run wandb-1")
-        mock_wandb_log.assert_warned("stops tracking it: bad summary")
+        assert "failed to record run wandb-1" in caplog.text
+        assert "stops tracking it: bad summary" in caplog.text
 
 
 class TestDescribeDone:
@@ -1042,10 +1028,10 @@ class TestDescribeDone:
             message="bad terminator",
         )
 
-        message, is_error = describe_done(done)
-
-        assert "bad terminator" not in message
-        assert is_error
+        assert describe_done(done) == (
+            "the optimizer failed; the sweep can be resumed",
+            True,
+        )
 
     def test_other_reasons_keep_their_message(self) -> None:
         done = sspb.SweepSchedulerServerDoneTask(
