@@ -96,6 +96,36 @@ def test_locked_no_sideeffect(consolidated, config):
     assert consolidated == dict(config)
 
 
+@pytest.fixture()
+def rejecting_config():
+    def callback(key=None, val=None, data=None):
+        raise TypeError("not JSON serializable")
+
+    config = wandb_sdk.Config()
+    config.update(dict(kept=1))
+    config._set_callback(callback)
+    return config
+
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        lambda c: c.__setitem__("bad", 1),
+        lambda c: c.update(dict(good=1, bad=2)),
+        lambda c: c.setdefaults(dict(good=1, bad=2)),
+        lambda c: c.update_locked(dict(good=1, bad=2), "sweep"),
+        lambda c: c.merge_locked(dict(good=1, bad=2), "sweep"),
+    ],
+    ids=["setitem", "update", "setdefaults", "update_locked", "merge_locked"],
+)
+def test_rejected_write_is_not_stored(rejecting_config, write):
+    with pytest.raises(TypeError):
+        write(rejecting_config)
+
+    assert dict(rejecting_config) == dict(kept=1)
+    assert not rejecting_config._locked
+
+
 def test_load_config_default():
     test_path = "config-defaults.yaml"
     yaml_dict = {"epochs": {"value": 32}, "size_batch": {"value": 32}}
