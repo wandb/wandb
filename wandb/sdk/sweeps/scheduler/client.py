@@ -114,6 +114,7 @@ def run_scheduler(
         entity=entity,
         project=project,
         config=yaml.safe_load(init_response.sweep_config) or {},
+        controller_run_name=init_response.controller_run_name,
     )
     try:
         optimizer = make_optimizer(sweep)
@@ -121,7 +122,13 @@ def run_scheduler(
         term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
         raise
 
-    logger = _TermForwarder(level=logging.INFO)
+    logger = _TermForwarder(
+        label="scheduler",
+        entity=sweep.entity,
+        project=sweep.project,
+        run_name=sweep.controller_run_name,
+        level=logging.INFO,
+    )
     exchange = SchedulerTaskExchange(
         service, init_response.session_id, optimizer, logger
     )
@@ -134,6 +141,7 @@ def run_scheduler(
         done = singleton.asyncer.run(exchange.run)
     finally:
         restore_library_logs()
+        logger.close()
         if previous_handler is not None:
             signal.signal(signal.SIGINT, previous_handler)
 
@@ -149,9 +157,43 @@ def run_scheduler(
 class _TermForwarder(logging.Handler):
     """Prints a search library's log records through `term`."""
 
+    def __init__(
+        self, label: str, entity: str, project: str, run_name: str, level: int
+    ) -> None:
+        super().__init__(level=level)
+        self.run = wandb.init(
+            # don't impact any existing references to the controller run
+            reinit="create_new",
+            settings=wandb.Settings(
+                # avoid duplication: send full log lines
+                console="off",
+                # avoid printing controller run name to the console
+                silent=True,
+                # disable uploading metadata json to the run config
+                x_primary=False,
+                # disable git metadata
+                disable_git=True,
+                # disable machine stats
+                x_disable_machine_info=True,
+                x_disable_stats=True,
+                # do not update controller run state on finish or crash
+                x_update_finish_state=False,
+                # enables filter by label in the UI
+                x_label=label,
+            ),
+            id=run_name,
+            entity=entity,
+            project=project,
+        )
+
+    def close(self) -> None:
+        self.run.finish()
+        super().close()
+
     def emit(self, record: logging.LogRecord) -> None:
         try:
             message = record.getMessage()
+            self.run.write_logs(message)
             if record.levelno >= logging.ERROR:
                 term.termerror(message)
             elif record.levelno >= logging.WARNING:

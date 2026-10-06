@@ -53,6 +53,7 @@ def make_scheduler_grid_sweep(config: dict[str, Any] | None = None) -> SweepInfo
         entity="test_entity",
         project="test_project",
         config=SCHEDULER_GRID_SWEEP_CONFIG if config is None else config,
+        controller_run_name="test_controller_run",
     )
 
 
@@ -481,6 +482,7 @@ class TestSweepSchedulerCli:
                 **SCHEDULER_GRID_SWEEP_CONFIG,
                 "scheduler": {"engine": "wandb"},
             },
+            controller_run_name="c",
         )
         optimizer = make_optimizer(wandb_engine)
         assert isinstance(optimizer, WandbOptimizer)
@@ -500,7 +502,14 @@ class TestSweepSchedulerCli:
         assert result.exit_code == 0
 
         make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
-        sweep = SweepInfo(id="s", name="s", entity="e", project="p", config=config)
+        sweep = SweepInfo(
+            id="s",
+            name="s",
+            entity="e",
+            project="p",
+            config=config,
+            controller_run_name="c",
+        )
         with pytest.raises(Exception, match=expected_error):
             make_optimizer(sweep)
 
