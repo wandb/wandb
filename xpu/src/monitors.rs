@@ -1,9 +1,12 @@
 //! Collectors for each hardware platform and vendor.
 
-use crate::metrics::{self, Sample};
+use crate::host;
+use crate::metrics::{self, Sample, Scope};
 use crate::wandb_internal::EnvironmentRecord;
 use log::{debug, warn};
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
 
 /// A source of metrics for one kind of hardware.
 ///
@@ -24,6 +27,8 @@ pub trait Collector: Send + Sync {
 /// Every collector available on this machine.
 pub struct Collectors {
     collectors: Vec<Box<dyn Collector>>,
+    /// The host's own metrics, read per subscriber scope. Linux only.
+    host: Option<Arc<host::Host>>,
 }
 
 impl Collectors {
@@ -63,11 +68,15 @@ impl Collectors {
             }
         }
 
-        Self { collectors }
+        Self {
+            collectors,
+            host: cfg!(target_os = "linux")
+                .then(|| Arc::new(host::Host::new(host::PROC, host::SYS))),
+        }
     }
 
-    /// One pass over every collector.
-    pub async fn collect_metrics(&self) -> Sample {
+    /// One pass over every collector, reading the host for `scopes`.
+    pub async fn collect_metrics(&self, scopes: Vec<Scope>) -> Sample {
         let mut sample = Sample::default();
 
         for collector in &self.collectors {
@@ -81,7 +90,27 @@ impl Collectors {
             }
         }
 
+        if let Some(host) = &self.host
+            && !scopes.is_empty()
+        {
+            let host = host.clone();
+            match tokio::task::spawn_blocking(move || host.sweep(&scopes, Instant::now())).await {
+                Ok(part) => {
+                    sample.counters.extend(part.counters);
+                    sample.scoped.extend(part.scoped);
+                }
+                Err(e) => warn!("The host collector panicked: {e}"),
+            }
+        }
+
         sample
+    }
+
+    /// Adds the host's static facts to `metadata`.
+    pub fn probe(&self, disk_paths: &[String], metadata: &mut EnvironmentRecord) {
+        if let Some(host) = &self.host {
+            host.probe(disk_paths, metadata);
+        }
     }
 
     pub async fn collect_metadata(

@@ -747,6 +747,7 @@ impl NvidiaGpu {
             metrics,
             averages,
             gpu_pids,
+            ..Default::default()
         })
     }
 
