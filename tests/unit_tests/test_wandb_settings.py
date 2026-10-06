@@ -140,7 +140,7 @@ def test_noop():
 
 def test_get_base_url():
     s = Settings()
-    assert s.base_url == "https://forge.coreweave.com/api/wandb"
+    assert s.base_url == "https://api.forge.coreweave.com"
 
 
 def test_base_url_validation():

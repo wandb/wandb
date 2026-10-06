@@ -4,7 +4,7 @@ from urllib.parse import urlsplit
 
 from pydantic_core import SchemaValidator, core_schema
 
-DEFAULT_BASE_URL = "https://forge.coreweave.com/api/wandb"
+DEFAULT_BASE_URL = "https://api.forge.coreweave.com"
 
 FORGE_API_PATH = "/api/wandb"
 FORGE_APP_PATH = "/wandb"
@@ -15,8 +15,8 @@ FORGE_HOSTS = {
 }
 """Maps each CoreWeave Forge host to the W&B API host behind it.
 
-The API is proxied under FORGE_API_PATH on the Forge host and also served
-at the root of its `api.` subdomain and of the W&B API host itself.
+The API is served at the root of the Forge host's `api.` subdomain and of
+the W&B API host, and proxied under FORGE_API_PATH on the Forge host.
 """
 
 _URL_VALIDATOR = SchemaValidator(
@@ -64,19 +64,21 @@ def forge_upstream_url(url: str) -> str:
     return url
 
 
-def validate_forge_base_url(url: str) -> None:
-    """Require Forge server URLs to use the W&B API path over HTTPS.
+def normalize_forge_base_url(url: str) -> str:
+    """Returns the direct API address for a Forge proxy URL, or the URL as is.
 
     Raises:
-        ValueError: If the URL is on a Forge host but is not its W&B API URL.
+        ValueError: If the URL is on a Forge host but is not its W&B API proxy.
     """
     parsed = urlsplit(url)
-    if parsed.hostname in FORGE_HOSTS and (
-        parsed.scheme != "https"
-        or parsed.port is not None
-        or parsed.path.rstrip("/") != FORGE_API_PATH
+    if parsed.hostname not in FORGE_HOSTS:
+        return url
+    if (
+        parsed.scheme == "https"
+        and parsed.port is None
+        and parsed.path.rstrip("/") == FORGE_API_PATH
     ):
-        raise ValueError(
-            "Invalid Forge server address;"
-            f" use https://{parsed.hostname}{FORGE_API_PATH}."
-        )
+        return f"https://api.{parsed.hostname}"
+    raise ValueError(
+        f"Invalid Forge server address; use https://api.{parsed.hostname}."
+    )

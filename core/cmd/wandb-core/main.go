@@ -274,7 +274,7 @@ type leetOptions struct {
 	wandbDir         string
 
 	// remoteURL is the W&B URL of the run to open
-	// (e.g. https://forge.coreweave.com/api/wandb/<entity>/<project>/runs/<run-id>).
+	// (e.g. https://api.forge.coreweave.com/<entity>/<project>/runs/<run-id>).
 	// Non-empty means we are in remote mode.
 	remoteURL string
 
@@ -449,7 +449,7 @@ func bindLeetRunFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"remote-url",
 		"",
 		"URL of a W&B run to open"+
-			" (e.g. https://forge.coreweave.com/api/wandb/<entity>/<project>/runs/<run-id>).",
+			" (e.g. https://api.forge.coreweave.com/<entity>/<project>/runs/<run-id>).",
 	)
 }
 

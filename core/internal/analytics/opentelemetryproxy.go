@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
-	"net/url"
 	"runtime"
 	"strings"
 	"sync"
@@ -588,7 +587,7 @@ func NewOpenTelemetryProxy(
 	}
 
 	proxy := &OpenTelemetryProxy{
-		endpoint:    telemetryEndpoint(wandbSettings.GetBaseURL()),
+		endpoint:    wandbSettings.GetBaseURL(),
 		httpClient:  httpClient,
 		serviceName: serviceName,
 	}
@@ -597,26 +596,6 @@ func NewOpenTelemetryProxy(
 		return nil
 	}
 	return proxy
-}
-
-// forgeUpstreams maps each CoreWeave Forge host to the W&B API host behind
-// its proxy.
-var forgeUpstreams = map[string]string{
-	"forge.coreweave.com":    "api.wandb.ai",
-	"qa.forge.coreweave.com": "api.qa.wandb.ai",
-}
-
-// telemetryEndpoint returns the server to send telemetry to: the W&B API
-// host behind a CoreWeave Forge base URL, and the base URL otherwise.
-func telemetryEndpoint(baseURL string) string {
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return baseURL
-	}
-	if host, ok := forgeUpstreams[u.Host]; ok {
-		return "https://" + host
-	}
-	return baseURL
 }
 
 // probeServer reports whether the server exposes the proxy API.

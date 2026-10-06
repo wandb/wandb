@@ -100,7 +100,7 @@ def login(
         return False
 
     if host:
-        host = host.rstrip("/")
+        host = wbauth.HostUrl(host).url
 
     logged_in, _ = _login(
         key=key,

@@ -405,7 +405,7 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
     if parsed_url.netloc == "wandb.ai":
         base_url = urls.DEFAULT_BASE_URL
     elif parsed_url.hostname in urls.FORGE_HOSTS:
-        base_url = f"https://{parsed_url.hostname}{urls.FORGE_API_PATH}"
+        base_url = f"https://api.{parsed_url.hostname}"
         for prefix in (urls.FORGE_API_PATH, urls.FORGE_APP_PATH):
             if run_path.startswith(prefix + "/"):
                 run_path = run_path.removeprefix(prefix)

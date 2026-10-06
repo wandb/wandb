@@ -33,7 +33,7 @@ def prompt_and_save_api_key(
     """Prompt for an API key and save it to the .netrc file.
 
     Args:
-        host: The URL to the W&B server, like 'https://forge.coreweave.com/api/wandb'.
+        host: The URL to the W&B server, like 'https://api.forge.coreweave.com'.
         no_offline: If true, do not show an option to skip logging in.
         no_create: If true, do not show an option to create a new account.
         referrer: A referrer string to tack on as a query parameter to

@@ -280,7 +280,7 @@ def projects(entity, display=True):
     "--cloud",
     is_flag=True,
     help="""Log in to the W&B public cloud
-    (https://forge.coreweave.com/api/wandb).
+    (https://api.forge.coreweave.com).
     Mutually exclusive with --host.""",
 )
 @click.option(

@@ -38,6 +38,13 @@ def test_validate_url_requires_string():
         "https://forge.coreweave.com:443/api/wandb",
     ],
 )
-def test_validate_forge_base_url(url: str):
+def test_normalize_forge_base_url_rejects_other_forge_urls(url: str):
     with pytest.raises(ValueError, match=urls.DEFAULT_BASE_URL):
-        urls.validate_forge_base_url(url)
+        urls.normalize_forge_base_url(url)
+
+
+def test_normalize_forge_base_url():
+    assert (
+        urls.normalize_forge_base_url("https://forge.coreweave.com/api/wandb/")
+        == urls.DEFAULT_BASE_URL
+    )

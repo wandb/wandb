@@ -220,7 +220,7 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     ],
 )
 def test_parse_remote_url_forge(url):
-    base_url = "https://forge.coreweave.com/api/wandb"
+    base_url = "https://api.forge.coreweave.com"
 
     assert leet._parse_remote_url(url) == (
         base_url,

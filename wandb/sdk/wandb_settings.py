@@ -1127,7 +1127,7 @@ class Settings(BaseModel, validate_assignment=True):
         <!-- lazydoc-ignore -->
         """
         urls.validate_url(value)
-        urls.validate_forge_base_url(value)
+        value = urls.normalize_forge_base_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
@@ -1726,7 +1726,7 @@ class Settings(BaseModel, validate_assignment=True):
     def app_url(self) -> str:
         """The URL for the W&B UI, usually https://forge.coreweave.com/wandb.
 
-        This is different from `base_url` (like https://forge.coreweave.com/api/wandb)
+        This is different from `base_url` (like https://api.forge.coreweave.com)
         which is used to access W&B APIs programmatically.
         """
         return self.app_url_override or util.api_to_app_url(self.base_url)
