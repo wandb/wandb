@@ -49,6 +49,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
 - AMD GPU system metrics are now read through the ROCm SMI library (`librocm_smi64.so`) instead of running the `rocm-smi` tool on every sample, and readings a GPU does not provide are left out instead of reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12990)
 - On Linux, the `cpu` system metric reports the monitored process's CPU utilization over the sampling interval instead of its average since the process started, and sampling system metrics no longer costs more with the number of runs in a process (@dmitryduev in https://github.com/wandb/wandb/pull/13101)
+- OpenMetrics and DCGM exporter endpoints are scraped once per sampling interval for all runs in a process instead of once per run, and all runs use the same `openmetrics.<endpoint>.<metric>.<index>` index for the same metric labels (@dmitryduev in https://github.com/wandb/wandb/pull/13103)
 
 ### Removed
 

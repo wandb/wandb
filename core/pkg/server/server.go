@@ -53,6 +53,10 @@ type Server struct {
 	// xpuResourceManager manages costly resources for accelerator system metrics.
 	xpuResourceManager *monitor.XPUResourceManager
 
+	// scraperRegistry shares the OpenMetrics and DCGM exporter scrapers
+	// between streams.
+	scraperRegistry *monitor.ScraperRegistry
+
 	// connectionsWG is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
 	connectionsWG sync.WaitGroup
@@ -123,6 +127,7 @@ func NewServer(params ServerParams) *Server {
 		runSyncManager:     runsync.NewRunSyncManager(),
 		sweepSchedBroker:   scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
 		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
+		scraperRegistry:    monitor.NewScraperRegistry(),
 		connectionsWG:      sync.WaitGroup{},
 		parentPID:          params.ParentPID,
 		detached:           params.Detached,
@@ -292,6 +297,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			RunSyncManager:     s.runSyncManager,
 			SweepSchedBroker:   s.sweepSchedBroker,
 			XPUResourceManager: s.xpuResourceManager,
+			ScraperRegistry:    s.scraperRegistry,
 			Commit:             s.commit,
 			LoggerPath:         s.loggerPath,
 			LogLevel:           s.logLevel,
