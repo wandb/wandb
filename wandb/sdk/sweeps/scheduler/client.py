@@ -120,14 +120,16 @@ def run_scheduler(
     except wandb.Error as e:
         term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
         raise
-    exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
+
+    logger = _TermForwarder(level=logging.INFO)
+    exchange = SchedulerTaskExchange(
+        service, init_response.session_id, optimizer, logger
+    )
 
     previous_handler = _install_sigint_handler(
         singleton.asyncer, service, init_response.session_id
     )
-    restore_library_logs = optimizer.route_library_logs(
-        _TermForwarder(level=logging.INFO)
-    )
+    restore_library_logs = optimizer.route_library_logs(logger)
     try:
         done = singleton.asyncer.run(exchange.run)
     finally:
@@ -149,7 +151,7 @@ class _TermForwarder(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            message = f"{record.name}: {record.getMessage()}"
+            message = record.getMessage()
             if record.levelno >= logging.ERROR:
                 term.termerror(message)
             elif record.levelno >= logging.WARNING:
