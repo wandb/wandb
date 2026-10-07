@@ -15,6 +15,7 @@ const (
 	stackSectionSystemMetrics
 	stackSectionMedia
 	stackSectionConsoleLogs
+	stackSectionRuns
 	stackSectionCount
 )
 
