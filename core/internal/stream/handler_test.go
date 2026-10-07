@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -995,4 +998,75 @@ func TestHandleDerivedSummary(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestHandleExit_SendsHeldSystemMetricsBeforeExit(t *testing.T) {
+	gqlClient := gqlmock.NewMockClient()
+	gqlClient.StubMatchOnce(
+		gqlmock.WithOpName("ServerInfo"),
+		`{"serverInfo":{"latestLocalVersionInfo":{"versionOnThisInstanceString":"0.77.1"}}}`,
+	)
+	s := settings.From(&spb.Settings{
+		XStatsSamplingInterval: wrapperspb.Double(3600),
+		XStatsBufferSize:       wrapperspb.Int32(-1),
+	})
+	logger := observabilitytest.NewTestLogger(t)
+	handlerFactory := stream.HandlerFactory{
+		Logger:          logger,
+		Settings:        s,
+		TerminalPrinter: observability.NewPrinter(0),
+		RunHandle:       runhandle.New(),
+		SystemMonitorFactory: &monitor.SystemMonitorFactory{
+			Logger:             logger,
+			Settings:           s,
+			XPUResourceManager: monitor.NewXPUResourceManager(false),
+			GraphqlClient:      gqlClient,
+		},
+	}
+	h := handlerFactory.New(runworktest.New())
+	inChan := make(chan runwork.Work, 1)
+	go h.Do(inChan)
+	t.Cleanup(func() {
+		close(inChan)
+		for range h.OutChan() {
+		}
+	})
+
+	request := func(r *spb.Request) *spb.Response {
+		req, responses := runworktest.SimpleRequest(t, "test")
+		inChan <- runwork.Work{
+			WorkImpl: runwork.WorkRecord{Record: &spb.Record{
+				RecordType: &spb.Record_Request{Request: r},
+			}},
+			Request: req,
+		}
+		return (<-responses).GetResultCommunicate().GetResponse()
+	}
+
+	// Start the run, and so the system monitor.
+	request(&spb.Request{RequestType: &spb.Request_RunStart{
+		RunStart: &spb.RunStartRequest{Run: &spb.RunRecord{RunId: "test"}},
+	}})
+
+	// Wait for the monitor to take its first sample, which it holds.
+	assert.Eventually(t, func() bool {
+		resp := request(&spb.Request{RequestType: &spb.Request_GetSystemMetrics{
+			GetSystemMetrics: &spb.GetSystemMetricsRequest{},
+		}})
+		return len(resp.GetGetSystemMetricsResponse().GetSystemMetrics()) > 0
+	}, 5*time.Second, 10*time.Millisecond)
+
+	inChan <- runwork.NoRequest(runwork.WorkRecord{Record: makeExitRecord()})
+
+	statsBeforeExit := 0
+	for work := range h.OutChan() {
+		record := work.WorkImpl.ToRecord()
+		if record.GetStats() != nil {
+			statsBeforeExit++
+		}
+		if record.GetExit() != nil {
+			break
+		}
+	}
+	assert.Positive(t, statsBeforeExit)
 }
