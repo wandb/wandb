@@ -22,17 +22,21 @@ import (
 	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/version"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
 	defaultSamplingInterval = 15.0 * time.Second
+	// holdDruation is how log system metrics are held back for server versions <= 0.77.x.
+	holdDuration = 120 * time.Second
 )
 
 // State definitions for the SystemMonitor.
@@ -105,6 +109,14 @@ type SystemMonitor struct {
 
 	// Information about the Git repository, if applicable.
 	git *spb.GitRepoRecord
+
+	// held contains system metrics records that are held until the holdUntil time.
+	// system metrics sampled before holdUntil are stored here.
+	held []*spb.Record
+	// guards until holdUntil and held.
+	heldMu sync.Mutex
+	// when to stop holding back system metrics; see holdServer()
+	holdUntil time.Time
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -377,9 +389,38 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 
 	sm.logger.Debug("monitor: starting")
 	sm.wg.Go(func() {
+		sm.holdServer()
 		sm.loop()
 	})
 	sm.wake()
+}
+
+// holdServer holds system metrics for runs to be used where server-side processing is required.
+// eg WB server <= 0.77.x
+// Server versions <= 0.77.x export system metrics early if exsist then return only exported rows ( see wadnb/core#37503).
+// Holding samples keeps out of export without changing sample rate wandb.Settings(x_stats_sampling_interval=30).
+// not parquet policy can also be controlled with  GORILLA_PARQUET_POLICY_FILESTREAM_EVENTS_SIZE_BEFORE_PARTIAL_EXPORT
+// for some cases.
+func (sm *SystemMonitor) holdServer() {
+	if sm.graphqlClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(sm.ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := gql.ServerInfo(ctx, sm.graphqlClient)
+	if err != nil || resp.ServerInfo == nil || resp.ServerInfo.LatestLocalVersionInfo == nil {
+		return // Forge MT SAAS (wandb.ai) reports no version
+	}
+
+	// invalid versions seg "development"
+	v := resp.ServerInfo.LatestLocalVersionInfo.VersionOnThisInstanceString
+	if version.Compare(v, "0.0.0") >= 0 && version.Compare(v, "0.78.0") < 0 {
+		sm.heldMu.Lock()
+		sm.holdUntil = time.Now().Add(holdDuration)
+		sm.heldMu.Unlock()
+		sm.logger.Debug("monitor: holding system metrics", "duration", holdDuration, "version", v)
+	}
 }
 
 // wake forces the system monitor to sample resources immediately.
@@ -509,12 +550,44 @@ func (sm *SystemMonitor) sample() {
 					Stats: metrics,
 				},
 			}
-			sm.extraWork.AddWorkOrCancel(
-				sm.ctx.Done(),
-				runwork.NoRequest(runwork.WorkFromRecord(record)),
-			)
+			sm.publish(record)
 		})
 	}
+}
+
+// publish send system metrics or holds until holdUntil expires
+//
+// The first record after holdUntil sends all held records.
+
+func (sm *SystemMonitor) publish(record *spb.Record) {
+	sm.heldMu.Lock()
+	if time.Now().Before(sm.holdUntil) {
+		sm.held = append(sm.held, record)
+		sm.heldMu.Unlock()
+		return
+
+	}
+	records := append(sm.held, record)
+	sm.held = nil
+	sm.heldMu.Unlock()
+	for _, record := range records {
+		sm.extraWork.AddWorkOrCancel(
+			sm.ctx.Done(),
+			runwork.NoRequest(runwork.WorkFromRecord(record)),
+		)
+	}
+}
+
+// ClearHeld returns and clears records still held when run ends
+func (sm *SystemMonitor) ClearHeld() []*spb.Record {
+	if sm == nil {
+		return nil
+	}
+	sm.heldMu.Lock()
+	defer sm.heldMu.Unlock()
+	held := sm.held
+	sm.held = nil
+	return held
 }
 
 // ShouldCaptureSamplingError checks if a resource sampling error should be captured as a telemetry error.
