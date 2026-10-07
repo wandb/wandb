@@ -27,8 +27,11 @@ import (
 
 // Injectors from wire.go:
 
-func InjectRunSyncPipeline(settings2 *settings.Settings, logger *observability.CoreLogger, printer *observability.Printer, operations *wboperation.WandbOperations, clientID sharedmode.ClientID) *RunSyncPipeline {
+func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger) *RunSyncerFactory {
+	wandbOperations := wboperation.NewOperations()
+	printer := providePrinter()
 	wbBaseURL := stream.BaseURLFromSettings(logger, settings2)
+	clientID := sharedmode.RandomClientID()
 	credentialProvider := stream.CredentialsFromSettings(logger, settings2)
 	peeker := &observability.Peeker{}
 	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2)
@@ -38,17 +41,21 @@ func InjectRunSyncPipeline(settings2 *settings.Settings, logger *observability.C
 		FeatureProvider:    featureProvider,
 		GraphqlClientOrNil: client,
 		Logger:             logger,
-		Operations:         operations,
+		Operations:         wandbOperations,
 		RunHandle:          runHandle,
-		ClientID:           clientID,
 		Settings:           settings2,
+	}
+	runReaderFactory := &RunReaderFactory{
+		Logger:     logger,
+		Operations: wandbOperations,
+		ClientID:   clientID,
 	}
 	stats := provideNoFileStreamStats()
 	fileStreamFactory := &filestream.FileStreamFactory{
 		BaseURL:         wbBaseURL,
 		FeatureProvider: featureProvider,
 		Logger:          logger,
-		Operations:      operations,
+		Operations:      wandbOperations,
 		Printer:         printer,
 		Settings:        settings2,
 		Stats:           stats,
@@ -61,7 +68,7 @@ func InjectRunSyncPipeline(settings2 *settings.Settings, logger *observability.C
 		FileWatcher:  watcher,
 		GraphQL:      client,
 		Logger:       logger,
-		Operations:   operations,
+		Operations:   wandbOperations,
 		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
@@ -72,7 +79,7 @@ func InjectRunSyncPipeline(settings2 *settings.Settings, logger *observability.C
 		ClientID:                clientID,
 		CredentialProvider:      credentialProvider,
 		Logger:                  logger,
-		Operations:              operations,
+		Operations:              wandbOperations,
 		Settings:                settings2,
 		FeatureProvider:         featureProvider,
 		FileStreamFactory:       fileStreamFactory,
@@ -92,18 +99,30 @@ func InjectRunSyncPipeline(settings2 *settings.Settings, logger *observability.C
 		Logger:   logger,
 		Settings: settings2,
 	}
-	runSyncPipeline := &RunSyncPipeline{
+	runSyncerFactory := &RunSyncerFactory{
+		Logger:              logger,
+		Operations:          wandbOperations,
+		Printer:             printer,
 		RecordParserFactory: recordParserFactory,
 		RunHandle:           runHandle,
+		RunReaderFactory:    runReaderFactory,
 		SenderFactory:       senderFactory,
+		Settings:            settings2,
 		TBHandlerFactory:    tbHandlerFactory,
 	}
-	return runSyncPipeline
+	return runSyncerFactory
 }
 
 // wire.go:
 
-var runSyncPipelineBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runSyncPipelineProviders, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, provideNoFileStreamStats)
+var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, provideFileWatcher,
+	providePrinter, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
+	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, provideNoFileStreamStats,
+)
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

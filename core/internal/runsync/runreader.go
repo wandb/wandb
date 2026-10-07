@@ -9,18 +9,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/wire"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+var runReaderProviders = wire.NewSet(
+	wire.Struct(new(RunReaderFactory), "*"),
+)
+
 // RunReaderFactory constructs RunReader.
 type RunReaderFactory struct {
 	Logger     *observability.CoreLogger
 	Operations *wboperation.WandbOperations
+
+	// ClientID is the writer ID for runs from SDK versions that didn't
+	// record one in the transaction log.
+	ClientID sharedmode.ClientID
 }
 
 // RunReader gets information out of .wandb files.
@@ -33,10 +44,9 @@ type RunReader struct {
 	seenRun  bool // whether we've processed a run record yet
 	seenExit bool // whether we've processed an exit record yet
 
-	logger     *observability.CoreLogger
-	operations *wboperation.WandbOperations
-
-	// Set by ProcessTransactionLog.
+	clientID     sharedmode.ClientID
+	logger       *observability.CoreLogger
+	operations   *wboperation.WandbOperations
 	recordParser stream.RecordParser
 	runWork      runwork.RunWork
 }
@@ -46,6 +56,8 @@ func (f *RunReaderFactory) New(
 	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
+	recordParser stream.RecordParser,
+	runWork runwork.RunWork,
 ) *RunReader {
 	return &RunReader{
 		path:        path,
@@ -53,8 +65,11 @@ func (f *RunReaderFactory) New(
 		updates:     updates,
 		live:        live,
 
-		logger:     f.Logger,
-		operations: f.Operations,
+		clientID:     f.ClientID,
+		logger:       f.Logger,
+		operations:   f.Operations,
+		recordParser: recordParser,
+		runWork:      runWork,
 	}
 }
 
@@ -100,27 +115,19 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 			runInfo.Project = run.Project
 			runInfo.RunID = run.RunId
 			runInfo.StartTime = run.StartTime.AsTime()
-			runInfo.WriterID = run.WriterId
 			return runInfo, nil
 		}
 	}
 }
 
-// ProcessTransactionLog parses the .wandb file's records and adds them
-// to RunWork.
+// ProcessTransactionLog processes the .wandb file and adds to RunWork.
 //
 // Returns an error if it fails to start or on partial success.
 //
 // Closes RunWork at the end, even on error. If there was no Exit record,
 // creates one with an exit code of 1.
-func (r *RunReader) ProcessTransactionLog(
-	ctx context.Context,
-	recordParser stream.RecordParser,
-	runWork runwork.RunWork,
-) (err error) {
+func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 	r.logger.Info("runsync: starting to read")
-	r.recordParser = recordParser
-	r.runWork = runWork
 
 	defer r.runWork.Close()
 
@@ -289,6 +296,9 @@ func (r *RunReader) nextUpdatedRecord(
 	}
 
 	r.updates.Modify(record)
+	if run := record.GetRun(); run != nil && run.WriterId == "" {
+		run.WriterId = string(r.clientID)
+	}
 	return
 }
 
