@@ -195,6 +195,7 @@ class Api:
             source="wandb.Api()",
             no_offline=True,
             input_timeout=wandb_setup.singleton().settings.login_timeout,
+            update_session=False,
         )
 
         if not auth:
