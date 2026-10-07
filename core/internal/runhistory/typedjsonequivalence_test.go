@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -40,61 +41,64 @@ func decodedMetrics(history *runhistory.RunHistory) map[string]any {
 	return result
 }
 
-func requireMetricValue(t *testing.T, want, got any) {
+func assertMetricValue(t *testing.T, want, got any) {
 	t.Helper()
+	// Type must match before the type assertions below.
 	require.Equal(t, reflect.TypeOf(want), reflect.TypeOf(got))
 	switch want := want.(type) {
 	case float64:
 		actual := got.(float64)
 		if math.IsNaN(want) {
-			require.True(t, math.IsNaN(actual))
+			assert.True(t, math.IsNaN(actual))
 		} else {
-			require.Equal(t, math.Float64bits(want), math.Float64bits(actual))
+			assert.Equal(t, math.Float64bits(want), math.Float64bits(actual))
 		}
 	case []any:
 		actual := got.([]any)
 		require.Len(t, actual, len(want))
 		for i := range want {
-			requireMetricValue(t, want[i], actual[i])
+			assertMetricValue(t, want[i], actual[i])
 		}
 	case map[string]any:
 		actual := got.(map[string]any)
 		require.Len(t, actual, len(want))
 		for key, value := range want {
 			gotValue, exists := actual[key]
-			require.True(t, exists, "missing object member %q", key)
-			requireMetricValue(t, value, gotValue)
+			if !assert.True(t, exists, "missing object member %q", key) {
+				continue
+			}
+			assertMetricValue(t, value, gotValue)
 		}
 	default:
-		require.Equal(t, want, got)
+		assert.Equal(t, want, got)
 	}
 }
 
-func requireHistoryValueKind(t *testing.T, item *spb.HistoryItem, wantKind string) {
+func assertHistoryValueKind(t *testing.T, item *spb.HistoryItem, wantKind string) {
 	t.Helper()
-	require.NotEmpty(t, item.ValueJson)
-	require.NotNil(t, item.Value)
+	assert.NotEmpty(t, item.ValueJson)
+	assert.NotNil(t, item.Value)
 
 	switch item.Value.(type) {
 	case *spb.HistoryItem_None:
-		require.Equal(t, "none", wantKind)
+		assert.Equal(t, "none", wantKind)
 	case *spb.HistoryItem_Boolean:
-		require.Equal(t, "boolean", wantKind)
+		assert.Equal(t, "boolean", wantKind)
 	case *spb.HistoryItem_Integer:
-		require.Equal(t, "integer", wantKind)
+		assert.Equal(t, "integer", wantKind)
 	case *spb.HistoryItem_Number:
-		require.Equal(t, "number", wantKind)
+		assert.Equal(t, "number", wantKind)
 	case *spb.HistoryItem_Text:
-		require.Equal(t, "text", wantKind)
+		assert.Equal(t, "text", wantKind)
 	case *spb.HistoryItem_Json:
-		require.Equal(t, "json", wantKind)
-		require.Equal(t, item.ValueJson, item.GetJson())
+		assert.Equal(t, "json", wantKind)
+		assert.Equal(t, item.ValueJson, item.GetJson())
 	default:
 		t.Fatalf("unexpected value alternative %T", item.Value)
 	}
 }
 
-func requireHistoryRecordMetrics(
+func assertHistoryRecordMetrics(
 	t *testing.T,
 	gotItems []*spb.HistoryItem,
 	wantKinds map[string]string,
@@ -104,21 +108,25 @@ func requireHistoryRecordMetrics(
 	for _, item := range gotItems {
 		key := metricKey(item.NestedKey)
 		wantKind, exists := wantKinds[key]
-		require.True(t, exists, "unexpected path %s", key)
-		require.False(t, seen[key], "duplicate path %s", key)
+		if !assert.True(t, exists, "unexpected path %s", key) {
+			continue
+		}
+		assert.False(t, seen[key], "duplicate path %s", key)
 		seen[key] = true
-		requireHistoryValueKind(t, item, wantKind)
+		assertHistoryValueKind(t, item, wantKind)
 	}
-	require.Len(t, seen, len(wantKinds))
+	assert.Len(t, seen, len(wantKinds))
 }
 
-func requireMetricsEqual(t *testing.T, got, want map[string]any) {
+func assertMetricsEqual(t *testing.T, got, want map[string]any) {
 	t.Helper()
-	require.Len(t, got, len(want))
+	assert.Len(t, got, len(want))
 	for key, wantValue := range want {
 		gotValue, exists := got[key]
-		require.True(t, exists, "missing path %s", key)
-		requireMetricValue(t, wantValue, gotValue)
+		if !assert.True(t, exists, "missing path %s", key) {
+			continue
+		}
+		assertMetricValue(t, wantValue, gotValue)
 	}
 }
 
@@ -140,7 +148,7 @@ func decodeToTyped(t *testing.T, record *spb.HistoryRecord) *runhistory.RunHisto
 	typedRow := runhistory.New()
 	for _, item := range record.Item {
 		key := metricKey(item.NestedKey)
-		require.False(t, seen[key], "duplicate path %s", key)
+		assert.False(t, seen[key], "duplicate path %s", key)
 		seen[key] = true
 		typedItem := proto.Clone(item).(*spb.HistoryItem)
 		typedItem.ValueJson = ""
@@ -155,7 +163,7 @@ func decodeToJson(t *testing.T, record *spb.HistoryRecord) *runhistory.RunHistor
 	jsonRow := runhistory.New()
 	for _, item := range record.Item {
 		key := metricKey(item.NestedKey)
-		require.False(t, seen[key], "duplicate path %s", key)
+		assert.False(t, seen[key], "duplicate path %s", key)
 		seen[key] = true
 		jsonItem := proto.Clone(item).(*spb.HistoryItem)
 		jsonItem.Value = nil
@@ -164,7 +172,7 @@ func decodeToJson(t *testing.T, record *spb.HistoryRecord) *runhistory.RunHistor
 	return jsonRow
 }
 
-func requireTypedAndJsonEqual(t *testing.T, got *runhistory.RunHistory, want []wantedMetric) {
+func assertTypedAndJsonEqual(t *testing.T, got *runhistory.RunHistory, want []wantedMetric) {
 	t.Helper()
 
 	wantKinds := make(map[string]string)
@@ -177,16 +185,16 @@ func requireTypedAndJsonEqual(t *testing.T, got *runhistory.RunHistory, want []w
 	}
 
 	dualHistoryRecord := requireRoundTrip(t, got)
-	require.Len(t, dualHistoryRecord.Item, len(want))
-	requireHistoryRecordMetrics(t, dualHistoryRecord.Item, wantKinds)
+	assert.Len(t, dualHistoryRecord.Item, len(want))
+	assertHistoryRecordMetrics(t, dualHistoryRecord.Item, wantKinds)
 
 	typedRunHistory := decodeToTyped(t, dualHistoryRecord)
 	typedMetrics := decodedMetrics(typedRunHistory)
-	requireMetricsEqual(t, typedMetrics, wantTyped)
+	assertMetricsEqual(t, typedMetrics, wantTyped)
 
 	jsonRunHistory := decodeToJson(t, dualHistoryRecord)
 	jsonMetrics := decodedMetrics(jsonRunHistory)
-	requireMetricsEqual(t, jsonMetrics, wantJson)
+	assertMetricsEqual(t, jsonMetrics, wantJson)
 }
 
 func TestTypedAndJsonDecoding(t *testing.T) {
@@ -254,7 +262,7 @@ func TestTypedAndJsonDecoding(t *testing.T) {
 	} {
 		require.NoError(t, rh.SetFromRecord(input))
 	}
-	requireTypedAndJsonEqual(t, rh, metrics)
+	assertTypedAndJsonEqual(t, rh, metrics)
 }
 
 func TestTypedAndJsonSparseRows(t *testing.T) {
@@ -293,29 +301,31 @@ func TestTypedAndJsonSparseRows(t *testing.T) {
 		for _, item := range test.items {
 			require.NoError(t, rh.SetFromRecord(item))
 		}
-		requireTypedAndJsonEqual(t, rh, test.want)
+		assertTypedAndJsonEqual(t, rh, test.want)
 	}
 }
 
 func TestTypedAndJsonIntFloatDifferences(t *testing.T) {
 	rh := runhistory.New()
 	rh.SetFloat(pathtree.PathOf("metric"), 1.0)
-	requireTypedAndJsonEqual(t, rh, []wantedMetric{{[]string{"metric"}, "number", 1.0, int64(1)}})
+	assertTypedAndJsonEqual(t, rh, []wantedMetric{{[]string{"metric"}, "number", 1.0, int64(1)}})
 	items, err := rh.ToRecords(true, true)
 	require.NoError(t, err)
-	require.Equal(t, "1", items[0].ValueJson)
+	require.Len(t, items, 1)
+	assert.Equal(t, "1", items[0].ValueJson)
 	line, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
-	require.Equal(t, `{"metric":1}`, string(line))
+	assert.Equal(t, `{"metric":1}`, string(line))
 }
 
 func TestTypedAndJsonNegativeZero(t *testing.T) {
 	rh := runhistory.New()
 	rh.SetFloat(pathtree.PathOf("metric"), math.Copysign(0, -1))
-	requireTypedAndJsonEqual(t, rh, []wantedMetric{{
+	assertTypedAndJsonEqual(t, rh, []wantedMetric{{
 		[]string{"metric"}, "number", math.Copysign(0, -1), int64(0),
 	}})
 	items, err := rh.ToRecords(true, true)
 	require.NoError(t, err)
-	require.Equal(t, "-0", items[0].ValueJson)
+	require.Len(t, items, 1)
+	assert.Equal(t, "-0", items[0].ValueJson)
 }
