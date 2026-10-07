@@ -212,11 +212,11 @@ def _use_system_auth(
 
     with _session_auth_lock:
         if auth:
-            term.termlog(
-                f"[{source}] Loaded credentials for {auth.auth.host}"
-                + f" from {auth.source}."
-            )
             if update_session:
+                term.termlog(
+                    f"[{source}] Loaded credentials for {auth.auth.host}"
+                    + f" from {auth.source}."
+                )
                 _locked_set_session_auth(auth.auth)
             return auth.auth
 

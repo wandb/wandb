@@ -190,15 +190,12 @@ class Api:
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
-        global_settings = wandb_setup.singleton().settings
         auth = wbauth.authenticate_session(
             host=base_url,
             source="wandb.Api()",
             no_offline=True,
-            input_timeout=global_settings.login_timeout,
-            update_session=wbauth.HostUrl(base_url).is_same_url(
-                global_settings.base_url
-            ),
+            input_timeout=wandb_setup.singleton().settings.login_timeout,
+            update_session=False,
         )
 
         if not auth:
