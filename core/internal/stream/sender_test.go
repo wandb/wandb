@@ -207,6 +207,100 @@ func TestSendHistoryAppliesSteps(t *testing.T) {
 	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
 }
 
+func sendHistoryItems(x testFixtures, items ...*spb.HistoryItem) {
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{Item: items}},
+	}, nil)
+}
+
+func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "null", Value: &spb.HistoryItem_None{}},
+		&spb.HistoryItem{
+			Key:   "false",
+			Value: &spb.HistoryItem_Boolean{Boolean: false},
+		},
+		&spb.HistoryItem{
+			Key:   "zero",
+			Value: &spb.HistoryItem_Integer{Integer: 0},
+		},
+		&spb.HistoryItem{
+			Key:   "float",
+			Value: &spb.HistoryItem_Number{Number: 1.0},
+		},
+		&spb.HistoryItem{
+			Key:   "empty",
+			Value: &spb.HistoryItem_Text{Text: ""},
+		},
+		&spb.HistoryItem{
+			NestedKey: []string{"nested", "object"},
+			Value:     &spb.HistoryItem_Json{Json: `{"a": 1, "b": {"c": true}}`},
+		},
+		&spb.HistoryItem{
+			NestedKey: []string{"nested", "array"},
+			Value:     &spb.HistoryItem_Json{Json: `[1, {"x": null}]`},
+		},
+	)
+
+	rows := fileStream.GetRequest(x.Settings).HistoryLines
+	require.Len(t, rows, 1)
+	assert.JSONEq(t, `{
+		"_step": 0,
+		"null":  null,
+		"false": false,
+		"zero":  0,
+		"float": 1,
+		"empty": "",
+		"nested": {
+			"object": {	"a": 1, "b": {"c": true}},
+			"array": [1, {"x": null}]
+		}
+	}`, rows[0])
+}
+
+func TestSendHistoryPrefersTypedValues(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	sendHistoryItems(x,
+		&spb.HistoryItem{
+			Key:       "typed",
+			Value:     &spb.HistoryItem_Integer{Integer: 7},
+			ValueJson: "99",
+		},
+		&spb.HistoryItem{Key: "legacy", ValueJson: `{"a": [false, 2]}`},
+	)
+
+	rows := fileStream.GetRequest(x.Settings).HistoryLines
+	require.Len(t, rows, 1)
+	assert.JSONEq(t, `{
+		"typed":  7,
+		"legacy": {"a": [false, 2]},
+		"_step":  0
+	}`, rows[0])
+}
+
+func TestSendHistoryPreservesTypedStep(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "_step", Value: &spb.HistoryItem_Integer{Integer: 5}},
+		&spb.HistoryItem{Key: "first", Value: &spb.HistoryItem_Boolean{Boolean: true}},
+	)
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "second", Value: &spb.HistoryItem_Integer{Integer: 2}},
+	)
+
+	rows := fileStream.GetRequest(x.Settings).HistoryLines
+	require.Len(t, rows, 2)
+	assert.JSONEq(t, `{	"_step": 5, "first": true}`, rows[0])
+	assert.JSONEq(t, `{	"_step": 6, "second": 2}`, rows[1])
+}
+
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()

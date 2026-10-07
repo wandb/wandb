@@ -117,6 +117,24 @@ class TestAskNRuns:
             optimizer.ask_n_runs(2)
 
 
+class TestMixedChoices:
+    @pytest.mark.parametrize(
+        ("values", "kinds"),
+        [
+            ([1, "two", 3.0], "number, str"),
+            ([True, 2], "bool, number"),
+            ([None, 3, 5], "NoneType, number"),
+        ],
+    )
+    def test_rejects_a_list_of_mixed_types(self, values: list[Any], kinds: str) -> None:
+        with pytest.raises(ValueError, match=f"'p' mixes value types \\({kinds}\\)"):
+            sweep_parameter_to_parameter("p", {"values": values})
+
+    @pytest.mark.parametrize("values", [[1, 2.5], ["a", "b"], [True, False], [None]])
+    def test_accepts_a_list_of_one_type(self, values: list[Any]) -> None:
+        sweep_parameter_to_parameter("p", {"values": values})
+
+
 class TestForgetRun:
     def test_fails_the_forgotten_trial_once(
         self, client: Client, sweep: SweepInfo
