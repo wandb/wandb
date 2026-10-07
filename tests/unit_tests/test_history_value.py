@@ -23,7 +23,7 @@ def make_typed_value(value: Any) -> pb.HistoryItem:
 
 
 @pytest.mark.parametrize(
-    "value, field, expected",
+    "input_value, expected_field, expected_encoding",
     [
         (None, "none", 0),
         (True, "boolean", True),
@@ -47,11 +47,11 @@ def make_typed_value(value: Any) -> pb.HistoryItem:
         (INT64_MIN - 1, "json", str(INT64_MIN - 1)),
     ],
 )
-def test_typed_value_cases(value, field, expected):
-    value_pb = make_typed_value(value)
+def test_typed_value_cases(input_value, expected_field, expected_encoding):
+    typed_value = make_typed_value(input_value)
 
-    assert value_pb.WhichOneof("value") == field
-    assert getattr(value_pb, field) == expected
+    assert typed_value.WhichOneof("value") == expected_field
+    assert getattr(typed_value, expected_field) == expected_encoding
 
 
 def test_typed_value_logged_float_stays_a_float():
