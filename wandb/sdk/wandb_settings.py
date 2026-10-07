@@ -1253,7 +1253,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_history_value_encoding", mode="after")
     @classmethod
     def validate_x_history_value_encoding(cls, value: str) -> str:
-        """Normalize the history value encoding, or fall back to the default.
+        """Normalize the history value encoding. Reject typed-only values.
 
         <!-- lazydoc-ignore -->
         """
@@ -1266,6 +1266,11 @@ class Settings(BaseModel, validate_assignment=True):
                 repeat=False,
             )
             return HISTORY_VALUE_ENCODING_DEFAULT
+
+        if HISTORY_VALUE_ENCODING_JSON not in forms:
+            raise ValueError(
+                "Typed-only history encoding is unavailable. Use 'json,typed' or 'json'."
+            )
 
         # Store the stripped, lowercased forms so that a reader can split
         # on "," and compare without parsing again.

@@ -10,6 +10,7 @@ translated into a graceful stop request and the second one force-quits.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import logging
 import pathlib
 import signal
@@ -113,20 +114,34 @@ def run_scheduler(
         entity=entity,
         project=project,
         config=yaml.safe_load(init_response.sweep_config) or {},
+        controller_run_name=init_response.controller_run_name,
     )
-    optimizer = make_optimizer(sweep)
-    exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
+    try:
+        optimizer = make_optimizer(sweep)
+    except wandb.Error as e:
+        term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
+        raise
+
+    logger = _TermForwarder(
+        label="scheduler",
+        entity=sweep.entity,
+        project=sweep.project,
+        run_name=sweep.controller_run_name,
+        level=logging.INFO,
+    )
+    exchange = SchedulerTaskExchange(
+        service, init_response.session_id, optimizer, logger
+    )
 
     previous_handler = _install_sigint_handler(
         singleton.asyncer, service, init_response.session_id
     )
-    restore_library_logs = optimizer.route_library_logs(
-        _TermForwarder(level=logging.INFO)
-    )
+    restore_library_logs = optimizer.route_library_logs(logger)
     try:
         done = singleton.asyncer.run(exchange.run)
     finally:
         restore_library_logs()
+        logger.close()
         if previous_handler is not None:
             signal.signal(signal.SIGINT, previous_handler)
 
@@ -142,9 +157,43 @@ def run_scheduler(
 class _TermForwarder(logging.Handler):
     """Prints a search library's log records through `term`."""
 
+    def __init__(
+        self, label: str, entity: str, project: str, run_name: str, level: int
+    ) -> None:
+        super().__init__(level=level)
+        self.run = wandb.init(
+            # don't impact any existing references to the controller run
+            reinit="create_new",
+            settings=wandb.Settings(
+                # avoid duplication: send full log lines
+                console="off",
+                # avoid printing controller run name to the console
+                silent=True,
+                # disable uploading metadata json to the run config
+                x_primary=False,
+                # disable git metadata
+                disable_git=True,
+                # disable machine stats
+                x_disable_machine_info=True,
+                x_disable_stats=True,
+                # do not update controller run state on finish or crash
+                x_update_finish_state=False,
+                # enables filter by label in the UI
+                x_label=label,
+            ),
+            id=run_name,
+            entity=entity,
+            project=project,
+        )
+
+    def close(self) -> None:
+        self.run.finish()
+        super().close()
+
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            message = f"{record.name}: {record.getMessage()}"
+            message = record.getMessage()
+            self.run.write_logs(message)
             if record.levelno >= logging.ERROR:
                 term.termerror(message)
             elif record.levelno >= logging.WARNING:
@@ -224,37 +273,72 @@ def load_source_object(source: str, name: str) -> Any:
 
 
 def load_optimizer_config(
-    source: str, name: str, optimizer_type: str
+    source: str, name: str, optimizer_class: type, sweep: SweepInfo
 ) -> tuple[Any, Callable[[Any], bool] | None]:
     """Run a configured optimizer factory and normalize its return value.
 
-    The factory may return either the engine's native optimizer object or an
-    `(optimizer, terminator)` tuple. A terminator, when present, must be
-    callable.
+    The factory takes the sweep's SweepInfo and returns either an instance
+    of `optimizer_class` or an `(optimizer, terminator)` tuple. A terminator,
+    when present, must be callable.
 
     Args:
         source: The python file that defines the factory.
         name: The factory's name in `source`.
-        optimizer_type: The full path of the engine's optimizer type, shown
-            in errors.
+        optimizer_class: The engine's optimizer type, such as optuna's Study.
+        sweep: The sweep to pass to the factory.
+
+    Raises:
+        ValueError: If the factory or what it returns has the wrong type.
     """
-    configured: object = load_source_object(source, name)()
-    if not isinstance(configured, tuple):
-        return configured, None
-    parts = cast("tuple[object, ...]", configured)
+    optimizer_type = _public_type_name(optimizer_class)
     terminator_type = f"Callable[[{optimizer_type}], bool]"
-    if len(parts) != 2:
-        raise ValueError(
-            f"scheduler.optimizer {name!r} must return an instance of "
-            f"{optimizer_type} or a tuple of ({optimizer_type}, "
-            f"{terminator_type}), but returned a tuple of {len(parts)} items."
+    # TODO: link to documentation with scheduler.optimizer examples.
+    requirement = (
+        f"scheduler.optimizer must name a function that takes a"
+        f" SweepInfo argument and returns an instance of"
+        f" {optimizer_type} or a ({optimizer_type}, {terminator_type}) tuple."
+    )
+
+    factory = load_source_object(source, name)
+    if not callable(factory):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} is {type(factory).__name__}, not a function."
+            f" {requirement}"
         )
-    optimizer, terminator = parts
+    try:
+        inspect.signature(factory).bind(sweep)
+    except TypeError:
+        raise ValueError(
+            f"{name!r} in {source} cannot be called with one SweepInfo argument."
+            f" {requirement}"
+        ) from None
+
+    configured: object = factory(sweep)
+    optimizer, terminator = configured, None
+    if isinstance(configured, tuple):
+        parts = cast("tuple[object, ...]", configured)
+        if len(parts) != 2:
+            raise ValueError(
+                f"{name!r} in {source} returned a tuple of {len(parts)} items."
+                f" {requirement}"
+            )
+        optimizer, terminator = parts
+
+    if not isinstance(optimizer, optimizer_class):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} returned {type(optimizer).__name__} instead"
+            f" of {optimizer_type}. {requirement}"
+        )
     if terminator is not None and not callable(terminator):
         raise ValueError(
-            f"The terminator returned by scheduler.optimizer {name!r} must be "
-            f"of type {terminator_type} or None, but is of type "
-            f"{type(terminator).__name__}."
+            f"The terminator returned by {name!r} in {source} is"
+            f" {type(terminator).__name__} instead of {terminator_type}."
+            f" {requirement}"
         )
     # Only callability can be checked; the signature is the user's contract.
     return optimizer, cast("Callable[[Any], bool] | None", terminator)
+
+
+def _public_type_name(cls: type) -> str:
+    """Name a class by its top-level package, e.g. optuna.Study or ax.Client."""
+    return f"{cls.__module__.split('.')[0]}.{cls.__qualname__}"
