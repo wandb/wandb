@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -13,6 +15,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import _TermForwarder
 from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange
 from wandb.sdk.sweeps.scheduler.optimizer import Run, RunWithMetrics
 from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
@@ -80,8 +83,17 @@ def _start_scheduler(
     sweep_id: str,
     *,
     batch_size: int = 1,
+    make_handler: Callable[[SweepInfo], logging.Handler] | None = None,
 ) -> tuple[_SpyOptimizer, str, threading.Thread, list]:
     """Start a real scheduler session against wandb-core in a background thread.
+
+    Args:
+        entity: The entity that owns the sweep.
+        project: The project the sweep belongs to.
+        sweep_id: The sweep to schedule.
+        batch_size: The most runs to enqueue at once.
+        make_handler: Builds the exchange's log handler from the sweep.
+            Logs are dropped if omitted.
 
     Returns the optimizer (to observe hook calls), the session id (to send
     a stop), the driving thread, and a one-element list that the thread
@@ -109,9 +121,13 @@ def _start_scheduler(
         entity=entity,
         project=project,
         config=yaml.safe_load(init_response.sweep_config) or {},
+        controller_run_name=init_response.controller_run_name,
     )
     optimizer = _SpyOptimizer(sweep)
-    exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
+    handler = logging.NullHandler() if make_handler is None else make_handler(sweep)
+    exchange = SchedulerTaskExchange(
+        service, init_response.session_id, optimizer, handler
+    )
 
     future_list: list = []
 
@@ -148,22 +164,40 @@ def skip_if_server_does_not_support_local_scheduler(api: wandb.Api) -> None:
 
 
 def test_warm_start_adopts_prior_runs(
-    user, skip_if_server_does_not_support_local_scheduler
+    user, wandb_backend_spy, skip_if_server_does_not_support_local_scheduler
 ):
-    """A sweep's pre-existing runs are handed to the optimizer on warm start."""
+    """A sweep's pre-existing runs are handed to the optimizer on warm start.
+
+    The scheduler's logs about them reach the sweep's controller run.
+    """
     entity, project = user, "sweep-scheduler-e2e-warm-start"
     sweep_id = wandb.sweep(SWEEP_CONFIG, entity=entity, project=project)
 
     with wandb.init(
         entity=entity, project=project, settings={"sweep_id": sweep_id}
-    ) as run:
-        run.log({"loss": 1.0})
+    ) as finished_run:
+        finished_run.log({"loss": 1.0})
 
     # Left running: the scheduler should adopt it as in-flight, not tell it.
-    wandb.init(entity=entity, project=project, settings={"sweep_id": sweep_id})
+    active_run = wandb.init(
+        entity=entity, project=project, settings={"sweep_id": sweep_id}
+    )
+
+    handlers: list[_TermForwarder] = []
+
+    def make_handler(sweep: SweepInfo) -> logging.Handler:
+        handler = _TermForwarder(
+            label="scheduler",
+            entity=sweep.entity,
+            project=sweep.project,
+            run_name=sweep.controller_run_name,
+            level=logging.INFO,
+        )
+        handlers.append(handler)
+        return handler
 
     optimizer, session_id, thread, future_list = _start_scheduler(
-        entity, project, sweep_id
+        entity, project, sweep_id, make_handler=make_handler
     )
     try:
         _wait_until(
@@ -174,6 +208,12 @@ def test_warm_start_adopts_prior_runs(
         assert optimizer.active_adopted[0].state == RunState.RUNNING
     finally:
         _stop_and_join(session_id, thread, future_list)
+        handlers[0].close()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        logs = "\n".join(snapshot.output(run_id=handlers[0].run.id).values())
+    assert finished_run.id in logs
+    assert active_run.id in logs
 
 
 def test_generation_step_reports_a_finished_run(

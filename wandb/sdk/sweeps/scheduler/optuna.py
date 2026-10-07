@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from typing_extensions import override
 
@@ -47,6 +48,13 @@ _TRIAL_OUTCOME_VERB: dict[optuna.trial.TrialState, str] = {
 _logger = logging.getLogger("optuna.wandb_scheduler")
 
 TrialConstructor: TypeAlias = Callable[["optuna.Trial"], dict[str, Any]]
+
+# Appended to every search_space error.
+# TODO: link to documentation with search_space examples.
+_SEARCH_SPACE_REQUIREMENT = (
+    "scheduler.search_space must name a function that takes an optuna.Trial"
+    " and returns a dict of parameter values."
+)
 TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
 
 # optuna's `Study.stop` refuses to run outside an `optimize()` loop, so a
@@ -72,7 +80,7 @@ class OptunaOptions:
     terminates early.
     """
 
-    study: optuna.Study | None = None
+    study: optuna.Study
     distributions: dict[str, optuna.distributions.BaseDistribution] | None = None
     search_space: TrialConstructor | None = None
     terminator: TerminatorCallback | None = None
@@ -646,6 +654,51 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         self.tell_run(self._ask_suggestion().run_id, data)
 
 
+def load_trial_constructor(source: str, name: str) -> TrialConstructor:
+    """Load a define-by-run trial constructor and check its type.
+
+    Args:
+        source: The Python file that defines the constructor.
+        name: The constructor's name in `source`.
+
+    Raises:
+        ValueError: If `name` is not a callable that takes one trial and
+            returns a dict.
+    """
+    constructor = load_source_object(source, name)
+
+    # check search_space is a function
+    if not callable(constructor):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} is {type(constructor).__name__}, not a"
+            f" function. {_SEARCH_SPACE_REQUIREMENT}"
+        )
+    try:
+        inspect.signature(constructor).bind(object())
+    except TypeError:
+        raise ValueError(
+            f"{name!r} in {source} does not accept a single trial argument."
+            f" {_SEARCH_SPACE_REQUIREMENT}"
+        ) from None
+
+    # Hide optuna's INFO line for the throwaway study.
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    try:
+        trial = optuna.create_study().ask()
+    finally:
+        optuna.logging.set_verbosity(verbosity)
+
+    # create a trial on the throwaway study, check the return type
+    params: object = constructor(trial)
+    if not isinstance(params, Mapping):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} returned {type(params).__name__}, not a"
+            f" dict. {_SEARCH_SPACE_REQUIREMENT}"
+        )
+    return cast(TrialConstructor, constructor)
+
+
 # ---------------------------------------------------------------------------
 # Optimizer construction.
 #
@@ -656,26 +709,30 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
 # ---------------------------------------------------------------------------
 
 
-def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
-    """Build an optuna study from a sweep config's metric objective(s).
+def sweep_directions(config: dict[str, Any]) -> list[str]:
+    """Return the Optuna study directions for a sweep's metric objective(s).
 
-    When `config["metrics"]` is set, a multi-objective study is created with
-    `directions=` derived from each entry's `goal` (default `"minimize"`).
-    Otherwise a single-objective study is created from
-    `config["metric"]["goal"]`.
+    Pass the result as `optuna.create_study(directions=...)`. A sweep with
+    `metrics` gets one direction per entry, and a sweep with `metric` gets
+    one. Each direction is the metric's `goal`, defaulting to `"minimize"`.
+
+    Args:
+        config: A sweep config, such as `SweepInfo.config`.
     """
     metrics = config.get("metrics")
-    pruner = optuna.pruners.NopPruner()
-    if metrics is not None:
-        directions = [str(metric.get("goal", "minimize")).lower() for metric in metrics]
-        return optuna.create_study(directions=directions, pruner=pruner)
-    goal = (config.get("metric") or {}).get("goal", "minimize")
-    return optuna.create_study(direction=goal, pruner=pruner)
+    if metrics is None:
+        metrics = [config.get("metric") or {}]
+    return [str(metric.get("goal", "minimize")).lower() for metric in metrics]
 
 
-def make_optimizer(
-    study: optuna.Study, sweep: SweepInfo, options: OptunaOptions
-) -> OptunaOptimizer:
+def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
+    """Build an optuna study from a sweep config's metric objective(s)."""
+    return optuna.create_study(
+        directions=sweep_directions(config), pruner=optuna.pruners.NopPruner()
+    )
+
+
+def make_optimizer(sweep: SweepInfo, options: OptunaOptions) -> OptunaOptimizer:
     """Build the optimizer flavor the options select.
 
     Exactly one of `options.distributions` (define-and-run) or
@@ -688,25 +745,24 @@ def make_optimizer(
         raise ValueError("provide exactly one of `distributions` or `search_space`")
     if options.distributions is not None:
         return OptunaDeclarativeOptimizer(
-            study, options.distributions, sweep, options.terminator
+            options.study, options.distributions, sweep, options.terminator
         )
     assert options.search_space is not None  # guaranteed by the check above
     return OptunaImperativeOptimizer(
-        study, options.search_space, sweep, options.terminator
+        options.study, options.search_space, sweep, options.terminator
     )
 
 
-def build_optuna_optimizer(
-    sweep: SweepInfo, scheduler_config: dict[str, Any]
-) -> OptunaOptimizer:
+def build_optuna_optimizer(sweep: SweepInfo) -> OptunaOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
 
-    `scheduler.optimizer` names a zero-argument function in
-    `scheduler.source`. The function may return either an Optuna `Study` or
+    `scheduler.optimizer` names a function in `scheduler.source` that takes
+    the sweep's SweepInfo. The function may return either an Optuna `Study` or
     a `(Study, terminator)` tuple. A terminator is a one-argument function
     that receives the study after each generation and finishes the sweep by
     returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
     """
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     optimizer_name: str = scheduler_config.get("optimizer", "")
     search_space_name: str | None = scheduler_config.get("search_space")
     source: str = scheduler_config.get("source", "")
@@ -720,7 +776,7 @@ def build_optuna_optimizer(
     distributions = None
     try:
         if search_space_name is not None:
-            search_space = load_source_object(source, search_space_name)
+            search_space = load_trial_constructor(source, search_space_name)
         else:
             distributions = search_space_from_sweep_config(
                 sweep.config.get("parameters", {})
@@ -728,7 +784,7 @@ def build_optuna_optimizer(
         terminator = None
         if optimizer_name:
             study, terminator = load_optimizer_config(
-                source, optimizer_name, "optuna.study.Study"
+                source, optimizer_name, optuna.Study, sweep
             )
         else:
             study = create_study_from_sweep_config(sweep.config)
@@ -736,7 +792,6 @@ def build_optuna_optimizer(
         raise wandb.Error(str(e)) from e
 
     return make_optimizer(
-        study,
         sweep,
         OptunaOptions(
             study=study,

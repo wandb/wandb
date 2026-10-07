@@ -274,9 +274,22 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	return m.renderCmd()
 }
 
+// ToggleBlocked reports why Toggle would refuse to switch modes: nil if it
+// will switch, otherwise the error from KittyUnavailable. Toggle itself
+// returns a nil Cmd both when blocked and when there is simply nothing to
+// render, so call this to tell the two apart and show feedback.
+func (m *Model) ToggleBlocked() error {
+	if m.mode == PictureGlyph {
+		return KittyUnavailable()
+	}
+	return nil
+}
+
 // Toggle switches between Glyph and Kitty modes. When toggling away from
 // Kitty after an image was placed, returns a Cmd that emits the Kitty delete
 // sequence; otherwise returns the Cmd to render in the new mode (or nil).
+// Entering Kitty mode is a silent no-op until Kitty support is confirmed;
+// see ToggleBlocked for the reason.
 //
 // Caches are NOT eagerly invalidated: the seq bump is enough to invalidate
 // them via the cache key check on next render, and keeping the leaving-mode

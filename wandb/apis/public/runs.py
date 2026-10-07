@@ -1712,7 +1712,7 @@ class Run(Attrs):
         """The URL of the run.
 
         The run URL is generated from the entity, project, and run_id. For
-        SaaS users, it takes the form of `https://wandb.ai/entity/project/run_id`.
+        SaaS users, it takes the form of `https://forge.coreweave.com/wandb/entity/project/runs/run_id`.
         """
         path = self.path
         path.insert(2, "runs")
