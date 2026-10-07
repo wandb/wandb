@@ -52,6 +52,8 @@ func setup(t *testing.T) testFixtures {
 			runsync.ToDisplayPath(transactionLog, ""),
 			nil,
 			false,
+			mockRecordParser,
+			fakeRunWork,
 		),
 
 		TransactionLog:   transactionLog,
@@ -145,7 +147,6 @@ func Test_Extract_FindsInformation(t *testing.T) {
 				Project:   "test project",
 				RunId:     "test run ID",
 				StartTime: timestamppb.New(startTime),
-				WriterId:  "test writer ID",
 			},
 		}})
 
@@ -158,7 +159,6 @@ func Test_Extract_FindsInformation(t *testing.T) {
 		Project:    "test project",
 		RunID:      "test run ID",
 		StartTime:  startTime,
-		WriterID:   "test writer ID",
 	}, runInfo)
 }
 
@@ -199,8 +199,7 @@ func Test_TurnsAllRecordsIntoWork(t *testing.T) {
 		x.MockRecordParser.EXPECT().Parse(isExitRecord(0)).Return(exitWork),
 	)
 
-	err := x.RunReader.ProcessTransactionLog(
-		context.Background(), x.MockRecordParser, x.FakeRunWork)
+	err := x.RunReader.ProcessTransactionLog(context.Background())
 	require.NoError(t, err)
 
 	assert.Equal(t,
@@ -219,8 +218,7 @@ func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
 		x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(exitWork),
 	)
 
-	err := x.RunReader.ProcessTransactionLog(
-		context.Background(), x.MockRecordParser, x.FakeRunWork)
+	err := x.RunReader.ProcessTransactionLog(context.Background())
 	require.NoError(t, err)
 
 	assert.Equal(t,
@@ -272,8 +270,7 @@ func Test_ParsesInitFailure(t *testing.T) {
 				Times(2). // Run then Exit
 				Return(&testWork{})
 
-			err := x.RunReader.ProcessTransactionLog(
-				t.Context(), x.MockRecordParser, x.FakeRunWork)
+			err := x.RunReader.ProcessTransactionLog(t.Context())
 
 			assert.ErrorContains(t, err, tc.ErrMsg)
 		})
@@ -310,8 +307,7 @@ func Test_LaterRunRecordsDontWaitForResponse(t *testing.T) {
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
 
-	err := x.RunReader.ProcessTransactionLog(
-		t.Context(), x.MockRecordParser, x.FakeRunWork)
+	err := x.RunReader.ProcessTransactionLog(t.Context())
 	require.NoError(t, err)
 
 	allWork := x.FakeRunWork.AllWork()
@@ -325,8 +321,7 @@ func Test_LaterRunRecordsDontWaitForResponse(t *testing.T) {
 func Test_FileNotFoundError(t *testing.T) {
 	x := setup(t)
 
-	err := x.RunReader.ProcessTransactionLog(
-		context.Background(), x.MockRecordParser, x.FakeRunWork)
+	err := x.RunReader.ProcessTransactionLog(context.Background())
 
 	var syncErr *runsync.SyncError
 	require.ErrorAs(t, err, &syncErr)
@@ -343,8 +338,7 @@ func Test_FilePermissionError(t *testing.T) {
 	err := os.Chmod(x.TransactionLog, 0o200) // write-only
 	require.NoError(t, err)
 
-	err = x.RunReader.ProcessTransactionLog(
-		context.Background(), x.MockRecordParser, x.FakeRunWork)
+	err = x.RunReader.ProcessTransactionLog(context.Background())
 
 	var syncErr *runsync.SyncError
 	require.ErrorAs(t, err, &syncErr)
@@ -368,8 +362,7 @@ func Test_IncompleteRecordError(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Truncate(x.TransactionLog, info.Size()-1))
 
-	err = x.RunReader.ProcessTransactionLog(
-		t.Context(), x.MockRecordParser, x.FakeRunWork)
+	err = x.RunReader.ProcessTransactionLog(t.Context())
 
 	var syncErr *runsync.SyncError
 	require.ErrorAs(t, err, &syncErr)
@@ -390,8 +383,7 @@ func Test_CorruptFileError(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, wandbFile.Close())
 
-	err = x.RunReader.ProcessTransactionLog(
-		context.Background(), x.MockRecordParser, x.FakeRunWork)
+	err = x.RunReader.ProcessTransactionLog(context.Background())
 
 	assert.ErrorContains(t, err, "error getting next record")
 }

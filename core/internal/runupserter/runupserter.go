@@ -74,7 +74,6 @@ type RunUpserter struct {
 type RunUpserterParams struct {
 	DebounceDelay time.Duration
 
-	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -116,7 +115,7 @@ func InitRun(
 	}
 
 	// Initialize run environment info.
-	environment := runenvironment.New(params.ClientID)
+	environment := runenvironment.New(runRecord.WriterId)
 
 	// Initialize the run config.
 	config := runconfig.New()
