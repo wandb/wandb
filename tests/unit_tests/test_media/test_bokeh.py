@@ -1,6 +1,5 @@
 from bokeh.document import Document
 from bokeh.plotting import figure
-
 from wandb import data_types
 
 
