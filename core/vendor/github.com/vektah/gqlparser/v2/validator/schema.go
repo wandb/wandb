@@ -394,11 +394,11 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 	switch def.Kind {
 	case Object, Interface:
 		if len(def.Fields) == 0 {
-			return gqlerror.ErrorPosf(
+			return gqlerror.WrapPos(
 				def.Position,
-				"%s %s: must define one or more fields.",
-				def.Kind,
-				def.Name,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
 			)
 		}
 		for _, field := range def.Fields {
@@ -416,11 +416,11 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	case Enum:
 		if len(def.EnumValues) == 0 {
-			return gqlerror.ErrorPosf(
+			return gqlerror.WrapPos(
 				def.Position,
-				"%s %s: must define one or more unique enum values.",
-				def.Kind,
-				def.Name,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
 			)
 		}
 		for _, value := range def.EnumValues {
@@ -447,11 +447,11 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	case InputObject:
 		if len(def.Fields) == 0 {
-			return gqlerror.ErrorPosf(
+			return gqlerror.WrapPos(
 				def.Position,
-				"%s %s: must define one or more input fields.",
-				def.Kind,
-				def.Name,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
 			)
 		}
 		for _, field := range def.Fields {

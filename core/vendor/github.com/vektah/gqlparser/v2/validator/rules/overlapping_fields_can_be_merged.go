@@ -3,7 +3,6 @@ package rules
 import (
 	"bytes"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 
@@ -71,7 +70,11 @@ var OverlappingFieldsCanBeMergedRule = Rule{
 		 */
 
 		m := &overlappingFieldsCanBeMergedManager{
-			comparedFragmentPairs: pairSet{data: make(map[string]map[string]bool)},
+			comparedFieldsAndFragmentPairs: newOrderedPairSet[*sequentialFieldsMap, string](),
+			comparedFragmentPairs:          pairSet{pairs: newOrderedPairSet[string, string]()},
+			cachedFieldsAndFragmentNames: make(
+				map[selectionSetKey]*fieldsAndFragmentNames,
+			),
 		}
 
 		observers.OnOperation(func(walker *Walker, operation *ast.OperationDefinition) {
@@ -110,37 +113,34 @@ var OverlappingFieldsCanBeMergedRule = Rule{
 	},
 }
 
-type pairSet struct {
-	data map[string]map[string]bool
+// orderedPairSet records pairs of things already compared for conflicts, along with
+// whether each pair was compared as mutually exclusive. Comparisons are made many
+// times over, so memoizing them keeps this rule from re-walking the same fragments.
+// The order of a pair matters here; pairSet wraps this for pairs where it does not.
+// graphql-js keeps the same two structures.
+type orderedPairSet[A comparable, B comparable] struct {
+	data map[A]map[B]bool
 }
 
-func (pairSet *pairSet) Add(
-	a *ast.FragmentSpread,
-	b *ast.FragmentSpread,
-	areMutuallyExclusive bool,
-) {
-	add := func(a *ast.FragmentSpread, b *ast.FragmentSpread) {
-		m := pairSet.data[a.Name]
-		if m == nil {
-			m = make(map[string]bool)
-			pairSet.data[a.Name] = m
-		}
-		m[b.Name] = areMutuallyExclusive
+func newOrderedPairSet[A comparable, B comparable]() orderedPairSet[A, B] {
+	return orderedPairSet[A, B]{data: make(map[A]map[B]bool)}
+}
+
+func (set *orderedPairSet[A, B]) Add(a A, b B, areMutuallyExclusive bool) {
+	bs := set.data[a]
+	if bs == nil {
+		bs = make(map[B]bool)
+		set.data[a] = bs
 	}
-	add(a, b)
-	add(b, a)
+	bs[b] = areMutuallyExclusive
 }
 
-func (pairSet *pairSet) Has(
-	a *ast.FragmentSpread,
-	b *ast.FragmentSpread,
-	areMutuallyExclusive bool,
-) bool {
-	am, ok := pairSet.data[a.Name]
+func (set *orderedPairSet[A, B]) Has(a A, b B, areMutuallyExclusive bool) bool {
+	bs, ok := set.data[a]
 	if !ok {
 		return false
 	}
-	result, ok := am[b.Name]
+	result, ok := bs[b]
 	if !ok {
 		return false
 	}
@@ -155,15 +155,55 @@ func (pairSet *pairSet) Has(
 	return true
 }
 
+// pairSet records pairs of fragments already compared for conflicts, by name, for
+// which the order of the pair does not matter.
+type pairSet struct {
+	pairs orderedPairSet[string, string]
+}
+
+func (pairSet *pairSet) Add(
+	a *ast.FragmentSpread,
+	b *ast.FragmentSpread,
+	areMutuallyExclusive bool,
+) {
+	pairSet.pairs.Add(a.Name, b.Name, areMutuallyExclusive)
+	pairSet.pairs.Add(b.Name, a.Name, areMutuallyExclusive)
+}
+
+func (pairSet *pairSet) Has(
+	a *ast.FragmentSpread,
+	b *ast.FragmentSpread,
+	areMutuallyExclusive bool,
+) bool {
+	return pairSet.pairs.Has(a.Name, b.Name, areMutuallyExclusive)
+}
+
+// fieldsAndFragmentNames is one selection set's collected fields and fragment spreads,
+// cached so that every lookup of that selection set yields the same
+// *sequentialFieldsMap. graphql-js caches the same thing, and the identity it gives is
+// what makes the memos above terminate on a fragment cycle.
+type fieldsAndFragmentNames struct {
+	fieldsMap       *sequentialFieldsMap
+	fragmentSpreads []*ast.FragmentSpread
+}
+
+// selectionSetKey identifies a selection set for that cache. ast.SelectionSet is a
+// slice, so it cannot be a map key itself, and unlike graphql-js's SelectionSetNode
+// there is no node wrapping it to key on instead. Two slices that share a first
+// element and a length are the same view of the same memory, so they cannot disagree
+// about their contents. Every empty selection set collects to the same empty result
+// and so shares the zero key: that makes distinct empty selection sets compare equal
+// below, which only ever skips comparing an empty set of fields against something,
+// and such a comparison reports nothing whether it is made or skipped.
+type selectionSetKey struct {
+	first *ast.Selection
+	n     int
+}
+
 type sequentialFieldsMap struct {
 	// We can't use map[string][]*ast.Field. because map is not stable...
 	seq  []string
 	data map[string][]*ast.Field
-}
-
-type fieldIterateEntry struct {
-	ResponseName string
-	Fields       []*ast.Field
 }
 
 func (m *sequentialFieldsMap) Push(responseName string, field *ast.Field) {
@@ -178,27 +218,6 @@ func (m *sequentialFieldsMap) Push(responseName string, field *ast.Field) {
 func (m *sequentialFieldsMap) Get(responseName string) ([]*ast.Field, bool) {
 	fields, ok := m.data[responseName]
 	return fields, ok
-}
-
-func (m *sequentialFieldsMap) Iterator() [][]*ast.Field {
-	fieldsList := make([][]*ast.Field, 0, len(m.seq))
-	for _, responseName := range m.seq {
-		fields := m.data[responseName]
-		fieldsList = append(fieldsList, fields)
-	}
-	return fieldsList
-}
-
-func (m *sequentialFieldsMap) KeyValueIterator() []*fieldIterateEntry {
-	fieldEntriesList := make([]*fieldIterateEntry, 0, len(m.seq))
-	for _, responseName := range m.seq {
-		fields := m.data[responseName]
-		fieldEntriesList = append(fieldEntriesList, &fieldIterateEntry{
-			ResponseName: responseName,
-			Fields:       fields,
-		})
-	}
-	return fieldEntriesList
 }
 
 type conflictMessageContainer struct {
@@ -246,12 +265,18 @@ func (m *ConflictMessage) addFieldsConflictMessage(addError AddErrFunc) {
 type overlappingFieldsCanBeMergedManager struct {
 	walker *Walker
 
-	// per walker
-	comparedFragmentPairs pairSet
-	// cachedFieldsAndFragmentNames interface{}
-
-	// per selectionSet
-	comparedFragments map[string]bool
+	// per walker.
+	//
+	// comparedFieldsAndFragmentPairs is keyed on the set of fields as well as the
+	// fragment name because a fragment reached again while comparing a *different*
+	// set of fields is a comparison that still has to happen: nested reuse of one
+	// fragment is legal, and memoizing on the fragment name alone drops the
+	// comparison that finds a conflict inside the reused fragment. Sets of fields are
+	// compared by identity, so that is a memo rather than an unbounded traversal of a
+	// fragment cycle only because they come from getFieldsAndFragmentNames.
+	comparedFieldsAndFragmentPairs orderedPairSet[*sequentialFieldsMap, string]
+	comparedFragmentPairs          pairSet
+	cachedFieldsAndFragmentNames   map[selectionSetKey]*fieldsAndFragmentNames
 }
 
 func (m *overlappingFieldsCanBeMergedManager) findConflictsWithinSelectionSet(
@@ -261,7 +286,7 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsWithinSelectionSet(
 		return nil
 	}
 
-	fieldsMap, fragmentSpreads := getFieldsAndFragmentNames(selectionSet)
+	fieldsMap, fragmentSpreads := m.getFieldsAndFragmentNames(selectionSet)
 
 	var conflicts conflictMessageContainer
 
@@ -269,7 +294,6 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsWithinSelectionSet(
 	// Note: this is the *only place* `collectConflictsWithin` is called.
 	m.collectConflictsWithin(&conflicts, fieldsMap)
 
-	m.comparedFragments = make(map[string]bool)
 	for idx, fragmentSpreadA := range fragmentSpreads {
 		// (B) Then collect conflicts between these fieldMap and those represented by
 		// each spread fragment name found.
@@ -293,19 +317,26 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFr
 	fieldsMap *sequentialFieldsMap,
 	fragmentSpread *ast.FragmentSpread,
 ) {
-	if m.comparedFragments[fragmentSpread.Name] {
+	// Memoize so a set of fields and a fragment are not compared more than once.
+	if m.comparedFieldsAndFragmentPairs.Has(
+		fieldsMap,
+		fragmentSpread.Name,
+		areMutuallyExclusive,
+	) {
 		return
 	}
-	m.comparedFragments[fragmentSpread.Name] = true
+	m.comparedFieldsAndFragmentPairs.Add(fieldsMap, fragmentSpread.Name, areMutuallyExclusive)
 
 	if fragmentSpread.Definition == nil {
 		return
 	}
 
-	fieldsMapB, fragmentSpreads := getFieldsAndFragmentNames(fragmentSpread.Definition.SelectionSet)
+	fieldsMapB, fragmentSpreads := m.getFieldsAndFragmentNames(
+		fragmentSpread.Definition.SelectionSet,
+	)
 
 	// Do not compare a fragment's fieldMap to itself.
-	if reflect.DeepEqual(fieldsMap, fieldsMapB) {
+	if fieldsMap == fieldsMapB {
 		return
 	}
 
@@ -314,12 +345,10 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFr
 	m.collectConflictsBetween(conflicts, areMutuallyExclusive, fieldsMap, fieldsMapB)
 
 	// (E) Then collect any conflicts between the provided collection of fields
-	// and any fragment names found in the given fragment.
-	baseFragmentSpread := fragmentSpread
+	// and any fragment names found in the given fragment. A fragment reached again
+	// with this same collection of fields — a cycle, or this fragment spreading
+	// itself — is refused by the memo above, so this recursion terminates.
 	for _, fragmentSpread := range fragmentSpreads {
-		if fragmentSpread.Name == baseFragmentSpread.Name {
-			continue
-		}
 		m.collectConflictsBetweenFieldsAndFragment(
 			conflicts,
 			areMutuallyExclusive,
@@ -353,10 +382,10 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(
 			return
 		}
 
-		fieldsMapA, fragmentSpreadsA := getFieldsAndFragmentNames(
+		fieldsMapA, fragmentSpreadsA := m.getFieldsAndFragmentNames(
 			fragmentSpreadA.Definition.SelectionSet,
 		)
-		fieldsMapB, fragmentSpreadsB := getFieldsAndFragmentNames(
+		fieldsMapB, fragmentSpreadsB := m.getFieldsAndFragmentNames(
 			fragmentSpreadB.Definition.SelectionSet,
 		)
 
@@ -386,8 +415,8 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSe
 ) *conflictMessageContainer {
 	var conflicts conflictMessageContainer
 
-	fieldsMapA, fragmentSpreadsA := getFieldsAndFragmentNames(selectionSetA)
-	fieldsMapB, fragmentSpreadsB := getFieldsAndFragmentNames(selectionSetB)
+	fieldsMapA, fragmentSpreadsA := m.getFieldsAndFragmentNames(selectionSetA)
+	fieldsMapB, fragmentSpreadsB := m.getFieldsAndFragmentNames(selectionSetB)
 
 	// (H) First, collect all conflicts between these two collections of field.
 	m.collectConflictsBetween(&conflicts, areMutuallyExclusive, fieldsMapA, fieldsMapB)
@@ -395,7 +424,6 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSe
 	// (I) Then collect conflicts between the first collection of fields and
 	// those referenced by each fragment name associated with the second.
 	for _, fragmentSpread := range fragmentSpreadsB {
-		m.comparedFragments = make(map[string]bool)
 		m.collectConflictsBetweenFieldsAndFragment(
 			&conflicts,
 			areMutuallyExclusive,
@@ -407,7 +435,6 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSe
 	// (I) Then collect conflicts between the second collection of fields and
 	// those referenced by each fragment name associated with the first.
 	for _, fragmentSpread := range fragmentSpreadsA {
-		m.comparedFragments = make(map[string]bool)
 		m.collectConflictsBetweenFieldsAndFragment(
 			&conflicts,
 			areMutuallyExclusive,
@@ -441,7 +468,8 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsWithin(
 	conflicts *conflictMessageContainer,
 	fieldsMap *sequentialFieldsMap,
 ) {
-	for _, fields := range fieldsMap.Iterator() {
+	for _, responseName := range fieldsMap.seq {
+		fields := fieldsMap.data[responseName]
 		for idx, fieldA := range fields {
 			for _, fieldB := range fields[idx+1:] {
 				conflict := m.findConflict(false, fieldA, fieldB)
@@ -459,12 +487,13 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetween(
 	fieldsMapA *sequentialFieldsMap,
 	fieldsMapB *sequentialFieldsMap,
 ) {
-	for _, fieldsEntryA := range fieldsMapA.KeyValueIterator() {
-		fieldsB, ok := fieldsMapB.Get(fieldsEntryA.ResponseName)
+	for _, responseName := range fieldsMapA.seq {
+		fieldsA := fieldsMapA.data[responseName]
+		fieldsB, ok := fieldsMapB.Get(responseName)
 		if !ok {
 			continue
 		}
-		for _, fieldA := range fieldsEntryA.Fields {
+		for _, fieldA := range fieldsA {
 			for _, fieldB := range fieldsB {
 				conflict := m.findConflict(parentFieldsAreMutuallyExclusive, fieldA, fieldB)
 				if conflict != nil {
@@ -641,7 +670,32 @@ func doTypesConflict(walker *Walker, type1, type2 *ast.Type) bool {
 	return false
 }
 
-func getFieldsAndFragmentNames(
+// getFieldsAndFragmentNames collects a selection set's fields and fragment spreads,
+// returning the same values for every later lookup of that same selection set. Those
+// values are shared, so callers must only read them. The rule's memos are keyed on
+// what it returns, so collecting a selection set afresh each time would defeat them:
+// a query that spreads a cyclic fragment in nested selection sets then recurses until
+// the stack is gone.
+func (m *overlappingFieldsCanBeMergedManager) getFieldsAndFragmentNames(
+	selectionSet ast.SelectionSet,
+) (*sequentialFieldsMap, []*ast.FragmentSpread) {
+	key := selectionSetKey{n: len(selectionSet)}
+	if key.n > 0 {
+		key.first = &selectionSet[0]
+	}
+	if cached, ok := m.cachedFieldsAndFragmentNames[key]; ok {
+		return cached.fieldsMap, cached.fragmentSpreads
+	}
+
+	fieldsMap, fragmentSpreads := collectFieldsAndFragmentNames(selectionSet)
+	m.cachedFieldsAndFragmentNames[key] = &fieldsAndFragmentNames{
+		fieldsMap:       fieldsMap,
+		fragmentSpreads: fragmentSpreads,
+	}
+	return fieldsMap, fragmentSpreads
+}
+
+func collectFieldsAndFragmentNames(
 	selectionSet ast.SelectionSet,
 ) (*sequentialFieldsMap, []*ast.FragmentSpread) {
 	fieldsMap := sequentialFieldsMap{

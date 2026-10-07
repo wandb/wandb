@@ -3,6 +3,7 @@ package lexer
 import (
 	"bytes"
 	"slices"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/vektah/gqlparser/v2/ast"
@@ -429,9 +430,20 @@ func (s *Lexer) readString() (Token, error) {
 						s.Input[s.end:s.end+5],
 					)
 				}
-				buf.WriteRune(r)
 				s.end += 6
 				s.endRunes += 6
+				// A leading surrogate followed by an escaped trailing surrogate
+				// is one code point, as in JSON.
+				if r >= 0xD800 && r < 0xDC00 && s.end+6 < inputLen {
+					next := s.Input[s.end : s.end+6]
+					r2, ok := unhex(next[2:])
+					if next[:2] == `\u` && ok && r2 >= 0xDC00 && r2 <= 0xDFFF {
+						r = utf16.DecodeRune(r, r2)
+						s.end += 6
+						s.endRunes += 6
+					}
+				}
+				buf.WriteRune(r)
 			} else {
 				switch escape {
 				case '"', '/', '\\':

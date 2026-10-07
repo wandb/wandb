@@ -104,11 +104,15 @@ type Config struct {
 	// SymonGrid is the dimensions for the standalone system monitor chart guides.
 	SymonGrid GridConfig `json:"symon_grid" leet:"desc=standalone system metrics grid"`
 
+	// SymonSidebarVisible controls whether symon opens with its vitals sidebar.
+	SymonSidebarVisible bool `json:"symon_sidebar_visible" leet:"desc=Show the vitals sidebar in the standalone system monitor by default."`
+
 	// Mouse-dragged pane proportions per view. Managed by drag-resize and
 	// the "0" reset key, not the config editor.
 	RunLayout       LayoutOverrides `json:"run_layout,omitzero"       leet:"-"`
 	WorkspaceLayout LayoutOverrides `json:"workspace_layout,omitzero" leet:"-"`
 	InspectorLayout LayoutOverrides `json:"inspector_layout,omitzero" leet:"-"`
+	SymonLayout     LayoutOverrides `json:"symon_layout,omitzero"     leet:"-"`
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
@@ -253,6 +257,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultSymonGridRows,
 				Cols: DefaultSymonGridCols,
 			},
+			SymonSidebarVisible:           true,
 			StartupMode:                   DefaultStartupMode,
 			ChartGuides:                   DefaultChartGuides,
 			ColorScheme:                   DefaultColorScheme,
@@ -385,6 +390,7 @@ func (cm *ConfigManager) normalizeConfig() {
 	normalizeLayoutOverrides(&cm.config.RunLayout)
 	normalizeLayoutOverrides(&cm.config.WorkspaceLayout)
 	normalizeLayoutOverrides(&cm.config.InspectorLayout)
+	normalizeLayoutOverrides(&cm.config.SymonLayout)
 }
 
 func isChartGuides(guides string) bool {
@@ -599,6 +605,18 @@ func (cm *ConfigManager) SetSymonCols(cols int) error {
 	return cm.setGridDim("cols", cols, func(c *Config) { c.SymonGrid.Cols = cols })
 }
 
+// SymonSidebarVisible returns whether symon opens with its vitals sidebar.
+func (cm *ConfigManager) SymonSidebarVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonSidebarVisible
+}
+
+// SetSymonSidebarVisible sets and persists the symon sidebar visibility.
+func (cm *ConfigManager) SetSymonSidebarVisible(visible bool) error {
+	return cm.set(func(c *Config) { c.SymonSidebarVisible = visible })
+}
+
 // RunLayout returns the single-run view's layout overrides.
 func (cm *ConfigManager) RunLayout() LayoutOverrides {
 	cm.mu.RLock()
@@ -636,6 +654,19 @@ func (cm *ConfigManager) InspectorLayout() LayoutOverrides {
 func (cm *ConfigManager) SetInspectorLayout(o LayoutOverrides) error {
 	normalizeLayoutOverrides(&o)
 	return cm.set(func(c *Config) { c.InspectorLayout = o })
+}
+
+// SymonLayout returns the standalone system monitor's layout overrides.
+func (cm *ConfigManager) SymonLayout() LayoutOverrides {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonLayout
+}
+
+// SetSymonLayout sets and persists the standalone system monitor's layout overrides.
+func (cm *ConfigManager) SetSymonLayout(o LayoutOverrides) error {
+	normalizeLayoutOverrides(&o)
+	return cm.set(func(c *Config) { c.SymonLayout = o })
 }
 
 // Path returns the on-disk config path.
