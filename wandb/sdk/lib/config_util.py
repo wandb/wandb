@@ -79,7 +79,7 @@ def dict_from_config_file(
         raise ConfigError(f"Couldn't read config file: {filename}")
     try:
         loaded = load_yaml(conf_file)
-    except yaml.parser.ParserError:
+    except yaml.YAMLError:
         raise ConfigError("Invalid YAML in config yaml")
     if loaded is None:
         wandb.termwarn(
