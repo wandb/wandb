@@ -286,7 +286,14 @@ func (ft *S3FileTransfer) downloadFiles(
 	for _, input := range getObjectInputs {
 		g.Go(func() error {
 			objectRelativePath, _ := strings.CutPrefix(*input.Key, rootObjectName)
-			localPath := filepath.Join(basePath, filepath.FromSlash(objectRelativePath))
+			localRelPath := filepath.FromSlash(objectRelativePath)
+			if localRelPath != "" && !filepath.IsLocal(localRelPath) {
+				return fmt.Errorf(
+					"invalid object key %q: path traversal detected",
+					*input.Key,
+				)
+			}
+			localPath := filepath.Join(basePath, localRelPath)
 			return ft.downloadFile(input, localPath)
 		})
 	}
