@@ -391,6 +391,17 @@ def test_from_human_size():
     assert util.from_human_size("1000.0B") == 1000
     assert util.from_human_size("1000KB") == 1000000
     assert util.from_human_size("5.0MB") == 5000000
+    assert util.from_human_size("10 kb") == 10000
+    assert util.from_human_size("100 MB ") == 100000000
+
+
+@pytest.mark.parametrize(
+    "size",
+    ["5G", "5GiB", "10 K", "1e3", "1,000", "2 gigabytes", "10 KB junk"],
+)
+def test_from_human_size_rejects_unparsed_text(size):
+    with pytest.raises(ValueError):
+        util.from_human_size(size)
 
 
 def test_to_human_size():

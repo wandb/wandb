@@ -1200,9 +1200,9 @@ def from_human_size(size: str, units: list[tuple[str, Any]] | None = None) -> in
     units = units or POW_10_BYTES
     units_dict = {unit.upper(): value for (unit, value) in units}
     regex = re.compile(
-        r"(\d+\.?\d*)\s*({})?".format("|".join(units_dict.keys())), re.IGNORECASE
+        r"(\d+\.?\d*)\s*({})?\s*".format("|".join(units_dict.keys())), re.IGNORECASE
     )
-    match = re.match(regex, size)
+    match = regex.fullmatch(size)
     if not match:
         raise ValueError("size must be of the form `10`, `10B` or `10 B`.")
     factor, unit = (
