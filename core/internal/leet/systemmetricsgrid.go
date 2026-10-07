@@ -40,6 +40,9 @@ type SystemMetricsGrid struct {
 	rank  func(baseKey string) int
 	ranks map[systemMetricChart]int
 
+	// retention bounds how much history each chart keeps; zero keeps all.
+	retention time.Duration
+
 	// Filter state.
 	filter *Filter
 
@@ -94,6 +97,12 @@ func NewSystemMetricsGrid(
 // SetChartRank orders charts by rank of their base key, then by title.
 func (g *SystemMetricsGrid) SetChartRank(rank func(baseKey string) int) {
 	g.rank = rank
+}
+
+// SetRetention makes every chart drop samples older than d as new ones
+// arrive; zero keeps the full history.
+func (g *SystemMetricsGrid) SetRetention(d time.Duration) {
+	g.retention = d
 }
 
 // calculateChartDimensions computes dimensions for system metric charts.
@@ -178,6 +187,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 	})
 	lineChart.SetChartGuides(g.config.ChartGuides())
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
+	lineChart.SetRetention(g.retention)
 
 	if !def.Percentage {
 		return lineChart
@@ -190,6 +200,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		Colors: FrenchFriesColors(g.config.FrenchFriesColorScheme()),
 		Now:    now,
 	})
+	frenchFriesChart.SetRetention(g.retention)
 	chart := newFrenchFriesToggleChart(lineChart, frenchFriesChart)
 	if def.ChartKind == MetricChartKindFrenchFries {
 		chart.ToggleHeatmapMode()

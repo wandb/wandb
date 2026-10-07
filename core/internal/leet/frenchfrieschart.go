@@ -3,6 +3,7 @@ package leet
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -80,6 +81,9 @@ type FrenchFriesChart struct {
 	// samples retain the full observed history so the chart can reuse the same
 	// windowing and zoom semantics as the underlying line chart.
 	samples []frenchFriesSample
+
+	// retention bounds how far back samples are kept; zero keeps all.
+	retention time.Duration
 
 	series        map[string]struct{}
 	orderedSeries []string
@@ -178,6 +182,10 @@ func (c *FrenchFriesChart) AddDataPoint(seriesName string, timestamp int64, valu
 			timestamp: timestamp,
 			values:    make(map[string]float64),
 		})
+		if c.retention > 0 &&
+			c.samples[0].timestamp < timestamp-int64(pruneAge(c.retention)/time.Second) {
+			c.trimBefore(timestamp - int64(c.retention/time.Second))
+		}
 	}
 	c.samples[len(c.samples)-1].values[seriesName] = value
 	c.lastUpdate = time.Unix(timestamp, 0)
@@ -187,6 +195,19 @@ func (c *FrenchFriesChart) AddDataPoint(seriesName string, timestamp int64, valu
 	}
 
 	c.dirty = true
+}
+
+// SetRetention bounds the kept history to d; zero keeps the full history.
+func (c *FrenchFriesChart) SetRetention(d time.Duration) {
+	c.retention = d
+}
+
+// trimBefore drops the samples with a timestamp below cutoff.
+func (c *FrenchFriesChart) trimBefore(cutoff int64) {
+	n := sort.Search(len(c.samples), func(i int) bool {
+		return c.samples[i].timestamp >= cutoff
+	})
+	c.samples = slices.Delete(c.samples, 0, n)
 }
 
 func (c *FrenchFriesChart) GraphWidth() int {

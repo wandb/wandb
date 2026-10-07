@@ -317,3 +317,25 @@ func TestFrenchFriesChart_StableBuckets_AveragesWithinBucket(t *testing.T) {
 	vals := chart.TestBucketValues(series)
 	require.InDelta(t, 40.0, vals[0], 0.001, "bucket 0 should be average of 20,40,60")
 }
+
+func TestFrenchFriesChart_RetentionDropsOldSamples(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "GPU Utilization",
+		Unit:       leet.UnitPercent,
+		MaxY:       100,
+		Percentage: true,
+	}
+	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
+		Width:  4,
+		Height: 3,
+		Def:    def,
+		Now:    time.Unix(1_700_000_000, 0),
+	})
+	chart.SetRetention(time.Hour)
+
+	for _, offset := range []int64{0, 1800, 7200} {
+		chart.AddDataPoint("GPU 0", 1_700_000_000+offset, 50)
+	}
+
+	require.Equal(t, 1, chart.TestSampleCount())
+}

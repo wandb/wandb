@@ -56,6 +56,7 @@ const (
 	DefaultFrenchFriesColorScheme = "viridis"
 	DefaultSystemColorMode        = ColorModePerSeries
 	DefaultSystemTailWindowMins   = 10
+	DefaultSymonHistoryMins       = 6 * 60
 
 	DefaultHeartbeatInterval = 15 // seconds
 
@@ -109,6 +110,9 @@ type Config struct {
 
 	// SymonRunsVisible controls whether symon shows the live runs pane.
 	SymonRunsVisible bool `json:"symon_runs_visible" leet:"desc=Show the live runs pane in the standalone system monitor by default."`
+
+	// SymonHistoryMinutes bounds how much history symon keeps per chart.
+	SymonHistoryMinutes int `json:"symon_history_minutes" leet:"label=Symon history (min),desc=How much history the standalone system monitor keeps per chart. Older samples are dropped.,min=1"`
 
 	// Mouse-dragged pane proportions per view. Managed by drag-resize and
 	// the "0" reset key, not the config editor.
@@ -263,6 +267,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			},
 			SymonSidebarVisible:           true,
 			SymonRunsVisible:              true,
+			SymonHistoryMinutes:           DefaultSymonHistoryMins,
 			StartupMode:                   DefaultStartupMode,
 			ChartGuides:                   DefaultChartGuides,
 			ColorScheme:                   DefaultColorScheme,
@@ -381,6 +386,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if cm.config.SystemTailWindowMinutes <= 0 {
 		cm.config.SystemTailWindowMinutes = DefaultSystemTailWindowMins
+	}
+
+	if cm.config.SymonHistoryMinutes <= 0 {
+		cm.config.SymonHistoryMinutes = DefaultSymonHistoryMins
 	}
 
 	if cm.config.StartupMode != StartupModeWorkspaceLatest &&
@@ -632,6 +641,13 @@ func (cm *ConfigManager) SymonRunsVisible() bool {
 // SetSymonRunsVisible sets and persists the symon runs pane visibility.
 func (cm *ConfigManager) SetSymonRunsVisible(visible bool) error {
 	return cm.set(func(c *Config) { c.SymonRunsVisible = visible })
+}
+
+// SymonHistory returns how much history symon keeps per chart.
+func (cm *ConfigManager) SymonHistory() time.Duration {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return time.Duration(cm.config.SymonHistoryMinutes) * time.Minute
 }
 
 // RunLayout returns the single-run view's layout overrides.
