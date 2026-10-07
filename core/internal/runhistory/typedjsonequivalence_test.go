@@ -94,10 +94,14 @@ func requireHistoryValueKind(t *testing.T, item *spb.HistoryItem, wantKind strin
 	}
 }
 
-func requireHistoryRecordMetrics(t *testing.T, got []*spb.HistoryItem, wantKinds map[string]string) {
+func requireHistoryRecordMetrics(
+	t *testing.T,
+	gotItems []*spb.HistoryItem,
+	wantKinds map[string]string,
+) {
 	t.Helper()
 	seen := make(map[string]bool)
-	for _, item := range got {
+	for _, item := range gotItems {
 		key := metricKey(item.NestedKey)
 		wantKind, exists := wantKinds[key]
 		require.True(t, exists, "unexpected path %s", key)
@@ -108,13 +112,13 @@ func requireHistoryRecordMetrics(t *testing.T, got []*spb.HistoryItem, wantKinds
 	require.Len(t, seen, len(wantKinds))
 }
 
-func requireMetricsEqual(t *testing.T, got map[string]any, wantMetrics map[string]any) {
+func requireMetricsEqual(t *testing.T, got, want map[string]any) {
 	t.Helper()
-	require.Len(t, got, len(wantMetrics))
-	for key, want := range wantMetrics {
-		got, exists := got[key]
+	require.Len(t, got, len(want))
+	for key, wantValue := range want {
+		gotValue, exists := got[key]
 		require.True(t, exists, "missing path %s", key)
-		requireMetricValue(t, want, got)
+		requireMetricValue(t, wantValue, gotValue)
 	}
 }
 
