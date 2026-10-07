@@ -21,15 +21,18 @@ import (
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
-func InjectRunSyncerFactory(
+func InjectRunSyncPipeline(
 	settings *settings.Settings,
 	logger *observability.CoreLogger,
-) *RunSyncerFactory {
-	wire.Build(runSyncerFactoryBindings)
-	return &RunSyncerFactory{}
+	printer *observability.Printer,
+	operations *wboperation.WandbOperations,
+	clientID sharedmode.ClientID,
+) *RunSyncPipeline {
+	wire.Build(runSyncPipelineBindings)
+	return &RunSyncPipeline{}
 }
 
-var runSyncerFactoryBindings = wire.NewSet(
+var runSyncPipelineBindings = wire.NewSet(
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
 	featurechecker.New,
@@ -37,12 +40,9 @@ var runSyncerFactoryBindings = wire.NewSet(
 	filetransfer.NewFileTransferStats,
 	mailbox.New,
 	provideFileWatcher,
-	providePrinter,
 	runfiles.UploaderProviders,
 	runhandle.New,
-	runReaderProviders,
-	runSyncerProviders,
-	sharedmode.RandomClientID,
+	runSyncPipelineProviders,
 	stream.BaseURLFromSettings,
 	stream.CredentialsFromSettings,
 	stream.NewFileTransferManager,
@@ -50,13 +50,8 @@ var runSyncerFactoryBindings = wire.NewSet(
 	stream.RecordParserProviders,
 	stream.SenderProviders,
 	tensorboard.TBHandlerProviders,
-	wboperation.NewOperations,
 	provideNoFileStreamStats,
 )
-
-func providePrinter() *observability.Printer {
-	return observability.NewPrinter(printerBufferSize)
-}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

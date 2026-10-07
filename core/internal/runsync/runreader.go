@@ -9,18 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/wire"
-
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-)
-
-var runReaderProviders = wire.NewSet(
-	wire.Struct(new(RunReaderFactory), "*"),
 )
 
 // RunReaderFactory constructs RunReader.
@@ -39,8 +33,10 @@ type RunReader struct {
 	seenRun  bool // whether we've processed a run record yet
 	seenExit bool // whether we've processed an exit record yet
 
-	logger       *observability.CoreLogger
-	operations   *wboperation.WandbOperations
+	logger     *observability.CoreLogger
+	operations *wboperation.WandbOperations
+
+	// Set by ProcessTransactionLog.
 	recordParser stream.RecordParser
 	runWork      runwork.RunWork
 }
@@ -50,8 +46,6 @@ func (f *RunReaderFactory) New(
 	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
-	recordParser stream.RecordParser,
-	runWork runwork.RunWork,
 ) *RunReader {
 	return &RunReader{
 		path:        path,
@@ -59,10 +53,8 @@ func (f *RunReaderFactory) New(
 		updates:     updates,
 		live:        live,
 
-		logger:       f.Logger,
-		operations:   f.Operations,
-		recordParser: recordParser,
-		runWork:      runWork,
+		logger:     f.Logger,
+		operations: f.Operations,
 	}
 }
 
@@ -108,19 +100,27 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 			runInfo.Project = run.Project
 			runInfo.RunID = run.RunId
 			runInfo.StartTime = run.StartTime.AsTime()
+			runInfo.WriterID = run.WriterId
 			return runInfo, nil
 		}
 	}
 }
 
-// ProcessTransactionLog processes the .wandb file and adds to RunWork.
+// ProcessTransactionLog parses the .wandb file's records and adds them
+// to RunWork.
 //
 // Returns an error if it fails to start or on partial success.
 //
 // Closes RunWork at the end, even on error. If there was no Exit record,
 // creates one with an exit code of 1.
-func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
+func (r *RunReader) ProcessTransactionLog(
+	ctx context.Context,
+	recordParser stream.RecordParser,
+	runWork runwork.RunWork,
+) (err error) {
 	r.logger.Info("runsync: starting to read")
+	r.recordParser = recordParser
+	r.runWork = runWork
 
 	defer r.runWork.Close()
 

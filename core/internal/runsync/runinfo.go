@@ -19,6 +19,11 @@ type RunInfo struct {
 
 	// StartTime is the time this run instance was initialized.
 	StartTime time.Time
+
+	// WriterID is the ID of the writer session that produced the run.
+	//
+	// It is empty for transaction logs written by older SDK versions.
+	WriterID string
 }
 
 // Path returns the run's full path in the form entity/project/id

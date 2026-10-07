@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
@@ -22,20 +23,18 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-var runSyncerProviders = wire.NewSet(
-	wire.Struct(new(RunSyncerFactory), "*"),
+var runSyncPipelineProviders = wire.NewSet(
+	wire.Struct(new(RunSyncPipeline), "*"),
 )
 
-// RunSyncerFactory creates RunSyncer.
-type RunSyncerFactory struct {
-	Logger              *observability.CoreLogger
-	Operations          *wboperation.WandbOperations
-	Printer             *observability.Printer
+// RunSyncPipeline creates the components that upload a run.
+//
+// It is built once the run's writer ID is read from the transaction log,
+// since the ID is baked into the GraphQL and filestream clients.
+type RunSyncPipeline struct {
 	RecordParserFactory *stream.RecordParserFactory
 	RunHandle           *runhandle.RunHandle
-	RunReaderFactory    *RunReaderFactory
 	SenderFactory       *stream.SenderFactory
-	Settings            *settings.Settings
 	TBHandlerFactory    *tensorboard.TBHandlerFactory
 }
 
@@ -51,56 +50,33 @@ type RunSyncer struct {
 	logger     *observability.CoreLogger
 	operations *wboperation.WandbOperations
 	printer    *observability.Printer
-	runHandle  *runhandle.RunHandle
 	runReader  *RunReader
-	runWork    runwork.RunWork
-	sender     *stream.Sender
 }
 
-// New initializes a sync operation without starting it.
-func (f *RunSyncerFactory) New(
+// NewRunSyncer initializes a sync operation without starting it.
+func NewRunSyncer(
 	path string,
 	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
+	settings *settings.Settings,
+	logger *observability.CoreLogger,
 ) *RunSyncer {
-	// A small buffer helps smooth out filesystem hiccups if they happen
-	// and we're processing data fast enough. This is otherwise unnecessary.
-	const runWorkBufferSize = 32
-
-	runWork := runwork.New(runWorkBufferSize, f.Logger)
-	sender := f.SenderFactory.New(runWork)
-	tbHandler := f.TBHandlerFactory.New(
-		runWork,
-		/*fileReadDelay=*/ 5*time.Second,
-	)
-	syncStateStore := runsyncstate.File(path)
-	recordParser := f.RecordParserFactory.New(
-		runWork.BeforeEndCtx(),
-		tbHandler,
-		syncStateStore,
-	)
-	runReader := f.RunReaderFactory.New(
-		path,
-		displayPath,
-		updates,
-		live,
-		recordParser,
-		runWork,
-	)
+	operations := wboperation.NewOperations()
+	runReaderFactory := &RunReaderFactory{
+		Logger:     logger,
+		Operations: operations,
+	}
 
 	return &RunSyncer{
 		path:        path,
 		displayPath: displayPath,
-		settings:    f.Settings,
+		settings:    settings,
 
-		logger:     f.Logger,
-		operations: f.Operations,
-		printer:    f.Printer,
-		runHandle:  f.RunHandle,
-		runReader:  runReader,
-		runWork:    runWork,
-		sender:     sender,
+		logger:     logger,
+		operations: operations,
+		printer:    observability.NewPrinter(printerBufferSize),
+		runReader:  runReaderFactory.New(path, displayPath, updates, live),
 	}
 }
 
@@ -128,21 +104,57 @@ func (rs *RunSyncer) Init(ctx context.Context) (*RunInfo, error) {
 }
 
 // Sync uploads the .wandb file.
+//
+// Init must have succeeded.
 func (rs *RunSyncer) Sync(ctx context.Context) error {
-	rs.runHandle.UpdateTelemetry(&spb.TelemetryRecord{
+	rs.mu.Lock()
+	runInfo := rs.runInfo
+	rs.mu.Unlock()
+
+	// Transaction logs from older SDK versions don't record the writer.
+	clientID := sharedmode.ClientID(runInfo.WriterID)
+	if clientID == "" {
+		clientID = sharedmode.RandomClientID()
+	}
+
+	pipeline := InjectRunSyncPipeline(
+		rs.settings,
+		rs.logger,
+		rs.printer,
+		rs.operations,
+		clientID,
+	)
+	runHandle := pipeline.RunHandle
+	runHandle.UpdateTelemetry(&spb.TelemetryRecord{
 		Feature: &spb.Feature{
 			Sync2: true,
 		},
 	})
+
+	// A small buffer helps smooth out filesystem hiccups if they happen
+	// and we're processing data fast enough. This is otherwise unnecessary.
+	const runWorkBufferSize = 32
+
+	runWork := runwork.New(runWorkBufferSize, rs.logger)
+	sender := pipeline.SenderFactory.New(runWork)
+	tbHandler := pipeline.TBHandlerFactory.New(
+		runWork,
+		/*fileReadDelay=*/ 5*time.Second,
+	)
+	recordParser := pipeline.RecordParserFactory.New(
+		runWork.BeforeEndCtx(),
+		tbHandler,
+		runsyncstate.File(rs.path),
+	)
 
 	g := &errgroup.Group{}
 
 	// Print the run's URL once we know it.
 	g.Go(func() error {
 		select {
-		case <-rs.runHandle.Ready():
-			rs.printRunURL()
-		case <-rs.runWork.BeforeEndCtx().Done():
+		case <-runHandle.Ready():
+			rs.printRunURL(runHandle)
+		case <-runWork.BeforeEndCtx().Done():
 			rs.logger.Error("runsync: didn't print run URL, handle never became ready")
 		case <-ctx.Done():
 			// Cancelled, do nothing.
@@ -156,12 +168,12 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 	// NOTE: Closes RunWork even on error, and creates an Exit record if
 	// necessary, so the Sender is guaranteed to terminate.
 	g.Go(func() error {
-		return rs.runReader.ProcessTransactionLog(ctx)
+		return rs.runReader.ProcessTransactionLog(ctx, recordParser, runWork)
 	})
 
 	// This ends after an Exit record is emitted and RunWork is closed.
 	g.Go(func() error {
-		rs.sender.Do(rs.runWork.Chan())
+		sender.Do(runWork.Chan())
 		return nil
 	})
 
@@ -191,8 +203,8 @@ func (rs *RunSyncer) markSynced() {
 }
 
 // printRunURL prints the URL for viewing the run.
-func (rs *RunSyncer) printRunURL() {
-	upserter, err := rs.runHandle.Upserter()
+func (rs *RunSyncer) printRunURL(runHandle *runhandle.RunHandle) {
+	upserter, err := runHandle.Upserter()
 	if err != nil {
 		rs.logger.CaptureError("runsync", fmt.Errorf("runsync: printRunURL: %v", err))
 		return
