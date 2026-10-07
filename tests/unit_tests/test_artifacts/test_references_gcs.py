@@ -220,7 +220,8 @@ def test_load_gs_reference_with_dir_paths(artifact):
 
 
 # ---------------------------------------------------------------------------
-# Tests for the `storage.objects.list`-only fallback (WB-27752).
+# Tests for the `storage.objects.list`-only fallback, used when the caller's
+# credentials lack `storage.objects.get`.
 #
 # `mock_gcs` above is deliberately minimal and covers the `get_blob` path. The
 # fake below is closer to the real service: a flat, sorted namespace, lazy
@@ -252,6 +253,13 @@ class FakeBucket:
     forbid_get: bool = False
     get_error: Exception | None = None
     fail_after: int | None = None
+    # Exception raised when `fail_after` triggers; defaults to _FailedListingError.
+    fail_error: Exception | None = None
+    # Models list permission granted on a managed folder: listing any prefix
+    # outside `list_scope` is forbidden.
+    list_scope: str | None = None
+    # Raised by the exact-key probe (the `max_results=1` listing) only.
+    probe_error: Exception | None = None
     get_calls: list[tuple[str, Any]] = field(default_factory=list)
     list_calls: list[dict[str, Any]] = field(default_factory=list)
 
@@ -291,6 +299,10 @@ class FakeBucket:
     ) -> Iterator[FakeBlob]:
         # A generator, so (like the real client) nothing happens until it is
         # iterated and an error can surface part way through.
+        if self.list_scope is not None and not prefix.startswith(self.list_scope):
+            raise Forbidden(f"403 LIST denied outside {self.list_scope!r}")
+        if self.probe_error is not None and max_results == 1:
+            raise self.probe_error
         n = 0
         for blob in self.blobs:
             if not blob.name.startswith(prefix) or not (versions or blob.live):
@@ -298,7 +310,9 @@ class FakeBucket:
             if max_results is not None and n >= max_results:
                 return
             if self.fail_after is not None and n >= self.fail_after:
-                raise _FailedListingError(f"listing failed after {n} blobs")
+                raise self.fail_error or _FailedListingError(
+                    f"listing failed after {n} blobs"
+                )
             yield blob
             n += 1
 
@@ -555,3 +569,108 @@ def test_get_permission_versioned_file_never_lists():
     assert set(add_reference(bucket, uri_of("f#1"))) == {"f"}
     assert len(bucket.get_calls) == 1
     assert bucket.list_calls == []
+
+
+# ---------------------------------------------------------------------------
+# List permission scoped to a managed folder. The bare prefix `managed` is
+# outside the folder `managed/`, so the exact-key probe is denied even though
+# the folder listing is allowed.
+# ---------------------------------------------------------------------------
+
+
+def scoped_bucket(blobs: list[FakeBlob], **kwargs: Any) -> FakeBucket:
+    return FakeBucket(blobs, forbid_get=True, list_scope="managed/", **kwargs)
+
+
+def test_scoped_list_folder_without_trailing_slash():
+    bucket = scoped_bucket([FakeBlob("managed/a"), FakeBlob("managed/sub/b")])
+    assert set(add_reference(bucket, uri_of("managed"))) == {"a", "sub/b"}
+    assert [c["prefix"] for c in bucket.list_calls] == ["managed", "managed/"]
+
+
+def test_scoped_list_folder_with_trailing_slash():
+    bucket = scoped_bucket([FakeBlob("managed/a")])
+    assert set(add_reference(bucket, uri_of("managed/"))) == {"a"}
+    assert [c["prefix"] for c in bucket.list_calls] == ["managed/"]
+
+
+@pytest.mark.parametrize(
+    "blobs",
+    [[], [FakeBlob("managed/", size=0)]],
+    ids=["empty", "marker_only"],
+)
+def test_scoped_list_denied_probe_then_empty_folder_is_empty(blobs):
+    bucket = scoped_bucket(blobs)
+    assert add_reference(bucket, uri_of("managed")) == {}
+
+
+def test_scoped_list_outside_scope_propagates_forbidden():
+    bucket = scoped_bucket([FakeBlob("managed/a")])
+    with raises(Forbidden):
+        add_reference(bucket, uri_of("other"))
+    assert [c["prefix"] for c in bucket.list_calls] == ["other", "other/"]
+
+
+def test_scoped_list_exact_file_with_sibling():
+    bucket = scoped_bucket(
+        [FakeBlob("managed/model.ckpt"), FakeBlob("managed/model.ckpt.bak")]
+    )
+    assert set(add_reference(bucket, uri_of("managed/model.ckpt"))) == {"model.ckpt"}
+
+
+@pytest.mark.parametrize("fragment", ["2", "02"])
+def test_scoped_list_versioned_file(fragment):
+    bucket = scoped_bucket(
+        [FakeBlob("managed/f", 1, live=False), FakeBlob("managed/f", 2)]
+    )
+    entries = add_reference(bucket, uri_of(f"managed/f#{fragment}"))
+    assert entries["f"][3] == 2
+
+
+def test_scoped_list_inaccessible_same_named_file_yields_folder():
+    # Object `managed` is outside the `managed/` scope, so the probe is denied
+    # and the accessible folder is returned. A caller with get permission on
+    # that object gets the file instead; this is the accepted semantics of a
+    # denied probe.
+    bucket = scoped_bucket([FakeBlob("managed"), FakeBlob("managed/a")])
+    assert set(add_reference(bucket, uri_of("managed"))) == {"a"}
+
+
+def test_scoped_list_version_on_bare_folder_prefix_propagates_forbidden():
+    bucket = scoped_bucket([FakeBlob("managed/a")])
+    with raises(Forbidden):
+        add_reference(bucket, uri_of("managed#1"))
+    # The versioned scan was attempted (and denied); it is not reinterpreted
+    # as a folder reference.
+    assert bucket.list_calls == [
+        {"prefix": "managed", "max_results": None, "versions": True}
+    ]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [None, Forbidden("403 denied on a later page")],
+    ids=["generic_error", "forbidden"],
+)
+def test_scoped_list_denied_probe_then_folder_error_propagates(error):
+    # A Forbidden raised part way through the folder listing must not be
+    # mistaken for the probe's Forbidden and swallowed.
+    bucket = scoped_bucket(
+        [FakeBlob("managed/a"), FakeBlob("managed/b")],
+        fail_after=1,
+        fail_error=error,
+    )
+    with raises(type(error) if error else _FailedListingError):
+        add_reference(bucket, uri_of("managed"))
+
+
+@pytest.mark.parametrize(
+    "error",
+    [Unauthorized("401 bad credentials"), ServiceUnavailable("503 try later")],
+    ids=["unauthorized", "service_unavailable"],
+)
+def test_probe_non_forbidden_error_propagates_without_folder_retry(error):
+    bucket = FakeBucket([FakeBlob("d/a")], forbid_get=True, probe_error=error)
+    with raises(type(error)):
+        add_reference(bucket, uri_of("d"))
+    assert [c["prefix"] for c in bucket.list_calls] == ["d"]

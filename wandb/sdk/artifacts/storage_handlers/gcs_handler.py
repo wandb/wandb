@@ -220,6 +220,11 @@ class GCSHandler(StorageHandler):
         Used when `get_blob` is forbidden. Produces the same entries as the
         `get_blob` path for references that path handles correctly.
         """
+        try:
+            from google.api_core.exceptions import Forbidden
+        except ImportError as e:
+            _handle_import_error(e)
+
         key = gcs_path.key
 
         version: int | None = None
@@ -265,7 +270,14 @@ class GCSHandler(StorageHandler):
             # prefix, so one result tells us whether the file exists, and
             # distinguishes `data` (file) from `data/` (marker) and
             # `data-1.txt` (sibling).
-            first = next(iter(bucket.list_blobs(prefix=key, max_results=1)), None)
+            try:
+                first = next(iter(bucket.list_blobs(prefix=key, max_results=1)), None)
+            except Forbidden:
+                # List permission scoped to a managed folder `key/` denies the
+                # bare prefix `key`. Treat the exact object as unresolved and
+                # try the folder; if that is forbidden too, it propagates.
+                first = None
+
             if first is not None and first.name == key:
                 return [
                     self._entry_from_obj(first, path, name, prefix=key, multi=False)
