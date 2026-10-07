@@ -19,11 +19,18 @@ from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
+from wandb.sdk.artifacts.storage_handlers.multi_handler import MultiHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import ETag, b64_to_hex_id, md5_string, xxh128_string
+from wandb.sdk.lib.hashutil import (
+    ETag,
+    b64_to_hex_id,
+    hex_to_b64_id,
+    md5_string,
+    xxh128_string,
+)
 
 example_digest = md5_string("example")
 
@@ -904,6 +911,131 @@ def test_wbartifact_handler_load_path_dest_path_replaces_symlink(
     assert not dest_path.is_symlink()
     assert dest_path.read_text() == contents
     assert protected.read_text() == "precious user data"
+
+
+def _make_hosted_wb_reference(
+    tmp_path: Path, mocker, *, xxh128: bool = False, chained: bool = False
+) -> tuple[WBArtifactHandler, ArtifactManifestEntry, Any, str]:
+    """Return a handler, a `wandb-artifact://` entry, the stubbed session, and content.
+
+    The dependency's file is W&B-hosted: its entry has a signed `_download_url` and
+    the dependency's storage policy uses a stubbed `requests.Session`. With `chained`,
+    the outer entry points at a middle artifact whose entry is itself a
+    `wandb-artifact://` reference to the dependency.
+    """
+    mocker.patch.dict(os.environ, {env.ARTIFACT_DIR: str(tmp_path / "artifacts")})
+
+    contents = "hello"
+    digest = xxh128_string(contents) if xxh128 else md5_string(contents)
+    extra = {"alg": "XXH128"} if xxh128 else {}
+
+    dep_artifact = Artifact("dep", type="dataset")
+    dep_entry = ArtifactManifestEntry(
+        path="file.txt", digest=digest, size=len(contents), extra=extra
+    )
+    dep_entry._parent_artifact = dep_artifact
+    dep_entry._download_url = "https://example.invalid/file.txt"
+    dep_artifact.get_entry = lambda _: dep_entry
+
+    session = mocker.Mock()
+    session.get.return_value.iter_content.return_value = [contents.encode()]
+    dep_artifact.manifest.storage_policy._maybe_session = session
+
+    artifacts = {"deadbeef": dep_artifact}
+    handler = WBArtifactHandler()
+    handler._client = mocker.Mock()
+    handler._client._artifact_from_id.side_effect = lambda b64_id: artifacts[
+        b64_to_hex_id(b64_id)
+    ]
+
+    ref = "wandb-artifact://deadbeef/file.txt"
+    if chained:
+        middle_artifact = Artifact("middle", type="dataset")
+        middle_artifact.manifest.storage_policy._maybe_handler = MultiHandler([handler])
+        middle_entry = ArtifactManifestEntry(
+            path="link.txt", ref=ref, digest=digest, size=0
+        )
+        middle_entry._parent_artifact = middle_artifact
+        middle_artifact.get_entry = lambda _: middle_entry
+        artifacts["feedbeef"] = middle_artifact
+        ref = "wandb-artifact://feedbeef/link.txt"
+
+    entry = ArtifactManifestEntry(path="file.txt", ref=ref, digest=digest, size=0)
+    return handler, entry, session, contents
+
+
+def test_wbartifact_handler_load_path_dest_path_hosted_dependency(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, contents = _make_hosted_wb_reference(
+        tmp_path, mocker, xxh128=True
+    )
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    session.get.assert_called_once_with("https://example.invalid/file.txt", stream=True)
+    assert _cache_files(artifact_file_cache) == []
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_wbartifact_handler_load_path_dest_path_chained_reference(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, contents = _make_hosted_wb_reference(
+        tmp_path, mocker, chained=True
+    )
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    assert session.get.call_count == 1
+    assert _cache_files(artifact_file_cache) == []
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_wbartifact_handler_load_path_nonlocal_ignores_dest_path(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, _ = _make_hosted_wb_reference(tmp_path, mocker)
+    # `ref_target()` on the dependency entry resolves its own reference.
+    dep_entry = handler._client._artifact_from_id(hex_to_b64_id("deadbeef")).get_entry(
+        "file.txt"
+    )
+    dep_entry.ref = "https://example.invalid/file.txt"
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    target = handler.load_path(entry, local=False, dest_path=str(dest_path))
+
+    assert target == dep_entry.ref
+    assert not dest_path.parent.exists()
+    session.get.assert_not_called()
+
+
+def test_wbartifact_handler_load_path_dest_path_interrupted_download_keeps_file(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, _ = _make_hosted_wb_reference(tmp_path, mocker)
+    dest_path = tmp_path / "dest" / "file.txt"
+    dest_path.parent.mkdir()
+    dest_path.write_text("older")
+
+    def interrupted(**kwargs):
+        yield b"hel"
+        raise OSError("injected broken stream")
+
+    session.get.return_value.iter_content.side_effect = interrupted
+
+    with raises(OSError, match="injected broken stream"):
+        handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    # The old file is intact and the partial temp file is gone.
+    assert dest_path.read_text() == "older"
+    assert list(dest_path.parent.iterdir()) == [dest_path]
 
 
 class UnfinishedStoragePolicy(StoragePolicy):
