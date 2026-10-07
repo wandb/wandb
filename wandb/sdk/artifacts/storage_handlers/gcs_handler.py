@@ -164,7 +164,19 @@ class GCSHandler(StorageHandler):
             ]
 
         bucket = client.bucket(gcs_path.bucket)
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        try:
+            from google.api_core.exceptions import Forbidden
+        except ImportError as e:
+            _handle_import_error(e)
+
+        try:
+            obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        except Forbidden:
+            # The caller has `storage.objects.list` but not `storage.objects.get`.
+            # A 403 says nothing about whether the key exists or whether it is a
+            # file or a folder, so resolve that with list calls instead.
+            return self._store_path_via_list(bucket, gcs_path, path, name, max_objects)
+
         if (obj is None) and (gcs_path.version is not None):
             raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
@@ -194,6 +206,85 @@ class GCSHandler(StorageHandler):
             )
 
         return entries
+
+    def _store_path_via_list(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+        max_objects: int,
+    ) -> list[ArtifactManifestEntry]:
+        """Resolve a reference using only `storage.objects.list`.
+
+        Used when `get_blob` is forbidden. Produces the same entries as the
+        `get_blob` path for references that path handles correctly.
+        """
+        key = gcs_path.key
+
+        version: int | None = None
+        if gcs_path.version is not None:
+            try:
+                version = int(gcs_path.version)
+            except ValueError:
+                raise ValueError(
+                    f"Version fragment must be an integer generation: {path}#{gcs_path.version}"
+                ) from None
+
+        def list_folder(prefix: str) -> tuple[int, list[ArtifactManifestEntry]]:
+            # `list_blobs` is lazy and makes HTTP requests while it is iterated,
+            # so consume it here and build entries as blobs stream by.
+            with TimedIf(True):
+                termlog(
+                    f"Generating checksum for up to {max_objects} objects with prefix {prefix!r}... ",
+                    newline=False,
+                )
+                n_raw = 0
+                entries: list[ArtifactManifestEntry] = []
+                for blob in bucket.list_blobs(prefix=prefix, max_results=max_objects):
+                    n_raw += 1
+                    # Directory markers are blobs whose names end in "/".
+                    if not blob.name.endswith("/"):
+                        entries.append(
+                            self._entry_from_obj(
+                                blob, path, name, prefix=key, multi=True
+                            )
+                        )
+                return n_raw, entries
+
+        if key.endswith("/"):
+            if version is not None:
+                raise ValueError(
+                    f"Version fragment is not valid on a folder reference: {path}#{gcs_path.version}"
+                )
+            _, entries = list_folder(key)
+            return entries
+
+        if version is None:
+            # The exact key is the lexicographically smallest name with that
+            # prefix, so one result tells us whether the file exists, and
+            # distinguishes `data` (file) from `data/` (marker) and
+            # `data-1.txt` (sibling).
+            first = next(iter(bucket.list_blobs(prefix=key, max_results=1)), None)
+            if first is not None and first.name == key:
+                return [
+                    self._entry_from_obj(first, path, name, prefix=key, multi=False)
+                ]
+            n_raw, entries = list_folder(key + "/")
+            if n_raw == 0 and first is not None:
+                # Something matches the string prefix, but nothing is `key` or
+                # under `key/`: a partial filename prefix such as "train-" over
+                # "train-0" and "train-1".
+                raise ValueError(f"{path!r} is neither an object nor a folder prefix")
+            return entries
+
+        # All generations of `key` sort before any longer name.
+        for blob in bucket.list_blobs(prefix=key, versions=True):
+            if blob.name != key:
+                break
+            if blob.generation == version:
+                return [self._entry_from_obj(blob, path, name, prefix=key, multi=False)]
+        raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
     def _entry_from_obj(
         self,
