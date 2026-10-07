@@ -44,6 +44,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - The `wandb leet symon` status bar starts with a W&B LEET badge (@dmitryduev in https://github.com/wandb/wandb/pull/13022)
+- The default W&B server is now CoreWeave Forge at `https://api.forge.coreweave.com`. Run, project, sweep and login links point to `https://forge.coreweave.com/wandb`, also when `base_url` is set to `https://api.wandb.ai` or `https://forge.coreweave.com/api/wandb`. Existing API keys stored for `api.wandb.ai` keep working without logging in again (@dmitryduev in https://github.com/wandb/wandb/pull/13077)
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
@@ -68,5 +69,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 - NVIDIA PCIe and NVLink throughput system metrics from GPM (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`, `gpu.N.nvlinkTxBytes`, `gpu.N.nvlinkRxBytes`) are now reported in bytes per second as their names say. They were in mebibytes per second (@dmitryduev in https://github.com/wandb/wandb/pull/12988)
 - `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
 - The Docker image ID recorded for runs inside Kubernetes no longer loses the start of the image name and the end of the digest when the `docker-pullable://` prefix is removed (@David-Wu1119 in https://github.com/wandb/wandb/pull/13035)
+- `wandb.Api(overrides={"base_url": ...})` no longer changes the W&B server URL used by `wandb.init()` and other W&B calls later in the same process (@dmitryduev in https://github.com/wandb/wandb/pull/13125)
 - After an artifact is downloaded with `skip_cache=True`, later downloads in the same process no longer read from or overwrite that earlier download's destination instead of using their own (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13115)
 - `artifact.download(skip_cache=True)` now replaces a file at the destination that has the expected size but different contents, instead of keeping it and recording the expected checksum for it (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13115)

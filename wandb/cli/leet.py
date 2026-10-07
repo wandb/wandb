@@ -21,7 +21,7 @@ from wandb.analytics import get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import wbauth
+from wandb.sdk.lib import urls, wbauth
 from wandb.util import get_core_path
 
 
@@ -390,7 +390,7 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
 def _parse_remote_url(path: str) -> tuple[str, str]:
     """Validate a W&B run URL and return (base_url, canonical_url).
 
-    Canonicalization rewrites the wandb.ai host to api.wandb.ai and drops
+    Canonicalization maps W&B app URLs to their API base URLs and drops
     any query string or fragment.
     """
     parsed_url = urllib.parse.urlparse(path)
@@ -400,7 +400,18 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
             " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
-    parts = parsed_url.path.strip("/").split("/")
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    run_path = parsed_url.path
+    if parsed_url.netloc == "wandb.ai":
+        base_url = urls.DEFAULT_BASE_URL
+    elif parsed_url.hostname in urls.FORGE_HOSTS:
+        base_url = f"https://api.{parsed_url.hostname}"
+        for prefix in (urls.FORGE_API_PATH, urls.FORGE_APP_PATH):
+            if run_path.startswith(prefix + "/"):
+                run_path = run_path.removeprefix(prefix)
+                break
+
+    parts = run_path.strip("/").split("/")
     if len(parts) == 4 and parts[2] == "runs":
         parts = [parts[0], parts[1], parts[3]]
     if len(parts) != 3 or not all(parts):
@@ -409,6 +420,4 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
             " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
-    netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
-    base_url = f"{parsed_url.scheme}://{netloc}"
-    return base_url, f"{base_url}{parsed_url.path}"
+    return base_url, f"{base_url}/{parts[0]}/{parts[1]}/runs/{parts[2]}"

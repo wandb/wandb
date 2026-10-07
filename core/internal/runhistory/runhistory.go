@@ -32,8 +32,11 @@ func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
 // Metrics that cannot be marshalled to JSON are skipped without affecting
 // other metrics.
 //
+// If includeTyped is true, the records will include the typed value in
+// addition to the JSON value.
+//
 // TODO: Don't convert history back to protos. Delete this method.
-func (rh *RunHistory) ToRecords() ([]*spb.HistoryItem, error) {
+func (rh *RunHistory) ToRecords(includeTyped, includeJSON bool) ([]*spb.HistoryItem, error) {
 	var records []*spb.HistoryItem
 	var errs []error
 
@@ -45,16 +48,43 @@ func (rh *RunHistory) ToRecords() ([]*spb.HistoryItem, error) {
 				fmt.Errorf("failed to marshal key %v: %v", path, err))
 			return true
 		}
+		valueJSONText := string(valueJSON)
 
-		records = append(records, &spb.HistoryItem{
+		record := &spb.HistoryItem{
 			NestedKey: path.Labels(),
-			ValueJson: string(valueJSON),
-		})
+		}
+		if includeJSON {
+			record.ValueJson = valueJSONText
+		}
+		if includeTyped {
+			if !setTypedScalar(record, value) {
+				record.Value = &spb.HistoryItem_Json{Json: valueJSONText}
+			}
+		}
+		records = append(records, record)
 
 		return true
 	})
 
 	return records, errors.Join(errs...)
+}
+
+func setTypedScalar(record *spb.HistoryItem, value any) bool {
+	switch value := value.(type) {
+	case nil:
+		record.Value = &spb.HistoryItem_None{}
+	case bool:
+		record.Value = &spb.HistoryItem_Boolean{Boolean: value}
+	case int64:
+		record.Value = &spb.HistoryItem_Integer{Integer: value}
+	case float64:
+		record.Value = &spb.HistoryItem_Number{Number: value}
+	case string:
+		record.Value = &spb.HistoryItem_Text{Text: value}
+	default:
+		return false
+	}
+	return true
 }
 
 // ForEachNumber runs a callback on every numeric metric.
@@ -184,6 +214,8 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 
 // SetFromRecord records one or more metrics specified in a history proto.
 //
+// It prefers the typed `Value` and falls back to `ValueJson`.
+//
 // If the history item contains multiple metrics, such as if its ValueJson is
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
 // and any errors are joined and returned.
@@ -199,12 +231,57 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 		return errors.New("empty history item key")
 	}
 
+	if typed := record.GetValue(); typed != nil {
+		return rh.setFromTypedValue(path, record)
+	}
+
+	if record.ValueJson == "" {
+		return errors.New("both value and value_json are unset")
+	}
+
 	value, err := simplejsonext.UnmarshalString(record.ValueJson)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)
 	}
 
 	rh.setFromUnmarshalledJSON(path, value)
+	return nil
+}
+
+func (rh *RunHistory) setFromTypedValue(
+	path pathtree.TreePath,
+	item *spb.HistoryItem,
+) error {
+	switch value := item.Value.(type) {
+	case *spb.HistoryItem_None:
+		rh.metrics.Set(path, nil)
+
+	case *spb.HistoryItem_Number:
+		rh.metrics.Set(path, value.Number)
+
+	case *spb.HistoryItem_Integer:
+		rh.metrics.Set(path, value.Integer)
+
+	case *spb.HistoryItem_Boolean:
+		rh.metrics.Set(path, value.Boolean)
+
+	case *spb.HistoryItem_Text:
+		rh.metrics.Set(path, value.Text)
+
+	case *spb.HistoryItem_Json:
+		// An object keeps its tree structure, the same as the JSON form.
+		decoded, err := simplejsonext.UnmarshalString(value.Json)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to unmarshal typed history item value: %v", err)
+		}
+		rh.setFromUnmarshalledJSON(path, decoded)
+
+	default:
+		// An unknown value may have been written by a newer SDK.
+		return fmt.Errorf("unknown history value type %T", item.Value)
+	}
+
 	return nil
 }
 

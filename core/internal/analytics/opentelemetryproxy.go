@@ -1000,11 +1000,10 @@ func checkServerSupportsOpenTelemetryProxy(
 	httpClient *http.Client,
 	endpoint string,
 ) bool {
-	url := endpoint + metricsPath
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		url,
+		endpoint+metricsPath,
 		http.NoBody,
 	)
 	if err != nil {
