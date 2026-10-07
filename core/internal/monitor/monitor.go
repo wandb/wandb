@@ -115,7 +115,7 @@ type SystemMonitor struct {
 	held []*spb.Record
 	// guards until holdUntil and held.
 	heldMu sync.Mutex
-	// when to stop holding back system metrics; see holdServer()
+	// when to stop holding back system metrics; see checkServerVersion
 	holdUntil time.Time
 }
 
@@ -388,39 +388,50 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	}
 
 	sm.logger.Debug("monitor: starting")
-	sm.wg.Go(func() {
-		sm.holdServer()
-		sm.loop()
-	})
+	if sm.graphqlClient != nil {
+		// Hold system metrics until the server version is known.
+		sm.heldMu.Lock()
+		sm.holdUntil = time.Now().Add(holdDuration)
+		sm.heldMu.Unlock()
+		sm.wg.Go(sm.checkServerVersion)
+	}
+	sm.wg.Go(sm.loop)
 	sm.wake()
 }
 
-// holdServer holds system metrics for runs to be used where server-side processing is required.
-// eg WB server <= 0.77.x
-// Server versions <= 0.77.x export system metrics early if exsist then return only exported rows ( see wadnb/core#37503).
-// Holding samples keeps out of export without changing sample rate wandb.Settings(x_stats_sampling_interval=30).
-// not parquet policy can also be controlled with  GORILLA_PARQUET_POLICY_FILESTREAM_EVENTS_SIZE_BEFORE_PARTIAL_EXPORT
-// for some cases.
-func (sm *SystemMonitor) holdServer() {
-	if sm.graphqlClient == nil {
-		return
-	}
+// checkServerVersion stops holding back system metrics unless the server is
+// W&B Server older than 0.78.0.
+//
+// Those servers export a run's system metrics early if any exist, and then
+// return only the exported rows (fixed in wandb/core#37503). Holding the
+// samples for holdDuration keeps them out of that export without changing
+// the sampling rate.
+func (sm *SystemMonitor) checkServerVersion() {
 	ctx, cancel := context.WithTimeout(sm.ctx, 10*time.Second)
 	defer cancel()
 
 	resp, err := gql.ServerInfo(ctx, sm.graphqlClient)
-	if err != nil || resp.ServerInfo == nil || resp.ServerInfo.LatestLocalVersionInfo == nil {
-		return // Forge MT SAAS (wandb.ai) reports no version
+	if sm.ctx.Err() != nil {
+		return // the run is finishing; handleExit sends the held records
 	}
 
-	// invalid versions seg "development"
-	v := resp.ServerInfo.LatestLocalVersionInfo.VersionOnThisInstanceString
-	if version.Compare(v, "0.0.0") >= 0 && version.Compare(v, "0.78.0") < 0 {
-		sm.heldMu.Lock()
-		sm.holdUntil = time.Now().Add(holdDuration)
-		sm.heldMu.Unlock()
-		sm.logger.Debug("monitor: holding system metrics", "duration", holdDuration, "version", v)
+	// W&B Cloud reports no version.
+	if err == nil && resp.ServerInfo != nil && resp.ServerInfo.LatestLocalVersionInfo != nil {
+		// Invalid versions such as "development" compare below "0.0.0".
+		v := resp.ServerInfo.LatestLocalVersionInfo.VersionOnThisInstanceString
+		if version.Compare(v, "0.0.0") >= 0 && version.Compare(v, "0.78.0") < 0 {
+			sm.logger.Info("monitor: holding system metrics",
+				"duration", holdDuration, "version", v)
+			return
+		}
 	}
+
+	sm.heldMu.Lock()
+	sm.holdUntil = time.Time{}
+	records := sm.held
+	sm.held = nil
+	sm.heldMu.Unlock()
+	sm.send(records)
 }
 
 // wake forces the system monitor to sample resources immediately.
@@ -555,22 +566,24 @@ func (sm *SystemMonitor) sample() {
 	}
 }
 
-// publish send system metrics or holds until holdUntil expires
+// publish sends a system metrics record, or holds it until holdUntil.
 //
-// The first record after holdUntil sends all held records.
-
+// The first record after holdUntil also sends everything held before it.
 func (sm *SystemMonitor) publish(record *spb.Record) {
 	sm.heldMu.Lock()
+	sm.held = append(sm.held, record)
 	if time.Now().Before(sm.holdUntil) {
-		sm.held = append(sm.held, record)
 		sm.heldMu.Unlock()
 		return
-
 	}
-	sm.held = append(sm.held, record)
 	records := sm.held
 	sm.held = nil
 	sm.heldMu.Unlock()
+	sm.send(records)
+}
+
+// send passes system metrics records to the run.
+func (sm *SystemMonitor) send(records []*spb.Record) {
 	for _, record := range records {
 		sm.extraWork.AddWorkOrCancel(
 			sm.ctx.Done(),

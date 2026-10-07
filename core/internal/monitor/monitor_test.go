@@ -1,6 +1,7 @@
 package monitor_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -227,24 +229,54 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 	}
 }
 
-// waitForSample waits until the monitor has taken a sample.
+// recordingWork is a runwork.ExtraWork that collects the records added to it.
 //
-// It polls the monitor's buffer rather than FakeRunWork.AllRecords, which
-// races with work still being added.
+// Unlike runworktest.FakeRunWork, it can be read while work is being added.
+type recordingWork struct {
+	records chan *spb.Record
+}
+
+func (w *recordingWork) AddWork(work runwork.Work) {
+	w.AddWorkOrCancel(nil, work)
+}
+
+func (w *recordingWork) AddWorkOrCancel(_ <-chan struct{}, work runwork.Work) {
+	w.records <- work.ToRecord()
+}
+
+func (w *recordingWork) BeforeEndCtx() context.Context {
+	return context.Background()
+}
+
+// newSamplingTestSystemMonitor returns a monitor with stats enabled and a
+// sampling interval long enough that only the sample at startup happens
+// during a test.
+//
+// It keeps samples in memory so tests can wait for one with GetBuffer.
+func newSamplingTestSystemMonitor(
+	t *testing.T,
+	graphqlClient graphql.Client,
+) (*monitor.SystemMonitor, *recordingWork) {
+	t.Helper()
+	work := &recordingWork{records: make(chan *spb.Record, 100)}
+	factory := &monitor.SystemMonitorFactory{
+		Logger: observabilitytest.NewTestLogger(t),
+		Settings: settings.From(&spb.Settings{
+			XStatsSamplingInterval: wrapperspb.Double(3600),
+			XStatsBufferSize:       wrapperspb.Int32(-1),
+		}),
+		XPUResourceManager: monitor.NewXPUResourceManager(false),
+		GraphqlClient:      graphqlClient,
+	}
+	return factory.New(work), work
+}
+
+// waitForSample waits until the monitor has taken a sample.
 func waitForSample(t *testing.T, sm *monitor.SystemMonitor) {
 	t.Helper()
 	assert.Eventually(t,
 		func() bool { return len(sm.GetBuffer()) > 0 },
 		5*time.Second, 10*time.Millisecond)
-}
-
-func hasStatsRecord(work *runworktest.FakeRunWork) bool {
-	for _, record := range work.AllRecords() {
-		if record.GetStats() != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func serverInfoClient(versionInfoJSON string) *gqlmock.MockClient {
@@ -275,11 +307,14 @@ func TestSystemMonitor_SendsStatsImmediately_OnSupportedServers(t *testing.T) {
 			sm, work := newSamplingTestSystemMonitor(t, client)
 
 			sm.Start(nil)
-			waitForSample(t, sm)
-			sm.Finish()
+			defer sm.Finish()
 
-			assert.True(t, hasStatsRecord(work))
-			assert.Empty(t, sm.ClearHeld())
+			select {
+			case record := <-work.records:
+				assert.NotNil(t, record.GetStats())
+			case <-time.After(5 * time.Second):
+				t.Fatal("no system metrics sent")
+			}
 		})
 	}
 }
@@ -292,9 +327,11 @@ func TestSystemMonitor_HoldsStats_OnServersBefore0_78(t *testing.T) {
 
 			sm.Start(nil)
 			waitForSample(t, sm)
+			assert.Never(t,
+				func() bool { return len(work.records) > 0 },
+				500*time.Millisecond, 10*time.Millisecond)
 			sm.Finish()
 
-			assert.False(t, hasStatsRecord(work))
 			held := sm.ClearHeld()
 			assert.NotEmpty(t, held)
 			for _, record := range held {
@@ -305,49 +342,30 @@ func TestSystemMonitor_HoldsStats_OnServersBefore0_78(t *testing.T) {
 	}
 }
 
-func TestSystemMonitor_FinishDoesNotWaitForVersionCheck(t *testing.T) {
+func TestSystemMonitor_SamplesDuringSlowVersionCheck(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchHang(gqlmock.WithOpName("ServerInfo"))
 	sm, _ := newSamplingTestSystemMonitor(t, client)
 
 	sm.Start(nil)
+	waitForSample(t, sm)
+
 	finished := make(chan struct{})
 	go func() {
 		sm.Finish()
 		close(finished)
 	}()
-
 	select {
 	case <-finished:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Finish blocked on the server version check")
 	}
+
+	// The samples taken while the version was unknown are sent on exit.
+	assert.NotEmpty(t, sm.ClearHeld())
 }
 
 func TestSystemMonitor_ClearHeld_NilMonitor(t *testing.T) {
 	var sm *monitor.SystemMonitor
 	assert.Nil(t, sm.ClearHeld())
-}
-
-// newSamplingTestSystemMonitor returns a monitor with stats enabled and a
-// sampling interval long enough that only the sample at startup happens
-// during a test.
-//
-// It keeps samples in memory so tests can wait for one with GetBuffer.
-func newSamplingTestSystemMonitor(
-	t *testing.T,
-	graphqlClient graphql.Client,
-) (*monitor.SystemMonitor, *runworktest.FakeRunWork) {
-	t.Helper()
-	work := runworktest.New()
-	factory := &monitor.SystemMonitorFactory{
-		Logger: observabilitytest.NewTestLogger(t),
-		Settings: settings.From(&spb.Settings{
-			XStatsSamplingInterval: wrapperspb.Double(3600),
-			XStatsBufferSize:       wrapperspb.Int32(-1),
-		}),
-		XPUResourceManager: monitor.NewXPUResourceManager(false),
-		GraphqlClient:      graphqlClient,
-	}
-	return factory.New(work), work
 }
