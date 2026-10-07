@@ -14,11 +14,11 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type expectedMetric struct {
-	path   []string
-	kind   string
-	typed  any
-	legacy any
+type wantedMetric struct {
+	path  []string
+	kind  string
+	typed any
+	json  any
 }
 
 func metricKey(path []string) string {
@@ -94,74 +94,100 @@ func requireHistoryValueKind(t *testing.T, item *spb.HistoryItem, wantKind strin
 	}
 }
 
-func requireDualWriteRow(t *testing.T, source *runhistory.RunHistory, expected []expectedMetric) {
+func requireHistoryRecordMetrics(t *testing.T, got []*spb.HistoryItem, wantKinds map[string]string) {
+	t.Helper()
+	seen := make(map[string]bool)
+	for _, item := range got {
+		key := metricKey(item.NestedKey)
+		wantKind, exists := wantKinds[key]
+		require.True(t, exists, "unexpected path %s", key)
+		require.False(t, seen[key], "duplicate path %s", key)
+		seen[key] = true
+		requireHistoryValueKind(t, item, wantKind)
+	}
+	require.Len(t, seen, len(wantKinds))
+}
+
+func requireMetricsEqual(t *testing.T, got map[string]any, wantMetrics map[string]any) {
+	t.Helper()
+	require.Len(t, got, len(wantMetrics))
+	for key, want := range wantMetrics {
+		got, exists := got[key]
+		require.True(t, exists, "missing path %s", key)
+		requireMetricValue(t, want, got)
+	}
+}
+
+func requireRoundTrip(t *testing.T, source *runhistory.RunHistory) *spb.HistoryRecord {
 	t.Helper()
 	items, err := source.ToRecords(true, true)
 	require.NoError(t, err)
-	require.Len(t, items, len(expected))
-
-	// Create a map of the expected metrics by path.
-	wants := make(map[string]expectedMetric)
-	for _, metric := range expected {
-		wants[metricKey(metric.path)] = metric
-	}
-
-	// Round-trip the records through the codec.
 	record := &spb.HistoryRecord{Item: items}
 	data, err := proto.Marshal(record)
 	require.NoError(t, err)
 	decoded := new(spb.HistoryRecord)
 	require.NoError(t, proto.Unmarshal(data, decoded))
+	return decoded
+}
 
-	// Decode the records into two separate runhistories,
-	// one for the typed values and one for the legacy values.
-	typedRow := runhistory.New()
-	legacyRow := runhistory.New()
+func decodeToTyped(t *testing.T, record *spb.HistoryRecord) *runhistory.RunHistory {
+	t.Helper()
 	seen := make(map[string]bool)
-	for _, item := range decoded.Item {
+	typedRow := runhistory.New()
+	for _, item := range record.Item {
 		key := metricKey(item.NestedKey)
-		want, exists := wants[key]
-		require.True(t, exists, "unexpected path %s", key)
 		require.False(t, seen[key], "duplicate path %s", key)
 		seen[key] = true
-		requireHistoryValueKind(t, item, want.kind)
 		typedItem := proto.Clone(item).(*spb.HistoryItem)
 		typedItem.ValueJson = ""
 		require.NoError(t, typedRow.SetFromRecord(typedItem))
-		legacyItem := proto.Clone(item).(*spb.HistoryItem)
-		legacyItem.Value = nil
-		require.NoError(t, legacyRow.SetFromRecord(legacyItem))
 	}
-	require.Len(t, seen, len(wants))
-
-	// Verify that the decoded values for each runhistory (typed and legacy)
-	// are equivalent to the original values.
-	for _, row := range []struct {
-		name   string
-		values map[string]any
-		typed  bool
-	}{
-		{"typed", decodedMetrics(typedRow), true},
-		{"legacy", decodedMetrics(legacyRow), false},
-	} {
-		t.Run(row.name, func(t *testing.T) {
-			require.Len(t, row.values, len(wants))
-			for key, want := range wants {
-				got, exists := row.values[key]
-				require.True(t, exists, "missing path %s", key)
-				if row.typed {
-					requireMetricValue(t, want.typed, got)
-				} else {
-					requireMetricValue(t, want.legacy, got)
-				}
-			}
-		})
-	}
+	return typedRow
 }
 
-func TestDualWriteIndependentDecoding(t *testing.T) {
+func decodeToJson(t *testing.T, record *spb.HistoryRecord) *runhistory.RunHistory {
+	t.Helper()
+	seen := make(map[string]bool)
+	jsonRow := runhistory.New()
+	for _, item := range record.Item {
+		key := metricKey(item.NestedKey)
+		require.False(t, seen[key], "duplicate path %s", key)
+		seen[key] = true
+		jsonItem := proto.Clone(item).(*spb.HistoryItem)
+		jsonItem.Value = nil
+		require.NoError(t, jsonRow.SetFromRecord(jsonItem))
+	}
+	return jsonRow
+}
+
+func requireTypedAndJsonEqual(t *testing.T, got *runhistory.RunHistory, want []wantedMetric) {
+	t.Helper()
+
+	wantKinds := make(map[string]string)
+	wantJson := make(map[string]any)
+	wantTyped := make(map[string]any)
+	for _, metric := range want {
+		wantKinds[metricKey(metric.path)] = metric.kind
+		wantJson[metricKey(metric.path)] = metric.json
+		wantTyped[metricKey(metric.path)] = metric.typed
+	}
+
+	dualHistoryRecord := requireRoundTrip(t, got)
+	require.Len(t, dualHistoryRecord.Item, len(want))
+	requireHistoryRecordMetrics(t, dualHistoryRecord.Item, wantKinds)
+
+	typedRunHistory := decodeToTyped(t, dualHistoryRecord)
+	typedMetrics := decodedMetrics(typedRunHistory)
+	requireMetricsEqual(t, typedMetrics, wantTyped)
+
+	jsonRunHistory := decodeToJson(t, dualHistoryRecord)
+	jsonMetrics := decodedMetrics(jsonRunHistory)
+	requireMetricsEqual(t, jsonMetrics, wantJson)
+}
+
+func TestTypedAndJsonDecoding(t *testing.T) {
 	rh := runhistory.New()
-	metrics := []expectedMetric{
+	metrics := []wantedMetric{
 		// Cases where the typed and json values differ.
 		{[]string{"integral_float"}, "number", 1.0, int64(1)},
 		{[]string{"positive_zero"}, "number", 0.0, int64(0)},
@@ -224,20 +250,20 @@ func TestDualWriteIndependentDecoding(t *testing.T) {
 	} {
 		require.NoError(t, rh.SetFromRecord(input))
 	}
-	requireDualWriteRow(t, rh, metrics)
+	requireTypedAndJsonEqual(t, rh, metrics)
 }
 
-func TestDualWriteSparseRows(t *testing.T) {
+func TestTypedAndJsonSparseRows(t *testing.T) {
 	rows := []struct {
 		items []*spb.HistoryItem
-		want  []expectedMetric
+		want  []wantedMetric
 	}{
 		{
 			[]*spb.HistoryItem{
 				{Key: "a", ValueJson: "1"},
 				{Key: "b", ValueJson: "null"},
 			},
-			[]expectedMetric{
+			[]wantedMetric{
 				{[]string{"a"}, "integer", int64(1), int64(1)},
 				{[]string{"b"}, "none", nil, nil},
 			},
@@ -247,14 +273,14 @@ func TestDualWriteSparseRows(t *testing.T) {
 				{Key: "b", ValueJson: "false"},
 				{Key: "c", ValueJson: `""`},
 			},
-			[]expectedMetric{
+			[]wantedMetric{
 				{[]string{"b"}, "boolean", false, false},
 				{[]string{"c"}, "text", "", ""},
 			},
 		},
 		{
 			[]*spb.HistoryItem{{Key: "a", ValueJson: "0"}},
-			[]expectedMetric{{[]string{"a"}, "integer", int64(0), int64(0)}},
+			[]wantedMetric{{[]string{"a"}, "integer", int64(0), int64(0)}},
 		},
 		{nil, nil},
 	}
@@ -263,14 +289,14 @@ func TestDualWriteSparseRows(t *testing.T) {
 		for _, item := range test.items {
 			require.NoError(t, rh.SetFromRecord(item))
 		}
-		requireDualWriteRow(t, rh, test.want)
+		requireTypedAndJsonEqual(t, rh, test.want)
 	}
 }
 
-func TestDualWriteIntegralFloatRenderer(t *testing.T) {
+func TestTypedAndJsonIntFloatDifferences(t *testing.T) {
 	rh := runhistory.New()
 	rh.SetFloat(pathtree.PathOf("metric"), 1.0)
-	requireDualWriteRow(t, rh, []expectedMetric{{[]string{"metric"}, "number", 1.0, int64(1)}})
+	requireTypedAndJsonEqual(t, rh, []wantedMetric{{[]string{"metric"}, "number", 1.0, int64(1)}})
 	items, err := rh.ToRecords(true, true)
 	require.NoError(t, err)
 	require.Equal(t, "1", items[0].ValueJson)
@@ -279,10 +305,10 @@ func TestDualWriteIntegralFloatRenderer(t *testing.T) {
 	require.Equal(t, `{"metric":1}`, string(line))
 }
 
-func TestDualWriteNegativeZeroLosesLegacySign(t *testing.T) {
+func TestTypedAndJsonNegativeZero(t *testing.T) {
 	rh := runhistory.New()
 	rh.SetFloat(pathtree.PathOf("metric"), math.Copysign(0, -1))
-	requireDualWriteRow(t, rh, []expectedMetric{{
+	requireTypedAndJsonEqual(t, rh, []wantedMetric{{
 		[]string{"metric"}, "number", math.Copysign(0, -1), int64(0),
 	}})
 	items, err := rh.ToRecords(true, true)
