@@ -1128,7 +1128,7 @@ func TestHandleExit_SendsHeldSystemMetricsBeforeExit(t *testing.T) {
 
 	statsBeforeExit := 0
 	for work := range h.OutChan() {
-		record := work.WorkImpl.ToRecord()
+		record := work.ToRecord()
 		if record.GetStats() != nil {
 			statsBeforeExit++
 		}

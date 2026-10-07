@@ -567,7 +567,8 @@ func (sm *SystemMonitor) publish(record *spb.Record) {
 		return
 
 	}
-	records := append(sm.held, record)
+	sm.held = append(sm.held, record)
+	records := sm.held
 	sm.held = nil
 	sm.heldMu.Unlock()
 	for _, record := range records {
