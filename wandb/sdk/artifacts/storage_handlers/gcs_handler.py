@@ -174,7 +174,13 @@ class GCSHandler(StorageHandler):
         except Forbidden:
             # The caller has `storage.objects.list` but not `storage.objects.get`.
             # A 403 says nothing about whether the key exists or whether it is a
-            # file or a folder, so resolve that with list calls instead.
+            # file or a folder, so resolve that with list calls instead. Log the
+            # denial on the object the caller named: if listing is denied too,
+            # the error they see is about a derived prefix, not this object.
+            logger.warning(
+                f"storage.objects.get denied for {path!r}; "
+                "resolving the reference with storage.objects.list"
+            )
             return self._store_path_via_list(bucket, gcs_path, path, name, max_objects)
 
         if (obj is None) and (gcs_path.version is not None):
@@ -217,8 +223,20 @@ class GCSHandler(StorageHandler):
     ) -> list[ArtifactManifestEntry]:
         """Resolve a reference using only `storage.objects.list`.
 
-        Used when `get_blob` is forbidden. Produces the same entries as the
-        `get_blob` path for references that path handles correctly.
+        Used when `get_blob` is forbidden. For a single object, a folder
+        (with or without a trailing slash) or a versioned object, this returns
+        the same entries as the `get_blob` path. It deliberately differs where
+        the `get_blob` path is wrong or cannot be matched:
+
+        - Folder children are listed on the `key + "/"` boundary, so siblings
+          such as `key-1.txt` or `key.bak` are not included. The `get_blob`
+          path lists the bare prefix and gives such siblings a wrong `ref`.
+        - A key that matches other names but is neither an object nor a folder
+          (`train-` over `train-0`, `train-1`) raises `ValueError`. The
+          `get_blob` path returns entries whose `ref` is the prefix.
+        - When even the exact-key listing is forbidden (list permission scoped
+          to a managed folder `key/`), the folder is returned; an object named
+          exactly `key` outside that folder cannot be seen.
         """
         try:
             from google.api_core.exceptions import Forbidden

@@ -472,6 +472,20 @@ def test_list_only_single_file_entry():
     }
 
 
+def test_list_only_folder_excludes_siblings_of_the_prefix():
+    # Deliberate difference from the `get_blob` path, which lists the bare
+    # prefix `d` and also returns `d-1.txt` with the wrong ref `gs://.../d`.
+    bucket = FakeBucket(
+        [FakeBlob("d/a", 1), FakeBlob("d/b", 2), FakeBlob("d-1.txt", 3)],
+        forbid_get=True,
+    )
+    assert add_reference(bucket, uri_of("d")) == {
+        "a": (uri_of("d/a"), "etag-d/a-1", 10, 1),
+        "b": (uri_of("d/b"), "etag-d/b-2", 10, 2),
+    }
+    assert [c["prefix"] for c in bucket.list_calls] == ["d", "d/"]
+
+
 def test_list_only_file_probe_requests_one_result():
     bucket = FakeBucket([FakeBlob("f"), FakeBlob("f.bak")], forbid_get=True)
     add_reference(bucket, uri_of("f"))
@@ -660,8 +674,11 @@ def test_scoped_list_denied_probe_then_folder_error_propagates(error):
         fail_after=1,
         fail_error=error,
     )
-    with raises(type(error) if error else _FailedListingError):
+    with raises(type(error) if error else _FailedListingError) as excinfo:
         add_reference(bucket, uri_of("managed"))
+    if error is not None:
+        # The listing's own error surfaces, not the probe's or get_blob's 403.
+        assert excinfo.value is error
 
 
 @pytest.mark.parametrize(
