@@ -17,7 +17,9 @@ from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
+from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
 from wandb.sdk.artifacts.storage_handlers.multi_handler import MultiHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
@@ -632,6 +634,110 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
         local=True,
     )
     assert local_path == path
+
+
+def _make_etag_handler(kind: str, mocker, payloads: dict[str, bytes]):
+    """Return an ETag-digest handler, its URI prefix, entry extras and a fetch log.
+
+    Each handler's transport is stubbed to serve `payloads` by key with ETag
+    `etag-<key>`, so only the cache and destination handling run for real.
+    """
+    fetched: list[str] = []
+
+    def transfer(key: str, file) -> None:
+        fetched.append(key)
+        file.write(payloads[key])
+
+    extra: dict[str, str] = {}
+    if kind == "http":
+        session = mocker.MagicMock()
+
+        def get(url: str, stream: bool):
+            key = url.rsplit("/", 1)[1]
+            response = mocker.MagicMock()
+            response.request.url = url
+            response.headers = {"etag": f'"etag-{key}"', "content-length": "5"}
+            response.iter_content.return_value = [payloads[key]]
+            response.__enter__.return_value = response
+            fetched.append(key)
+            return response
+
+        session.get.side_effect = get
+        handler = HTTPHandler(session, scheme="https")
+        prefix = "https://example.invalid"
+    elif kind == "s3":
+        handler = S3Handler()
+        handler._s3 = mocker.Mock()
+        handler._s3.Object.side_effect = lambda bucket, key: mocker.Mock(
+            e_tag=f'"etag-{key}"',
+            download_fileobj=lambda file, **kwargs: transfer(key, file),
+        )
+        prefix = "s3://some-bucket"
+    elif kind == "gcs":
+        handler = GCSHandler()
+        handler._client = mocker.Mock()
+        handler._client.bucket.return_value.get_blob.side_effect = (
+            lambda key, **kwargs: mocker.Mock(
+                etag=f"etag-{key}",
+                download_to_file=lambda file: transfer(key, file),
+            )
+        )
+        prefix = "gs://some-bucket"
+    elif kind == "azure":
+        handler = AzureHandler()
+        service = mocker.Mock()
+        service.get_blob_client.side_effect = lambda container, blob: mocker.Mock(
+            download_blob=lambda **kwargs: mocker.Mock(
+                readinto=lambda file: transfer(blob, file)
+            )
+        )
+        handler._get_module = lambda _: mocker.Mock(
+            BlobServiceClient=lambda *args, **kwargs: service
+        )
+        handler._get_credential = lambda _: "credential"
+        prefix = "https://account.blob.core.windows.net/container"
+        extra = {"versionID": "v1"}
+    else:
+        raise ValueError(kind)
+    return handler, prefix, extra, fetched
+
+
+@mark.parametrize("kind", ["http", "s3", "gcs", "azure"])
+def test_etag_handler_load_path_forwards_dest_path(
+    artifact_file_cache, tmp_path, mocker, kind
+):
+    """Every ETag-digest handler must pass `dest_path` through to the cache lookup.
+
+    If a handler accepted `dest_path` but did not forward it, the file would land
+    in the cache while `ArtifactManifestEntry.download` reported `dest_path`.
+    """
+    payloads = {"a.txt": b"hello", "b.txt": b"world"}
+    handler, prefix, extra, fetched = _make_etag_handler(kind, mocker, payloads)
+
+    def entry(key: str) -> ArtifactManifestEntry:
+        return ArtifactManifestEntry(
+            path=key, ref=f"{prefix}/{key}", digest=f"etag-{key}", size=5, extra=extra
+        )
+
+    # A same-size file with the wrong contents at the destination is replaced
+    # in place, and the payload does not land in the cache.
+    dest_path = tmp_path / "dest" / "a.txt"
+    dest_path.parent.mkdir()
+    dest_path.write_text("jello")
+
+    local_path = handler.load_path(entry("a.txt"), local=True, dest_path=dest_path)
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == "hello"
+    assert _cache_files(artifact_file_cache) == []
+
+    # A later load without `dest_path` uses the cache as before.
+    cache_path = Path(handler.load_path(entry("b.txt"), local=True))
+
+    assert cache_path.read_text() == "world"
+    assert artifact_file_cache._obj_dir in cache_path.parents
+    assert dest_path.read_text() == "hello"
+    assert fetched == ["a.txt", "b.txt"]
 
 
 def test_cache_add_gives_useful_error_when_out_of_space(

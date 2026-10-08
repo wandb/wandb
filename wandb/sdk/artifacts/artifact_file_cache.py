@@ -104,8 +104,10 @@ class ArtifactFileCache:
         opener = self._opener(path, size, skip_cache=skip_cache)
         # When skipping the cache, `path` is the download destination, not a
         # content-addressed cache object, so a same-size file there says nothing
-        # about its contents. Callers that can verify the destination do so
-        # before getting here; everyone else must download.
+        # about its contents. `ArtifactManifestEntry.download` already returned
+        # if the destination matched its digest or its recorded checksum; a
+        # reference whose digest is an ETag can only match the recorded
+        # checksum, so without one it is downloaded again.
         hit = not skip_cache and path.is_file() and path.stat().st_size == size
         return FilePathStr(path), hit, opener
 

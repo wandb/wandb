@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 from wandb.apis.public import Api
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
@@ -17,19 +16,16 @@ if TYPE_CHECKING:
     from urllib.parse import ParseResult
 
     from wandb.sdk.artifacts.artifact import Artifact
-    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class WBArtifactHandler(StorageHandler):
     """Handles loading and storing Artifact reference-type files."""
 
     _scheme: Literal["wandb-artifact"]
-    _cache: ArtifactFileCache
     _client: Api | None
 
     def __init__(self) -> None:
         self._scheme = "wandb-artifact"
-        self._cache = get_artifact_file_cache()
         self._client = None
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
@@ -56,7 +52,8 @@ class WBArtifactHandler(StorageHandler):
                 the referenced artifact's download root, bypassing the cache
 
         Returns:
-            (os.PathLike): A path to the file represented by `index_entry`
+            The local path of the referenced file, or its reference target when
+            `local` is False.
         """
         # We don't check for cache hits here. Cross-artifact references store 0
         # in the size field, so we can't confirm if a file is complete. Without a
