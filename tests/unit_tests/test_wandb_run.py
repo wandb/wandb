@@ -320,7 +320,7 @@ def test_public_api_uses_api_key(mock_run, mocker):
     mock_api_class.assert_called_once_with(
         # overrides from mock_run
         {
-            "base_url": "https://api.wandb.ai",
+            "base_url": "https://api.forge.coreweave.com",
             "run": None,
             "entity": "",
             "project": "",
