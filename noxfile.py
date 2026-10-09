@@ -319,14 +319,16 @@ def experimental_tests(session: nox.Session):
 def local_testcontainer_registry(session: nox.Session) -> None:
     """Archive the local-testcontainer image for a wandb/core server release.
 
-    Finds the requested release (tag) of wandb/core (latest by default)
-    and its commit hash, then copies the local-testcontainer image with
-    that commit hash from
-    us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
-    to us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+    Finds the requested release (tag) of wandb/core (latest by default),
+    its commit hash, and the build-and-test workflow run for that commit,
+    then copies the image that run published to
+    us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer-gha
+    (tagged run-<run id>-<attempt>; a re-run of failed jobs keeps the
+    image from the attempt that built it) to
+    us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
     tagged with the release version. No-op if the tag is already archived.
 
-    The wandb-production registry only retains images for recent commits,
+    The wandb-production registry only retains images for about 30 days,
     so this archive is what allows testing the SDK against older server
     releases (e.g. the system-tests-min-server-version CI jobs). It is
     run manually by maintainers about once a month; see "Archiving server
@@ -334,11 +336,11 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     Prerequisites:
     - gcloud authenticated with an account that can read
-      wandb-production/images/local-testcontainer and write
+      wandb-production/images/local-testcontainer-gha and write
       wandb-client-cicd/images/local-testcontainer
     - gcrane: go install github.com/google/go-containerregistry/cmd/gcrane@latest
-    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core,
-      e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
+    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core and
+      its Actions runs, e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
 
     To archive the latest release:
         nox -s local-testcontainer-registry
@@ -348,15 +350,15 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     """
     tags: list[str] = session.posargs or []
 
+    import requests
+
+    headers = {
+        "Authorization": f"bearer {os.environ['GITHUB_ACCESS_TOKEN']}",
+        "Content-Type": "application/json",
+    }
+
     def query_github(payload: dict[str, Any]) -> dict[str, Any]:
         import json
-
-        import requests
-
-        headers = {
-            "Authorization": f"bearer {os.environ['GITHUB_ACCESS_TOKEN']}",
-            "Content-Type": "application/json",
-        }
 
         url = "https://api.github.com/graphql"
         response = requests.post(url, headers=headers, data=json.dumps(payload))
@@ -444,7 +446,25 @@ def local_testcontainer_registry(session: nox.Session) -> None:
         session.warn(f"Image with tag {release_tag} already exists.")
         return
 
-    source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
+    runs = requests.get(
+        "https://api.github.com/repos/wandb/core/actions/workflows/build-and-test.yaml/runs",
+        headers=headers,
+        params={"head_sha": commit_hash},
+    ).json()["workflow_runs"]
+    if not runs:
+        session.error(f"No build-and-test workflow run found for {commit_hash}.")
+    run = runs[0]
+    session.log(f"Workflow run: {run['html_url']} (attempt {run['run_attempt']})")
+
+    for attempt in range(run["run_attempt"], 0, -1):
+        source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer-gha:run-{run['id']}-{attempt}"
+        if not subprocess.run(
+            ["gcrane", "digest", source_image], capture_output=True
+        ).returncode:
+            break
+    else:
+        session.error(f"No image found for workflow run {run['id']}.")
+
     target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
 
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
