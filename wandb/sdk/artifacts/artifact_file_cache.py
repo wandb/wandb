@@ -53,8 +53,6 @@ class ArtifactFileCache:
         # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
         self._sys_umask = _get_sys_umask_threadsafe()
 
-        self._override_cache_path: StrPath | None = None
-
     _ALGORITHM_PATH_SEGMENT = {
         ArtifactDigestAlgorithm.MANIFEST_MD5: "md5",
         ArtifactDigestAlgorithm.MANIFEST_XXH128: "xxh128",
@@ -65,11 +63,12 @@ class ArtifactFileCache:
         digest: B64Digest,
         size: int,
         algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
+        dest_path: StrPath | None = None,
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
-        if self._override_cache_path is not None:
+        if dest_path is not None:
             skip_cache = True
-            path = Path(self._override_cache_path)
+            path = Path(dest_path)
         else:
             skip_cache = False
             hex_digest = b64_to_hex_id(digest)
@@ -84,11 +83,12 @@ class ArtifactFileCache:
         url: URIStr,
         etag: ETag,
         size: int,
+        dest_path: StrPath | None = None,
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
-        if self._override_cache_path is not None:
+        if dest_path is not None:
             skip_cache = True
-            path = Path(self._override_cache_path)
+            path = Path(dest_path)
         else:
             skip_cache = False
             hexhash = hashlib.sha256(
@@ -102,7 +102,13 @@ class ArtifactFileCache:
         self, path: Path, size: int, skip_cache: bool = False
     ) -> tuple[FilePathStr, bool, Opener]:
         opener = self._opener(path, size, skip_cache=skip_cache)
-        hit = path.is_file() and path.stat().st_size == size
+        # When skipping the cache, `path` is the download destination, not a
+        # content-addressed cache object, so a same-size file there says nothing
+        # about its contents. `ArtifactManifestEntry.download` already returned
+        # if the destination matched its digest or its recorded checksum; a
+        # reference whose digest is an ETag can only match the recorded
+        # checksum, so without one it is downloaded again.
+        hit = not skip_cache and path.is_file() and path.stat().st_size == size
         return FilePathStr(path), hit, opener
 
     def cleanup(

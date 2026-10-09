@@ -10,19 +10,29 @@ import wandb
 from pydantic import ValidationError
 from pyfakefs.fake_filesystem import FakeFilesystem
 from pytest import mark, raises
+from wandb import env
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
+from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
+from wandb.sdk.artifacts.storage_handlers.multi_handler import MultiHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import ETag, md5_string, xxh128_string
+from wandb.sdk.lib.hashutil import (
+    ETag,
+    b64_to_hex_id,
+    hex_to_b64_id,
+    md5_string,
+    xxh128_string,
+)
 
 example_digest = md5_string("example")
 
@@ -86,9 +96,8 @@ def test_opener_works_across_filesystem_boundaries(
     assert excinfo.value.args[0] == errno.EXDEV
 
     # Now simulate skipping the cache
-    artifact_file_cache._override_cache_path = dest_path
     override_path, _, override_opener = artifact_file_cache.check_digest_obj_path(
-        example_digest, 7
+        example_digest, 7, dest_path=dest_path
     )
 
     with override_opener() as f:
@@ -144,8 +153,9 @@ def test_check_digest_obj_path_xxh128(artifact_file_cache):
 def test_check_digest_obj_path_override(artifact_file_cache):
     md5 = md5_string("hi")
     override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_digest_obj_path(md5, 2)
+    path, exists, _ = artifact_file_cache.check_digest_obj_path(
+        md5, 2, dest_path=override_path
+    )
     assert path == override_path
     assert exists is False
 
@@ -165,9 +175,34 @@ def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
 
 def test_check_etag_obj_path_override(artifact_file_cache):
     override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
+    path, exists, _ = artifact_file_cache.check_etag_obj_path(
+        "http://my/url", "abc", 2, dest_path=override_path
+    )
     assert path == override_path
+    assert exists is False
+
+
+def test_check_digest_obj_path_dest_path_ignores_existing_file(
+    artifact_file_cache, tmp_path
+):
+    # The caller has already rejected the file at `dest_path`, so a same-size
+    # file there must not be reported as a hit.
+    dest_path = tmp_path / "file.txt"
+    dest_path.write_text("jello")
+    _, exists, _ = artifact_file_cache.check_digest_obj_path(
+        md5_string("hello"), 5, dest_path=dest_path
+    )
+    assert exists is False
+
+
+def test_check_etag_obj_path_dest_path_ignores_existing_file(
+    artifact_file_cache, tmp_path
+):
+    dest_path = tmp_path / "file.txt"
+    dest_path.write_text("jello")
+    _, exists, _ = artifact_file_cache.check_etag_obj_path(
+        "http://my/url", "abc", 5, dest_path=dest_path
+    )
     assert exists is False
 
 
@@ -395,6 +430,127 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
     assert local_path == path
 
 
+def test_wandb_storage_policy_load_file_skip_cache_override_does_not_leak(
+    artifact_file_cache, tmp_path, mocker
+):
+    """A skip-cache load must not redirect a later load that uses the cache.
+
+    Regression test for WB-33609: `load_file(dest_path=...)` stored the destination on
+    the shared `ArtifactFileCache` and never cleared it, so the next
+    `load_file(dest_path=None)` resolved to the previous skip-cache destination.
+    """
+    # Same size, different content: a stale override yields a wrong "cache hit".
+    contents_a, contents_b = "hello", "world"
+    digest_a, digest_b = md5_string(contents_a), md5_string(contents_b)
+
+    # Artifact A is downloaded with `skip_cache=True` from a stubbed signed URL.
+    dest_a = tmp_path / "download_a" / "file.txt"
+    session = mocker.Mock()
+    session.get.return_value.iter_content.return_value = [contents_a.encode()]
+
+    # Artifact B is already in the cache, so loading it needs no network access.
+    cache_path_b, _, opener = artifact_file_cache.check_digest_obj_path(
+        digest=digest_b, size=len(contents_b)
+    )
+    with opener() as f:
+        f.write(contents_b)
+
+    policy = WandbStoragePolicy()
+    policy._maybe_session = session
+    artifact = Artifact("test", type="dataset")
+    entry_a = ArtifactManifestEntry(path="file.txt", digest=digest_a, size=5)
+    entry_a._download_url = "https://example.invalid/file_a"
+    entry_b = ArtifactManifestEntry(path="file.txt", digest=digest_b, size=5)
+
+    # `skip_cache=True`: `ArtifactManifestEntry.download` passes the destination.
+    assert policy.load_file(artifact, entry_a, dest_path=str(dest_a)) == str(dest_a)
+    assert dest_a.read_text() == contents_a
+
+    # `skip_cache=False`: `ArtifactManifestEntry.download` passes `dest_path=None`.
+    local_path_b = policy.load_file(artifact, entry_b, dest_path=None)
+
+    assert local_path_b == cache_path_b
+    assert dest_a.read_text() == contents_a
+
+
+def test_wandb_storage_policy_load_reference_skip_cache_override_does_not_leak(
+    artifact_file_cache, tmp_path
+):
+    """A skip-cache reference load must not redirect a later load that uses the cache.
+
+    Regression test for WB-33609, via `load_reference` and `LocalFileHandler`.
+    """
+    # Same size, different content: a stale override yields a wrong "cache hit".
+    contents_a, contents_b = "hello", "world"
+    source_a = tmp_path / "source_a.txt"
+    source_b = tmp_path / "source_b.txt"
+    source_a.write_text(contents_a)
+    source_b.write_text(contents_b)
+
+    entry_a = ArtifactManifestEntry(
+        path="file.txt",
+        ref=source_a.as_uri(),
+        digest=md5_string(contents_a),
+        size=len(contents_a),
+    )
+    entry_b = ArtifactManifestEntry(
+        path="file.txt",
+        ref=source_b.as_uri(),
+        digest=md5_string(contents_b),
+        size=len(contents_b),
+    )
+    cache_path_b, _, _ = artifact_file_cache.check_digest_obj_path(
+        digest=entry_b.digest, size=len(contents_b)
+    )
+
+    policy = WandbStoragePolicy()
+    dest_a = tmp_path / "download_a" / "file.txt"
+
+    # `skip_cache=True`: `ArtifactManifestEntry.download` passes the destination.
+    local_path_a = policy.load_reference(entry_a, local=True, dest_path=str(dest_a))
+    assert local_path_a == str(dest_a)
+    assert dest_a.read_text() == contents_a
+
+    # `skip_cache=False`: `ArtifactManifestEntry.download` passes `dest_path=None`.
+    local_path_b = policy.load_reference(entry_b, local=True, dest_path=None)
+
+    assert local_path_b == cache_path_b
+    assert Path(local_path_b).read_text() == contents_b
+    assert dest_a.read_text() == contents_a
+
+
+def test_manifest_entry_download_skip_cache_replaces_stale_same_size_file(
+    artifact_file_cache, tmp_path
+):
+    """`skip_cache=True` must re-download over a same-size file with wrong contents.
+
+    The entry's checksum check rejects the stale file, and the skip-cache lookup
+    must not then accept it again on size alone.
+    """
+    contents = "hello"
+    source = tmp_path / "source.txt"
+    source.write_text(contents)
+
+    artifact = Artifact("test", type="dataset")
+    entry = ArtifactManifestEntry(
+        path="file.txt",
+        ref=source.as_uri(),
+        digest=md5_string(contents),
+        size=len(contents),
+    )
+    entry._parent_artifact = artifact
+
+    root = tmp_path / "root"
+    dest_path = root / "file.txt"
+    root.mkdir()
+    dest_path.write_text("jello")
+
+    local_path = entry.download(root=str(root), skip_cache=True)
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+
+
 def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
@@ -478,6 +634,110 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
         local=True,
     )
     assert local_path == path
+
+
+def _make_etag_handler(kind: str, mocker, payloads: dict[str, bytes]):
+    """Return an ETag-digest handler, its URI prefix, entry extras and a fetch log.
+
+    Each handler's transport is stubbed to serve `payloads` by key with ETag
+    `etag-<key>`, so only the cache and destination handling run for real.
+    """
+    fetched: list[str] = []
+
+    def transfer(key: str, file) -> None:
+        fetched.append(key)
+        file.write(payloads[key])
+
+    extra: dict[str, str] = {}
+    if kind == "http":
+        session = mocker.MagicMock()
+
+        def get(url: str, stream: bool):
+            key = url.rsplit("/", 1)[1]
+            response = mocker.MagicMock()
+            response.request.url = url
+            response.headers = {"etag": f'"etag-{key}"', "content-length": "5"}
+            response.iter_content.return_value = [payloads[key]]
+            response.__enter__.return_value = response
+            fetched.append(key)
+            return response
+
+        session.get.side_effect = get
+        handler = HTTPHandler(session, scheme="https")
+        prefix = "https://example.invalid"
+    elif kind == "s3":
+        handler = S3Handler()
+        handler._s3 = mocker.Mock()
+        handler._s3.Object.side_effect = lambda bucket, key: mocker.Mock(
+            e_tag=f'"etag-{key}"',
+            download_fileobj=lambda file, **kwargs: transfer(key, file),
+        )
+        prefix = "s3://some-bucket"
+    elif kind == "gcs":
+        handler = GCSHandler()
+        handler._client = mocker.Mock()
+        handler._client.bucket.return_value.get_blob.side_effect = (
+            lambda key, **kwargs: mocker.Mock(
+                etag=f"etag-{key}",
+                download_to_file=lambda file: transfer(key, file),
+            )
+        )
+        prefix = "gs://some-bucket"
+    elif kind == "azure":
+        handler = AzureHandler()
+        service = mocker.Mock()
+        service.get_blob_client.side_effect = lambda container, blob: mocker.Mock(
+            download_blob=lambda **kwargs: mocker.Mock(
+                readinto=lambda file: transfer(blob, file)
+            )
+        )
+        handler._get_module = lambda _: mocker.Mock(
+            BlobServiceClient=lambda *args, **kwargs: service
+        )
+        handler._get_credential = lambda _: "credential"
+        prefix = "https://account.blob.core.windows.net/container"
+        extra = {"versionID": "v1"}
+    else:
+        raise ValueError(kind)
+    return handler, prefix, extra, fetched
+
+
+@mark.parametrize("kind", ["http", "s3", "gcs", "azure"])
+def test_etag_handler_load_path_forwards_dest_path(
+    artifact_file_cache, tmp_path, mocker, kind
+):
+    """Every ETag-digest handler must pass `dest_path` through to the cache lookup.
+
+    If a handler accepted `dest_path` but did not forward it, the file would land
+    in the cache while `ArtifactManifestEntry.download` reported `dest_path`.
+    """
+    payloads = {"a.txt": b"hello", "b.txt": b"world"}
+    handler, prefix, extra, fetched = _make_etag_handler(kind, mocker, payloads)
+
+    def entry(key: str) -> ArtifactManifestEntry:
+        return ArtifactManifestEntry(
+            path=key, ref=f"{prefix}/{key}", digest=f"etag-{key}", size=5, extra=extra
+        )
+
+    # A same-size file with the wrong contents at the destination is replaced
+    # in place, and the payload does not land in the cache.
+    dest_path = tmp_path / "dest" / "a.txt"
+    dest_path.parent.mkdir()
+    dest_path.write_text("jello")
+
+    local_path = handler.load_path(entry("a.txt"), local=True, dest_path=dest_path)
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == "hello"
+    assert _cache_files(artifact_file_cache) == []
+
+    # A later load without `dest_path` uses the cache as before.
+    cache_path = Path(handler.load_path(entry("b.txt"), local=True))
+
+    assert cache_path.read_text() == "world"
+    assert artifact_file_cache._obj_dir in cache_path.parents
+    assert dest_path.read_text() == "hello"
+    assert fetched == ["a.txt", "b.txt"]
 
 
 def test_cache_add_gives_useful_error_when_out_of_space(
@@ -566,7 +826,7 @@ class FakePublicApi:
         artifact = wandb.Artifact("test", type="dataset")
         artifact.get_entry = lambda _: artifact
         artifact.ref_target = lambda: "wandb-artifact://deadbeef/path/to/file.json"
-        artifact.download = lambda: "foo/bar"
+        artifact.download = lambda **kwargs: "foo/bar"
         return artifact
 
 
@@ -602,6 +862,286 @@ def test_wbartifact_handler_load_path_local():
 
     local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path
+
+
+def _make_wb_reference(
+    tmp_path: Path, mocker
+) -> tuple[WBArtifactHandler, ArtifactManifestEntry, Path, str]:
+    """Return a handler, a `wandb-artifact://` entry, the dependency file, and its content.
+
+    The dependency artifact holds one `file://` reference to a real file, and its
+    default download root is kept inside `tmp_path`.
+    """
+    mocker.patch.dict(os.environ, {env.ARTIFACT_DIR: str(tmp_path / "artifacts")})
+
+    contents = "hello"
+    source = tmp_path / "source.txt"
+    source.write_text(contents)
+
+    dep_artifact = Artifact("dep", type="dataset")
+    dep_entry = ArtifactManifestEntry(
+        path="file.txt",
+        ref=source.as_uri(),
+        digest=md5_string(contents),
+        size=len(contents),
+    )
+    dep_entry._parent_artifact = dep_artifact
+    dep_artifact.get_entry = lambda _: dep_entry
+
+    client = mocker.Mock()
+    client._artifact_from_id.return_value = dep_artifact
+    handler = WBArtifactHandler()
+    handler._client = client
+
+    entry = ArtifactManifestEntry(
+        path="file.txt",
+        ref="wandb-artifact://deadbeef/file.txt",
+        digest=md5_string(contents),
+        size=0,
+    )
+    dep_file = Path(dep_artifact._default_root()) / "file.txt"
+    return handler, entry, dep_file, contents
+
+
+def _cache_files(artifact_file_cache: ArtifactFileCache) -> list[Path]:
+    return [p for p in artifact_file_cache._obj_dir.rglob("*") if p.is_file()]
+
+
+def test_wbartifact_handler_load_path_dest_path(artifact_file_cache, tmp_path, mocker):
+    handler, entry, dep_file, contents = _make_wb_reference(tmp_path, mocker)
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    # Nothing is staged in the dependency's download root or in the cache.
+    assert not dep_file.exists()
+    assert _cache_files(artifact_file_cache) == []
+
+
+def test_wbartifact_handler_load_path_dest_path_replaces_stale_file(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, _, contents = _make_wb_reference(tmp_path, mocker)
+    # A same-size file with the wrong contents at the destination is replaced.
+    dest_path = tmp_path / "dest" / "file.txt"
+    dest_path.parent.mkdir()
+    dest_path.write_text("jello")
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+
+
+def test_wbartifact_handler_load_path_dest_path_ignores_dependency_root(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, dep_file, contents = _make_wb_reference(tmp_path, mocker)
+    # A same-size file with the wrong contents at the dependency's own download
+    # root must be neither copied onward nor touched.
+    dep_file.parent.mkdir(parents=True)
+    dep_file.write_text("jello")
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    assert dep_file.read_text() == "jello"
+
+
+def test_wbartifact_handler_load_path_dest_path_same_named_dependencies(
+    artifact_file_cache, tmp_path, mocker
+):
+    """References to same-named artifacts from different projects do not collide.
+
+    `Artifact._default_root()` is `<artifact dir>/<name>:<version>` with no project or
+    entity, so two such dependencies share it. Loading into `dest_path` must not
+    stage anything there.
+    """
+    mocker.patch.dict(os.environ, {env.ARTIFACT_DIR: str(tmp_path / "artifacts")})
+    deps = {}
+    for i, contents in enumerate(["hello", "world"]):
+        source = tmp_path / f"source_{i}.txt"
+        source.write_text(contents)
+        dep_artifact = Artifact("model", type="dataset")
+        dep_entry = ArtifactManifestEntry(
+            path="weights.txt",
+            ref=source.as_uri(),
+            digest=md5_string(contents),
+            size=len(contents),
+        )
+        dep_entry._parent_artifact = dep_artifact
+        dep_artifact.get_entry = lambda _, e=dep_entry: e
+        deps[f"deadbee{i}"] = dep_artifact
+    roots = {dep._default_root() for dep in deps.values()}
+    assert len(roots) == 1
+    shared_root = Path(roots.pop())
+
+    handler = WBArtifactHandler()
+    handler._client = mocker.Mock()
+    handler._client._artifact_from_id.side_effect = lambda b64_id: deps[
+        b64_to_hex_id(b64_id)
+    ]
+
+    for i, contents in enumerate(["hello", "world"]):
+        entry = ArtifactManifestEntry(
+            path=f"project_{i}.txt",
+            ref=f"wandb-artifact://deadbee{i}/weights.txt",
+            digest=md5_string(contents),
+            size=0,
+        )
+        dest_path = tmp_path / "dest" / f"project_{i}.txt"
+        handler.load_path(entry, local=True, dest_path=str(dest_path))
+        assert dest_path.read_text() == contents
+
+    assert not shared_root.exists()
+
+
+def test_wbartifact_handler_load_path_dest_path_replaces_symlink(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, _, contents = _make_wb_reference(tmp_path, mocker)
+    # A symlink at the destination is replaced; its target is left alone.
+    protected = tmp_path / "unrelated.txt"
+    protected.write_text("precious user data")
+    dest_path = tmp_path / "dest" / "file.txt"
+    dest_path.parent.mkdir()
+    dest_path.symlink_to(protected)
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert not dest_path.is_symlink()
+    assert dest_path.read_text() == contents
+    assert protected.read_text() == "precious user data"
+
+
+def _make_hosted_wb_reference(
+    tmp_path: Path, mocker, *, xxh128: bool = False, chained: bool = False
+) -> tuple[WBArtifactHandler, ArtifactManifestEntry, Any, str]:
+    """Return a handler, a `wandb-artifact://` entry, the stubbed session, and content.
+
+    The dependency's file is W&B-hosted: its entry has a signed `_download_url` and
+    the dependency's storage policy uses a stubbed `requests.Session`. With `chained`,
+    the outer entry points at a middle artifact whose entry is itself a
+    `wandb-artifact://` reference to the dependency.
+    """
+    mocker.patch.dict(os.environ, {env.ARTIFACT_DIR: str(tmp_path / "artifacts")})
+
+    contents = "hello"
+    digest = xxh128_string(contents) if xxh128 else md5_string(contents)
+    extra = {"alg": "XXH128"} if xxh128 else {}
+
+    dep_artifact = Artifact("dep", type="dataset")
+    dep_entry = ArtifactManifestEntry(
+        path="file.txt", digest=digest, size=len(contents), extra=extra
+    )
+    dep_entry._parent_artifact = dep_artifact
+    dep_entry._download_url = "https://example.invalid/file.txt"
+    dep_artifact.get_entry = lambda _: dep_entry
+
+    session = mocker.Mock()
+    session.get.return_value.iter_content.return_value = [contents.encode()]
+    dep_artifact.manifest.storage_policy._maybe_session = session
+
+    artifacts = {"deadbeef": dep_artifact}
+    handler = WBArtifactHandler()
+    handler._client = mocker.Mock()
+    handler._client._artifact_from_id.side_effect = lambda b64_id: artifacts[
+        b64_to_hex_id(b64_id)
+    ]
+
+    ref = "wandb-artifact://deadbeef/file.txt"
+    if chained:
+        middle_artifact = Artifact("middle", type="dataset")
+        middle_artifact.manifest.storage_policy._maybe_handler = MultiHandler([handler])
+        middle_entry = ArtifactManifestEntry(
+            path="link.txt", ref=ref, digest=digest, size=0
+        )
+        middle_entry._parent_artifact = middle_artifact
+        middle_artifact.get_entry = lambda _: middle_entry
+        artifacts["feedbeef"] = middle_artifact
+        ref = "wandb-artifact://feedbeef/link.txt"
+
+    entry = ArtifactManifestEntry(path="file.txt", ref=ref, digest=digest, size=0)
+    return handler, entry, session, contents
+
+
+def test_wbartifact_handler_load_path_dest_path_hosted_dependency(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, contents = _make_hosted_wb_reference(
+        tmp_path, mocker, xxh128=True
+    )
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    session.get.assert_called_once_with("https://example.invalid/file.txt", stream=True)
+    assert _cache_files(artifact_file_cache) == []
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_wbartifact_handler_load_path_dest_path_chained_reference(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, contents = _make_hosted_wb_reference(
+        tmp_path, mocker, chained=True
+    )
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    assert local_path == str(dest_path)
+    assert dest_path.read_text() == contents
+    assert session.get.call_count == 1
+    assert _cache_files(artifact_file_cache) == []
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_wbartifact_handler_load_path_nonlocal_ignores_dest_path(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, _ = _make_hosted_wb_reference(tmp_path, mocker)
+    # `ref_target()` on the dependency entry resolves its own reference.
+    dep_entry = handler._client._artifact_from_id(hex_to_b64_id("deadbeef")).get_entry(
+        "file.txt"
+    )
+    dep_entry.ref = "https://example.invalid/file.txt"
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    target = handler.load_path(entry, local=False, dest_path=str(dest_path))
+
+    assert target == dep_entry.ref
+    assert not dest_path.parent.exists()
+    session.get.assert_not_called()
+
+
+def test_wbartifact_handler_load_path_dest_path_interrupted_download_keeps_file(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, session, _ = _make_hosted_wb_reference(tmp_path, mocker)
+    dest_path = tmp_path / "dest" / "file.txt"
+    dest_path.parent.mkdir()
+    dest_path.write_text("older")
+
+    def interrupted(**kwargs):
+        yield b"hel"
+        raise OSError("injected broken stream")
+
+    session.get.return_value.iter_content.side_effect = interrupted
+
+    with raises(OSError, match="injected broken stream"):
+        handler.load_path(entry, local=True, dest_path=str(dest_path))
+
+    # The old file is intact and the partial temp file is gone.
+    assert dest_path.read_text() == "older"
+    assert list(dest_path.parent.iterdir()) == [dest_path]
 
 
 class UnfinishedStoragePolicy(StoragePolicy):
