@@ -18,6 +18,7 @@ from collections.abc import Iterable
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
+from wandb.sdk.sweeps.errors import format_caught_error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
@@ -199,7 +200,7 @@ class SchedulerTaskExchange:
 
         Only per-run tells are fault-tolerant; an exception anywhere else
         becomes a task error, which stops the scheduler without finishing
-        the sweep.
+        the sweep. The error is printed with its traceback when it is caught.
         """
         try:
             if response.WhichOneof("task") == "warm_start":
@@ -210,6 +211,9 @@ class SchedulerTaskExchange:
                 generation=self._execute_generation(response.generation)
             )
         except Exception as e:
+            self._logger.error(  # noqa: TRY400
+                format_caught_error("The optimizer failed, stopping the scheduler.")
+            )
             return sspb.SweepSchedulerClientTaskResult(
                 error=sspb.SweepSchedulerClientTaskError(
                     message=str(e),
@@ -283,6 +287,10 @@ class SchedulerTaskExchange:
             try:
                 self._optimizer.tell_run(run_id, data)
             except Exception as e:
+                self._logger.warning(
+                    f"The optimizer failed to record run {data.wandb_run_id}"
+                    f" with error: {e}; the scheduler will stop tracking it."
+                )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(
                         optimizer_run_id=run_id, message=str(e)
@@ -391,6 +399,10 @@ def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:
     }
     message, is_error = messages.get(reason, ("the scheduler stopped", False))
 
-    if done.message:
+    # Optimizer errors were printed with their traceback when they happened.
+    already_reported = (
+        reason == sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR
+    )
+    if done.message and not already_reported:
         message = f"{message} ({done.message})"
     return message, is_error

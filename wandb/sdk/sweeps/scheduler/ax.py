@@ -497,7 +497,8 @@ class AxOptimizer(Optimizer):
         try:
             if not self.client.should_stop_trial_early(trial_index=trial_index):
                 return False
-        except Exception:
+        except Exception as e:
+            wandb.termwarn(f"Early stopping failed for trial {trial_index}: {e}")
             return False
         self._finalized.add(trial_index)
         self.client.mark_trial_early_stopped(trial_index=trial_index)

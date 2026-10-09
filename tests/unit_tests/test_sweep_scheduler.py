@@ -9,16 +9,19 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import asyncio
 import importlib.util
 import logging
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
+from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
+from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange, describe_done
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     RunConfig,
@@ -938,3 +941,104 @@ class TestLoadOptimizerConfig:
             )
 
         assert "scheduler.optimizer must name a function" in str(error.value)
+
+
+class _FakeHandle:
+    def __init__(self, response: sspb.SweepSchedulerServerNextTaskResponse) -> None:
+        self._response = response
+
+    async def wait_async(
+        self, timeout: float | None
+    ) -> sspb.SweepSchedulerServerNextTaskResponse:
+        return self._response
+
+    def cancel(self) -> None:
+        pass
+
+
+class _FakeSchedulerService:
+    """Serves one task, then answers Done to its result."""
+
+    def __init__(self, task: sspb.SweepSchedulerServerNextTaskResponse) -> None:
+        self._task = task
+
+    async def sweep_scheduler_next_task(
+        self,
+        scheduler_id: str,
+        result: sspb.SweepSchedulerClientTaskResult | None,
+    ) -> _FakeHandle:
+        if result is None:
+            return _FakeHandle(self._task)
+        return _FakeHandle(
+            sspb.SweepSchedulerServerNextTaskResponse(
+                done=sspb.SweepSchedulerServerDoneTask(
+                    reason=sspb.SweepSchedulerServerDoneTask.REASON_SHUTDOWN
+                )
+            )
+        )
+
+
+class TestSchedulerTaskExchange:
+    def test_prints_an_optimizer_error_before_reporting_it(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        optimizer = MagicMock(spec=Optimizer)
+        optimizer.should_terminate_sweep.side_effect = RuntimeError("bad terminator")
+        exchange = SchedulerTaskExchange(MagicMock(), "sid", optimizer, caplog.handler)
+
+        result = exchange._execute(
+            sspb.SweepSchedulerServerNextTaskResponse(
+                generation=sspb.SweepSchedulerServerGenerationTask()
+            )
+        )
+
+        assert "RuntimeError: bad terminator" in caplog.text
+        assert result.error.message == "bad terminator"
+
+    def test_warns_when_a_tell_fails(self, caplog: pytest.LogCaptureFixture) -> None:
+        optimizer = MagicMock(spec=Optimizer)
+        optimizer.tell_run.side_effect = ValueError("bad summary")
+        optimizer.should_terminate_sweep.return_value = True
+        update = sspb.SweepSchedulerServerRunUpdate(
+            run=sspb.SweepSchedulerServerRunData(
+                wandb_run_id="wandb-1",
+                optimizer_run_id="0",
+                state=sspb.SWEEP_RUN_STATE_FINISHED,
+            )
+        )
+        service = _FakeSchedulerService(
+            sspb.SweepSchedulerServerNextTaskResponse(
+                generation=sspb.SweepSchedulerServerGenerationTask(updates=[update])
+            )
+        )
+        exchange = SchedulerTaskExchange(
+            cast(Any, service), "sid", optimizer, caplog.handler
+        )
+
+        asyncio.run(exchange.run())
+
+        assert "failed to record run wandb-1" in caplog.text
+        assert "with error: bad summary" in caplog.text
+
+
+class TestDescribeDone:
+    def test_an_optimizer_error_is_not_repeated(self) -> None:
+        done = sspb.SweepSchedulerServerDoneTask(
+            reason=sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR,
+            message="bad terminator",
+        )
+
+        assert describe_done(done) == (
+            "the optimizer failed; the sweep can be resumed",
+            True,
+        )
+
+    def test_other_reasons_keep_their_message(self) -> None:
+        done = sspb.SweepSchedulerServerDoneTask(
+            reason=sspb.SweepSchedulerServerDoneTask.REASON_FATAL_ERROR,
+            message="backend unavailable",
+        )
+
+        message, _ = describe_done(done)
+
+        assert "backend unavailable" in message
