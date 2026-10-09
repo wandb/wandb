@@ -48,6 +48,7 @@ type Symon struct {
 	focusMgr *FocusManager
 	grid     *SystemMetricsGrid
 	sidebar  *symonSidebar
+	runsPane *symonRunsPane
 	help     *HelpModel
 
 	// drag owns mouse resizing of the sidebar border.
@@ -108,6 +109,7 @@ func NewSymon(params SymonParams) *Symon {
 		focus:    focus,
 		grid:     grid,
 		sidebar:  newSymonSidebar(cfg),
+		runsPane: newSymonRunsPane(cfg),
 		help:     help,
 		hostname: hostname,
 		sampler: NewSymonSampler(SymonSamplerParams{
@@ -135,8 +137,42 @@ func NewSymon(params SymonParams) *Symon {
 			Activate:   func(int) { s.grid.NavigateFocus(0, 0) },
 			Deactivate: s.grid.ClearFocus,
 		},
+		{
+			Target:     FocusTargetRunsList,
+			Available:  func() bool { return s.layout().runsHeight > 0 },
+			Activate:   func(int) { s.runsPane.runs.Active = true },
+			Deactivate: func() { s.runsPane.runs.Active = false },
+		},
 	})
 	return s
+}
+
+// layout computes the main column: the header and chart grid as the flex
+// section, and the runs pane below it while there are live runs to show.
+func (s *Symon) layout() Layout {
+	sidebarWidth := s.sidebarWidth()
+	contentHeight := max(s.height-StatusBarHeight, 0)
+
+	runsHeight := 0
+	if s.runsPane.visible && s.runsPane.hasRuns() {
+		runsHeight = max(min(
+			paneHeightFor(s.drag.overrides().Runs, s.height, s.runsPane.defaultHeight()),
+			contentHeight-1-symonHeaderLines-minFlexMetricsHeight,
+		), symonRunsPaneMinHeight)
+	}
+	stack := computeVerticalStackLayout(
+		contentHeight,
+		stackSectionSpec{ID: stackSectionMetrics, Visible: true, Flex: true},
+		stackSectionSpec{ID: stackSectionRuns, Visible: runsHeight > 0, Height: runsHeight},
+	)
+	return Layout{
+		leftSidebarWidth:       sidebarWidth,
+		mainContentAreaWidth:   max(s.width-sidebarWidth, 0),
+		totalContentAreaHeight: contentHeight,
+		height:                 stack.Height(stackSectionMetrics),
+		runsY:                  stack.Y(stackSectionRuns),
+		runsHeight:             stack.Height(stackSectionRuns),
+	}
 }
 
 // symonChartOrder lists the charts that open the first page by base key,
@@ -218,8 +254,9 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SymonSampleMsg:
 		s.latest = msg.Metrics
 		s.sidebar.setProcesses(msg.Processes)
+		s.runsPane.setRuns(msg.Runs, msg.Processes)
 		s.grid.ProcessStats(msg.StatsMsg)
-		s.grid.drawVisible()
+		s.resizeGrid()
 		s.focusMgr.Resolve()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
@@ -328,9 +365,32 @@ func (s *Symon) processListFocused() bool {
 	return s.focusMgr.IsTarget(FocusTargetProcessList)
 }
 
+func (s *Symon) runsFocused() bool {
+	return s.focusMgr.IsTarget(FocusTargetRunsList)
+}
+
+// focusedList returns the paged list that owns the navigation keys, or nil
+// when the chart grid does.
+func (s *Symon) focusedList() interface {
+	Up()
+	Down()
+	PageUp()
+	PageDown()
+	Home()
+	End()
+} {
+	switch {
+	case s.processListFocused():
+		return &s.sidebar.procs
+	case s.runsFocused():
+		return &s.runsPane.runs
+	}
+	return nil
+}
+
 func (s *Symon) handlePrevPage(tea.KeyPressMsg) tea.Cmd {
-	if s.processListFocused() {
-		s.sidebar.procs.PageUp()
+	if list := s.focusedList(); list != nil {
+		list.PageUp()
 		return nil
 	}
 	s.grid.Navigate(-1)
@@ -338,8 +398,8 @@ func (s *Symon) handlePrevPage(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
-	if s.processListFocused() {
-		s.sidebar.procs.PageDown()
+	if list := s.focusedList(); list != nil {
+		list.PageDown()
 		return nil
 	}
 	s.grid.Navigate(1)
@@ -347,8 +407,8 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (s *Symon) handleNavHome(tea.KeyPressMsg) tea.Cmd {
-	if s.processListFocused() {
-		s.sidebar.procs.Home()
+	if list := s.focusedList(); list != nil {
+		list.Home()
 		return nil
 	}
 	s.grid.NavigateHome()
@@ -356,25 +416,24 @@ func (s *Symon) handleNavHome(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (s *Symon) handleNavEnd(tea.KeyPressMsg) tea.Cmd {
-	if s.processListFocused() {
-		s.sidebar.procs.End()
+	if list := s.focusedList(); list != nil {
+		list.End()
 		return nil
 	}
 	s.grid.NavigateEnd()
 	return nil
 }
 
-// handleGridNav moves the process cursor while the list has focus, and
-// the chart focus otherwise. Page, home and end keys have their own
-// handlers.
+// handleGridNav moves the cursor of the focused list, or the chart focus
+// when no list has focus. Page, home and end keys have their own handlers.
 func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
 	intent := DecodeNav(msg)
-	if s.processListFocused() {
+	if list := s.focusedList(); list != nil {
 		switch intent {
 		case NavIntentUp:
-			s.sidebar.procs.Up()
+			list.Up()
 		case NavIntentDown:
-			s.sidebar.procs.Down()
+			list.Down()
 		}
 		return nil
 	}
@@ -434,7 +493,7 @@ func (s *Symon) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	if s.grid.FilterQuery() != "" {
 		s.grid.ClearFilter()
 	}
-	if !s.processListFocused() {
+	if s.focusedList() == nil {
 		s.grid.NavigateFocus(0, 0)
 	}
 	return nil
@@ -453,6 +512,16 @@ func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
 // handleResetLayout restores the default sidebar width.
 func (s *Symon) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
 	s.drag.reset()
+	return nil
+}
+
+func (s *Symon) handleToggleRunsPane(tea.KeyPressMsg) tea.Cmd {
+	s.runsPane.visible = !s.runsPane.visible
+	if err := s.config.SetSymonRunsVisible(s.runsPane.visible); err != nil {
+		s.logger.Error(fmt.Sprintf("symon: failed to save runs pane visibility: %v", err))
+	}
+	s.resizeGrid()
+	s.focusMgr.Resolve()
 	return nil
 }
 
@@ -495,12 +564,8 @@ func (s *Symon) handleConfigNumberKey(msg tea.KeyPressMsg) {
 // handleMouse resizes the sidebar on border drags and maps other mouse
 // events in the terminal coordinate space onto the system metrics grid.
 func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
-	sidebarWidth := s.sidebarWidth()
-	layout := Layout{
-		leftSidebarWidth:       sidebarWidth,
-		mainContentAreaWidth:   max(s.width-sidebarWidth, 0),
-		totalContentAreaHeight: max(s.height-StatusBarHeight, 0),
-	}
+	layout := s.layout()
+	sidebarWidth := layout.leftSidebarWidth
 	if s.drag.handleMouse(msg, layout, dragTargets{
 		width:        s.width,
 		height:       s.height,
@@ -512,14 +577,22 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	_, clicked := msg.(tea.MouseClickMsg)
 
-	if mouse.X < sidebarWidth && mouse.Y < s.height-StatusBarHeight {
+	if mouse.X < sidebarWidth && mouse.Y < layout.totalContentAreaHeight {
 		if clicked {
 			s.sidebar.selectProcessAt(mouse.Y)
 			s.focusMgr.SetTarget(FocusTargetProcessList, 1)
 		}
 		return nil
 	}
-	if mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
+	if layout.runsHeight > 0 && mouse.Y >= layout.runsY &&
+		mouse.Y < layout.runsY+layout.runsHeight {
+		if clicked {
+			s.runsPane.selectAt(mouse.Y - layout.runsY)
+			s.focusMgr.SetTarget(FocusTargetRunsList, 1)
+		}
+		return nil
+	}
+	if mouse.Y < symonHeaderLines || mouse.Y >= layout.height {
 		if clicked {
 			s.focusMgr.ClearAll()
 		}
@@ -581,25 +654,33 @@ func (s *Symon) handleGridMouse(msg tea.MouseMsg, adjustedX, adjustedY int, dims
 // Rendering helpers
 // --------------------------------------------------------------------
 
-// renderMainView renders the sidebar, the header and system metrics grid,
-// and the status bar.
+// renderMainView renders the sidebar, the header and system metrics grid
+// with the runs pane below, and the status bar.
 func (s *Symon) renderMainView() string {
-	sidebarWidth := s.sidebarWidth()
-	contentHeight := max(s.height-StatusBarHeight, 0)
-	innerW := max(s.width-sidebarWidth-ContentPaddingCols, 0)
+	layout := s.layout()
+	sidebarWidth := layout.leftSidebarWidth
+	mainWidth := layout.mainContentAreaWidth
+	innerW := max(mainWidth-ContentPaddingCols, 0)
 
 	header := symonContainerStyle.Render(
 		renderSystemMetricsHeader(innerW, s.hostname, s.hostStatus(), s.grid))
 	body := symonContainerStyle.Render(renderSystemMetricsBody(
 		innerW,
-		max(contentHeight-symonHeaderLines, 0),
+		max(layout.height-symonHeaderLines, 0),
 		s.grid,
 		"Collecting system metrics...",
 		"No matching system metrics.",
 	))
-	mainView := lipgloss.JoinVertical(lipgloss.Left, header, body)
+	sections := []string{placeMainColumn(mainWidth, layout.height,
+		lipgloss.JoinVertical(lipgloss.Left, header, body))}
+	if layout.runsHeight > 0 {
+		sections = append(sections, placeMainColumn(mainWidth, layout.runsHeight,
+			s.runsPane.View(mainWidth, layout.runsHeight)))
+	}
+	mainView := joinWithSeparators(sections, mainWidth,
+		highlightedStackSeparator(s.drag.cue(), layout, len(sections)))
 	if sidebarWidth > 0 {
-		sidebar := s.sidebar.View(sidebarWidth, contentHeight, s.latest,
+		sidebar := s.sidebar.View(sidebarWidth, layout.totalContentAreaHeight, s.latest,
 			s.drag.cue().boundary == dragBoundaryLeftSidebar)
 		mainView = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainView)
 	}
@@ -653,7 +734,10 @@ func (s *Symon) renderStatusBarWith(statusText, helpText string) string {
 	badge := statusBarBadgeStyle.Render(statusBarBadge)
 	barWidth := max(s.width-lipgloss.Width(badge), 0)
 
+	// Keep the bar on one line: trim the head of the status text, whose
+	// tail (a chart title or a run path) matters most.
 	innerWidth := max(barWidth-2*StatusBarPadding, 0)
+	statusText = truncateHead(statusText, max(innerWidth-lipgloss.Width(helpText)-1, 0))
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
@@ -717,6 +801,11 @@ func (s *Symon) buildActiveStatus() string {
 			len(s.sidebar.procs.Items),
 		))
 	}
+	if s.runsFocused() {
+		if path := s.runsPane.selectedPath(); path != "" {
+			parts = append(parts, abbreviateHome(path))
+		}
+	}
 	if title := s.grid.FocusedChartTitle(); title != "" {
 		parts = append(parts, title)
 		if viewMode := s.grid.FocusedChartViewModeLabel(); viewMode != "" {
@@ -755,9 +844,10 @@ func (s *Symon) resizeGrid() {
 	if s.width <= 0 || s.height <= 0 {
 		return
 	}
+	layout := s.layout()
 	s.grid.Resize(
-		max(s.width-s.sidebarWidth()-ContentPaddingCols, 0),
-		max(s.height-StatusBarHeight-symonHeaderLines, 1),
+		max(layout.mainContentAreaWidth-ContentPaddingCols, 0),
+		max(layout.height-symonHeaderLines, 1),
 	)
 }
 

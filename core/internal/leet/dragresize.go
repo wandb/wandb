@@ -56,6 +56,8 @@ func (o *LayoutOverrides) setSection(id stackSectionID, frac float64) {
 		o.Media = frac
 	case stackSectionConsoleLogs:
 		o.Logs = frac
+	case stackSectionRuns:
+		o.Runs = frac
 	}
 }
 
@@ -229,6 +231,7 @@ func stackGeometry(layout Layout) []stackGeom {
 		{stackSectionMedia, layout.mediaY, layout.mediaHeight, mediaPaneMinHeight},
 		{stackSectionConsoleLogs, layout.consoleLogsY,
 			layout.consoleLogsHeight, ConsoleLogsPaneMinHeight},
+		{stackSectionRuns, layout.runsY, layout.runsHeight, symonRunsPaneMinHeight},
 	}
 	visible := all[:0]
 	for _, g := range all {
