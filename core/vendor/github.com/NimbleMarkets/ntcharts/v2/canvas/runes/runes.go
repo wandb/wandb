@@ -51,7 +51,47 @@ const (
 	LeftBlockThree  = '\u258D' // ▍
 	LeftBlockTwo    = '\u258E' // ▎
 	LeftBlockOne    = '\u258F' // ▏
+
+	RightHalfBlock          = '\u2590' // ▐
+	QuadLowerLeft           = '\u2596' // ▖
+	QuadLowerRight          = '\u2597' // ▗
+	QuadUpperLeft           = '\u2598' // ▘
+	QuadUpperLeftLowerAll   = '\u2599' // ▙
+	QuadUpperLeftLowerRight = '\u259A' // ▚
+	QuadUpperAllLowerLeft   = '\u259B' // ▛
+	QuadUpperAllLowerRight  = '\u259C' // ▜
+	QuadUpperRight          = '\u259D' // ▝
+	QuadUpperRightLowerLeft = '\u259E' // ▞
+	QuadUpperRightLowerAll  = '\u259F' // ▟
 )
+
+// quadrantBlocks is indexed by filled quadrants as bits:
+// upper-left=8, upper-right=4, lower-left=2, lower-right=1.
+var quadrantBlocks = [16]rune{
+	Null, QuadLowerRight, QuadLowerLeft, LowerBlockFour,
+	QuadUpperRight, RightHalfBlock, QuadUpperRightLowerLeft, QuadUpperRightLowerAll,
+	QuadUpperLeft, QuadUpperLeftLowerRight, LeftBlockFour, QuadUpperLeftLowerAll,
+	UpperHalfBlock, QuadUpperAllLowerRight, QuadUpperAllLowerLeft, FullBlock,
+}
+
+// QuadrantBlock returns the block element rune with the given
+// quadrants of a cell filled, or Null if no quadrant is filled.
+func QuadrantBlock(upperLeft, upperRight, lowerLeft, lowerRight bool) rune {
+	i := 0
+	if upperLeft {
+		i |= 8
+	}
+	if upperRight {
+		i |= 4
+	}
+	if lowerLeft {
+		i |= 2
+	}
+	if lowerRight {
+		i |= 1
+	}
+	return quadrantBlocks[i]
+}
 
 /*
 Braille dot number offsets
