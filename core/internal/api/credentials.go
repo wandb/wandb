@@ -417,7 +417,7 @@ func postTokenRequest(
 }
 
 // hasStoredRefreshToken reports whether a browser login is stored for baseURL.
-func hasStoredRefreshToken(credentialsFilePath string, baseURL string) bool {
+func hasStoredRefreshToken(credentialsFilePath, baseURL string) bool {
 	contents, err := os.ReadFile(credentialsFilePath)
 	if err != nil {
 		return false
