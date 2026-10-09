@@ -2,9 +2,11 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -267,4 +269,130 @@ func TestSave_MissingMD5File(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newSaveManagerWithPrinter(
+	t *testing.T,
+	mockGQL *gqlmock.MockClient,
+) (*ArtifactSaveManager, *observability.Printer) {
+	t.Helper()
+	printer := observability.NewPrinter(100)
+	manager := NewArtifactSaveManager(
+		observabilitytest.NewTestLogger(t), printer, mockGQL,
+		filetransfertest.NewFakeFileTransferManager(),
+		func() bool { return true }, func() bool { return false },
+	)
+	return manager, printer
+}
+
+func failedSaveMessages(printer *observability.Printer) []observability.PrinterMessage {
+	var failures []observability.PrinterMessage
+	for _, msg := range printer.Read() {
+		if strings.Contains(msg.Content, "Failed to save artifact") {
+			failures = append(failures, msg)
+		}
+	}
+	return failures
+}
+
+func TestSave_FailurePrintsWarning(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("CreateArtifact"),
+		errors.New("forced artifact failure"),
+	)
+	saver, printer := newSaveManagerWithPrinter(t, mockGQL)
+
+	result := <-saver.Save(
+		context.Background(),
+		&spb.ArtifactRecord{
+			Name:     "failing-artifact",
+			Type:     "dataset",
+			Manifest: &spb.ArtifactManifest{Version: 1},
+		},
+		0,
+		"",
+	)
+
+	require.Error(t, result.Err)
+	messages := printer.Read()
+	require.Len(t, messages, 1)
+	assert.Equal(t, observability.Warning, messages[0].Severity)
+	assert.Contains(t, messages[0].Content, `"failing-artifact"`)
+	assert.Contains(t, messages[0].Content, `"dataset"`)
+	assert.Contains(t, messages[0].Content, "forced artifact failure")
+}
+
+func TestSave_DistinctFailuresPrintSeparateWarnings(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("CreateArtifact"),
+		errors.New("forced artifact failure"),
+	)
+	saver, printer := newSaveManagerWithPrinter(t, mockGQL)
+
+	for _, name := range []string{"first-artifact", "second-artifact"} {
+		result := <-saver.Save(
+			context.Background(),
+			&spb.ArtifactRecord{
+				Name:     name,
+				Type:     "dataset",
+				Manifest: &spb.ArtifactManifest{Version: 1},
+			},
+			0,
+			"",
+		)
+		require.Error(t, result.Err)
+	}
+
+	messages := printer.Read()
+	require.Len(t, messages, 2)
+	assert.Contains(t, messages[0].Content, `"first-artifact"`)
+	assert.Contains(t, messages[1].Content, `"second-artifact"`)
+}
+
+func TestSave_SuccessPrintsNoFailureWarning(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(gqlmock.WithOpName("CreateArtifact"),
+		`{"createArtifact":{"artifact":{"id":"artifact-id","state":"COMMITTED"}}}`)
+	saver, printer := newSaveManagerWithPrinter(t, mockGQL)
+
+	result := <-saver.Save(
+		context.Background(),
+		&spb.ArtifactRecord{
+			Name:     "ok-artifact",
+			Type:     "dataset",
+			Manifest: &spb.ArtifactManifest{Version: 1},
+		},
+		0,
+		"",
+	)
+
+	require.NoError(t, result.Err)
+	assert.Empty(t, failedSaveMessages(printer))
+}
+
+func TestSave_CancelledContextPrintsNoWarning(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("CreateArtifact"),
+		context.Canceled,
+	)
+	saver, printer := newSaveManagerWithPrinter(t, mockGQL)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := <-saver.Save(
+		ctx,
+		&spb.ArtifactRecord{
+			Name:     "aborted-artifact",
+			Type:     "dataset",
+			Manifest: &spb.ArtifactManifest{Version: 1},
+		},
+		0,
+		"",
+	)
+
+	require.Error(t, result.Err)
+	assert.Empty(t, printer.Read())
 }

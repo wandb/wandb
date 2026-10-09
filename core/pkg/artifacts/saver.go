@@ -80,6 +80,29 @@ func NewArtifactSaveManager(
 			workerPool,
 			func(saver *ArtifactSaver) {
 				artifactID, err := saver.Save()
+
+				// Surface failures in the terminal: callers like
+				// log_artifact() often never wait() on the result.
+				//
+				// A cancelled context means the run is aborting, which is
+				// reported elsewhere. We check the context rather than
+				// errors.Is(err, context.Canceled) because the saver drops
+				// the error cause on some paths: for example, "requesting
+				// upload URLs failed" formats it with %v, and "most remaining
+				// uploads have failed" discards the per-file errors.
+				//
+				// This deliberately doesn't use AtMostEvery, which rate-limits
+				// by format string and would collapse failures of distinct
+				// artifacts into one message.
+				if err != nil && saver.ctx.Err() == nil {
+					saver.printer.Warnf(
+						"Failed to save artifact %q (type %q): %v",
+						saver.artifact.Name,
+						saver.artifact.Type,
+						err,
+					)
+				}
+
 				saver.resultChan <- ArtifactSaveResult{
 					ArtifactID: artifactID,
 					Err:        err,
