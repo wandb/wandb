@@ -28,7 +28,7 @@ func expiredAt() string {
 	return time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05")
 }
 
-func writeCredentialsFile(t *testing.T, dir string, host string, refreshToken string) string {
+func writeCredentialsFile(t *testing.T, dir, host, refreshToken string) string {
 	t.Helper()
 	path := filepath.Join(dir, "credentials.json")
 	contents := fmt.Sprintf(`{
@@ -73,7 +73,7 @@ func rotatingAuthServer(t *testing.T) (*apitest.RecordingServer, *atomic.Int64) 
 	return server, &exchanges
 }
 
-func browserLoginSettings(host string, credentialsFile string) *wbsettings.Settings {
+func browserLoginSettings(host, credentialsFile string) *wbsettings.Settings {
 	return wbsettings.From(&spb.Settings{
 		BaseUrl:         &wrapperspb.StringValue{Value: host},
 		CredentialsFile: &wrapperspb.StringValue{Value: credentialsFile},
