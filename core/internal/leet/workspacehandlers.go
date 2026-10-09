@@ -1061,9 +1061,7 @@ func (w *Workspace) handleEnterSystemMetricsFilter(msg tea.KeyPressMsg) tea.Cmd 
 		return batchCmds(cmds...)
 	}
 
-	grid := w.getOrCreateSystemMetricsGrid(cur.Key)
-	grid.EnterFilterMode()
-	grid.ApplyFilter()
+	w.getOrCreateSystemMetricsGrid(cur.Key).EnterFilterMode()
 	return batchCmds(cmds...)
 }
 
