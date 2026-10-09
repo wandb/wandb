@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- `wandb.Settings(exclude_metadata=[...])`, or `WANDB_EXCLUDE_METADATA=executable,args`, skips collecting the named system metadata fields so they no longer appear on the run's Overview page while everything else is still recorded (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- `wandb.Settings(exclude_metadata=[...])`, or `WANDB_EXCLUDE_METADATA=executable,args`, skips collecting the named system metadata fields so they no longer appear on the run's Overview page while everything else is still recorded (@dmitryduev in https://github.com/wandb/wandb/pull/13137)
 - `wandb leet symon` now shows the utilization of every CPU core and, on Linux, the CPU temperature (@dmitryduev in https://github.com/wandb/wandb/pull/13012)
 - `wandb leet symon` now charts network and disk throughput in bytes per second instead of totals since it started (@dmitryduev in https://github.com/wandb/wandb/pull/13013)
 - In W&B LEET TUI, the `CPU Core (%)` chart opens as a heatmap with one row per core; `y` switches it back to lines (@dmitryduev in https://github.com/wandb/wandb/pull/13014)
