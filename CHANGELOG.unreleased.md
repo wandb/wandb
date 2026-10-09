@@ -70,4 +70,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
 - The Docker image ID recorded for runs inside Kubernetes no longer loses the start of the image name and the end of the digest when the `docker-pullable://` prefix is removed (@David-Wu1119 in https://github.com/wandb/wandb/pull/13035)
 - `wandb.Api(overrides={"base_url": ...})` no longer changes the W&B server URL used by `wandb.init()` and other W&B calls later in the same process (@dmitryduev in https://github.com/wandb/wandb/pull/13125)
-- Network errors are now reported for the whole run instead of only the first few seconds (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- Network errors are now reported for the whole run instead of only the first few seconds (@dmitryduev in https://github.com/wandb/wandb/pull/13138)
