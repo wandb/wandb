@@ -3,10 +3,8 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
-
-import pytz
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -67,7 +65,7 @@ class HuggingFacePipelineRequestResponseResolver:
                 if model is None:
                     return None
                 model_alias = model.name_or_path
-                timestamp = datetime.now(pytz.utc)
+                timestamp = datetime.now(timezone.utc)
 
                 input_data, response = self._transform_task_specific_data(
                     task, input_data, response

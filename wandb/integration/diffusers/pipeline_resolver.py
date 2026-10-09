@@ -38,14 +38,13 @@ class DiffusersPipelineResolver:
             time_elapsed: (float) Time elapsed for the request.
 
         Returns:
-            Packed data as a dictionary for logging to wandb, None if an exception occurred.
+            Packed data as a dictionary for logging to wandb, None if the pipeline is not supported.
         """
         pipeline_name = args[0].__class__.__name__
-        resolver = None
-        if pipeline_name in SUPPORTED_MULTIMODAL_PIPELINES:
-            resolver = DiffusersMultiModalPipelineResolver(
-                pipeline_name, self.pipeline_call_count
-            )
-            self.pipeline_call_count += 1
-        loggable_dict = resolver(args, kwargs, response, start_time, time_elapsed)
-        return loggable_dict
+        if pipeline_name not in SUPPORTED_MULTIMODAL_PIPELINES:
+            return None
+        resolver = DiffusersMultiModalPipelineResolver(
+            pipeline_name, self.pipeline_call_count
+        )
+        self.pipeline_call_count += 1
+        return resolver(args, kwargs, response, start_time, time_elapsed)
