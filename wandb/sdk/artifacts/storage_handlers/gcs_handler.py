@@ -173,8 +173,12 @@ class GCSHandler(StorageHandler):
             obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
         except Forbidden:
             # The caller has `storage.objects.list` but not `storage.objects.get`.
-            # A 403 says nothing about whether the key exists or whether it is a
-            # file or a folder, so resolve that with list calls instead. Log the
+            # With list permission on the bucket, GCS answers `objects.get` with
+            # 404 for a key that is not an object and 403 only for an existing
+            # object, so this is usually a file, a marker folder or a versioned
+            # object. Under a list permission scoped to a prefix (a managed
+            # folder) every `objects.get` is 403 and the key may be a file, a
+            # folder or missing. Either way, resolve it with list calls. Log the
             # denial on the object the caller named: if listing is denied too,
             # the error they see is about a derived prefix, not this object.
             logger.warning(
