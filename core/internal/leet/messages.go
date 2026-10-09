@@ -21,6 +21,10 @@ type HistoryMsg struct {
 	RunPath string
 	Metrics map[string]MetricData
 	Media   map[string][]MediaPoint
+
+	// StepTimes pairs each row's step (X) with its _timestamp (Y), in
+	// unix seconds.
+	StepTimes MetricData
 }
 
 // RunMsg contains data from the wandb run record.
