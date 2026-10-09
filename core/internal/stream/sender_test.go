@@ -158,6 +158,26 @@ func TestSendExitBeforeRunInitialization(t *testing.T) {
 	}
 }
 
+func TestSendRequestNetworkStatusRespondsWhenNothingToReport(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+	request, responses := runworktest.SimpleRequest(t, "network-status")
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Request{Request: &spb.Request{
+			RequestType: &spb.Request_NetworkStatus{
+				NetworkStatus: &spb.NetworkStatusRequest{},
+			},
+		}},
+	}, request)
+
+	select {
+	case response := <-responses:
+		assert.NotNil(t,
+			response.GetResultCommunicate().GetResponse().GetNetworkStatusResponse())
+	case <-time.After(5 * time.Second):
+		t.Fatal("no response to a network status request")
+	}
+}
+
 func TestSendSummaryIgnoresInboundStep(t *testing.T) {
 	fileStream := filestreamtest.NewFakeFileStream()
 	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
