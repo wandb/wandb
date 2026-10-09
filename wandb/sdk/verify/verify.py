@@ -487,7 +487,7 @@ def check_sweeps(api: Api) -> bool:
     failed_test_strings: list[str] = []
 
     sweep_config = {
-        "method": "random",
+        "method": "grid",
         "metric": {"goal": "minimize", "name": "score"},
         "parameters": {
             "x": {"values": [0.01, 0.05, 0.1]},
