@@ -1018,7 +1018,7 @@ class TestSchedulerTaskExchange:
         asyncio.run(exchange.run())
 
         assert "failed to record run wandb-1" in caplog.text
-        assert "stops tracking it: bad summary" in caplog.text
+        assert "with error: bad summary" in caplog.text
 
 
 class TestDescribeDone:
