@@ -41,6 +41,44 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
+MetadataField = Literal[
+    "os",
+    "python",
+    "started_at",
+    "docker",
+    "args",
+    "program",
+    "code_path",
+    "code_path_local",
+    "git",
+    "email",
+    "root",
+    "host",
+    "username",
+    "executable",
+    "colab",
+    "cpu_count",
+    "cpu_count_logical",
+    "gpu_type",
+    "gpu_count",
+    "disk",
+    "memory",
+    "cpu",
+    "apple",
+    "gpu_nvidia",
+    "cuda_version",
+    "gpu_amd",
+    "slurm",
+    "trainium",
+    "tpu",
+    "coreweave",
+]
+"""A system metadata field collected when a run starts.
+
+These are the fields of the `EnvironmentRecord` protobuf message, which
+the run's Overview page and `wandb-metadata.json` file display.
+"""
+
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
@@ -286,6 +324,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     entity: str | None = None
     """The W&B entity, such as a user or a team."""
+
+    exclude_metadata: Sequence[MetadataField] = ()
+    """System metadata fields not to collect, such as `executable` or `args`.
+
+    Every other field is still collected. Use this to keep specific entries off
+    a run's Overview page; `x_disable_meta` turns off all of them instead.
+    """
 
     organization: str | None = None
     """The W&B organization."""
@@ -2007,7 +2052,7 @@ class Settings(BaseModel, validate_assignment=True):
             if key not in self.__dict__:
                 continue
 
-            if key in ("ignore_globs", "run_tags"):
+            if key in ("exclude_metadata", "ignore_globs", "run_tags"):
                 value = value.split(",")
 
             if value is None:
@@ -2333,7 +2378,7 @@ def _parse_system_settings(
 
     value: object  # Can be transformed arbitrarily.
     for key, value in system_settings.all().items():
-        if key == "ignore_globs":
+        if key in ("exclude_metadata", "ignore_globs"):
             fields[key] = value.split(",")
 
         elif key == "anonymous":

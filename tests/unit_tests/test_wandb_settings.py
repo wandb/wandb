@@ -771,3 +771,16 @@ def test_history_value_encoding_in_proto():
     s = Settings(x_history_value_encoding="json,typed")
 
     assert s.to_proto().x_history_value_encoding.value == "json,typed"
+
+
+def test_metadata_field_names_match_proto():
+    import typing
+
+    from wandb.proto import wandb_internal_pb2
+    from wandb.sdk.wandb_settings import MetadataField
+
+    proto_fields = {
+        f.name for f in wandb_internal_pb2.EnvironmentRecord.DESCRIPTOR.fields
+    } - {"writer_id", "_info"}
+
+    assert set(typing.get_args(MetadataField)) == proto_fields
