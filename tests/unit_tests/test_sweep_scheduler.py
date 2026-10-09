@@ -984,7 +984,9 @@ class TestSchedulerTaskExchange:
     ) -> None:
         optimizer = MagicMock(spec=Optimizer)
         optimizer.should_terminate_sweep.side_effect = RuntimeError("bad terminator")
-        exchange = SchedulerTaskExchange(MagicMock(), "sid", optimizer, caplog.handler)
+        exchange = SchedulerTaskExchange(
+            MagicMock(), "sid", optimizer, caplog.handler, MagicMock()
+        )
 
         result = exchange._execute(
             sspb.SweepSchedulerServerNextTaskResponse(
@@ -1012,7 +1014,7 @@ class TestSchedulerTaskExchange:
             )
         )
         exchange = SchedulerTaskExchange(
-            cast(Any, service), "sid", optimizer, caplog.handler
+            cast(Any, service), "sid", optimizer, caplog.handler, MagicMock()
         )
 
         asyncio.run(exchange.run())
