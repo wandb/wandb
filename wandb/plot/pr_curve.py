@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, TypeVar
 import wandb
 from wandb import util
 from wandb.plot.custom_chart import plot_table
-from wandb.plot.utils import test_missing, test_types
+from wandb.plot.utils import class_columns, test_missing, test_types
 
 if TYPE_CHECKING:
     from wandb.plot.custom_chart import CustomChart
@@ -123,6 +123,9 @@ def pr_curve(
         return
 
     classes = np.unique(y_true)
+    columns = class_columns(classes, y_probas.shape[-1])
+    if columns is None:
+        return
     if classes_to_plot is None:
         classes_to_plot = classes
 
@@ -138,7 +141,7 @@ def pr_curve(
             class_label = classes[i]
 
         cur_precision, cur_recall, _ = sklearn_metrics.precision_recall_curve(
-            y_true, y_probas[:, i], pos_label=classes[i]
+            y_true, y_probas[:, columns[i]], pos_label=classes[i]
         )
         # smooth the precision (monotonically increasing)
         cur_precision = _step(cur_precision)
