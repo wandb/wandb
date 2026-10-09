@@ -23,11 +23,10 @@ MINIMIZE_METRICS = [
     "mphe",
     "logloss",
     "error",
-    "error@t",
     "merror",
 ]
 
-MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
+MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map"]
 
 
 if TYPE_CHECKING:
@@ -196,11 +195,15 @@ class WandbCallback(xgboost.callback.TrainingCallback):
         )
 
     def _define_metric(self, data: str, metric_name: str) -> None:
-        if "loss" in str.lower(metric_name):
-            wandb.define_metric(f"{data}-{metric_name}", summary="min")
-        elif str.lower(metric_name) in MINIMIZE_METRICS:
-            wandb.define_metric(f"{data}-{metric_name}", summary="min")
-        elif str.lower(metric_name) in MAXIMIZE_METRICS:
-            wandb.define_metric(f"{data}-{metric_name}", summary="max")
+        # Parameterized metrics such as ndcg@5 or error@0.6 go by their base name.
+        name = str.lower(metric_name).split("@")[0]
+        # define_metric reads "." as a nested key, so escape it (error@0.6).
+        key = f"{data}-{metric_name}".replace(".", "\\.")
+        if "loss" in name:
+            wandb.define_metric(key, summary="min")
+        elif name in MINIMIZE_METRICS:
+            wandb.define_metric(key, summary="min")
+        elif name in MAXIMIZE_METRICS:
+            wandb.define_metric(key, summary="max")
         else:
             pass
