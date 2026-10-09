@@ -122,6 +122,78 @@ func TestBrowserLoginPersistsTheReplacementRefreshToken(t *testing.T) {
 	stored := readCredentialsFile(t, credentialsFile)[server.URL]
 	assert.Equal(t, "wb_rt_1", stored["refresh_token"])
 	assert.Equal(t, "wb_at_1", stored["access_token"])
+	assert.Equal(t, "user", stored["auth_type"])
+}
+
+func TestIdentityTokenExchangeTagsTheEntryAsWorkload(t *testing.T) {
+	server, _ := rotatingAuthServer(t)
+	defer server.Close()
+	dir := t.TempDir()
+	credentialsFile := writeCredentialsFile(t, dir, server.URL, "wb_rt_stored")
+	identityTokenFile := filepath.Join(dir, "identity.jwt")
+	require.NoError(t, os.WriteFile(identityTokenFile, []byte("jwt"), 0o600))
+
+	provider, err := api.NewCredentialProvider(
+		wbsettings.From(&spb.Settings{
+			BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+			CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+			IdentityTokenFile: &wrapperspb.StringValue{Value: identityTokenFile},
+		}),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	stored := readCredentialsFile(t, credentialsFile)[server.URL]
+	assert.Equal(t, "workload", stored["auth_type"])
+	assert.Equal(t, "wb_rt_1", stored["refresh_token"])
+}
+
+func writeWorkloadEntry(t *testing.T, path, host, expiresAt string) {
+	t.Helper()
+	contents := fmt.Sprintf(`{
+  "credentials": {
+    %q: {
+      "expires_at": %q,
+      "access_token": "wb_at_workload",
+      "refresh_token": "wb_rt_workload",
+      "auth_type": "workload"
+    }
+  }
+}`, host, expiresAt)
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+}
+
+func TestBrowserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+	writeWorkloadEntry(t, credentialsFile, "https://api.wandb.ai", expiredAt())
+
+	provider, err := api.NewCredentialProvider(
+		browserLoginSettings("https://api.wandb.ai", credentialsFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, api.NoopCredentialProvider{}, provider)
+}
+
+func TestBrowserLoginDoesNotRefreshAWorkloadEntryWrittenLater(t *testing.T) {
+	server, exchanges := rotatingAuthServer(t)
+	defer server.Close()
+	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
+
+	provider, err := api.NewCredentialProvider(
+		browserLoginSettings(server.URL, credentialsFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+	writeWorkloadEntry(t, credentialsFile, server.URL, expiredAt())
+
+	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.ErrorContains(t, err, "no browser login stored")
+	assert.Equal(t, int64(0), exchanges.Load())
 }
 
 func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
