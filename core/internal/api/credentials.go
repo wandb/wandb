@@ -299,10 +299,16 @@ func (e *assertionExchange) exchange(
 	ctx, cancel := context.WithTimeout(ctx, tokenExchangeTimeout)
 	defer cancel()
 
-	return postTokenRequest(ctx, e.httpClient, e.baseURL, url.Values{
+	token, err := postTokenRequest(ctx, e.httpClient, e.baseURL, url.Values{
 		"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
 		"assertion":  {identityToken},
 	})
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+
+	token.AuthType = authTypeWorkload
+	return token, nil
 }
 
 // refreshTokenExchange trades a refresh token for a new access token, and for
@@ -318,10 +324,10 @@ func (e *refreshTokenExchange) exchange(
 	ctx context.Context,
 	current accessTokenInfo,
 ) (accessTokenInfo, error) {
-	if current.RefreshToken == "" {
+	if !current.hasUserRefreshToken() {
 		return accessTokenInfo{}, &TokenExchangeError{
 			StatusCode: http.StatusUnauthorized,
-			Body:       "no refresh token stored; run `wandb login` again",
+			Body:       "no browser login stored; run `wandb login` again",
 		}
 	}
 
@@ -351,6 +357,7 @@ func (e *refreshTokenExchange) exchange(
 			"api: refresh response did not include a replacement refresh token")
 	}
 
+	refreshed.AuthType = authTypeUser
 	return refreshed, nil
 }
 
@@ -428,7 +435,8 @@ func hasStoredRefreshToken(credentialsFilePath, baseURL string) bool {
 		return false
 	}
 
-	return credsFile.Credentials[baseURL].RefreshToken != ""
+	entry := credsFile.Credentials[baseURL]
+	return entry.hasUserRefreshToken()
 }
 
 // TokenExchangeError is a definitive rejection of an identity token
@@ -550,12 +558,30 @@ type accessTokenInfo struct {
 	// The access token to use for authentication.
 	AccessToken string `json:"access_token"`
 
-	// The refresh token from a browser login, if any.
 	RefreshToken string `json:"refresh_token,omitempty"`
+
+	// The login that produced the entry: authTypeUser or authTypeWorkload.
+	// Empty in entries written before the field existed.
+	AuthType string `json:"auth_type,omitempty"`
 }
+
+const (
+	// A browser login.
+	authTypeUser = "user"
+
+	// An identity token exchange.
+	authTypeWorkload = "workload"
+)
 
 func (c *accessTokenInfo) IsTokenExpiring() bool {
 	return time.Until(time.Time(c.ExpiresAt)) <= time.Minute*5
+}
+
+// hasUserRefreshToken reports whether the entry holds a browser login's
+// refresh token. Untagged entries predate workload refresh tokens.
+func (c *accessTokenInfo) hasUserRefreshToken() bool {
+	return c.RefreshToken != "" &&
+		(c.AuthType == "" || c.AuthType == authTypeUser)
 }
 
 // CredentialsFile is used when serializing/deserializing JSON data from the
