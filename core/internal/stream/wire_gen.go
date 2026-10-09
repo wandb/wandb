@@ -74,7 +74,6 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Logger:             coreLogger,
 		Operations:         wandbOperations,
 		RunHandle:          runHandle,
-		ClientID:           clientID,
 		Settings:           settings2,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{

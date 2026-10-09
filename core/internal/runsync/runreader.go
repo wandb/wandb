@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -27,6 +28,10 @@ var runReaderProviders = wire.NewSet(
 type RunReaderFactory struct {
 	Logger     *observability.CoreLogger
 	Operations *wboperation.WandbOperations
+
+	// ClientID is the writer ID for runs from SDK versions that didn't
+	// record one in the transaction log.
+	ClientID sharedmode.ClientID
 }
 
 // RunReader gets information out of .wandb files.
@@ -39,6 +44,7 @@ type RunReader struct {
 	seenRun  bool // whether we've processed a run record yet
 	seenExit bool // whether we've processed an exit record yet
 
+	clientID     sharedmode.ClientID
 	logger       *observability.CoreLogger
 	operations   *wboperation.WandbOperations
 	recordParser stream.RecordParser
@@ -59,6 +65,7 @@ func (f *RunReaderFactory) New(
 		updates:     updates,
 		live:        live,
 
+		clientID:     f.ClientID,
 		logger:       f.Logger,
 		operations:   f.Operations,
 		recordParser: recordParser,
@@ -289,6 +296,9 @@ func (r *RunReader) nextUpdatedRecord(
 	}
 
 	r.updates.Modify(record)
+	if run := record.GetRun(); run != nil && run.WriterId == "" {
+		run.WriterId = string(r.clientID)
+	}
 	return
 }
 
