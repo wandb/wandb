@@ -338,6 +338,11 @@ class AxOptimizer(Optimizer):
         return restore
 
     @override
+    def has_terminator(self) -> bool:
+        """Whether a terminator was supplied with the Ax client."""
+        return self._terminator is not None
+
+    @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
 

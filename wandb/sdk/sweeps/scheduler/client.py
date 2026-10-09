@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 import wandb
+from wandb.analytics import TelemetryRecorder
 from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk import wandb_setup
@@ -52,6 +53,7 @@ def run_scheduler(
     make_optimizer: OptimizerFactory,
     batch_size: int,
     poll_interval: float,
+    telemetry_recorder: TelemetryRecorder,
 ) -> sspb.SweepSchedulerServerDoneTask:
     """Drive a sweep until its scheduler stops.
 
@@ -62,6 +64,7 @@ def run_scheduler(
         make_optimizer: Builds the optimizer from the sweep's facts.
         batch_size: Number of runs to keep in flight at once.
         poll_interval: Seconds between polls of the sweep's runs.
+        telemetry_recorder: Caller telemetry to extend with scheduler attrs.
 
     Returns:
         The scheduler's Done task, describing why it stopped.
@@ -129,8 +132,23 @@ def run_scheduler(
         run_name=sweep.controller_run_name,
         level=logging.INFO,
     )
+
+    config = sweep.config.get("scheduler", {})
+
+    telemetry_recorder = telemetry_recorder.with_context(
+        high_cardinality_attributes={
+            "engine": optimizer.engine,
+            "optimizer": config.get("optimizer", ""),
+            "search_space": config.get("search_space", ""),
+            "use_terminator": str(optimizer.has_terminator()).lower(),
+        }
+    )
     exchange = SchedulerTaskExchange(
-        service, init_response.session_id, optimizer, logger
+        service,
+        init_response.session_id,
+        optimizer,
+        logger,
+        telemetry_recorder,
     )
 
     previous_handler = _install_sigint_handler(
@@ -151,6 +169,12 @@ def run_scheduler(
         raise wandb.Error(f"The sweep scheduler failed: {message}.")
 
     term.termlog(f"Sweep scheduler for {sweep.name} exited: {message}.")
+    telemetry_recorder.increment_counter_and_log_event(
+        "sweep_scheduler.successful_exit",
+        attributes={
+            "reason": message,
+        },
+    )
     return done
 
 

@@ -235,6 +235,11 @@ class WandbOptimizer(Optimizer):
         )
         return run_id
 
+    @override
+    def has_terminator(self) -> bool:
+        """The wandb engine does not support terminators."""
+        return False
+
 
 def build_wandb_optimizer(sweep: SweepInfo) -> WandbOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""

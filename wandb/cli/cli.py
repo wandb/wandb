@@ -2031,15 +2031,16 @@ def sweep_scheduler(
     from wandb.sdk.sweeps.scheduler import client
     from wandb.sdk.sweeps.scheduler.optimizer import make_optimizer
 
-    if batch_size < 1:
-        wandb.termerror("--batch-size must be at least 1")
-        sys.exit(1)
-
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
             "process_context": "sweep_scheduler",
         }
     )
+
+    if batch_size < 1:
+        wandb.termerror("--batch-size must be at least 1")
+        telemetry_recorder.exception(ValueError("batch_size must be at least 1"))
+        sys.exit(1)
 
     # Resolve the sweep the user already created with `wandb sweep`.
     # `run_scheduler` authenticates the session itself, so the defaults are
@@ -2048,16 +2049,27 @@ def sweep_scheduler(
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = sweep_utils.parse_sweep_id(parts)
     if err:
-        raise ClickException(err)
+        e = ClickException(err)
+        telemetry_recorder.exception(e)
+        raise e
     entity = parts.get("entity") or entity or api.settings["entity"]
     project = parts.get("project") or project or api.settings["project"]
     sweep_id = parts.get("name") or sweep_id
     if not entity or not project:
-        raise ClickException(
+        e = ClickException(
             "Pass the sweep as entity/project/sweep_id or provide "
             "--entity and --project."
         )
+        telemetry_recorder.exception(e)
+        raise e
 
+    telemetry_recorder = telemetry_recorder.with_context(
+        high_cardinality_attributes={
+            "sweep_id": sweep_id,
+            "entity": entity,
+            "project": project,
+        }
+    )
     wandb.termlog(f"Starting sweep scheduler for {sweep_id} 🧹")
     try:
         client.run_scheduler(
@@ -2067,6 +2079,7 @@ def sweep_scheduler(
             make_optimizer=make_optimizer,
             batch_size=batch_size,
             poll_interval=poll_interval,
+            telemetry_recorder=telemetry_recorder,
         )
     except wandb.Error as e:
         # run_scheduler already explained the failure.

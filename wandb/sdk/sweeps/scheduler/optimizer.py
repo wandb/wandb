@@ -308,6 +308,11 @@ class Optimizer(ABC):
             if self.prune_run(run_id, run)
         ]
 
+    @abstractmethod
+    def has_terminator(self) -> bool:
+        """Whether this optimizer was given a sweep-level terminator."""
+        ...
+
     def should_terminate_sweep(self) -> bool:
         """Return True if the sweep should be terminated."""
         return False
