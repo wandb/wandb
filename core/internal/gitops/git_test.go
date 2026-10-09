@@ -20,7 +20,7 @@ func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(gitops.GitEnv(),
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_AUTHOR_NAME=Test User",
@@ -65,6 +65,23 @@ func TestIsAvailable(t *testing.T) {
 
 	assert.True(t, gitops.New(setupTestRepo(t), logger).IsAvailable())
 	assert.False(t, gitops.New(t.TempDir(), logger).IsAvailable())
+}
+
+func TestIsAvailableIgnoresInheritedRepositoryEnvironment(t *testing.T) {
+	repoPath := setupTestRepo(t)
+	expectedHead := git(t, repoPath, "rev-parse", "HEAD")
+	outerRepo := t.TempDir()
+	git(t, outerRepo, "init", "-b", "master")
+	t.Setenv("GIT_DIR", filepath.Join(outerRepo, ".git"))
+	t.Setenv("GIT_WORK_TREE", outerRepo)
+	logger := observabilitytest.NewTestLogger(t)
+	g := gitops.New(repoPath, logger)
+
+	assert.True(t, g.IsAvailable())
+	assert.False(t, gitops.New(t.TempDir(), logger).IsAvailable())
+	latest, err := g.LatestCommit("HEAD")
+	require.NoError(t, err)
+	assert.Equal(t, expectedHead, latest)
 }
 
 func TestLatestCommit(t *testing.T) {
