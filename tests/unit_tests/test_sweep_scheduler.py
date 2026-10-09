@@ -568,6 +568,7 @@ class TestRunSchedulerInit:
                 make_optimizer=lambda sweep: None,
                 batch_size=1,
                 poll_interval=10,
+                telemetry_recorder=MagicMock(),
             )
 
 
