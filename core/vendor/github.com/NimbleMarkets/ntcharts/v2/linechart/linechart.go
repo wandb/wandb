@@ -26,10 +26,15 @@ var defaultStyle = lipgloss.NewStyle()
 type LabelFormatter func(int, float64) string
 
 // DefaultLabelFormatter returns a LabelFormatter
-// that convert float64 to integers
+// that convert float64 to integers.
+// Values that round to zero are always labeled "0", never "-0".
 func DefaultLabelFormatter() LabelFormatter {
 	return func(i int, v float64) string {
-		return fmt.Sprintf("%.0f", v)
+		s := fmt.Sprintf("%.0f", v)
+		if s == "-0" {
+			return "0"
+		}
+		return s
 	}
 }
 

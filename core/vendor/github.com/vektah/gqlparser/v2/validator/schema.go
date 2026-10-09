@@ -338,6 +338,14 @@ func validateDirective(schema *Schema, def *DirectiveDefinition) *gqlerror.Error
 		// now, GraphQL spec doesn't have reserved directive name
 		return err
 	}
+	if dup := duplicateArg(def.Arguments); dup != nil {
+		return gqlerror.ErrorPosf(
+			dup.Position,
+			"Argument @%s(%s:) can only be defined once.",
+			def.Name,
+			dup.Name,
+		)
+	}
 
 	return validateArgs(schema, def.Arguments, def)
 }
@@ -350,6 +358,15 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 		if err := validateTypeRef(schema, field.Type); err != nil {
 			return err
+		}
+		if dup := duplicateArg(field.Arguments); dup != nil {
+			return gqlerror.ErrorPosf(
+				dup.Position,
+				"Argument %s.%s(%s:) can only be defined once.",
+				def.Name,
+				field.Name,
+				dup.Name,
+			)
 		}
 		if err := validateArgs(schema, field.Arguments, nil); err != nil {
 			return err
@@ -534,6 +551,20 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 func validateTypeRef(schema *Schema, typ *Type) *gqlerror.Error {
 	if schema.Types[typ.Name()] == nil {
 		return gqlerror.ErrorPosf(typ.Position, "Undefined type %s.", typ.Name())
+	}
+	return nil
+}
+
+// duplicateArg returns the first argument whose name repeats an earlier one in
+// args, or nil if every name is unique. Callers build the error message only on
+// a hit, so the common no-duplicate path does not allocate.
+func duplicateArg(args ArgumentDefinitionList) *ArgumentDefinition {
+	for idx, arg1 := range args {
+		for _, arg2 := range args[idx+1:] {
+			if arg1.Name == arg2.Name {
+				return arg2
+			}
+		}
 	}
 	return nil
 }
