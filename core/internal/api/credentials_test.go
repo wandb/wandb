@@ -102,7 +102,6 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tokenFile.Close())
 
-	// Temp dir: the provider writes a lock file next to this.
 	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
 
 	token := "fake-token"

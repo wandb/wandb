@@ -53,19 +53,15 @@ const (
 	// own per-attempt deadline, which bounds the exchange instead.
 	tokenExchangeTimeout = 60 * time.Second
 
-	// Tighter than the assertion grant. Re-sending a refresh token looks like
-	// a replay, and the server only forgives that for a short grace period.
-	// Worst case is about 28s: 3 attempts of 8s plus the waits.
+	// Refresh retries must finish within the server's grace period for a
+	// resent refresh token, which is otherwise treated as a replay.
 	refreshExchangeRetryMax       = 2
 	refreshExchangeAttemptTimeout = 8 * time.Second
 	refreshExchangeRetryWaitMin   = time.Second
 	refreshExchangeRetryWaitMax   = 3 * time.Second
+	refreshExchangeTimeout        = 30 * time.Second
 
-	// Bounds one refresh including retries. Longer than this outlives the
-	// grace period above.
-	refreshExchangeTimeout = 30 * time.Second
-
-	// Public OAuth client id. PKCE proves the request, not this string.
+	// CLIClientID is the CLI's public OAuth client ID. It is not a secret.
 	CLIClientID = "wandb-cli"
 )
 
@@ -120,11 +116,8 @@ func NewCredentialProvider(
 		return &apiKeyCredentialProvider{apiKey: apiKey}, nil
 	}
 
-	// A browser login is only a refresh token in the credentials file.
-	// Absence is the normal logged-out case, not an error.
 	if hasStoredRefreshToken(s.GetCredentialsFile(), s.GetBaseURL()) {
-		// Same constraint as the identity-token client above: this client
-		// supplies the credential, so it must not attach one of its own.
+		// Like the client above, this must not attach credentials of its own.
 		exchangeClient := NewClient(ClientOptions{
 			RetryMax:        refreshExchangeRetryMax,
 			RetryWaitMin:    refreshExchangeRetryWaitMin,
@@ -237,10 +230,8 @@ func NewOAuth2CredentialProvider(
 	), nil
 }
 
-// NewRefreshTokenCredentialProvider creates a provider for a browser login.
-//
-// Same cache and expiry check as the identity-token provider. A refresh
-// rotates, so the replacement has to be written back or the login is lost.
+// NewRefreshTokenCredentialProvider creates a provider that renews access
+// tokens using the refresh token a browser login stores in the credentials file.
 func NewRefreshTokenCredentialProvider(
 	baseURL string,
 	credentialsFilePath string,
@@ -268,22 +259,20 @@ func newOAuth2CredentialProvider(
 		baseURL:             baseURL,
 		credentialsFilePath: credentialsFilePath,
 		exchange:            exchange,
-		// Beside the file, so readers that take no lock are unaffected.
+		// A separate file, since saving replaces the credentials file.
 		fileMu:  lockedfile.MutexAt(credentialsFilePath + ".lock"),
 		tokenMu: &sync.RWMutex{},
 		logger:  logger,
 	}
 }
 
-// tokenExchange obtains an access token. The grants share the cache, the
-// lock, and the Authorization header.
+// tokenExchange obtains a new access token from the token endpoint.
 type tokenExchange interface {
-	// exchange trades stored for a fresh access token. The refresh grant
-	// consumes stored.RefreshToken; the assertion grant re-reads its JWT.
-	exchange(ctx context.Context, stored accessTokenInfo) (accessTokenInfo, error)
+	// exchange returns a fresh access token. current holds the newest known
+	// credentials for the base URL.
+	exchange(ctx context.Context, current accessTokenInfo) (accessTokenInfo, error)
 
-	// rotates reports whether the exchange invalidates what it consumed.
-	// When it does, failing to persist the result loses the login.
+	// rotates reports whether the exchange invalidates the credential it used.
 	rotates() bool
 }
 
@@ -327,10 +316,9 @@ func (e *refreshTokenExchange) rotates() bool { return true }
 
 func (e *refreshTokenExchange) exchange(
 	ctx context.Context,
-	stored accessTokenInfo,
+	current accessTokenInfo,
 ) (accessTokenInfo, error) {
-	if stored.RefreshToken == "" {
-		// Nothing to refresh, and retrying will not help.
+	if current.RefreshToken == "" {
 		return accessTokenInfo{}, &TokenExchangeError{
 			StatusCode: http.StatusUnauthorized,
 			Body:       "no refresh token stored; run `wandb login` again",
@@ -342,15 +330,23 @@ func (e *refreshTokenExchange) exchange(
 
 	refreshed, err := postTokenRequest(ctx, e.httpClient, e.baseURL, url.Values{
 		"grant_type":    {"refresh_token"},
-		"refresh_token": {stored.RefreshToken},
+		"refresh_token": {current.RefreshToken},
 		"client_id":     {CLIClientID},
 	})
 	if err != nil {
 		return accessTokenInfo{}, err
 	}
 
-	if refreshed.RefreshToken == "" {
-		// Keeping the spent token would look like a replay on the next refresh.
+	switch {
+	case refreshed.AccessToken == "":
+		return accessTokenInfo{}, errors.New(
+			"api: refresh response did not include an access token")
+	case !time.Now().Before(time.Time(refreshed.ExpiresAt)):
+		// Otherwise every request would refresh again.
+		return accessTokenInfo{}, errors.New(
+			"api: refresh response did not include a positive expires_in")
+	case refreshed.RefreshToken == "":
+		// Otherwise the next refresh would resend a spent token.
 		return accessTokenInfo{}, errors.New(
 			"api: refresh response did not include a replacement refresh token")
 	}
@@ -511,11 +507,9 @@ type oauth2CredentialProvider struct {
 	// The file path to the access token and its metadata.
 	credentialsFilePath string
 
-	// How a fresh access token is obtained.
 	exchange tokenExchange
 
-	// Serializes exchanges against other processes sharing the credentials
-	// file. tokenMu only covers this one.
+	// Serializes exchanges across processes sharing the credentials file.
 	fileMu *lockedfile.Mutex
 
 	tokenMu *sync.RWMutex
@@ -556,7 +550,7 @@ type accessTokenInfo struct {
 	// The access token to use for authentication.
 	AccessToken string `json:"access_token"`
 
-	// Set for a browser login. Omitted for identity-token logins.
+	// The refresh token from a browser login, if any.
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
@@ -638,9 +632,8 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 		return err
 	}
 
-	// One lock across processes. Overlapping refreshes of a rotating token
-	// retire each other's access tokens. Failing to lock is not fatal: the
-	// server allows a short grace period for that case.
+	// Concurrent refreshes of a rotating token retire each other's tokens.
+	// Locking is best effort; the server tolerates a brief overlap.
 	if unlock, err := c.fileMu.Lock(); err != nil {
 		c.logger.Warn("failed to lock credentials file; refreshing anyway",
 			"file path", c.credentialsFilePath,
@@ -658,17 +651,26 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 		return nil
 	}
 
-	token, err := c.exchange.exchange(ctx, stored)
+	// After a failed save, the file holds an already-spent refresh token.
+	current := stored
+	if time.Time(c.tokenInfo.ExpiresAt).After(time.Time(stored.ExpiresAt)) {
+		current = c.tokenInfo
+	}
+
+	token, err := c.exchange.exchange(ctx, current)
 	if err != nil {
 		return fmt.Errorf("api: couldn't fetch access token: %w", err)
 	}
 
 	if err := c.saveCredentialsToFile(credsFile, token); err != nil {
 		if c.exchange.rotates() {
-			// The stored refresh token is spent. Losing the replacement ends the login.
-			return fmt.Errorf("api: couldn't save refreshed credentials: %w", err)
+			c.logger.Error(
+				"api: couldn't save refreshed credentials; "+
+					"the stored login will not work after this process exits",
+				"error", err.Error())
+		} else {
+			c.logger.Warn("failed to update credentials file", "error", err.Error())
 		}
-		c.logger.Warn("failed to update credentials file", "error", err.Error())
 	}
 
 	c.tokenInfo = token
@@ -702,7 +704,7 @@ func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile
 
 // saveCredentialsToFile stores token for this provider's base URL.
 //
-// Replaced via a temp file. A partial write would drop a spent refresh token.
+// The file is replaced atomically so a partial write cannot lose a refresh token.
 func (c *oauth2CredentialProvider) saveCredentialsToFile(
 	credentials CredentialsFile,
 	token accessTokenInfo,
