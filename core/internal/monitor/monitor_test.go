@@ -3,6 +3,7 @@ package monitor_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
@@ -222,4 +223,28 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSystemMonitor_ProbeDropsExcludedMetadata(t *testing.T) {
+	work := runworktest.New()
+	factory := &monitor.SystemMonitorFactory{
+		Logger: observabilitytest.NewTestLogger(t),
+		Settings: settings.From(&spb.Settings{
+			XPrimary:        wrapperspb.Bool(true),
+			XDisableStats:   wrapperspb.Bool(true),
+			XOs:             wrapperspb.String("macOS"),
+			XExecutable:     wrapperspb.String("/usr/bin/python"),
+			ExcludeMetadata: &spb.ListStringValue{Value: []string{"executable"}},
+		}),
+		XPUResourceManager: monitor.NewXPUResourceManager(false),
+	}
+
+	factory.New(work).Probe()
+
+	assert.Eventually(t, func() bool {
+		return len(work.AllRecords()) == 2
+	}, time.Second, 10*time.Millisecond)
+	env := work.AllRecords()[0].GetEnvironment()
+	assert.Equal(t, "macOS", env.GetOs())
+	assert.Empty(t, env.GetExecutable())
 }

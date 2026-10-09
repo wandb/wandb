@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -497,6 +498,11 @@ func (s *Settings) IsConsoleMultipart() bool {
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
+}
+
+// Whether the named EnvironmentRecord field is excluded from collection.
+func (s *Settings) IsMetadataExcluded(field string) bool {
+	return slices.Contains(s.Proto.ExcludeMetadata.GetValue(), field)
 }
 
 // Whether to save the code used to create the run.
