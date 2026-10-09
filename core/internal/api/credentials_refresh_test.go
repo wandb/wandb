@@ -24,7 +24,6 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// expiredAt is past the 5-minute refresh window. "now" is still valid.
 func expiredAt() string {
 	return time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05")
 }
@@ -161,12 +160,23 @@ func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
 	assert.Equal(t, "other-access-token", other["access_token"])
 }
 
-func TestBrowserLoginFailsWhenTheReplacementCannotBeSaved(t *testing.T) {
+func TestBrowserLoginKeepsTheReplacementWhenItCannotBeSaved(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
 
-	server, _ := rotatingAuthServer(t)
+	// Inside the 5-minute window, so every request refreshes.
+	var exchanges atomic.Int64
+	server := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			n := exchanges.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  fmt.Sprintf("wb_at_%d", n),
+				"refresh_token": fmt.Sprintf("wb_rt_%d", n),
+				"expires_in":    time.Minute.Seconds(),
+			}))
+		}))
 	defer server.Close()
 
 	dir := t.TempDir()
@@ -182,30 +192,71 @@ func TestBrowserLoginFailsWhenTheReplacementCannotBeSaved(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
-	require.ErrorContains(t, err, "couldn't save refreshed credentials")
+	for range 2 {
+		_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+		require.NoError(t, err)
+	}
+
+	requests := server.Requests()
+	require.Len(t, requests, 2)
+	form, err := url.ParseQuery(string(requests[1].Body))
+	require.NoError(t, err)
+	assert.Equal(t, "wb_rt_1", form.Get("refresh_token"))
 }
 
-func TestBrowserLoginRejectsAResponseWithoutAReplacement(t *testing.T) {
-	server := apitest.NewRecordingServer(apitest.WithHandlerFunc(
-		func(w http.ResponseWriter, req *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+func TestBrowserLoginRejectsAnIncompleteResponse(t *testing.T) {
+	testCases := []struct {
+		name     string
+		response map[string]any
+		wantErr  string
+	}{
+		{
+			name: "no replacement refresh token",
+			response: map[string]any{
 				"access_token": "wb_at_1",
 				"expires_in":   time.Hour.Seconds(),
-			}))
-		}))
-	defer server.Close()
-	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
+			},
+			wantErr: "replacement refresh token",
+		},
+		{
+			name: "no access token",
+			response: map[string]any{
+				"refresh_token": "wb_rt_1",
+				"expires_in":    time.Hour.Seconds(),
+			},
+			wantErr: "access token",
+		},
+		{
+			name: "no expires_in",
+			response: map[string]any{
+				"access_token":  "wb_at_1",
+				"refresh_token": "wb_rt_1",
+			},
+			wantErr: "expires_in",
+		},
+	}
 
-	provider, err := api.NewCredentialProvider(
-		browserLoginSettings(server.URL, credentialsFile),
-		observabilitytest.NewTestLogger(t).Logger,
-	)
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+				func(w http.ResponseWriter, req *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					require.NoError(t, json.NewEncoder(w).Encode(tc.response))
+				}))
+			defer server.Close()
+			credentialsFile := writeCredentialsFile(
+				t, t.TempDir(), server.URL, "wb_rt_stored")
 
-	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
-	require.ErrorContains(t, err, "replacement refresh token")
+			provider, err := api.NewCredentialProvider(
+				browserLoginSettings(server.URL, credentialsFile),
+				observabilitytest.NewTestLogger(t).Logger,
+			)
+			require.NoError(t, err)
+
+			_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }
 
 func TestBrowserLoginOnlyRefreshesOnceAcrossProviders(t *testing.T) {
