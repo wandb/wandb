@@ -20,6 +20,7 @@ from wandb.sdk.data_types.eval_table import _media_ces
 from wandb.sdk.data_types.eval_table._media_ces import _encode_json
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
+from wandb.sdk.lib import urls
 
 if TYPE_CHECKING:
     from coreweave_evaluations import Client as EvaluationsClientT
@@ -124,7 +125,7 @@ def _ces_base_url(wandb_base_url: str) -> str:
     base_url = os.environ.get(_CES_BASE_URL_ENV)
     if base_url:
         return base_url
-    if wandb_base_url == _MTSAAS_WANDB_BASE_URL:
+    if urls.forge_upstream_url(wandb_base_url) == _MTSAAS_WANDB_BASE_URL:
         return _MTSAAS_CES_BASE_URL
     # Dedicated servers route it under the W&B origin.
     return f"{wandb_base_url}/evaluations"

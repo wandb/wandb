@@ -27,6 +27,18 @@ def test_authorize_url_uses_app_url():
     assert result == "https://my-ui/authorize"
 
 
+def test_authorize_url_forge():
+    result = prompt._authorize_url(
+        host_url.HostUrl("https://forge.coreweave.com/api/wandb"),
+        signup=True,
+        referrer="models",
+    )
+
+    assert (
+        result == "https://forge.coreweave.com/wandb/authorize?signup=true&ref=models"
+    )
+
+
 def test_timeout(emulated_terminal: EmulatedTerminal):
     _ = emulated_terminal  # select nothing, allow a timeout
 

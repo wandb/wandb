@@ -30,7 +30,7 @@ def test_mapping_interface():
 
 
 def test_is_local():
-    s = Settings(base_url="https://api.wandb.ai")
+    s = Settings(base_url="https://forge.coreweave.com/api/wandb/")
     assert s.is_local is False
 
 
@@ -140,7 +140,7 @@ def test_noop():
 
 def test_get_base_url():
     s = Settings()
-    assert s.base_url == "https://api.wandb.ai"
+    assert s.base_url == "https://api.forge.coreweave.com"
 
 
 def test_base_url_validation():
@@ -152,7 +152,7 @@ def test_base_url_validation():
 
 def test_app_url_default():
     s = Settings(base_url="https://api.wandb.ai")
-    assert s.app_url == "https://wandb.ai"
+    assert s.app_url == "https://forge.coreweave.com/wandb"
 
 
 def test_app_url_override():
