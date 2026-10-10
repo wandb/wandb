@@ -383,6 +383,7 @@ class AxOptimizer(Optimizer):
         needs results from in-flight trials, or a parallelism cap is hit);
         the scheduler asks again on a later poll. Returns an empty sequence
         when Ax reports the optimization complete, finishing the sweep.
+        If fewer than `n` unique points remain, returns the ones left.
         Any other Ax failure propagates.
         """
         from ax.exceptions.core import DataRequiredError, OptimizationComplete
@@ -396,9 +397,10 @@ class AxOptimizer(Optimizer):
             # which would end the sweep as exhausted.
             return None
         except OptimizationComplete:
-            # The search is done: the space is exhausted, a stopping
-            # strategy fired, or the generation strategy completed.
-            return []
+            # Ax fails a batch bigger than the points left, so retry singly.
+            trials = self._get_trials_singly(n)
+        if trials is None:
+            return None
         return [
             RunSuggestion(
                 config=RunConfig.from_values(dict(parameters)),
@@ -406,6 +408,25 @@ class AxOptimizer(Optimizer):
             )
             for trial_index, parameters in trials.items()
         ]
+
+    def _get_trials_singly(self, n: int) -> dict[int, Any] | None:
+        """Ask Ax for up to `n` trials one at a time until it has no more.
+
+        Returns the trials generated, which is empty once the search is done,
+        or None if Ax declines before generating any.
+        """
+        from ax.exceptions.core import DataRequiredError, OptimizationComplete
+        from ax.exceptions.generation_strategy import MaxParallelismReachedException
+
+        trials: dict[int, Any] = {}
+        for _ in range(n):
+            try:
+                trials.update(self.client.get_next_trials(max_trials=1))
+            except (DataRequiredError, MaxParallelismReachedException):
+                return trials or None
+            except OptimizationComplete:
+                break
+        return trials
 
     @override
     def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
