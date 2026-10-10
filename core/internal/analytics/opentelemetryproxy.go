@@ -111,6 +111,12 @@ type LowCardinalityAttributes struct {
 
 	// ContentEncoding is the request body encoding, raw or gzip.
 	ContentEncoding string
+
+	// ValueReadSource is use to tag telemetry for the source of a history value.
+	ValueReadSource string
+
+	// ValueKind is use to tag telemetry for the kind of a history value.
+	ValueKind string
 }
 
 // merge returns a copy of attrs with the non-empty fields of other
@@ -144,6 +150,8 @@ func (attrs *LowCardinalityAttributes) merge(
 	merged.ValueEncoding = cmp.Or(other.ValueEncoding, merged.ValueEncoding)
 	merged.WireEncoding = cmp.Or(other.WireEncoding, merged.WireEncoding)
 	merged.ContentEncoding = cmp.Or(other.ContentEncoding, merged.ContentEncoding)
+	merged.ValueReadSource = cmp.Or(other.ValueReadSource, merged.ValueReadSource)
+	merged.ValueKind = cmp.Or(other.ValueKind, merged.ValueKind)
 
 	return &merged
 }
@@ -165,6 +173,8 @@ func (attrs *LowCardinalityAttributes) toMap() map[string]string {
 		"value_encoding":    attrs.ValueEncoding,
 		"wire_encoding":     attrs.WireEncoding,
 		"content_encoding":  attrs.ContentEncoding,
+		"value_read_source": attrs.ValueReadSource,
+		"value_kind":        attrs.ValueKind,
 	}
 	maps.DeleteFunc(out, func(_ string, value string) bool {
 		return value == ""

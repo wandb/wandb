@@ -936,6 +936,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	// We do this on a best-effort basis: errors are logged and problematic
 	// metrics are ignored.
 	ingestStart := time.Now()
+	var readCounts filestreamstats.HistoryReadCounts
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 
@@ -945,6 +946,8 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 				fmt.Errorf("handler: failed to set history metric: %v", err),
 				"item", item,
 			)
+		} else {
+			readCounts.Add(item)
 		}
 	}
 	h.stats.RecordSegment(
@@ -952,6 +955,11 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 		filestreamstats.SegmentHandlerIngest,
 		filestreamstats.StreamHistory,
 		time.Since(ingestStart),
+	)
+	h.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		readCounts,
 	)
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
@@ -995,6 +1003,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	}
 
 	ingestStart := time.Now()
+	var readCounts filestreamstats.HistoryReadCounts
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
@@ -1003,6 +1012,8 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 				fmt.Errorf("handler: failed to set history metric: %v", err),
 				"item", item,
 			)
+		} else {
+			readCounts.Add(item)
 		}
 	}
 	h.stats.RecordSegment(
@@ -1010,6 +1021,11 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		filestreamstats.SegmentHandlerIngest,
 		filestreamstats.StreamHistory,
 		time.Since(ingestStart),
+	)
+	h.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		readCounts,
 	)
 
 	var shouldFlush bool
@@ -1080,6 +1096,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		filestreamstats.StreamHistory,
 		time.Since(emitStart),
 	)
+	h.stats.RecordHistoryEmitted(context.Background(), items)
 
 	currentStep := h.partialHistoryStep
 
