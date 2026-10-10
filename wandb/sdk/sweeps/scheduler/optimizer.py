@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import numbers
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -93,6 +95,27 @@ def is_terminal_state(state: RunState) -> bool:
         RunState.KILLED,
         RunState.PREEMPTED,
     )
+
+
+def _objective_value_problem(name: str, value: Any) -> tuple[str, str] | None:
+    """Describe why a value can't be objective `name`, and how to fix it.
+
+    Returns:
+        The problem and its fix, or None if the value is usable.
+    """
+    if isinstance(value, dict):
+        return (
+            "a dict, as a define_metric summary such as 'min' stores",
+            f"Log {name!r} as a number without a define_metric summary"
+            ' such as summary="min".',
+        )
+    if isinstance(value, str):
+        return "a string, not a number", f"Log {name!r} as a number."
+    if not isinstance(value, numbers.Real):
+        return "not a number", f"Log {name!r} as a number."
+    if math.isnan(value):
+        return "NaN", f"Log a value for {name!r} that isn't NaN."
+    return None
 
 
 class Optimizer(ABC):
@@ -258,6 +281,47 @@ class Optimizer(ABC):
         if any(value is None for value in values):
             return None
         return values
+
+    def final_objective_values(self, data: RunWithMetrics) -> list[Any] | None:
+        """Return a finished run's objective values, or None if unusable.
+
+        Warns about each objective whose summary value is present but is not
+        a number or is NaN, since the search libraries reject such values.
+
+        Args:
+            data: The finished run.
+        """
+        values = self.objective_values(data.summary_metrics)
+        if values is None or not self.check_objective_values(data, values):
+            return None
+        return values
+
+    def check_objective_values(
+        self,
+        data: RunWithMetrics,
+        values: list[Any],
+    ) -> bool:
+        """Return whether every objective value is a number that isn't NaN.
+
+        Warns about each value that isn't.
+
+        Args:
+            data: The finished run.
+            values: The run's objective values, ordered as `metric_names`.
+        """
+        is_usable = True
+        for name, value in zip(self.metric_names(), values, strict=True):
+            problem_and_fix = _objective_value_problem(name, value)
+            if problem_and_fix is None:
+                continue
+            problem, fix = problem_and_fix
+            is_usable = False
+            wandb.termwarn(
+                f"Run {data.wandb_run_id} finished with metric {name!r} ="
+                f" {value!r}, which is {problem}, so it is recorded as failed."
+                f" {fix}"
+            )
+        return is_usable
 
     @property
     def sweep_name(self) -> str:

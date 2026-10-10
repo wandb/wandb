@@ -426,9 +426,9 @@ class AxOptimizer(Optimizer):
             self._attach_latest_progression(trial_index, data)
             return
         if data.state == RunState.FINISHED:
-            values = self.objective_values(data.summary_metrics)
+            values = self.final_objective_values(data)
             if values is None:
-                # Finished but never logged every objective metric — record a
+                # Finished without every objective as a number — record a
                 # failure so Ax stops tracking it as in flight.
                 self.client.mark_trial_failed(trial_index=trial_index)
                 self._finalized.add(trial_index)
