@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
@@ -54,6 +55,7 @@ func makeSenderWithFileStream(
 	t *testing.T,
 	client graphql.Client,
 	fileStream filestream.FileStream,
+	stats ...*filestreamstats.Stats,
 ) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
@@ -117,6 +119,9 @@ func makeSenderWithFileStream(
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
 		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
+	}
+	if len(stats) > 0 {
+		senderFactory.Stats = stats[0]
 	}
 	var sender *stream.Sender
 	if fileStream != nil {
