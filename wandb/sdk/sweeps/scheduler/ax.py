@@ -374,6 +374,25 @@ class AxOptimizer(Optimizer):
                     f"Ax objective metric {metric_name!r} does not match the sweep "
                     f"metric name {sweep_name!r}."
                 )
+        self._validate_no_undeclared_metrics(sweep_names)
+
+    def _validate_no_undeclared_metrics(self, sweep_names: list[str]) -> None:
+        """Reject outcome constraints on metrics the sweep never reports.
+
+        Ax needs data for every metric in its optimization config, so without
+        it Ax stops generating trials once its initial ones finish.
+        """
+        optimization_config = _experiment(self.client).optimization_config
+        undeclared = sorted(optimization_config.metric_names - set(sweep_names))
+        if not undeclared:
+            return
+        names = ", ".join(repr(name) for name in undeclared)
+        raise ValueError(
+            f"The Ax experiment uses metrics the sweep config does not declare: "
+            f"{names}. The scheduler reports only the sweep's metric(s), so Ax "
+            "would stop generating runs; remove these metrics from the outcome "
+            "constraints of the client your scheduler.optimizer function returns."
+        )
 
     @override
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:
