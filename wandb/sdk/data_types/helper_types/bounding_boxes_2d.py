@@ -8,6 +8,7 @@ from wandb import util
 from wandb.util import has_num
 
 from ..base_types.json_metadata import JSONMetadata
+from ..base_types.media import _overlay_singleton_key
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
@@ -175,6 +176,7 @@ class BoundingBoxes2D(JSONMetadata):
     """
 
     _log_type = "bounding-boxes"
+    _class_labels_singleton_type = "bounding_box/class_labels"
     # TODO: when the change is made to have this produce a dict with a _type, define
     # it here as _log_type, associate it in to_json
 
@@ -243,8 +245,8 @@ class BoundingBoxes2D(JSONMetadata):
         # the self._key value is the mask's sub key
         super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         run._add_singleton(
-            "bounding_box/class_labels",
-            str(key) + "_wandb_delimeter_" + self._key,
+            self._class_labels_singleton_type,
+            _overlay_singleton_key(str(key), self._key),
             self._class_labels,
         )
 
