@@ -1,8 +1,11 @@
 """config tests."""
 
+import argparse
+
 import pytest
 import yaml
 from wandb import sdk as wandb_sdk
+from wandb.sdk.lib import preinit
 
 
 def get_callback(d):
@@ -130,3 +133,27 @@ def test_nested_config_overwrite(consolidated, config):
     )
     assert dict(config) == {"path": {"to": {"override": "bar", "keep": "baf"}}}
     assert consolidated == dict(config)
+
+
+def test_update_with_config(consolidated, config):
+    other = wandb_sdk.Config()
+    other.update(dict(this=2))
+
+    config.update(other)
+
+    assert config._as_dict() == dict(this=2)
+    assert consolidated == dict(this=2)
+
+
+def test_update_with_preinit_config(consolidated, config):
+    config.update(preinit.PreInitObject("wandb.config", wandb_sdk.Config))
+
+    assert config._as_dict() == {}
+    assert consolidated == {}
+
+
+def test_update_with_namespace(consolidated, config):
+    config.update(argparse.Namespace(this=2, that=4))
+
+    assert config._as_dict() == dict(this=2, that=4)
+    assert consolidated == dict(this=2, that=4)
