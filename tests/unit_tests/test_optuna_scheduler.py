@@ -118,32 +118,42 @@ class TestQDefault:
         parameter: dict[str, Any],
         expected: optuna.distributions.BaseDistribution,
     ) -> None:
-        assert sweep_parameter_to_distribution(parameter) == expected
+        assert sweep_parameter_to_distribution("x", parameter) == expected
 
 
-class TestQLogUniformValues:
-    """optuna's log-scale int space only accepts `step=1` and `min >= 1`."""
+class TestUnrepresentableIntRanges:
+    """Int ranges optuna can't sample exactly are rejected, not approximated."""
 
     @pytest.mark.parametrize(
-        "parameter",
+        ("parameter", "match"),
         [
-            {"min": 1e-4, "max": 1e-1, "q": 1e-5},
-            {"min": 1e-4, "max": 1e-1},
-            {"min": 10, "max": 1000, "q": 5},
+            (
+                {"distribution": "q_log_uniform_values", "min": 1, "max": 256, "q": 2},
+                "'p' uses q_log_uniform_values with q=2",
+            ),
+            (
+                {"distribution": "q_log_uniform_values", "min": 0.5, "max": 256},
+                "'p' uses q_log_uniform_values with min=0.5",
+            ),
+            (
+                {"distribution": "int_uniform", "min": 1.5, "max": 5.5},
+                "'p' uses int_uniform with min=1.5",
+            ),
         ],
-        ids=["min_below_one_and_q", "min_below_one", "q_not_one"],
+        ids=["qlog_q_not_one", "qlog_min_below_one", "int_fractional_bounds"],
     )
-    def test_falls_back_to_log_float_distribution(
-        self, parameter: dict[str, Any], mock_wandb_log
+    def test_raises_naming_the_parameter(
+        self, parameter: dict[str, Any], match: str
     ) -> None:
+        with pytest.raises(ValueError, match=match):
+            sweep_parameter_to_distribution("p", parameter)
+
+    def test_accepts_whole_float_bounds(self) -> None:
         distribution = sweep_parameter_to_distribution(
-            {"distribution": "q_log_uniform_values", **parameter}
+            "p", {"distribution": "int_uniform", "min": 1.0, "max": 5.0}
         )
 
-        assert distribution == optuna.distributions.FloatDistribution(
-            parameter["min"], parameter["max"], log=True
-        )
-        mock_wandb_log.assert_warned("Converting to a FloatDistribution(log=True)")
+        assert distribution == optuna.distributions.IntDistribution(1, 5)
 
 
 class TestCreateStudyFromSweepConfig:
