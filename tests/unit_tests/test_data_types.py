@@ -4,6 +4,7 @@ import platform
 from pathlib import Path
 from unittest import mock
 
+import imageio.v2 as imageio
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -727,6 +728,33 @@ def test_video_numpy_multi(mock_run):
     vid = wandb.Video(video, format="gif")
     vid.bind_to_run(run, "videos", 0)
     assert vid.to_json(run)["path"].endswith(".gif")
+
+
+@pytest.mark.parametrize(
+    "array_type", [np.asarray, torch.from_numpy], ids=["numpy", "torch"]
+)
+@pytest.mark.parametrize("format", ["gif", "mp4"])
+@pytest.mark.parametrize("batched", [False, True])
+def test_video_grayscale(mock_run, format, batched, array_type):
+    run = mock_run()
+    frames = np.zeros((6, 1, 16, 16), dtype=np.uint8)
+    for index, frame in enumerate(frames):
+        frame[:, :, :8] = 32 + 16 * index
+        frame[:, :, 8:] = 96 + 16 * index
+
+    expected = np.repeat(frames.transpose(0, 2, 3, 1), 3, axis=-1)
+    if batched:
+        frames = np.stack([frames, 255 - frames])
+        expected = np.concatenate([expected, 255 - expected], axis=2)
+
+    vid = wandb.Video(array_type(frames), format=format, fps=4)
+    vid.bind_to_run(run, "videos", 0)
+    path = os.path.join(run.dir, vid.to_json(run)["path"])
+    with imageio.get_reader(path) as reader:
+        actual = np.stack([frame for frame in reader])
+
+    # Allow small differences from lossy MP4 compression.
+    np.testing.assert_allclose(actual, expected, atol=5)
 
 
 def test_video_numpy_invalid():
