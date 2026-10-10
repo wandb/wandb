@@ -151,10 +151,10 @@ class Config:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
         key, val = self._sanitize(key, val)
-        self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
             self._callback(key=key, val=val)
+        self._items[key] = val
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
@@ -172,22 +172,26 @@ class Config:
     def __contains__(self, key):
         return key in self._items
 
-    def _update(self, d, allow_val_change=None, ignore_locked=None):
+    def _sanitize_update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
         locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
                 locked_keys.add(key)
-        sanitized = self._sanitize_dict(
+        return self._sanitize_dict(
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
+
+    def _update(self, d, allow_val_change=None, ignore_locked=None):
+        sanitized = self._sanitize_update(d, allow_val_change, ignore_locked)
         self._items.update(sanitized)
         return sanitized
 
     def update(self, d, allow_val_change=None):
-        sanitized = self._update(d, allow_val_change)
+        sanitized = self._sanitize_update(d, allow_val_change)
         if self._callback:
             self._callback(data=sanitized)
+        self._items.update(sanitized)
 
     def get(self, *args):
         return self._items.get(*args)
@@ -202,9 +206,9 @@ class Config:
         # strip out keys already configured
         d = {k: v for k, v in d.items() if k not in self._items}
         d = self._sanitize_dict(d)
-        self._items.update(d)
         if self._callback:
             self._callback(data=d)
+        self._items.update(d)
 
     def _get_user_id(self, user) -> int:
         if user not in self._users:
@@ -218,36 +222,41 @@ class Config:
         """Shallow-update config with `d` and lock config updates on d's keys."""
         num = self._get_user_id(user)
 
-        for k, v in d.items():
-            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
-            self._locked[k] = num
-            self._items[k] = v
+        sanitized = dict(
+            self._sanitize(k, v, allow_val_change=_allow_val_change)
+            for k, v in d.items()
+        )
 
         if self._callback:
             self._callback(data=d)
 
+        for k, v in sanitized.items():
+            self._locked[k] = num
+            self._items[k] = v
+
     def merge_locked(self, d, user=None, _allow_val_change=None):
         """Recursively merge-update config with `d` and lock config updates on d's keys."""
         num = self._get_user_id(user)
-        callback_d = {}
+        merged = {}
 
         for k, v in d.items():
             k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
-            self._locked[k] = num
 
             if (
                 k in self._items
                 and isinstance(self._items[k], dict)
                 and isinstance(v, dict)
             ):
-                self._items[k] = config_util.merge_dicts(self._items[k], v)
+                merged[k] = config_util.merge_dicts(self._items[k], v)
             else:
-                self._items[k] = v
-
-            callback_d[k] = self._items[k]
+                merged[k] = v
 
         if self._callback:
-            self._callback(data=callback_d)
+            self._callback(data=merged)
+
+        for k, v in merged.items():
+            self._locked[k] = num
+            self._items[k] = v
 
     def _load_defaults(self):
         conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
