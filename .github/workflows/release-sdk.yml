@@ -134,7 +134,7 @@ jobs:
           # replace that table, including the musllinux override that must
           # enable CGO.
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: wandb-sdk-distribution-linux-${{ matrix.arch }}-${{ matrix.libc }}
           path: ./dist
@@ -222,7 +222,7 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=13.0
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: wandb-sdk-distribution-${{ matrix.os }}-${{ matrix.arch }}
           path: ./dist
@@ -247,7 +247,7 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: wandb-sdk-distribution-sdist
           path: ./dist
@@ -287,7 +287,7 @@ jobs:
           rustup default ${{ env.RUST_TOOLCHAIN }}
 
       - name: Download source distribution
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: wandb-sdk-distribution-sdist
           path: artifacts
@@ -320,7 +320,7 @@ jobs:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -405,7 +405,7 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
