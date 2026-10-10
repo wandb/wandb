@@ -1022,7 +1022,11 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		filestreamstats.StreamHistory,
 		time.Since(ingestStart),
 	)
-	h.stats.RecordHistoryReads(context.Background(), filestreamstats.SegmentHandlerIngest, readCounts)
+	h.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		readCounts,
+	)
 
 	var shouldFlush bool
 	if request.GetAction() != nil {

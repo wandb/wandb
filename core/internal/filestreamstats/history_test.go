@@ -13,7 +13,11 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func historyReadCounts(t *testing.T, proxy *analyticstest.OpenTelemetryProxyTest, source string, segment string) int64 {
+func historyReadCounts(
+	t *testing.T,
+	proxy *analyticstest.OpenTelemetryProxyTest,
+	source, segment string,
+) int64 {
 	t.Helper()
 	metric, ok := proxy.FindMetricWith(filestreamstats.MetricHistoryReadCount,
 		map[string]string{
@@ -25,7 +29,11 @@ func historyReadCounts(t *testing.T, proxy *analyticstest.OpenTelemetryProxyTest
 	return metric.Value
 }
 
-func historyKindCounts(t *testing.T, proxy *analyticstest.OpenTelemetryProxyTest, kind string) int64 {
+func historyKindCounts(
+	t *testing.T,
+	proxy *analyticstest.OpenTelemetryProxyTest,
+	kind string,
+) int64 {
 	t.Helper()
 	metric, ok := proxy.FindMetricWith(filestreamstats.MetricHistoryKindCount,
 		map[string]string{"value_kind": kind})
@@ -86,7 +94,9 @@ func TestHistoryCounters_RecordHistoryEmitted(t *testing.T) {
 
 	assert.Equal(t, int64(3), metricValue(t, proxy, filestreamstats.MetricHistoryNonfiniteCount))
 	assert.Equal(t, int64(1), metricValue(t, proxy, filestreamstats.MetricHistoryTypedJSONCount))
-	assert.Equal(t, int64(len(jsonValue2)), metricValue(t, proxy, filestreamstats.MetricHistoryTypedJSONBytes))
+	assert.Equal(t, int64(len(jsonValue2)),
+		metricValue(t, proxy, filestreamstats.MetricHistoryTypedJSONBytes),
+	)
 }
 
 func TestHistoryCounters_JSONOnlyEmissionHasNoTypedKinds(t *testing.T) {

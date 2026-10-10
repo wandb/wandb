@@ -912,7 +912,11 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		filestreamstats.StreamHistory,
 		ingestDuration,
 	)
-	s.stats.RecordHistoryReads(context.Background(), filestreamstats.SegmentUploadIngest, readCounts)
+	s.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentUploadIngest,
+		readCounts,
+	)
 
 	s.runHistorySampler.SampleNext(history)
 

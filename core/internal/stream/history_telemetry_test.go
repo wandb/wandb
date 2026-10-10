@@ -21,7 +21,10 @@ import (
 func telemetryStats(t *testing.T) (*filestreamstats.Stats, *analyticstest.OpenTelemetryProxyTest) {
 	t.Helper()
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(proxy.OpenTelemetryProxy, analytics.NewTelemetryContext())
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
 	stats, err := filestreamstats.New(recorder, filestreamstats.ValueEncodingJSONTyped,
 		filestreamstats.WireEncodingJSONL)
 	require.NoError(t, err)
@@ -38,7 +41,11 @@ func partialHistoryRecord(items ...*spb.HistoryItem) *spb.Record {
 	}}}
 }
 
-func historyReadCounts(t *testing.T, proxy *analyticstest.OpenTelemetryProxyTest, source string, segment string) int64 {
+func historyReadCounts(
+	t *testing.T,
+	proxy *analyticstest.OpenTelemetryProxyTest,
+	source, segment string,
+) int64 {
 	t.Helper()
 	metric, ok := proxy.FindMetricWith(filestreamstats.MetricHistoryReadCount,
 		map[string]string{
@@ -50,7 +57,11 @@ func historyReadCounts(t *testing.T, proxy *analyticstest.OpenTelemetryProxyTest
 	return metric.Value
 }
 
-func historyKindCounts(t *testing.T, proxy *analyticstest.OpenTelemetryProxyTest, kind string) int64 {
+func historyKindCounts(
+	t *testing.T,
+	proxy *analyticstest.OpenTelemetryProxyTest,
+	kind string,
+) int64 {
 	t.Helper()
 	metric, ok := proxy.FindMetricWith(filestreamstats.MetricHistoryKindCount,
 		map[string]string{"value_kind": kind})
@@ -94,7 +105,9 @@ func TestHandlePartialHistory_EmitHistoryReadCounts(t *testing.T) {
 
 			for source, count := range testCase.sourceCounts {
 				t.Run(source, func(t *testing.T) {
-					assert.Equal(t, count, historyReadCounts(t, proxy, source, filestreamstats.SegmentHandlerIngest))
+					assert.Equal(t, count, historyReadCounts(
+						t, proxy, source, filestreamstats.SegmentHandlerIngest,
+					))
 				})
 			}
 			for kind, count := range testCase.kindCounts {
@@ -120,7 +133,11 @@ func TestHistoryTelemetry_SenderReadsBeforeUpload(t *testing.T) {
 			require.NoError(t, proxy.Shutdown(context.Background()))
 			for source, count := range testCase.sourceCounts {
 				t.Run(source, func(t *testing.T) {
-					assert.Equal(t, count, historyReadCounts(t, proxy, source, filestreamstats.SegmentUploadIngest))
+					assert.Equal(t, count,
+						historyReadCounts(t, proxy, source,
+							filestreamstats.SegmentUploadIngest,
+						),
+					)
 				})
 			}
 		})

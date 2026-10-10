@@ -75,7 +75,6 @@ type data struct {
 	flush    bool
 	stepNil  bool
 	flushNil bool
-	useTyped bool
 }
 
 func makeFlushRecord() *spb.Record {
