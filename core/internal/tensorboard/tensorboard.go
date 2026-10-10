@@ -23,6 +23,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
@@ -51,6 +52,7 @@ type TBHandler struct {
 	rootDirGuesser *RootDirGuesser
 	extraWork      runwork.ExtraWork
 	logger         *observability.CoreLogger
+	runHandle      *runhandle.RunHandle
 	settings       *settings.Settings
 	fileReadDelay  time.Duration
 
@@ -60,8 +62,9 @@ type TBHandler struct {
 
 // TBHandlerFactory constructs a TBHandler.
 type TBHandlerFactory struct {
-	Logger   *observability.CoreLogger
-	Settings *settings.Settings
+	Logger    *observability.CoreLogger
+	RunHandle *runhandle.RunHandle
+	Settings  *settings.Settings
 }
 
 func (f *TBHandlerFactory) New(
@@ -72,6 +75,7 @@ func (f *TBHandlerFactory) New(
 		rootDirGuesser: NewRootDirGuesser(f.Logger),
 		extraWork:      extraWork,
 		logger:         f.Logger,
+		runHandle:      f.RunHandle,
 		settings:       f.Settings,
 		fileReadDelay:  fileReadDelay,
 
@@ -298,11 +302,11 @@ func (tb *TBHandler) convertToRunHistory(
 		)
 
 		if emitter == nil {
-			emitter = NewTFEmitter(tb.settings)
+			emitter = NewTFEmitter(tb.runHandle, tb.settings)
 			emitterStep = event.Step
 		} else if emitterStep != event.Step {
 			emitter.Emit(tb.extraWork)
-			emitter = NewTFEmitter(tb.settings)
+			emitter = NewTFEmitter(tb.runHandle, tb.settings)
 			emitterStep = event.Step
 		}
 

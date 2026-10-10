@@ -3,6 +3,8 @@ package tensorboard_test
 import (
 	"path/filepath"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -17,27 +20,18 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func localFlushPartialHistory(items []*spb.HistoryItem) *spb.Record {
+func historyRecord(items []*spb.HistoryItem) *spb.Record {
 	return &spb.Record{
-		Control: &spb.Control{Local: true},
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_PartialHistory{
-					PartialHistory: &spb.PartialHistoryRequest{
-						Item: items,
-						Action: &spb.HistoryAction{
-							Flush: true,
-						},
-					},
-				},
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: items,
 			},
 		},
 	}
 }
 
-func localConfigUpdate(items []*spb.ConfigItem) *spb.Record {
+func configRecord(items []*spb.ConfigItem) *spb.Record {
 	return &spb.Record{
-		Control: &spb.Control{Local: true},
 		RecordType: &spb.Record_Config{
 			Config: &spb.ConfigRecord{
 				Update: items,
@@ -53,7 +47,10 @@ func assertProtoEqual(t *testing.T, expected, actual proto.Message) {
 }
 
 func TestAccumulatesHistory(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
+	emitter := tensorboard.NewTFEmitter(
+		runhandle.New(),
+		settings.From(&spb.Settings{}),
+	)
 
 	emitter.EmitHistory(pathtree.PathOf("x", "y"), "0.5")
 	emitter.EmitHistory(pathtree.PathOf("z"), `"abc"`)
@@ -63,35 +60,50 @@ func TestAccumulatesHistory(t *testing.T) {
 	records := fakeRunWork.AllRecords()
 	assert.Len(t, records, 1)
 	assertProtoEqual(t,
-		localFlushPartialHistory([]*spb.HistoryItem{
+		historyRecord([]*spb.HistoryItem{
+			{Key: "_runtime", ValueJson: "0.000000"},
 			{NestedKey: []string{"x", "y"}, ValueJson: "0.5"},
 			{NestedKey: []string{"z"}, ValueJson: `"abc"`},
 		}),
 		records[0])
 }
 
-func TestStepAndWallTime(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
+func TestRequiredKeys(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		runHandle := runhandle.New()
+		runHandle.ResumeRunTimer()
+		synctest.Sleep(time.Minute + time.Second)
 
-	emitter.SetTFStep(9)
-	emitter.SetTFWallTime(2.5)
-	emitter.EmitHistory(pathtree.PathOf("x"), "4")
-	fakeRunWork := runworktest.New()
-	emitter.Emit(fakeRunWork)
+		emitter := tensorboard.NewTFEmitter(
+			runHandle,
+			settings.From(&spb.Settings{}),
+		)
 
-	records := fakeRunWork.AllRecords()
-	assert.Len(t, records, 1)
-	assertProtoEqual(t,
-		localFlushPartialHistory([]*spb.HistoryItem{
-			{NestedKey: []string{"x"}, ValueJson: "4"},
-			{Key: "global_step", ValueJson: "9"},
-			{Key: "_timestamp", ValueJson: "2.5"},
-		}),
-		records[0])
+		emitter.SetTFStep(9)
+		emitter.SetTFWallTime(2.5)
+		emitter.EmitHistory(pathtree.PathOf("x"), "4")
+		fakeRunWork := runworktest.New()
+		emitter.Emit(fakeRunWork)
+		fakeRunWork.Close()
+
+		records := fakeRunWork.AllRecords()
+		assert.Len(t, records, 1)
+		assertProtoEqual(t,
+			historyRecord([]*spb.HistoryItem{
+				{Key: "_runtime", ValueJson: "61.000000"},
+				{NestedKey: []string{"x"}, ValueJson: "4"},
+				{Key: "global_step", ValueJson: "9"},
+				{Key: "_timestamp", ValueJson: "2.5"},
+			}),
+			records[0])
+	})
 }
 
 func TestChartModifiesConfig(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
+	emitter := tensorboard.NewTFEmitter(
+		runhandle.New(),
+		settings.From(&spb.Settings{}),
+	)
 	chart := wbvalue.Chart{Title: "test-title"}
 	expectedConfigJSON, err := chart.ConfigValueJSON()
 	require.NoError(t, err)
@@ -100,11 +112,12 @@ func TestChartModifiesConfig(t *testing.T) {
 		emitter.EmitChart("mychart", chart))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
+	fakeRunWork.Close()
 
 	records := fakeRunWork.AllRecords()
 	assert.Len(t, records, 1)
 	assertProtoEqual(t,
-		localConfigUpdate([]*spb.ConfigItem{
+		configRecord([]*spb.ConfigItem{
 			{
 				NestedKey: chart.ConfigKey("mychart").Labels(),
 				ValueJson: expectedConfigJSON},
@@ -116,7 +129,7 @@ func TestTableWritesToFile(t *testing.T) {
 	s := settings.From(&spb.Settings{
 		SyncDir: wrapperspb.String(t.TempDir()),
 	})
-	emitter := tensorboard.NewTFEmitter(s)
+	emitter := tensorboard.NewTFEmitter(runhandle.New(), s)
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -126,6 +139,7 @@ func TestTableWritesToFile(t *testing.T) {
 		emitter.EmitTable(pathtree.PathOf("my", "table"), table))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
+	fakeRunWork.Close()
 
 	records := fakeRunWork.AllRecords()
 	require.Len(t, records, 2) // file upload & history
@@ -141,10 +155,12 @@ func TestTableWritesToFile(t *testing.T) {
 
 func TestTableUpdatesHistory(t *testing.T) {
 	emitter := tensorboard.NewTFEmitter(
+		runhandle.New(),
 		settings.From(&spb.Settings{
 			SyncDir: wrapperspb.String(t.TempDir()),
 		}),
 	)
+
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -154,20 +170,21 @@ func TestTableUpdatesHistory(t *testing.T) {
 		emitter.EmitTable(pathtree.PathOf("my", "table"), table))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
+	fakeRunWork.Close()
 
 	records := fakeRunWork.AllRecords()
 	require.Len(t, records, 2)
-	partialHistory := records[1].GetRequest().GetPartialHistory()
-	require.NotNil(t, partialHistory)
-	require.Len(t, partialHistory.Item, 1)
-	assert.Equal(t, partialHistory.Item[0].NestedKey, []string{"my", "table"})
+	history := records[1].GetHistory()
+	require.NotNil(t, history)
+	require.Len(t, history.Item, 2)
+	assert.Equal(t, history.Item[1].NestedKey, []string{"my", "table"})
 }
 
 func TestEmitImages(t *testing.T) {
 	s := settings.From(&spb.Settings{
 		SyncDir: wrapperspb.String(t.TempDir()),
 	})
-	emitter := tensorboard.NewTFEmitter(s)
+	emitter := tensorboard.NewTFEmitter(runhandle.New(), s)
 	require.NoError(t,
 		emitter.EmitImages(
 			pathtree.PathOf("my", "image"),
@@ -188,6 +205,7 @@ func TestEmitImages(t *testing.T) {
 		))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
+	fakeRunWork.Close()
 
 	records := fakeRunWork.AllRecords()
 	require.Len(t, records, 2) // file upload & history

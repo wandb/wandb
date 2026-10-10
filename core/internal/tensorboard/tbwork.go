@@ -42,7 +42,18 @@ func (w *TBWork) Schedule(wg *sync.WaitGroup, proceed func()) {
 }
 
 // ToRecord implements WorkImpl.ToRecord.
-func (w *TBWork) ToRecord() *spb.Record { return w.Record }
+func (w *TBWork) ToRecord() *spb.Record {
+	// TBRecord used to be written to the transaction log, but now we write
+	// the generated records instead. This simplifies syncing logic.
+	//
+	// TODO: Replace TBRecord by a TBRequest.
+	if w.Record.GetControl() == nil {
+		w.Record.Control = &spb.Control{}
+	}
+	w.Record.Control.Local = true
+
+	return w.Record
+}
 
 // DebugInfo implements WorkImpl.DebugInfo
 func (w *TBWork) DebugInfo() string {
