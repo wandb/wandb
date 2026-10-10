@@ -1,0 +1,1866 @@
+//! The workspace view. State and key handling follow
+//! `core/internal/leet/workspace.go` and `workspacehandlers.go`; the layout
+//! follows its `computeViewports`: runs sidebar, a central column of metrics
+//! over a lower tier of system metrics and console logs, the overview sidebar,
+//! and a status bar. Pane borders drag, as in leet's `dragresize.go`.
+
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+use futures::StreamExt;
+use futures::channel::mpsc;
+use gpui::prelude::*;
+use gpui::{
+    Context, CursorStyle, Div, FocusHandle, KeyDownEvent, MouseButton, MouseMoveEvent, Pixels,
+    Point, ScrollDelta, ScrollWheelEvent, SharedString, Size, Window, div, hsla, px,
+};
+use leet_data::system_metrics::{
+    MetricDef, extract_base_key, extract_series_name, match_metric_def,
+};
+use leet_plot::{Range, Scale};
+
+use crate::actions::{self, *};
+use crate::anim::Animated;
+use crate::chart::{ChartData, ChartSpec, SeriesDraw, SeriesRef, Table, XAxis};
+use crate::config::{Config, ConfigFile};
+use crate::console::{self, render_console};
+use crate::dir_state::DirState;
+use crate::grid::{Cell, Grid, GridView, render_grid};
+use crate::overview::{self, render_overview};
+use crate::paged::Paged;
+use crate::run::{Run, RunState, Series};
+use crate::runs_list::{self, render_runs, state_glyph};
+use crate::source::{self, RunDir};
+use crate::theme;
+
+const SMOOTHING: [f64; 4] = [0.0, 0.6, 0.9, 0.99];
+const RESCAN_INTERVAL: Duration = Duration::from_secs(5);
+/// Batches applied per frame before yielding so a load stays visible.
+const APPLY_BUDGET: Duration = Duration::from_millis(6);
+const FRAME_YIELD: Duration = Duration::from_millis(1);
+const STATUS_BAR_HEIGHT: f32 = 24.;
+const HEADER_HEIGHT: f32 = 26.;
+const SEPARATOR: f32 = 6.;
+/// Share of the central column below the metrics grid (`LowerTierRatio`).
+const LOWER_TIER: f32 = 0.382;
+const LEFT_SIDEBAR: f32 = 0.2;
+const RIGHT_SIDEBAR: f32 = 0.22;
+const MIN_FRACTION: f64 = 0.05;
+const MAX_FRACTION: f64 = 0.9;
+const MIN_PANE: f32 = 100.;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pane {
+    Runs,
+    Metrics,
+    System,
+    Console,
+    Overview,
+}
+
+const PANES: [Pane; 5] = [
+    Pane::Runs,
+    Pane::Metrics,
+    Pane::System,
+    Pane::Console,
+    Pane::Overview,
+];
+
+/// A draggable pane border, named after the pane whose size it sets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Separator {
+    Left,
+    Right,
+    System,
+    Console,
+    /// The border below this overview section.
+    Overview(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GridDim {
+    Rows,
+    Cols,
+}
+
+/// Pane sizes for one frame, in pixels.
+struct Geometry {
+    content_h: Pixels,
+    left_w: Pixels,
+    right_w: Pixels,
+    metrics_h: Pixels,
+    system_h: Pixels,
+    logs_h: Pixels,
+}
+
+/// One system chart: a base key such as `gpu.memory`, its definition, and
+/// the `(series name, series index)` pairs of the devices reporting it.
+struct SystemGroup {
+    base: String,
+    def: &'static MetricDef,
+    series: Vec<(String, usize)>,
+}
+
+/// Per-frame derived lists, rebuilt only when their inputs change.
+#[derive(Default)]
+struct Cache {
+    names_key: u64,
+    metric_names: Rc<Vec<String>>,
+    groups_key: u64,
+    system_groups: Rc<Vec<SystemGroup>>,
+    rows_key: u64,
+    overview_sections: Rc<Vec<overview::Section>>,
+}
+
+/// Show and hide animations, one per pane.
+struct Anim {
+    runs: Animated,
+    metrics: Animated,
+    system: Animated,
+    console: Animated,
+    overview: Animated,
+}
+
+#[derive(Default)]
+pub struct Filter {
+    pub text: String,
+    pub editing: bool,
+}
+
+impl Filter {
+    fn saved(text: String) -> Self {
+        Filter {
+            text,
+            editing: false,
+        }
+    }
+
+    pub fn matches(&self, candidate: &str) -> bool {
+        self.text.is_empty() || candidate.to_lowercase().contains(&self.text.to_lowercase())
+    }
+}
+
+#[derive(Default)]
+pub struct Filters {
+    pub runs: Filter,
+    pub metrics: Filter,
+    pub system: Filter,
+    pub console: Filter,
+    pub overview: Filter,
+}
+
+pub struct Workspace {
+    pub focus_handle: FocusHandle,
+    pub runs: Vec<Run>,
+    pub cursor: usize,
+    pub selected: BTreeSet<String>,
+    pub pinned: Option<String>,
+    pub focus: Pane,
+    pub filters: Filters,
+    pub runs_paged: Paged,
+    pub console_paged: Paged,
+    pub overview_paged: [Paged; 4],
+    /// The row each overview section showed when the cursor last left it.
+    pub overview_memory: [usize; 4],
+    /// `None` follows new output.
+    pub console_cursor: Option<usize>,
+    pub overview_cursor: usize,
+    wandb_dir: PathBuf,
+    help: actions::Help,
+    config: ConfigFile,
+    dir_state: DirState,
+    show_runs: bool,
+    metrics_grid: Grid,
+    system_grid: Grid,
+    metrics_log: BTreeSet<String>,
+    system_log: BTreeSet<String>,
+    smoothing: usize,
+    show_help: bool,
+    dragging: Option<Separator>,
+    pending_grid: Option<GridDim>,
+    linked_inspect: bool,
+    /// The crosshair position charts share this frame, set by the hovered
+    /// chart during the previous frame's paint.
+    inspect: Option<(XAxis, f64)>,
+    inspect_next: Option<(XAxis, f64)>,
+    zoom: HashMap<SharedString, Range>,
+    pending_zoom: Option<(SharedString, f64, Pixels)>,
+    cache: Cache,
+    anim: Anim,
+    /// When the last frame started; batch application yields once a frame's
+    /// budget is spent so loads stay visible.
+    last_render: Instant,
+}
+
+impl Workspace {
+    pub fn new(
+        wandb_dir: PathBuf,
+        run: Option<String>,
+        help: actions::Help,
+        config: ConfigFile,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let dir_state = DirState::load(&wandb_dir);
+        let filters = Filters {
+            runs: Filter::saved(dir_state.filter("runs_filter")),
+            metrics: Filter::saved(dir_state.filter("metrics_filter")),
+            system: Filter::saved(dir_state.filter("system_metrics_filter")),
+            console: Filter::saved(dir_state.filter("console_filter")),
+            overview: Filter::saved(dir_state.filter("overview_filter")),
+        };
+        let smoothing = SMOOTHING
+            .iter()
+            .position(|w| *w == config.config.smoothing)
+            .unwrap_or(0);
+        let shown = &config.config;
+        let anim = Anim {
+            runs: Animated::new(true),
+            metrics: Animated::new(shown.workspace_metrics_grid_visible),
+            system: Animated::new(shown.workspace_system_metrics_visible),
+            console: Animated::new(shown.workspace_console_logs_visible),
+            overview: Animated::new(shown.workspace_overview_visible),
+        };
+        let mut workspace = Self {
+            focus_handle: cx.focus_handle(),
+            runs: Vec::new(),
+            cursor: 0,
+            selected: BTreeSet::new(),
+            pinned: None,
+            focus: Pane::Runs,
+            filters,
+            runs_paged: Paged::new(),
+            console_paged: Paged::new(),
+            overview_paged: [Paged::new(), Paged::new(), Paged::new(), Paged::new()],
+            overview_memory: [0; 4],
+            console_cursor: None,
+            overview_cursor: 0,
+            wandb_dir,
+            help,
+            metrics_grid: Grid::new(config.config.workspace_metrics_grid),
+            system_grid: Grid::new(config.config.workspace_system_grid),
+            config,
+            dir_state,
+            show_runs: true,
+            metrics_log: BTreeSet::new(),
+            system_log: BTreeSet::new(),
+            smoothing,
+            show_help: false,
+            dragging: None,
+            pending_grid: None,
+            linked_inspect: true,
+            inspect: None,
+            inspect_next: None,
+            zoom: HashMap::new(),
+            pending_zoom: None,
+            cache: Cache::default(),
+            anim,
+            last_render: Instant::now(),
+        };
+        workspace.rescan(cx);
+
+        let names: HashSet<String> = workspace
+            .runs
+            .iter()
+            .map(|r| r.dir.dir_name.clone())
+            .collect();
+        let latest = workspace.runs.first().map(|r| r.dir.dir_name.clone());
+        let mut initial: Vec<String> = workspace
+            .dir_state
+            .selected_runs()
+            .into_iter()
+            .filter(|name| names.contains(name))
+            .collect();
+        if let Some(latest) = &latest
+            && workspace.dir_state.latest_run().as_deref() != Some(latest)
+        {
+            initial.push(latest.clone());
+        }
+        if let Some(run) = &run {
+            initial.push(run.clone());
+        }
+        for name in initial {
+            workspace.select(&name, cx);
+        }
+        let cursor_run = run.or_else(|| workspace.pinned.clone()).or(latest);
+        let cursor = cursor_run
+            .and_then(|name| workspace.runs.iter().position(|r| r.dir.dir_name == name))
+            .unwrap_or(0);
+        workspace.set_cursor(cursor);
+        workspace.save_selection();
+
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(RESCAN_INTERVAL).await;
+                if this
+                    .update(cx, |workspace, cx| workspace.rescan(cx))
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        })
+        .detach();
+        workspace
+    }
+
+    fn cfg(&self) -> &Config {
+        &self.config.config
+    }
+
+    pub fn smoothing_weight(&self) -> f64 {
+        SMOOTHING[self.smoothing]
+    }
+
+    pub fn selected_runs(&self) -> impl Iterator<Item = (usize, &Run)> {
+        self.runs
+            .iter()
+            .enumerate()
+            .filter(|(_, run)| self.selected.contains(&run.dir.dir_name))
+    }
+
+    /// The run the overview, system, and console panes show: the pinned run,
+    /// else the run under the cursor.
+    pub fn context_run(&self) -> Option<usize> {
+        if let Some(pinned) = &self.pinned
+            && let Some(ix) = self.runs.iter().position(|r| &r.dir.dir_name == pinned)
+        {
+            return Some(ix);
+        }
+        self.visible().get(self.cursor).copied()
+    }
+
+    fn run_index(&self, dir_name: &str) -> Option<usize> {
+        self.runs
+            .iter()
+            .position(|run| run.dir.dir_name == dir_name)
+    }
+
+    fn rescan(&mut self, cx: &mut Context<Self>) {
+        let known: HashSet<String> = self
+            .runs
+            .iter()
+            .map(|run| run.dir.dir_name.clone())
+            .collect();
+        let added: Vec<RunDir> = source::scan(&self.wandb_dir)
+            .into_iter()
+            .filter(|run| !known.contains(&run.dir_name))
+            .collect();
+        if added.is_empty() {
+            return;
+        }
+        let cursor_run = self
+            .visible()
+            .get(self.cursor)
+            .map(|&ix| self.runs[ix].dir.dir_name.clone());
+        let probe: Vec<(String, PathBuf)> = added
+            .iter()
+            .map(|run| (run.dir_name.clone(), run.wandb_file.clone()))
+            .collect();
+        self.runs.extend(added.into_iter().map(Run::new));
+        self.runs
+            .sort_by(|a, b| b.dir.dir_name.cmp(&a.dir.dir_name));
+        if let Some(name) = cursor_run {
+            let visible = self.visible();
+            self.cursor = visible
+                .iter()
+                .position(|&ix| self.runs[ix].dir.dir_name == name)
+                .unwrap_or(0);
+        }
+
+        let (tx, mut rx) = mpsc::unbounded();
+        source::spawn_probe(probe, tx);
+        cx.spawn(async move |this, cx| {
+            while let Some((name, info)) = rx.next().await {
+                let applied = this.update(cx, |workspace, cx| {
+                    if let Some(ix) = workspace.run_index(&name) {
+                        workspace.runs[ix].apply_info(info);
+                    }
+                    cx.notify();
+                });
+                if applied.is_err() {
+                    return;
+                }
+            }
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn select(&mut self, dir_name: &str, cx: &mut Context<Self>) {
+        let Some(ix) = self.run_index(dir_name) else {
+            return;
+        };
+        let used: HashSet<usize> = self.selected_runs().map(|(_, run)| run.color).collect();
+        let color = (0..).find(|c| !used.contains(c)).unwrap_or(0);
+        self.selected.insert(dir_name.to_string());
+        let run = &mut self.runs[ix];
+        run.color = color;
+        if run.reading {
+            return;
+        }
+        run.reading = true;
+        if run.state == RunState::Unknown {
+            run.state = RunState::Loading;
+        }
+        let (tx, mut rx) = mpsc::unbounded();
+        source::spawn_follow(&run.dir, tx);
+        let dir_name = dir_name.to_string();
+        cx.spawn(async move |this, cx| {
+            while let Some(mut batch) = rx.next().await {
+                loop {
+                    let frame_used = this.update(cx, |workspace, cx| {
+                        if let Some(ix) = workspace.run_index(&dir_name) {
+                            workspace.runs[ix].apply(&mut batch);
+                        }
+                        cx.notify();
+                        workspace.last_render.elapsed()
+                    });
+                    batch.recycle();
+                    let Ok(frame_used) = frame_used else {
+                        return;
+                    };
+                    if frame_used >= APPLY_BUDGET {
+                        break;
+                    }
+                    match rx.try_recv() {
+                        Ok(next) => batch = next,
+                        Err(_) => break,
+                    }
+                }
+                cx.background_executor().timer(FRAME_YIELD).await;
+            }
+        })
+        .detach();
+    }
+
+    fn save_selection(&mut self) {
+        let latest = self.runs.first().map(|run| run.dir.dir_name.clone());
+        self.dir_state
+            .set_selection(&self.selected, latest.as_deref());
+    }
+
+    fn save_config(&self) {
+        self.config.save();
+    }
+
+    /// Indices of the runs that pass the runs filter, newest first.
+    pub fn visible(&self) -> Vec<usize> {
+        self.runs
+            .iter()
+            .enumerate()
+            .filter(|(_, run)| {
+                self.filters.runs.matches(&run.name) || self.filters.runs.matches(&run.dir.id)
+            })
+            .map(|(ix, _)| ix)
+            .collect()
+    }
+
+    /// Rebuilds the derived lists whose inputs changed since the last frame.
+    fn refresh_caches(&mut self) {
+        let mut hasher = DefaultHasher::new();
+        self.filters.metrics.text.hash(&mut hasher);
+        for (ix, run) in self.selected_runs() {
+            (ix, run.metrics.series.len()).hash(&mut hasher);
+        }
+        let names_key = hasher.finish();
+        if names_key != self.cache.names_key {
+            let mut names = BTreeSet::new();
+            for (_, run) in self.selected_runs() {
+                names.extend(
+                    run.metrics
+                        .by_name
+                        .keys()
+                        .filter(|k| self.filters.metrics.matches(k))
+                        .cloned(),
+                );
+            }
+            self.cache.metric_names = Rc::new(names.into_iter().collect());
+            self.cache.names_key = names_key;
+        }
+
+        let context = self.context_run();
+        let mut hasher = DefaultHasher::new();
+        (
+            context,
+            self.filters.system.text.as_str(),
+            context.map(|ix| self.runs[ix].system.series.len()),
+        )
+            .hash(&mut hasher);
+        let groups_key = hasher.finish();
+        if groups_key != self.cache.groups_key {
+            self.cache.system_groups = Rc::new(self.system_groups());
+            self.cache.groups_key = groups_key;
+        }
+
+        let mut hasher = DefaultHasher::new();
+        (
+            context,
+            self.filters.overview.text.as_str(),
+            context.map(|ix| self.runs[ix].overview_version),
+        )
+            .hash(&mut hasher);
+        let rows_key = hasher.finish();
+        if rows_key != self.cache.rows_key {
+            self.cache.overview_sections = Rc::new(overview::sections(self));
+            self.cache.rows_key = rows_key;
+        }
+    }
+
+    /// Metric names charted for the selected runs, after the metrics filter.
+    fn metric_names(&self) -> &[String] {
+        &self.cache.metric_names
+    }
+
+    pub fn overview_sections(&self) -> Rc<Vec<overview::Section>> {
+        Rc::clone(&self.cache.overview_sections)
+    }
+
+    fn overview_len(&self) -> usize {
+        self.cache
+            .overview_sections
+            .iter()
+            .map(|s| s.rows.len())
+            .sum()
+    }
+
+    /// The section kind and row within it of a flat overview cursor.
+    pub fn overview_locate(&self, cursor: usize) -> Option<(usize, usize)> {
+        let mut start = 0;
+        for section in self.cache.overview_sections.iter() {
+            if cursor < start + section.rows.len() {
+                return Some((section.kind, cursor - start));
+            }
+            start += section.rows.len();
+        }
+        None
+    }
+
+    fn overview_section_start(&self, kind: usize) -> usize {
+        self.cache
+            .overview_sections
+            .iter()
+            .take_while(|s| s.kind != kind)
+            .map(|s| s.rows.len())
+            .sum()
+    }
+
+    pub fn set_overview_cursor(&mut self, cursor: usize) {
+        self.overview_cursor = cursor.min(self.overview_len().saturating_sub(1));
+        if let Some((kind, row)) = self.overview_locate(self.overview_cursor) {
+            self.overview_memory[kind] = row;
+        }
+    }
+
+    /// Relative heights of the paged overview sections, `1` unless dragged.
+    pub fn overview_weights(&self) -> [f32; 4] {
+        let layout = self.cfg().workspace_layout;
+        let weight = |value: f64| if value > 0.0 { value as f32 } else { 1.0 };
+        [
+            1.0,
+            weight(layout.overview_env),
+            weight(layout.overview_config),
+            weight(layout.overview_summary),
+        ]
+    }
+
+    pub fn dragging_separator(&self) -> Option<Separator> {
+        self.dragging
+    }
+
+    pub fn start_drag(&mut self, separator: Separator) {
+        self.dragging = Some(separator);
+    }
+
+    /// Focuses a grid pane and the cell clicked in it.
+    pub fn focus_cell(&mut self, pane: Pane, index: usize) {
+        self.focus = pane;
+        match pane {
+            Pane::Metrics => self.metrics_grid.focused = index,
+            Pane::System => self.system_grid.focused = index,
+            _ => {}
+        }
+    }
+
+    fn metric_cells(&self) -> (usize, Vec<Cell>) {
+        let names = self.metric_names();
+        let per_page = self.metrics_grid.per_page();
+        let start = self
+            .metrics_grid
+            .page
+            .min(self.metrics_grid.pages(names.len()) - 1)
+            * per_page;
+        let cells = names
+            .iter()
+            .skip(start)
+            .take(per_page)
+            .map(|name| {
+                let log = self.metrics_log.contains(name.as_str());
+                let series = self
+                    .selected_runs()
+                    .filter_map(|(ix, run)| {
+                        Some(SeriesRef {
+                            run: ix,
+                            table: Table::Metrics,
+                            series: *run.metrics.by_name.get(name)?,
+                            name: run.name.clone().into(),
+                            color: theme::run_color(run.color),
+                        })
+                    })
+                    .collect();
+                let key = SharedString::from(name.clone());
+                Cell {
+                    title: key.clone(),
+                    badge: log.then_some("log"),
+                    spec: ChartSpec {
+                        key,
+                        x_axis: XAxis::Step,
+                        log,
+                        fixed_y: None,
+                        series,
+                    },
+                }
+            })
+            .collect();
+        (names.len(), cells)
+    }
+
+    /// System charts of the context run, grouped the way leet groups them:
+    /// one chart per base key, one series per device.
+    fn system_groups(&self) -> Vec<SystemGroup> {
+        let Some(ix) = self.context_run() else {
+            return Vec::new();
+        };
+        let mut groups: BTreeMap<String, SystemGroup> = BTreeMap::new();
+        for (key, &series) in &self.runs[ix].system.by_name {
+            let Some(def) = match_metric_def(key) else {
+                continue;
+            };
+            let base = extract_base_key(key);
+            groups
+                .entry(base.clone())
+                .or_insert_with(|| SystemGroup {
+                    base,
+                    def,
+                    series: Vec::new(),
+                })
+                .series
+                .push((extract_series_name(key), series));
+        }
+        groups
+            .into_values()
+            .filter(|group| {
+                self.filters.system.matches(&group.def.title())
+                    || self.filters.system.matches(&group.base)
+            })
+            .collect()
+    }
+
+    fn system_cells(&self) -> (usize, Vec<Cell>) {
+        let Some(ix) = self.context_run() else {
+            return (0, Vec::new());
+        };
+        let groups = Rc::clone(&self.cache.system_groups);
+        let per_page = self.system_grid.per_page();
+        let start = self
+            .system_grid
+            .page
+            .min(self.system_grid.pages(groups.len()) - 1)
+            * per_page;
+        let cells = groups
+            .iter()
+            .skip(start)
+            .take(per_page)
+            .map(|SystemGroup { base, def, series }| {
+                let log = self.system_log.contains(base);
+                let fixed_y = (!def.auto_range && def.max_y > def.min_y).then_some(Range {
+                    min: def.min_y,
+                    max: def.max_y,
+                });
+                let series = series
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (name, series))| SeriesRef {
+                        run: ix,
+                        table: Table::System,
+                        series: *series,
+                        name: name.clone().into(),
+                        color: theme::run_color(i),
+                    })
+                    .collect();
+                Cell {
+                    title: def.title().into(),
+                    badge: log.then_some("log"),
+                    spec: ChartSpec {
+                        key: base.clone().into(),
+                        x_axis: XAxis::Time,
+                        log,
+                        fixed_y,
+                        series,
+                    },
+                }
+            })
+            .collect();
+        (groups.len(), cells)
+    }
+
+    /// Why the metrics grid is empty.
+    fn metrics_empty(&self) -> SharedString {
+        if self.selected.is_empty() {
+            return "select runs with space to chart their metrics".into();
+        }
+        let loading = self
+            .selected_runs()
+            .all(|(_, run)| matches!(run.state, RunState::Unknown | RunState::Loading));
+        if loading {
+            return "loading".into();
+        }
+        if !self.filters.metrics.text.is_empty() {
+            return format!("no metrics match \"{}\"", self.filters.metrics.text).into();
+        }
+        "no metrics logged".into()
+    }
+
+    /// Why the system metrics grid is empty.
+    fn system_empty(&self) -> SharedString {
+        let Some(ix) = self.context_run() else {
+            return "no run".into();
+        };
+        let run = &self.runs[ix];
+        if !run.reading {
+            return format!("select {} (space) to load its system metrics", run.name).into();
+        }
+        if run.system.series.is_empty() {
+            return match run.state {
+                RunState::Unknown | RunState::Loading => "loading".into(),
+                _ => format!("no system metrics logged for {}", run.name).into(),
+            };
+        }
+        format!("no system metrics match \"{}\"", self.filters.system.text).into()
+    }
+
+    /// The key of the chart under the grid focus.
+    fn focused_chart_key(&mut self) -> Option<String> {
+        self.refresh_caches();
+        match self.focus {
+            Pane::Metrics => {
+                let names = self.metric_names();
+                names
+                    .get(self.metrics_grid.focused_index(names.len()))
+                    .cloned()
+            }
+            Pane::System => {
+                let groups = &self.cache.system_groups;
+                groups
+                    .get(self.system_grid.focused_index(groups.len()))
+                    .map(|g| g.base.clone())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn request_zoom(&mut self, key: SharedString, factor: f64, x: Pixels) {
+        self.pending_zoom = Some((key, factor, x));
+    }
+
+    /// The zoom requested on `key` by the wheel, once.
+    pub fn take_zoom(&mut self, key: &SharedString) -> Option<(f64, Pixels)> {
+        let (_, factor, x) = self
+            .pending_zoom
+            .take_if(|(pending, _, _)| pending == key)?;
+        Some((factor, x))
+    }
+
+    /// Everything a chart paints, from the series caches. `hover_t` is the
+    /// mouse position across the plot when it is over this chart; `zoom` is a
+    /// wheel step as `(position, factor)`.
+    pub fn chart_data(
+        &mut self,
+        spec: &ChartSpec,
+        columns: usize,
+        hover_t: Option<f64>,
+        zoom: Option<(f64, f64)>,
+    ) -> Option<ChartData> {
+        let weight = self.smoothing_weight();
+        let mut full: Option<Range> = None;
+        let mut y_range: Option<Range> = None;
+        for r in &spec.series {
+            let Some(series) = series_mut(&mut self.runs, r) else {
+                continue;
+            };
+            full = merge(full, series.x_extent.range(false));
+            y_range = merge(y_range, series.y_extent(weight).range(spec.log));
+        }
+        let full = full?.non_degenerate();
+        let mut x_range = match self.zoom.get(&spec.key) {
+            Some(zoomed) => Range {
+                min: zoomed.min.max(full.min),
+                max: zoomed.max.min(full.max),
+            }
+            .non_degenerate(),
+            None => full,
+        };
+        if let Some((t, factor)) = zoom {
+            match leet_plot::zoom(x_range, full, t, factor) {
+                Some(zoomed) => {
+                    self.zoom.insert(spec.key.clone(), zoomed);
+                    x_range = zoomed;
+                }
+                None => {
+                    self.zoom.remove(&spec.key);
+                    x_range = full;
+                }
+            }
+        }
+        let zoomed = x_range != full;
+
+        let pointer_x = match hover_t {
+            Some(t) => Some(Scale::Linear.denormalize(x_range, t)),
+            None if self.linked_inspect => self
+                .inspect
+                .filter(|(axis, x)| *axis == spec.x_axis && *x >= x_range.min && *x <= x_range.max)
+                .map(|(_, x)| x),
+            None => None,
+        };
+        // The crosshair sits on a logged x, the one nearest to the pointer
+        // across the chart's series, never on an interpolated position.
+        let hover_x = pointer_x.and_then(|pointer| {
+            spec.series
+                .iter()
+                .filter_map(|r| {
+                    series_mut(&mut self.runs, r)?
+                        .nearest(weight, pointer)
+                        .map(|(x, _)| x)
+                })
+                .min_by(|a, b| (a - pointer).abs().total_cmp(&(b - pointer).abs()))
+        });
+        if hover_t.is_some()
+            && let Some(x) = hover_x
+        {
+            self.inspect_next = Some((spec.x_axis, x));
+        }
+
+        let series: Vec<SeriesDraw> = spec
+            .series
+            .iter()
+            .filter_map(|r| {
+                let series = series_mut(&mut self.runs, r)?;
+                Some(SeriesDraw {
+                    name: r.name.clone(),
+                    color: r.color,
+                    line: series.decimated(weight, x_range, columns).to_vec(),
+                    raw: (weight > 0.0).then(|| series.raw(x_range, columns).to_vec()),
+                    hover: hover_x.and_then(|x| series.nearest(weight, x)),
+                })
+            })
+            .collect();
+        if zoomed {
+            let visible = series
+                .iter()
+                .flat_map(|s| s.line.iter().map(|p| p.y))
+                .filter(|y| !spec.log || *y > 0.0);
+            y_range = Range::of(visible);
+        }
+        let y_range = match (spec.fixed_y, spec.log) {
+            (Some(fixed), false) => y_range.map_or(fixed, |r| r.union(fixed)),
+            (_, false) => y_range?.non_degenerate().padded(0.05),
+            (_, true) => y_range?.non_degenerate(),
+        };
+        Some(ChartData {
+            x_range,
+            y_range,
+            hover_x,
+            series,
+        })
+    }
+
+    fn visible_panes(&self) -> Vec<Pane> {
+        let cfg = self.cfg();
+        PANES
+            .into_iter()
+            .filter(|pane| match pane {
+                Pane::Runs => self.show_runs,
+                Pane::Metrics => cfg.workspace_metrics_grid_visible,
+                Pane::System => cfg.workspace_system_metrics_visible,
+                Pane::Console => cfg.workspace_console_logs_visible,
+                Pane::Overview => cfg.workspace_overview_visible,
+            })
+            .collect()
+    }
+
+    fn editing(&self) -> bool {
+        let f = &self.filters;
+        [&f.runs, &f.metrics, &f.system, &f.console, &f.overview]
+            .iter()
+            .any(|f| f.editing)
+    }
+
+    fn filter_for(&mut self, pane: Pane) -> (&mut Filter, &'static str) {
+        match pane {
+            Pane::Runs => (&mut self.filters.runs, "runs_filter"),
+            Pane::Metrics => (&mut self.filters.metrics, "metrics_filter"),
+            Pane::System => (&mut self.filters.system, "system_metrics_filter"),
+            Pane::Console => (&mut self.filters.console, "console_filter"),
+            Pane::Overview => (&mut self.filters.overview, "overview_filter"),
+        }
+    }
+
+    pub fn set_cursor(&mut self, cursor: usize) {
+        let count = self.visible().len();
+        self.cursor = cursor.min(count.saturating_sub(1));
+    }
+
+    /// Turns a list's page: `lines` is a wheel delta, positive for up.
+    pub fn turn_list_page(&mut self, pane: Pane, lines: f32) {
+        let pages: isize = if lines > 0. { -1 } else { 1 };
+        let focus = self.focus;
+        self.focus = pane;
+        match pane {
+            Pane::Runs => self.step_list(pages * self.runs_paged.rows as isize),
+            Pane::Console => self.step_list(pages * self.console_paged.rows as isize),
+            Pane::Overview => {
+                self.refresh_caches();
+                if let Some((kind, row)) = self.overview_locate(self.overview_cursor) {
+                    let len = self
+                        .cache
+                        .overview_sections
+                        .iter()
+                        .find(|s| s.kind == kind)
+                        .map_or(0, |s| s.rows.len());
+                    let rows = self.overview_paged[kind].rows as isize;
+                    let row = row
+                        .saturating_add_signed(pages * rows)
+                        .min(len.saturating_sub(1));
+                    self.set_overview_cursor(self.overview_section_start(kind) + row);
+                }
+            }
+            Pane::Metrics | Pane::System => {}
+        }
+        self.focus = focus;
+    }
+
+    fn console_len(&self) -> usize {
+        self.context_run()
+            .map_or(0, |ix| self.runs[ix].console.len())
+    }
+
+    /// Pane sizes for a window of `viewport` size: configured fractions, else
+    /// leet's defaults, scaled by each pane's show animation. The lower tier
+    /// takes the whole column while the metrics grid is hidden.
+    fn geometry(&self, viewport: Size<Pixels>) -> Geometry {
+        let cfg = self.cfg();
+        let layout = cfg.workspace_layout;
+        let content_h = viewport.height - px(STATUS_BAR_HEIGHT);
+        let fraction = |value: f64, default: f32| if value > 0.0 { value as f32 } else { default };
+        let (runs, metrics, system, console, overview) = (
+            self.anim.runs.value(),
+            self.anim.metrics.value(),
+            self.anim.system.value(),
+            self.anim.console.value(),
+            self.anim.overview.value(),
+        );
+        let left_w = viewport.width * fraction(layout.left_sidebar, LEFT_SIDEBAR) * runs;
+        let right_w = viewport.width * fraction(layout.right_sidebar, RIGHT_SIDEBAR) * overview;
+        let lower_weight = system + console;
+        let lower_total = if lower_weight > 0.0 {
+            content_h * (LOWER_TIER * metrics + (1.0 - metrics))
+        } else {
+            px(0.)
+        };
+        let pane_height = |factor: f32, configured: f64| {
+            if factor <= 0.0 {
+                px(0.)
+            } else if configured > 0.0 {
+                viewport.height * configured as f32 * factor
+            } else {
+                lower_total * (factor / lower_weight)
+            }
+        };
+        let system_h = pane_height(system, layout.system);
+        let logs_h = pane_height(console, layout.logs);
+        let metrics_h = if metrics > 0.0 {
+            let room = content_h - system_h - logs_h;
+            if lower_weight > 0.0 {
+                room
+            } else {
+                room * metrics
+            }
+        } else {
+            px(0.)
+        };
+        Geometry {
+            content_h,
+            left_w,
+            right_w,
+            metrics_h,
+            system_h,
+            logs_h,
+        }
+    }
+
+    /// Moves the dragged border to the mouse, as a fraction of the window.
+    fn drag_to(&mut self, position: Point<Pixels>, viewport: Size<Pixels>) {
+        let Some(separator) = self.dragging else {
+            return;
+        };
+        let geometry = self.geometry(viewport);
+        let (width, height) = (f32::from(viewport.width), f32::from(viewport.height));
+        let (x, y) = (f32::from(position.x), f32::from(position.y));
+        let content_bottom = f32::from(geometry.content_h);
+        let clamp = |fraction: f32| f64::from(fraction).clamp(MIN_FRACTION, MAX_FRACTION);
+        let layout = &mut self.config.config.workspace_layout;
+        match separator {
+            Separator::Left => {
+                let max = width - f32::from(geometry.right_w) - MIN_PANE;
+                layout.left_sidebar = clamp(x.min(max) / width);
+            }
+            Separator::Right => {
+                let max = width - f32::from(geometry.left_w) - MIN_PANE;
+                layout.right_sidebar = clamp((width - x).min(max) / width);
+            }
+            Separator::System => {
+                let bottom = content_bottom - f32::from(geometry.logs_h);
+                let max = bottom
+                    - if self.cfg().workspace_metrics_grid_visible {
+                        MIN_PANE
+                    } else {
+                        0.
+                    };
+                let layout = &mut self.config.config.workspace_layout;
+                layout.system = clamp((bottom - y).min(max).max(MIN_PANE) / height);
+            }
+            Separator::Overview(kind) => {
+                let sections = self.overview_sections();
+                let sidebar_h = f32::from(geometry.content_h) - HEADER_HEIGHT;
+                let boxes = overview::layout(&sections, self.overview_weights(), sidebar_h);
+                let Some(at) = boxes.iter().position(|b| b.kind == kind) else {
+                    return;
+                };
+                let Some(below) = boxes.get(at + 1) else {
+                    return;
+                };
+                let above = &boxes[at];
+                let pair = above.height + below.height;
+                let min = overview::SECTION_HEADER + overview::ROW_HEIGHT;
+                let new_above = (y - HEADER_HEIGHT - above.top).clamp(min, (pair - min).max(min));
+                let weights = self.overview_weights();
+                let total = weights[above.kind] + weights[below.kind];
+                let (above_kind, below_kind) = (above.kind, below.kind);
+                let layout = &mut self.config.config.workspace_layout;
+                let mut set = |kind: usize, value: f32| match kind {
+                    overview::ENVIRONMENT => layout.overview_env = f64::from(value),
+                    overview::CONFIG => layout.overview_config = f64::from(value),
+                    overview::SUMMARY => layout.overview_summary = f64::from(value),
+                    _ => {}
+                };
+                let share = (total * new_above / pair).max(0.05);
+                set(above_kind, share);
+                set(below_kind, (total - share).max(0.05));
+            }
+            Separator::Console => {
+                let above = if self.cfg().workspace_metrics_grid_visible {
+                    MIN_PANE
+                } else {
+                    0.
+                } + f32::from(geometry.system_h);
+                let layout = &mut self.config.config.workspace_layout;
+                layout.logs = clamp(
+                    (content_bottom - y)
+                        .min(content_bottom - above)
+                        .max(MIN_PANE)
+                        / height,
+                );
+            }
+        }
+    }
+
+    fn move_by(&mut self, drow: isize, dcol: isize, cx: &mut Context<Self>) {
+        match self.focus {
+            Pane::Metrics => {
+                self.refresh_caches();
+                let total = self.metric_names().len();
+                self.metrics_grid.move_focus(drow, dcol, total);
+            }
+            Pane::System => {
+                self.refresh_caches();
+                let total = self.cache.system_groups.len();
+                self.system_grid.move_focus(drow, dcol, total);
+            }
+            Pane::Runs | Pane::Console | Pane::Overview => {
+                self.step_list(drow);
+                if dcol != 0 {
+                    self.turn_list_page(self.focus, -dcol as f32);
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    /// Moves the focused list's cursor by `drow` rows.
+    fn step_list(&mut self, drow: isize) {
+        match self.focus {
+            Pane::Runs => {
+                if drow != 0 {
+                    self.set_cursor(self.cursor.saturating_add_signed(drow));
+                }
+            }
+            Pane::Console => {
+                let last = self.console_len().saturating_sub(1);
+                let cursor = self
+                    .console_cursor
+                    .unwrap_or(last)
+                    .saturating_add_signed(drow)
+                    .min(last);
+                self.console_cursor = (cursor < last).then_some(cursor);
+            }
+            Pane::Overview => {
+                self.refresh_caches();
+                self.set_overview_cursor(self.overview_cursor.saturating_add_signed(drow));
+            }
+            Pane::Metrics | Pane::System => {}
+        }
+    }
+
+    fn turn_page(&mut self, delta: isize, cx: &mut Context<Self>) {
+        match self.focus {
+            Pane::Runs => {
+                let rows = self.runs_paged.rows as isize;
+                self.set_cursor(self.cursor.saturating_add_signed(delta * rows));
+            }
+            Pane::Metrics => {
+                self.refresh_caches();
+                let total = self.metric_names().len();
+                self.metrics_grid.turn_page(delta, total);
+            }
+            Pane::System => {
+                self.refresh_caches();
+                let total = self.cache.system_groups.len();
+                self.system_grid.turn_page(delta, total);
+            }
+            Pane::Console => {
+                let rows = self.console_paged.rows as isize;
+                self.move_by(delta * rows, 0, cx);
+            }
+            Pane::Overview => self.turn_list_page(Pane::Overview, -delta as f32),
+        }
+        cx.notify();
+    }
+
+    fn move_up(&mut self, _: &MoveUp, _: &mut Window, cx: &mut Context<Self>) {
+        self.move_by(-1, 0, cx);
+    }
+
+    fn move_down(&mut self, _: &MoveDown, _: &mut Window, cx: &mut Context<Self>) {
+        self.move_by(1, 0, cx);
+    }
+
+    fn move_left(&mut self, _: &MoveLeft, _: &mut Window, cx: &mut Context<Self>) {
+        self.move_by(0, -1, cx);
+    }
+
+    fn move_right(&mut self, _: &MoveRight, _: &mut Window, cx: &mut Context<Self>) {
+        self.move_by(0, 1, cx);
+    }
+
+    fn page_up(&mut self, _: &PageUp, _: &mut Window, cx: &mut Context<Self>) {
+        self.turn_page(-1, cx);
+    }
+
+    fn page_down(&mut self, _: &PageDown, _: &mut Window, cx: &mut Context<Self>) {
+        self.turn_page(1, cx);
+    }
+
+    fn home(&mut self, _: &Home, _: &mut Window, cx: &mut Context<Self>) {
+        match self.focus {
+            Pane::Console => self.console_cursor = Some(0),
+            Pane::Overview => self.overview_cursor = 0,
+            _ => self.turn_page(-(isize::MAX / 2), cx),
+        }
+        cx.notify();
+    }
+
+    fn end(&mut self, _: &End, _: &mut Window, cx: &mut Context<Self>) {
+        match self.focus {
+            Pane::Console => self.console_cursor = None,
+            Pane::Overview => self.overview_cursor = usize::MAX / 2,
+            _ => self.turn_page(isize::MAX / 2, cx),
+        }
+        cx.notify();
+    }
+
+    fn toggle_select(&mut self, _: &ToggleSelect, _: &mut Window, cx: &mut Context<Self>) {
+        if self.focus != Pane::Runs {
+            return;
+        }
+        let Some(&ix) = self.visible().get(self.cursor) else {
+            return;
+        };
+        let dir_name = self.runs[ix].dir.dir_name.clone();
+        if self.pinned.as_deref() == Some(dir_name.as_str()) {
+            self.pinned = None;
+            self.selected.remove(&dir_name);
+        } else if !self.selected.remove(&dir_name) {
+            self.select(&dir_name, cx);
+        }
+        self.save_selection();
+        cx.notify();
+    }
+
+    fn pin_run(&mut self, _: &PinRun, _: &mut Window, cx: &mut Context<Self>) {
+        if self.focus != Pane::Runs {
+            return;
+        }
+        let Some(&ix) = self.visible().get(self.cursor) else {
+            return;
+        };
+        let dir_name = self.runs[ix].dir.dir_name.clone();
+        if self.pinned.as_deref() == Some(dir_name.as_str()) {
+            self.pinned = None;
+        } else {
+            if !self.selected.contains(&dir_name) {
+                self.select(&dir_name, cx);
+            }
+            self.pinned = Some(dir_name);
+        }
+        self.console_cursor = None;
+        self.overview_cursor = 0;
+        self.save_selection();
+        cx.notify();
+    }
+
+    fn cycle_focus(&mut self, delta: isize, cx: &mut Context<Self>) {
+        let panes = self.visible_panes();
+        if panes.is_empty() {
+            return;
+        }
+        let current = panes
+            .iter()
+            .position(|p| *p == self.focus)
+            .map_or(0, |i| i as isize + delta);
+        self.focus = panes[current.rem_euclid(panes.len() as isize) as usize];
+        cx.notify();
+    }
+
+    fn focus_next(&mut self, _: &FocusNext, _: &mut Window, cx: &mut Context<Self>) {
+        self.cycle_focus(1, cx);
+    }
+
+    fn focus_prev(&mut self, _: &FocusPrev, _: &mut Window, cx: &mut Context<Self>) {
+        self.cycle_focus(-1, cx);
+    }
+
+    fn toggle_pane(&mut self, pane: Pane, cx: &mut Context<Self>) {
+        let config = &mut self.config.config;
+        let flag = match pane {
+            Pane::Runs => &mut self.show_runs,
+            Pane::Metrics => &mut config.workspace_metrics_grid_visible,
+            Pane::System => &mut config.workspace_system_metrics_visible,
+            Pane::Console => &mut config.workspace_console_logs_visible,
+            Pane::Overview => &mut config.workspace_overview_visible,
+        };
+        *flag = !*flag;
+        let shown = *flag;
+        match pane {
+            Pane::Runs => self.anim.runs.set(shown),
+            Pane::Metrics => self.anim.metrics.set(shown),
+            Pane::System => self.anim.system.set(shown),
+            Pane::Console => self.anim.console.set(shown),
+            Pane::Overview => self.anim.overview.set(shown),
+        }
+        if pane != Pane::Runs {
+            self.save_config();
+        }
+        if !self.visible_panes().contains(&self.focus) {
+            self.focus = self.visible_panes().first().copied().unwrap_or(Pane::Runs);
+        }
+        cx.notify();
+    }
+
+    fn toggle_runs_sidebar(
+        &mut self,
+        _: &ToggleRunsSidebar,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle_pane(Pane::Runs, cx);
+    }
+
+    fn toggle_metrics(&mut self, _: &ToggleMetrics, _: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_pane(Pane::Metrics, cx);
+    }
+
+    fn toggle_system(&mut self, _: &ToggleSystem, _: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_pane(Pane::System, cx);
+    }
+
+    fn toggle_console(&mut self, _: &ToggleConsole, _: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_pane(Pane::Console, cx);
+    }
+
+    fn toggle_overview(&mut self, _: &ToggleOverview, _: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_pane(Pane::Overview, cx);
+    }
+
+    fn toggle_log_y(&mut self, _: &ToggleLogY, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(key) = self.focused_chart_key() else {
+            return;
+        };
+        let set = match self.focus {
+            Pane::Metrics => &mut self.metrics_log,
+            _ => &mut self.system_log,
+        };
+        if !set.remove(&key) {
+            set.insert(key);
+        }
+        cx.notify();
+    }
+
+    fn reset_zoom(&mut self, _: &ResetZoom, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(key) = self.focused_chart_key() {
+            self.zoom.remove(key.as_str());
+            cx.notify();
+        }
+    }
+
+    fn toggle_linked_inspect(
+        &mut self,
+        _: &ToggleLinkedInspect,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.linked_inspect = !self.linked_inspect;
+        cx.notify();
+    }
+
+    fn reset_layout(&mut self, _: &ResetLayout, _: &mut Window, cx: &mut Context<Self>) {
+        self.config.config.workspace_layout = Default::default();
+        self.save_config();
+        cx.notify();
+    }
+
+    fn cycle_smoothing(&mut self, _: &CycleSmoothing, _: &mut Window, cx: &mut Context<Self>) {
+        self.smoothing = (self.smoothing + 1) % SMOOTHING.len();
+        self.config.config.smoothing = self.smoothing_weight();
+        self.save_config();
+        cx.notify();
+    }
+
+    fn grid_cols(&mut self, _: &GridCols, _: &mut Window, cx: &mut Context<Self>) {
+        self.prompt_grid(GridDim::Cols, cx);
+    }
+
+    fn grid_rows(&mut self, _: &GridRows, _: &mut Window, cx: &mut Context<Self>) {
+        self.prompt_grid(GridDim::Rows, cx);
+    }
+
+    fn prompt_grid(&mut self, dim: GridDim, cx: &mut Context<Self>) {
+        if matches!(self.focus, Pane::Metrics | Pane::System) {
+            self.pending_grid = Some(dim);
+            cx.notify();
+        }
+    }
+
+    /// Applies a digit typed after `c` or `r` to the focused grid.
+    fn set_grid_size(&mut self, dim: GridDim, size: usize) {
+        let (grid, config) = match self.focus {
+            Pane::System => (
+                &mut self.system_grid,
+                &mut self.config.config.workspace_system_grid,
+            ),
+            _ => (
+                &mut self.metrics_grid,
+                &mut self.config.config.workspace_metrics_grid,
+            ),
+        };
+        match dim {
+            GridDim::Rows => {
+                grid.rows = size;
+                grid.visible_rows = size;
+                config.rows = size;
+            }
+            GridDim::Cols => {
+                grid.cols = size;
+                config.cols = size;
+            }
+        }
+        grid.page = 0;
+        grid.focused = 0;
+        self.save_config();
+    }
+
+    fn start_filter(&mut self, pane: Pane, cx: &mut Context<Self>) {
+        self.focus = pane;
+        self.filter_for(pane).0.editing = true;
+        cx.notify();
+    }
+
+    fn filter_runs(&mut self, _: &FilterRuns, _: &mut Window, cx: &mut Context<Self>) {
+        self.start_filter(Pane::Runs, cx);
+    }
+
+    fn filter_metrics(&mut self, _: &FilterMetrics, _: &mut Window, cx: &mut Context<Self>) {
+        let pane = if self.focus == Pane::Console {
+            Pane::Console
+        } else {
+            Pane::Metrics
+        };
+        self.start_filter(pane, cx);
+    }
+
+    fn filter_system(&mut self, _: &FilterSystem, _: &mut Window, cx: &mut Context<Self>) {
+        self.start_filter(Pane::System, cx);
+    }
+
+    fn filter_overview(&mut self, _: &FilterOverview, _: &mut Window, cx: &mut Context<Self>) {
+        self.start_filter(Pane::Overview, cx);
+    }
+
+    fn clear_filter(&mut self, _: &ClearFilter, _: &mut Window, cx: &mut Context<Self>) {
+        self.filter_for(self.focus).0.text.clear();
+        self.filter_changed(cx);
+    }
+
+    fn stop_editing(&mut self) {
+        for pane in PANES {
+            self.filter_for(pane).0.editing = false;
+        }
+    }
+
+    fn escape(&mut self, _: &Escape, _: &mut Window, cx: &mut Context<Self>) {
+        if self.show_help {
+            self.show_help = false;
+        } else if self.pending_grid.take().is_some() {
+        } else if self.editing() {
+            self.stop_editing();
+        } else {
+            self.focus = Pane::Runs;
+        }
+        cx.notify();
+    }
+
+    fn confirm(&mut self, _: &Confirm, _: &mut Window, cx: &mut Context<Self>) {
+        self.stop_editing();
+        cx.notify();
+    }
+
+    fn backspace(&mut self, _: &Backspace, _: &mut Window, cx: &mut Context<Self>) {
+        self.filter_for(self.focus).0.text.pop();
+        self.filter_changed(cx);
+    }
+
+    fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let modifiers = event.keystroke.modifiers;
+        if modifiers.control || modifiers.platform || modifiers.alt {
+            return;
+        }
+        let Some(text) = &event.keystroke.key_char else {
+            return;
+        };
+        if let Some(dim) = self.pending_grid {
+            if let Some(size) = text.parse::<usize>().ok().filter(|n| (1..=9).contains(n)) {
+                self.pending_grid = None;
+                self.set_grid_size(dim, size);
+                cx.notify();
+            }
+        } else if self.editing() {
+            self.filter_for(self.focus).0.text.push_str(text);
+            self.filter_changed(cx);
+        }
+    }
+
+    fn filter_changed(&mut self, cx: &mut Context<Self>) {
+        let (filter, key) = self.filter_for(self.focus);
+        let text = filter.text.clone();
+        self.dir_state.set_filter(key, &text);
+        self.metrics_grid.page = 0;
+        self.system_grid.page = 0;
+        self.overview_cursor = 0;
+        self.console_cursor = None;
+        self.set_cursor(self.cursor);
+        cx.notify();
+    }
+
+    fn toggle_help(&mut self, _: &ToggleHelp, _: &mut Window, cx: &mut Context<Self>) {
+        self.show_help = !self.show_help;
+        cx.notify();
+    }
+
+    fn mouse_move(&mut self, event: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.dragging.is_some() {
+            self.drag_to(event.position, window.viewport_size());
+        }
+        cx.notify();
+    }
+
+    fn mouse_up(&mut self, cx: &mut Context<Self>) {
+        if self.dragging.take().is_some() {
+            self.save_config();
+            cx.notify();
+        }
+    }
+
+    fn separator(&self, which: Separator, cx: &mut Context<Self>) -> Div {
+        let vertical = matches!(which, Separator::Left | Separator::Right);
+        let active = self.dragging == Some(which);
+        div()
+            .flex_shrink_0()
+            .map(|sep| {
+                if vertical {
+                    sep.w(px(SEPARATOR)).h_full()
+                } else {
+                    sep.h(px(SEPARATOR)).w_full()
+                }
+            })
+            .bg(if active {
+                theme::focus()
+            } else {
+                theme::border()
+            })
+            .cursor(if vertical {
+                CursorStyle::ResizeLeftRight
+            } else {
+                CursorStyle::ResizeUpDown
+            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |workspace, _, _, cx| {
+                    workspace.dragging = Some(which);
+                    cx.notify();
+                }),
+            )
+    }
+
+    fn render_status(&self) -> Div {
+        let (state, state_color) = self.context_run().map(|ix| self.runs[ix].state).map_or(
+            ("○", theme::muted()),
+            |state| match state_glyph(state) {
+                ("", color) => ("○", color),
+                glyph => glyph,
+            },
+        );
+        let pinned = self
+            .pinned
+            .as_ref()
+            .and_then(|p| self.run_index(p))
+            .map(|ix| format!("pinned {}", self.runs[ix].name));
+        let prompt = self.pending_grid.map(|dim| match dim {
+            GridDim::Rows => "rows (1-9)?",
+            GridDim::Cols => "columns (1-9)?",
+        });
+        div()
+            .h(px(STATUS_BAR_HEIGHT))
+            .px_2()
+            .flex()
+            .items_center()
+            .gap_4()
+            .border_t_1()
+            .border_color(theme::border())
+            .text_color(theme::muted())
+            .whitespace_nowrap()
+            .child(div().text_color(state_color).child(state))
+            .child(div().text_color(theme::accent()).child("LEET"))
+            .child(self.wandb_dir.to_string_lossy().into_owned())
+            .child(format!("{} selected", self.selected.len()))
+            .when_some(pinned, |bar, pinned| bar.child(pinned))
+            .when_some(prompt, |bar, prompt| bar.child(div().text_color(theme::accent()).child(prompt)))
+            .when(!self.linked_inspect, |bar| bar.child("inspect unlinked"))
+            .child(div().flex_1())
+            .child("space select  p pin  f / \\ o filter  n/N page  y log  m smooth  c/r grid  wheel zoom  z reset  ? help  q quit")
+    }
+
+    fn render_help(&self) -> Div {
+        div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .bg(hsla(0., 0., 0., 0.6))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .bg(theme::panel())
+                    .border_1()
+                    .border_color(theme::border())
+                    .rounded(px(6.))
+                    .p_4()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(div().text_color(theme::accent()).pb_2().child("W&B LEET"))
+                    .children(self.help.iter().map(|(keys, desc)| {
+                        div()
+                            .flex()
+                            .gap_4()
+                            .child(
+                                div()
+                                    .w(px(220.))
+                                    .text_color(theme::focus())
+                                    .child(keys.trim()),
+                            )
+                            .child(*desc)
+                    })),
+            )
+    }
+}
+
+fn series_mut<'a>(runs: &'a mut [Run], r: &SeriesRef) -> Option<&'a mut Series> {
+    let run = runs.get_mut(r.run)?;
+    let table = match r.table {
+        Table::Metrics => &mut run.metrics,
+        Table::System => &mut run.system,
+    };
+    table.series.get_mut(r.series)
+}
+
+fn merge(acc: Option<Range>, next: Option<Range>) -> Option<Range> {
+    match (acc, next) {
+        (Some(a), Some(b)) => Some(a.union(b)),
+        (a, b) => a.or(b),
+    }
+}
+
+/// A wheel event's vertical movement in lines, positive for up.
+pub fn wheel_lines(event: &ScrollWheelEvent) -> Option<f32> {
+    let lines = match event.delta {
+        ScrollDelta::Lines(delta) => delta.y,
+        ScrollDelta::Pixels(delta) => f32::from(delta.y) / 40.,
+    };
+    (lines != 0.).then_some(lines)
+}
+
+pub fn pane_header(title: String, filter: &Filter, focused: bool) -> Div {
+    let filter_text = match (filter.editing, filter.text.is_empty()) {
+        (true, _) => format!("filter: {}▏", filter.text),
+        (false, false) => format!("filter: {}", filter.text),
+        (false, true) => String::new(),
+    };
+    div()
+        .h(px(HEADER_HEIGHT))
+        .px_2()
+        .flex()
+        .items_center()
+        .gap_3()
+        .flex_shrink_0()
+        .border_b_1()
+        .border_color(theme::border())
+        .text_color(if focused {
+            theme::text()
+        } else {
+            theme::muted()
+        })
+        .whitespace_nowrap()
+        .child(title)
+        .child(div().text_color(theme::accent()).child(filter_text))
+}
+
+impl Render for Workspace {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.last_render = Instant::now();
+        self.refresh_caches();
+        self.inspect = self.inspect_next.take();
+        let anim = &self.anim;
+        if [
+            &anim.runs,
+            &anim.metrics,
+            &anim.system,
+            &anim.console,
+            &anim.overview,
+        ]
+        .iter()
+        .any(|a| a.animating())
+        {
+            window.request_animation_frame();
+        }
+        let context = if self.pending_grid.is_some() {
+            PROMPT
+        } else if self.editing() {
+            FILTER
+        } else {
+            WORKSPACE
+        };
+        let geometry = self.geometry(window.viewport_size());
+        let cfg = self.cfg();
+        let _ = cfg;
+        let show_runs = geometry.left_w > px(0.);
+        let show_metrics = geometry.metrics_h > px(0.);
+        let show_system = geometry.system_h > px(0.);
+        let show_console = geometry.logs_h > px(0.);
+        let show_overview = geometry.right_w > px(0.);
+        let header = px(HEADER_HEIGHT);
+        self.metrics_grid
+            .fit(f32::from(geometry.metrics_h - header));
+        self.system_grid.fit(f32::from(geometry.system_h - header));
+        self.runs_paged.fit(
+            f32::from(geometry.content_h - header),
+            runs_list::ROW_HEIGHT,
+        );
+        let sidebar_h = f32::from(geometry.content_h) - HEADER_HEIGHT;
+        for section in overview::layout(
+            &self.overview_sections(),
+            self.overview_weights(),
+            sidebar_h,
+        ) {
+            if section.kind != overview::RUN {
+                self.overview_paged[section.kind].fit(
+                    section.height - overview::SECTION_HEADER,
+                    overview::ROW_HEIGHT,
+                );
+            }
+        }
+        self.console_paged
+            .fit(f32::from(geometry.logs_h - header), console::ROW_HEIGHT);
+        let workspace = cx.entity();
+        let system_above = show_metrics;
+        let console_above = show_metrics || show_system;
+
+        div()
+            .id("workspace")
+            .key_context(context)
+            .track_focus(&self.focus_handle)
+            .on_action(cx.listener(Self::toggle_help))
+            .on_action(cx.listener(Self::escape))
+            .on_action(cx.listener(Self::confirm))
+            .on_action(cx.listener(Self::backspace))
+            .on_action(cx.listener(Self::move_up))
+            .on_action(cx.listener(Self::move_down))
+            .on_action(cx.listener(Self::move_left))
+            .on_action(cx.listener(Self::move_right))
+            .on_action(cx.listener(Self::page_up))
+            .on_action(cx.listener(Self::page_down))
+            .on_action(cx.listener(Self::home))
+            .on_action(cx.listener(Self::end))
+            .on_action(cx.listener(Self::focus_next))
+            .on_action(cx.listener(Self::focus_prev))
+            .on_action(cx.listener(Self::toggle_select))
+            .on_action(cx.listener(Self::pin_run))
+            .on_action(cx.listener(Self::toggle_runs_sidebar))
+            .on_action(cx.listener(Self::toggle_metrics))
+            .on_action(cx.listener(Self::toggle_system))
+            .on_action(cx.listener(Self::toggle_console))
+            .on_action(cx.listener(Self::toggle_overview))
+            .on_action(cx.listener(Self::toggle_log_y))
+            .on_action(cx.listener(Self::reset_zoom))
+            .on_action(cx.listener(Self::toggle_linked_inspect))
+            .on_action(cx.listener(Self::reset_layout))
+            .on_action(cx.listener(Self::cycle_smoothing))
+            .on_action(cx.listener(Self::grid_cols))
+            .on_action(cx.listener(Self::grid_rows))
+            .on_action(cx.listener(Self::filter_runs))
+            .on_action(cx.listener(Self::filter_metrics))
+            .on_action(cx.listener(Self::filter_system))
+            .on_action(cx.listener(Self::filter_overview))
+            .on_action(cx.listener(Self::clear_filter))
+            .on_key_down(cx.listener(Self::key_down))
+            .on_mouse_move(cx.listener(Self::mouse_move))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|workspace, _, _, cx| workspace.mouse_up(cx)),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|workspace, _, _, cx| workspace.mouse_up(cx)),
+            )
+            .relative()
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(theme::bg())
+            .text_color(theme::text())
+            .font_family(theme::FONT)
+            .text_size(px(12.))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .flex_row()
+                    .when(show_runs, |main| {
+                        main.child(render_runs(self, geometry.left_w - px(SEPARATOR), cx))
+                            .child(self.separator(Separator::Left, cx))
+                    })
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .min_h_0()
+                            .flex()
+                            .flex_col()
+                            .when(show_metrics, |column| {
+                                let (total, cells) = self.metric_cells();
+                                column.child(render_grid(
+                                    GridView {
+                                        id: "metrics",
+                                        pane: Pane::Metrics,
+                                        title: format!(
+                                            "metrics {total}  smoothing {}",
+                                            self.smoothing_weight()
+                                        ),
+                                        filter: &self.filters.metrics,
+                                        focused: self.focus == Pane::Metrics,
+                                        grid: &self.metrics_grid,
+                                        cells,
+                                        total,
+                                        height: None,
+                                        empty: self.metrics_empty(),
+                                    },
+                                    workspace.clone(),
+                                    cx,
+                                ))
+                            })
+                            .when(show_system, |column| {
+                                let (total, cells) = self.system_cells();
+                                let run = self
+                                    .context_run()
+                                    .map(|ix| self.runs[ix].name.clone())
+                                    .unwrap_or_default();
+                                let height = geometry.system_h
+                                    - if system_above { px(SEPARATOR) } else { px(0.) };
+                                column
+                                    .when(system_above, |column| {
+                                        column.child(self.separator(Separator::System, cx))
+                                    })
+                                    .child(render_grid(
+                                        GridView {
+                                            id: "system",
+                                            pane: Pane::System,
+                                            title: format!("system  {run}  {total} charts"),
+                                            filter: &self.filters.system,
+                                            focused: self.focus == Pane::System,
+                                            grid: &self.system_grid,
+                                            cells,
+                                            total,
+                                            height: Some(height),
+                                            empty: self.system_empty(),
+                                        },
+                                        workspace.clone(),
+                                        cx,
+                                    ))
+                            })
+                            .when(show_console, |column| {
+                                let height = geometry.logs_h
+                                    - if console_above { px(SEPARATOR) } else { px(0.) };
+                                column
+                                    .when(console_above, |column| {
+                                        column.child(self.separator(Separator::Console, cx))
+                                    })
+                                    .child(render_console(self, height, cx))
+                            }),
+                    )
+                    .when(show_overview, |main| {
+                        main.child(self.separator(Separator::Right, cx))
+                            .child(render_overview(
+                                self,
+                                geometry.right_w - px(SEPARATOR),
+                                geometry.content_h - px(HEADER_HEIGHT),
+                                cx,
+                            ))
+                    }),
+            )
+            .child(self.render_status())
+            .when(self.show_help, |root| root.child(self.render_help()))
+    }
+}
