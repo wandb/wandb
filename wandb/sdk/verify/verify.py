@@ -487,7 +487,7 @@ def check_sweeps(api: Api) -> bool:
     failed_test_strings: list[str] = []
 
     sweep_config = {
-        "method": "random",
+        "method": "grid",
         "metric": {"goal": "minimize", "name": "score"},
         "parameters": {
             "x": {"values": [0.01, 0.05, 0.1]},
@@ -522,7 +522,7 @@ def check_sweeps(api: Api) -> bool:
                 score = objective(run.config)
                 run.log({"score": score})
 
-        wandb.agent(sweep_id, function=main, count=10)
+        wandb.agent(sweep_id, function=main, count=9)
     except Exception as e:
         failed_test_strings.append(f"Failed to run sweep agent: {e}")
         print_results(failed_test_strings, False)
