@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING, Any, Concatenate, NamedTuple
 
 import requests
 from opentelemetry._logs import SeverityNumber
-from opentelemetry.metrics import Counter, Histogram
-from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
 from wandb import env
@@ -26,6 +24,7 @@ if TYPE_CHECKING:
     from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
         OTLPMetricExporter,
     )
+    from opentelemetry.metrics import Counter, Histogram
     from opentelemetry.sdk._logs import LoggerProvider
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.resources import Resource
@@ -646,7 +645,10 @@ class OpenTelemetryProxy:
         from opentelemetry.sdk.metrics import Counter as SdkCounter
         from opentelemetry.sdk.metrics import Histogram as SdkHistogram
         from opentelemetry.sdk.metrics import MeterProvider
-        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+        from opentelemetry.sdk.metrics.export import (
+            AggregationTemporality,
+            PeriodicExportingMetricReader,
+        )
 
         exporter = _ProbedExporter(
             OTLPMetricExporter(
