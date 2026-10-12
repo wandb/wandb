@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterable
+from itertools import chain
+from textwrap import dedent
 from typing import Any, TypeGuard
 
 from pydantic import BaseModel, Field, field_validator
@@ -84,6 +86,54 @@ def make_import_from(
     """Generate the AST node for a `from {module} import {names}` statement."""
     names = [names] if isinstance(names, str) else names
     return ast.ImportFrom(module, names=[ast.alias(n) for n in names], level=level)
+
+
+def make_lazy_init_body(import_stmts: Iterable[ast.ImportFrom]) -> list[ast.stmt]:
+    """Generate the body of a package `__init__.py` that imports its submodules lazily.
+
+    The generated GraphQL packages define hundreds of pydantic models, so importing
+    everything up front makes `import wandb` noticeably slower. Instead, the imports
+    are kept under `if TYPE_CHECKING:` for type checkers, and a module-level
+    `__getattr__` (PEP 562) imports the submodule defining a name on first access.
+    """
+    import_stmts = list(import_stmts)
+    names_to_export = list(chain.from_iterable(map(imported_names, import_stmts)))
+
+    lazy_imports = ast.Dict(
+        keys=[ast.Constant(name) for name in names_to_export],
+        values=[
+            ast.Constant("." * stmt.level + (stmt.module or ""))
+            for stmt in import_stmts
+            for _ in stmt.names
+        ],
+    )
+    getattr_and_dir = ast.parse(
+        dedent(
+            '''
+            def __getattr__(name: str) -> object:
+                """Import the submodule defining `name` on first access."""
+                try:
+                    module_name = _LAZY_IMPORTS[name]
+                except KeyError:
+                    raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+                value = getattr(import_module(module_name, __name__), name)
+                globals()[name] = value
+                return value
+
+
+            def __dir__() -> list[str]:
+                return sorted({*globals(), *__all__})
+            '''
+        )
+    ).body
+    return [
+        make_import_from("importlib", "import_module"),
+        make_import_from("typing", "TYPE_CHECKING"),
+        make_all_assignment(names_to_export),
+        ast.If(test=ast.Name("TYPE_CHECKING"), body=import_stmts, orelse=[]),
+        make_assign("_LAZY_IMPORTS", lazy_imports),
+        *getattr_and_dir,
+    ]
 
 
 def make_literal(*vals: Any) -> ast.Subscript:
