@@ -22,6 +22,7 @@ annotated-types==0.8.0
     # via pydantic
 anyio==4.15.1
     # via
+    #   cwevals
     #   dspy
     #   httpx
     #   httpx2
@@ -62,15 +63,15 @@ azure-core==1.41.0
     #   azure-containerregistry
     #   azure-identity
     #   azure-storage-blob
-azure-identity==1.25.3
+azure-identity==1.26.0
     # via wandb
-azure-storage-blob==12.30.2
+azure-storage-blob==12.31.0
     # via wandb
 babel==2.18.0
     # via jupyterlab-server
 beautifulsoup4==4.15.0
     # via nbconvert
-black==26.5.1
+black==26.10.0
     # via ariadne-codegen
 bleach==6.4.0
     # via nbconvert
@@ -78,12 +79,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.10.0
     # via -r requirements/requirements_dev.txt
-boto3==1.43.98
+boto3==1.43.108
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.98
+botocore==1.43.108
     # via
     #   boto3
     #   moto
@@ -111,7 +112,7 @@ cffi==2.1.1
     #   soundfile
 chardet==7.6.0
     # via wandb
-charset-normalizer==3.5.1
+charset-normalizer==3.5.2
     # via requests
 click==8.5.0
     # via
@@ -147,7 +148,7 @@ comm==0.2.3
     #   ipywidgets
 contourpy==1.4.0
     # via matplotlib
-coverage==7.16.1
+coverage==7.16.2
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
@@ -162,7 +163,9 @@ cryptography==46.0.7
     #   msal
     #   pyjwt
     #   pyopenssl
-cwsandbox==1.14.3
+cwevals==0.0.1b1
+    # via wandb
+cwsandbox==1.18.0
     # via wandb
 cycler==0.12.1
     # via matplotlib
@@ -172,10 +175,12 @@ decorator==4.4.2
     # via moviepy
 defusedxml==0.7.1
     # via nbconvert
-deprecated==1.3.1
+deprecated==3.0.0
     # via pymoo
 diskcache==5.6.3
     # via dspy
+distro==1.9.0
+    # via cwevals
 docker==7.2.0
     # via -r requirements/requirements_dev.txt
 docstring-parser==0.18.0
@@ -184,7 +189,7 @@ docstring-parser==0.18.0
     #   kfp
 docutils==0.19
     # via awscli
-dspy==3.3.1
+dspy==3.4.0
     # via -r requirements/requirements_dev.txt
 execnet==2.1.2
     # via pytest-xdist
@@ -198,16 +203,16 @@ fastjsonschema==2.22.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==4.0.1
+filelock==4.0.12
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
     #   torch
 flask==2.3.3
     # via -r requirements/requirements_test.txt
-fonttools==4.65.0
+fonttools==4.66.1
     # via matplotlib
-fqdn==1.5.1
+fqdn==1.6.0
     # via jsonschema
 frozenlist==1.8.0
     # via
@@ -221,7 +226,7 @@ fsspec==2026.9.0
     #   torch
 gepa==0.1.4
     # via dspy
-google-api-core==2.38.0
+google-api-core==2.40.0
     # via
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -248,34 +253,34 @@ google-auth==2.52.0
     #   wandb
 google-cloud-aiplatform==1.115.0
     # via wandb
-google-cloud-artifact-registry==1.22.0
+google-cloud-artifact-registry==1.23.0
     # via wandb
-google-cloud-bigquery==3.45.2
+google-cloud-bigquery==3.46.1
     # via google-cloud-aiplatform
-google-cloud-compute==1.54.0
+google-cloud-compute==1.55.0
     # via wandb
-google-cloud-core==2.7.0
+google-cloud-core==2.8.0
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-google-cloud-resource-manager==1.18.0
+google-cloud-resource-manager==1.19.0
     # via google-cloud-aiplatform
 google-cloud-storage==2.19.0
     # via
     #   google-cloud-aiplatform
     #   kfp
     #   wandb
-google-crc32c==1.8.0
+google-crc32c==1.9.0
     # via
     #   google-cloud-storage
     #   google-resumable-media
 google-genai==1.2.0
     # via google-cloud-aiplatform
-google-resumable-media==2.10.2
+google-resumable-media==2.11.0
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-googleapis-common-protos==1.75.3
+googleapis-common-protos==1.75.5
     # via
     #   cwsandbox
     #   google-api-core
@@ -311,7 +316,7 @@ grpcio==1.84.0
     #   tensorboard
 grpcio-status==1.84.0
     # via google-api-core
-gymnasium==1.3.0
+gymnasium==1.4.0
     # via
     #   -r requirements/requirements_dev.txt
     #   stable-baselines3
@@ -324,20 +329,21 @@ hf-xet==1.6.0
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
-httpcore2==2.13.0
+httpcore2==2.13.1
     # via httpx2
 httpx==0.27.2
     # via
     #   -r requirements/requirements_test.txt
     #   ariadne-codegen
+    #   cwevals
     #   huggingface-hub
     #   jupyterlab
     #   litellm
-httpx2==2.13.0
+httpx2==2.13.1
     # via openai
-huggingface-hub==1.32.0
+huggingface-hub==1.33.0
     # via tokenizers
-hypothesis==6.168.0
+hypothesis==6.168.4
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -351,7 +357,7 @@ idna==3.20
     #   jsonschema
     #   requests
     #   yarl
-imageio==2.37.4
+imageio==2.38.0
     # via
     #   -r requirements/requirements_dev.txt
     #   moviepy
@@ -363,7 +369,7 @@ importlib-metadata==9.0.1
     # via litellm
 iniconfig==2.3.0
     # via pytest
-ipykernel==7.3.0
+ipykernel==7.4.0
     # via
     #   -r requirements/requirements_dev.txt
     #   jupyter
@@ -389,7 +395,7 @@ isodate==0.7.2
     #   azure-storage-blob
 isoduration==20.11.0
     # via jsonschema
-isort==9.0.1
+isort==9.0.2
     # via ariadne-codegen
 itsdangerous==2.2.0
     # via flask
@@ -419,7 +425,7 @@ jmespath==1.1.0
     #   botocore
 joblib==1.6.0
     # via scikit-learn
-json-repair==0.63.4
+json-repair==0.63.5
     # via dspy
 json5==0.15.0
     # via jupyterlab-server
@@ -520,13 +526,13 @@ litellm==1.83.0
     # via dspy
 looptime==0.7
     # via -r requirements/requirements_test.txt
-mako==1.4.1
+mako==1.4.3
     # via alembic
-markdown==3.10.3
+markdown==3.11
     # via
     #   ax-platform
     #   tensorboard
-markupsafe==3.0.3
+markupsafe==3.0.4
     # via
     #   jinja2
     #   mako
@@ -565,7 +571,7 @@ msal==1.39.0
     #   msal-extensions
 msal-extensions==1.3.1
     # via azure-identity
-multidict==6.9.0
+multidict==6.9.1
     # via
     #   aiohttp
     #   yarl
@@ -597,13 +603,13 @@ nbformat==5.11.1
     #   nbclient
     #   nbconvert
     #   wandb
-nest-asyncio2==1.7.2
+nest-asyncio2==1.7.3
     # via ipykernel
 networkx==3.7
     # via torch
 ninja==1.13.2
     # via botorch
-notebook==7.6.2
+notebook==7.6.3
     # via jupyter
 notebook-shim==0.2.4
     # via
@@ -642,35 +648,41 @@ numpy==2.3.5
     #   torchmetrics
     #   torchvision
     #   xgboost
-oauthlib==3.3.1
+oauthlib==4.0.0
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.16.2
+openai==3.24.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   litellm
-opentelemetry-api==1.44.0
+opentelemetry-api==1.45.0
     # via
     #   google-api-core
+    #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
     #   wandb
-opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-http-transport==0.66b0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-exporter-otlp-common==0.66b0
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-common==1.45.0
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.45.0
     # via wandb
-opentelemetry-proto==1.44.0
+opentelemetry-proto==1.45.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.44.0
+opentelemetry-sdk==1.45.0
     # via
+    #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-http
     #   wandb
-opentelemetry-semantic-conventions==0.65b0
+opentelemetry-semantic-conventions==0.66b0
     # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via jax
@@ -726,7 +738,7 @@ pillow==12.3.0
     #   rdkit
     #   tensorboard
     #   torchvision
-platformdirs==4.11.11
+platformdirs==4.12.3
     # via
     #   black
     #   jupyter-core
@@ -759,7 +771,7 @@ propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.28.4
+proto-plus==1.29.0
     # via
     #   google-api-core
     #   google-cloud-aiplatform
@@ -787,7 +799,6 @@ protobuf==6.33.6
 psutil==7.2.2
     # via
     #   imageio
-    #   ipykernel
     #   ipython
 ptyprocess==0.7.0
     # via
@@ -810,6 +821,7 @@ pycparser==3.0
 pydantic==2.13.5
     # via
     #   ariadne-codegen
+    #   cwevals
     #   dspy
     #   fastapi
     #   google-cloud-aiplatform
@@ -822,7 +834,7 @@ pydantic-core==2.46.5
     # via pydantic
 pyfakefs==5.10.2
     # via -r requirements/requirements_test.txt
-pyflakes==3.4.0
+pyflakes==4.0.2
     # via autoflake
 pygments==2.21.0
     # via
@@ -831,7 +843,7 @@ pygments==2.21.0
     #   jupyter-console
     #   nbconvert
     #   pytest
-pyjwt==2.14.0
+pyjwt==2.15.1
     # via msal
 pymoo==0.6.2
     # via botorch
@@ -861,7 +873,7 @@ pytest-cov==7.1.0
     # via -r requirements/requirements_test.txt
 pytest-flakefinder==1.1.0
     # via -r requirements/requirements_test.txt
-pytest-mock==3.15.1
+pytest-mock==3.16.0
     # via -r requirements/requirements_test.txt
 pytest-split==0.10.0
     # via -r requirements/requirements_test.txt
@@ -881,7 +893,7 @@ python-dateutil==2.9.0.post0
     #   kubernetes-asyncio
     #   matplotlib
     #   pandas
-python-dotenv==1.2.3
+python-dotenv==1.2.4
     # via litellm
 python-json-logger==4.2.0
     # via jupyter-events
@@ -889,7 +901,7 @@ pytokens==0.4.1
     # via black
 pytorch-lightning==2.6.6
     # via lightning
-pytz==2026.3.post1
+pytz==2026.5
     # via pandas
 pyyaml==6.0.3
     # via
@@ -920,7 +932,7 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2026.9.10
+regex==2026.9.29
     # via
     #   dspy
     #   tiktoken
@@ -939,7 +951,6 @@ requests==2.34.2
     #   moto
     #   moviepy
     #   msal
-    #   opentelemetry-exporter-otlp-proto-http
     #   requests-oauthlib
     #   requests-toolbelt
     #   responses
@@ -964,7 +975,7 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
-rpds-py==2026.6.3
+rpds-py==2026.9.1
     # via
     #   jsonschema
     #   referencing
@@ -1010,15 +1021,16 @@ six==1.17.0
     #   rfc3339-validator
 sniffio==1.3.1
     # via
+    #   cwevals
     #   httpx
     #   openai
 sortedcontainers==2.4.0
     # via hypothesis
 soundfile==0.14.0
     # via -r requirements/requirements_dev.txt
-soupsieve==2.9.2
+soupsieve==2.10
     # via beautifulsoup4
-sqlalchemy==2.0.54
+sqlalchemy==2.1.3
     # via
     #   alembic
     #   optuna
@@ -1131,6 +1143,7 @@ typing-extensions==4.16.0
     #   azure-storage-blob
     #   beautifulsoup4
     #   botorch
+    #   cwevals
     #   fastapi
     #   google-cloud-aiplatform
     #   google-genai
@@ -1159,7 +1172,7 @@ typing-inspect==0.9.0
     # via pyre-extensions
 typing-inspection==0.4.4
     # via pydantic
-tzdata==2026.4
+tzdata==2026.5
     # via
     #   arrow
     #   pandas
@@ -1175,11 +1188,12 @@ urllib3==2.8.0
     #   kfp-server-api
     #   kubernetes
     #   kubernetes-asyncio
+    #   opentelemetry-exporter-http-transport
     #   requests
     #   responses
 uvicorn==0.32.1
     # via -r requirements/requirements_test.txt
-wcwidth==0.8.4
+wcwidth==0.9.2
     # via
     #   prompt-toolkit
     #   pyte
@@ -1195,14 +1209,14 @@ websocket-client==1.9.2
     #   kubernetes
 websockets==14.2
     # via google-genai
-werkzeug==3.1.8
+werkzeug==3.1.9
     # via
     #   flask
     #   moto
     #   tensorboard
 widgetsnbextension==4.0.16
     # via ipywidgets
-wrapt==2.4.1
+wrapt==2.5.0
     # via deprecated
 xgboost==3.4.1
     # via -r requirements/requirements_dev.txt
@@ -1214,7 +1228,7 @@ xyzservices==2026.9.1
     # via bokeh
 yarl==1.25.1
     # via aiohttp
-zipp==4.1.0
+zipp==4.1.1
     # via importlib-metadata
 
 # The following packages were excluded from the output:
