@@ -102,18 +102,38 @@ class Level1Collectors:
             self._capability("flight_recorder", "unavailable", "recorder_unavailable")
             self._recorder = None
             return
-        if status != self._recorder:
+        # The count is the buffer size or the read's CPU milliseconds.
+        if status in ("buffer_too_large", "cpu_budget"):
+            self.emit.emit(
+                "capability",
+                {
+                    "collector": "flight_recorder",
+                    "status": "partial"
+                    if status == "buffer_too_large"
+                    else "self_disabled",
+                    "reason": status,
+                    "count": lost,
+                },
+            )
+            return
+        # A read with nothing new keeps the last state; available needs emitted records.
+        if status != self._recorder and (collectives or status == "recorder_empty"):
             self._recorder = status
             c10d = getattr(
                 getattr(sys.modules.get("torch"), "_C", None), "_distributed_c10d", None
             )
+            payload = {"collector": "flight_recorder", "status": "partial"}
             if not hasattr(c10d, "_dump_nccl_trace"):
                 # The generic dump may not hold the recorder NCCL writes to.
-                self._capability("flight_recorder", "partial", "generic_recorder")
+                payload["reason"] = "generic_recorder"
             elif status == "ok":
-                self._capability("flight_recorder", "available", None)
+                payload["status"] = "available"
+            elif status == "no_recognized_collectives":
+                payload["reason"] = status
+                payload["count"] = sum(c.count for c in collectives)
             else:
-                self._capability("flight_recorder", "partial", "no_timing")
+                payload["reason"] = status
+            self.emit.emit("capability", payload)
         for collective in collectives:
             payload = {
                 "collective": collective.name,

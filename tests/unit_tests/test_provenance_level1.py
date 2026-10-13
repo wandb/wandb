@@ -142,18 +142,34 @@ def test_flight_recorder_reports_available_after_unavailable(monkeypatch):
     monkeypatch.setitem(sys.modules, "torch", torch)
     events = []
     collector = _collector(events)
+    from wandb.sdk.provenance.comm_stats import CollectiveSummary
+
+    def summary(name):
+        return CollectiveSummary(name, 3, 3, 1.0, 1.0, 1.0, 3.0, 64)
+
     collector._communication("unavailable", [], 0)
+    collector._communication("recorder_empty", [], 0)
+    collector._communication("no_recognized_collectives", [summary("other")], 0)
     collector._communication("ok", [], 0)
-    collector._communication("ok", [], 0)
-    collector._communication("no_timing", [], 0)
+    collector._communication("ok", [summary("all_gather")], 0)
+    collector._communication("ok", [summary("all_gather")], 0)
+    collector._communication("no_timing", [summary("all_gather")], 0)
     assert [
-        (p["status"], p.get("reason"))
+        (p["status"], p.get("reason"), p.get("count"))
         for kind, p in events
         if p.get("collector") == "flight_recorder"
     ] == [
-        ("unavailable", "recorder_unavailable"),
-        ("available", None),
-        ("partial", "no_timing"),
+        ("unavailable", "recorder_unavailable", None),
+        ("partial", "recorder_empty", None),
+        ("partial", "no_recognized_collectives", 3),
+        ("available", None, None),
+        ("partial", "no_timing", None),
+    ]
+    assert [p["collective"] for kind, p in events if kind == "communication"] == [
+        "other",
+        "all_gather",
+        "all_gather",
+        "all_gather",
     ]
 
 
@@ -182,9 +198,33 @@ def test_flight_recorder_without_the_nccl_dump_is_partial(monkeypatch):
     torch = SimpleNamespace(_C=SimpleNamespace(_distributed_c10d=SimpleNamespace()))
     monkeypatch.setitem(sys.modules, "torch", torch)
     events = []
-    _collector(events)._communication("ok", [], 0)
-    assert events[-1][1] == {
+    from wandb.sdk.provenance.comm_stats import CollectiveSummary
+
+    summary = CollectiveSummary("all_gather", 1, 1, 1.0, 1.0, 1.0, 1.0, 64)
+    _collector(events)._communication("ok", [summary], 0)
+    assert events[-2][1] == {
         "collector": "flight_recorder",
         "status": "partial",
         "reason": "generic_recorder",
     }
+
+
+def test_flight_recorder_bound_reasons_carry_the_size():
+    events = []
+    collector = _collector(events)
+    collector._communication("buffer_too_large", [], 50000)
+    collector._communication("cpu_budget", [], 300)
+    assert [p for kind, p in events if p.get("collector") == "flight_recorder"] == [
+        {
+            "collector": "flight_recorder",
+            "status": "partial",
+            "reason": "buffer_too_large",
+            "count": 50000,
+        },
+        {
+            "collector": "flight_recorder",
+            "status": "self_disabled",
+            "reason": "cpu_budget",
+            "count": 300,
+        },
+    ]

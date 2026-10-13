@@ -111,17 +111,54 @@ def test_dump_byte_budget_is_checked_before_unpickling(torch, reporter, monkeypa
     loads = MagicMock(side_effect=AssertionError("must not unpickle"))
     monkeypatch.setattr(pickle, "loads", loads)
     torch._C._distributed_c10d._dump_nccl_trace = lambda **kwargs: (
-        b"x" * ((8 << 20) + 1)
+        b"x" * ((32 << 20) + 1)
     )
     reporter.report()
     assert loads.call_count == 0
     assert reporter._disabled
 
 
-def test_unknown_collective_names_are_not_published(torch, reporter, published):
+def test_unknown_collective_names_are_counted_as_other_without_the_name(
+    torch, reporter, published
+):
     torch.entries = [_entry(1, name="private-training-host")]
     reporter.report()
-    assert published[-1][1] == []
+    status, collectives = published[-1]
+    assert status == "no_recognized_collectives"
+    assert [(c.name, c.count) for c in collectives] == [("other", 1)]
+    assert "private" not in repr(published)
+
+
+def test_fsdp2_collective_names_map_to_families(torch, reporter, published):
+    names = [
+        "nccl:all_gather_into_tensor_coalesced",
+        "nccl:reduce_scatter_tensor_coalesced",
+        "nccl:_allgather_base",
+        "nccl:_reduce_scatter_base",
+        "nccl:all_reduce_coalesced",
+        "nccl:allreduce",
+        "nccl:broadcast",
+        "nccl:all_to_all_single",
+        "nccl:send 0->1",
+        "nccl:recv 1<-0",
+        "nccl:barrier",
+        "nccl:coalesced",
+    ]
+    torch.entries = [_entry(i + 1, name=name) for i, name in enumerate(names)]
+    reporter.report()
+    status, collectives = published[-1]
+    assert status == "ok"
+    assert {c.name: c.count for c in collectives} == {
+        "all_gather": 2,
+        "reduce_scatter": 2,
+        "all_reduce": 2,
+        "broadcast": 1,
+        "all_to_all": 1,
+        "send": 1,
+        "recv": 1,
+        "barrier": 1,
+        "other": 1,
+    }
 
 
 def test_summary_math(torch, reporter, published):
@@ -258,9 +295,17 @@ def test_p2p_seq_tracked_separately(torch, reporter, published):
     assert [(c.name, c.count) for c in published[1][1]] == [("send", 1)]
 
 
-def test_no_new_entries_is_ok_and_empty(torch, reporter, published):
+def test_an_empty_recorder_is_reported(torch, reporter, published):
     reporter.report()
-    assert published == [("ok", [])]
+    assert published == [("recorder_empty", [])]
+
+
+def test_no_new_entries_is_ok_and_empty(torch, reporter, published):
+    torch.entries = [_entry(1)]
+    reporter.report()
+    reporter.clock.t += 120
+    reporter.report()
+    assert published[-1] == ("ok", [])
 
 
 def test_no_timing_sends_counts_only(torch, reporter, published):
@@ -354,22 +399,56 @@ def test_unavailable(monkeypatch, reporter, published, fake, env):
 def test_fr_buffer_size_env_alias(monkeypatch, torch, reporter, published):
     monkeypatch.delenv("TORCH_NCCL_TRACE_BUFFER_SIZE")
     monkeypatch.setenv("TORCH_FR_BUFFER_SIZE", "100")
+    torch.entries = [_entry(1)]
     reporter.report()
-    assert published == [("ok", [])]
+    assert published[-1][0] == "ok"
 
 
-@pytest.mark.parametrize("size, reads", [("5000", 2), ("5001", 0), ("20000", 0)])
-def test_large_buffer_is_rejected_without_reading(
-    monkeypatch, torch, reporter, published, size, reads
+@pytest.mark.parametrize(
+    "name", ["TORCH_FR_BUFFER_SIZE", "TORCH_NCCL_TRACE_BUFFER_SIZE"]
+)
+@pytest.mark.parametrize("size, reads", [("20000", 2), ("20001", 0), ("50000", 0)])
+def test_buffer_size_in_effect_is_bounded_and_never_refused_silently(
+    monkeypatch, torch, reporter, published, lost, name, size, reads
 ):
-    monkeypatch.setenv("TORCH_NCCL_TRACE_BUFFER_SIZE", size)
+    monkeypatch.delenv("TORCH_NCCL_TRACE_BUFFER_SIZE")
+    monkeypatch.setenv(name, size)
+    torch.entries = [_entry(1)]
 
     reporter.report()
     reporter.clock.t += 120
     reporter.report()
 
     assert torch.dump_calls == reads
-    assert published[0][0] == ("ok" if reads else "unavailable")
+    if reads:
+        assert published[0][0] == "ok"
+    else:
+        assert published == [("buffer_too_large", [])]
+        assert lost == [int(size)]
+
+
+def test_torchtitan_fr_size_wins_over_the_bootstrap_default(
+    monkeypatch, torch, reporter, published
+):
+    monkeypatch.setenv("TORCH_NCCL_TRACE_BUFFER_SIZE", "2000")
+    monkeypatch.setenv("TORCH_FR_BUFFER_SIZE", "50000")
+    reporter.report()
+    assert published == [("buffer_too_large", [])]
+    assert torch.dump_calls == 0
+
+
+def test_slow_read_publishes_then_self_disables(
+    monkeypatch, torch, reporter, published, lost
+):
+    from wandb.sdk.provenance import comm_stats
+
+    clock = iter((0, 300_000_000))
+    monkeypatch.setattr(comm_stats.time, "thread_time_ns", lambda: next(clock))
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert [status for status, _ in published] == ["ok", "cpu_budget"]
+    assert lost[-1] == 300
+    assert reporter._disabled
 
 
 def _wait_for(cond, timeout=5.0):
@@ -521,6 +600,7 @@ def test_publish_exception_disables(torch, published):
         raise RuntimeError("closed")
 
     clock = _Clock()
+    torch.entries = [_entry(1)]
     r = CommStatsReporter(publish, 60.0, clock=clock)
     r.report()
     clock.t += 120

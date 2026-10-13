@@ -15,33 +15,27 @@ from typing import Any
 
 _DEFAULT_INTERVAL_SECONDS = 60.0
 
-_MAX_BUFFER_SIZE = 5000
-_COLLECTIVE_NAMES = frozenset(
-    (
-        "all_reduce",
-        "allreduce",
-        "all_reduce_coalesced",
-        "all_gather",
-        "allgather",
-        "_allgather_base",
-        "all_gather_into_tensor",
-        "all_gather_coalesced",
-        "reduce_scatter",
-        "reducescatter",
-        "_reduce_scatter_base",
-        "reduce_scatter_tensor",
-        "broadcast",
-        "reduce",
-        "gather",
-        "scatter",
-        "all_to_all",
-        "alltoall",
-        "all_to_all_single",
-        "send",
-        "recv",
-        "barrier",
-        "coalesced",
-    )
+# TorchTitan's comm.trace_buf_size default is 20000.
+_MAX_BUFFER_SIZE = 20000
+_MAX_DUMP_BYTES = 32 << 20
+_READ_CPU_NS = 250_000_000
+# Ordered so compound names match before "reduce", "gather" and "scatter".
+_COLLECTIVE_FAMILIES = (
+    ("all_reduce", "all_reduce"),
+    ("allreduce", "all_reduce"),
+    ("all_gather", "all_gather"),
+    ("allgather", "all_gather"),
+    ("reduce_scatter", "reduce_scatter"),
+    ("reducescatter", "reduce_scatter"),
+    ("all_to_all", "all_to_all"),
+    ("alltoall", "all_to_all"),
+    ("broadcast", "broadcast"),
+    ("barrier", "barrier"),
+    ("send", "send"),
+    ("recv", "recv"),
+    ("gather", "gather"),
+    ("scatter", "scatter"),
+    ("reduce", "reduce"),
 )
 
 # Names are c10::toString(ScalarType), which is what the flight recorder stores.
@@ -64,6 +58,10 @@ _DTYPE_BYTES = {
 STATUS_OK = "ok"
 STATUS_NO_TIMING = "no_timing"
 STATUS_UNAVAILABLE = "unavailable"
+STATUS_EMPTY = "recorder_empty"
+STATUS_UNRECOGNIZED = "no_recognized_collectives"
+STATUS_BUFFER_TOO_LARGE = "buffer_too_large"
+STATUS_CPU_BUDGET = "cpu_budget"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -172,19 +170,20 @@ class CommStatsReporter:
                 return
 
             if int(buffer_size) > _MAX_BUFFER_SIZE:
-                self._emit(STATUS_UNAVAILABLE, [], 0)
                 self._disabled = True
+                self._emit(STATUS_BUFFER_TOO_LARGE, [], int(buffer_size))
                 return
             now = self._clock()
             if self._last_read is not None and now - self._last_read < 60:
                 return
             self._last_read = now
+            started = time.thread_time_ns()
             raw = dump_fn(
                 includeCollectives=True,
                 includeStackTraces=False,
                 onlyActive=False,
             )
-            if len(raw) > 8 << 20:
+            if len(raw) > _MAX_DUMP_BYTES:
                 self._disabled = True
                 self._emit(STATUS_UNAVAILABLE, [], 0)
                 return
@@ -193,6 +192,9 @@ class CommStatsReporter:
             seen = dict(self._seen)
             oldest: dict[tuple[Any, bool], int] = {}
             entries = pickle.loads(raw).get("entries") or []
+            if not entries:
+                self._emit(STATUS_EMPTY, [], 0)
+                return
             if len(entries) > _MAX_BUFFER_SIZE:
                 self._emit(STATUS_UNAVAILABLE, [], 0)
                 self._disabled = True
@@ -212,10 +214,13 @@ class CommStatsReporter:
                     self._disabled = True
                     self._emit(STATUS_UNAVAILABLE, [], 0)
                     return
-                name = str(e.get("profiling_name", "")).removeprefix("nccl:")
-                if name not in _COLLECTIVE_NAMES:
-                    continue
-                groups.setdefault(name, []).append(e)
+                name = str(e.get("profiling_name", "")).lower()
+                # Unknown names are counted as "other" and never stored.
+                family = next(
+                    (f for needle, f in _COLLECTIVE_FAMILIES if needle in name),
+                    "other",
+                )
+                groups.setdefault(family, []).append(e)
 
             # A sequence gap before the oldest entry indicates ring wrap.
             n_lost = sum(
@@ -260,8 +265,18 @@ class CommStatsReporter:
                     )
                 )
 
-            status = STATUS_OK if timed or not groups else STATUS_NO_TIMING
+            status = (
+                STATUS_UNRECOGNIZED
+                if set(groups) == {"other"}
+                else STATUS_OK
+                if timed or not groups
+                else STATUS_NO_TIMING
+            )
             self._emit(status, collectives, n_lost)
+            elapsed_ms = (time.thread_time_ns() - started) // 1_000_000
+            if elapsed_ms > _READ_CPU_NS // 1_000_000:
+                self._disabled = True
+                self._emit(STATUS_CPU_BUDGET, [], elapsed_ms)
         except Exception:
             self._disabled = True
             self._emit(STATUS_UNAVAILABLE, [], 0)
