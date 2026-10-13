@@ -14,7 +14,6 @@ import subprocess
 import sys
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import suppress
-from itertools import chain
 from pathlib import Path
 from shutil import rmtree
 from typing import Any, ClassVar
@@ -55,8 +54,8 @@ from .plugin_utils import (
     is_field_call,
     is_import_from,
     is_redundant_class,
-    make_all_assignment,
     make_import_from,
+    make_lazy_init_body,
     make_literal,
 )
 
@@ -165,16 +164,9 @@ class GraphQLCodegenPlugin(Plugin):
         return self._rewrite_init_module(module)
 
     def _rewrite_init_module(self, module: ast.Module) -> ast.Module:
-        """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
-        # Drop selected import statements from the __init__ module
-        kept_import_stmts = list(self._filter_init_imports(module.body))
-
-        # Regenerate the `__all__ = [...]` export statement
-        names_to_export = chain.from_iterable(map(imported_names, kept_import_stmts))
-        module.body = [
-            make_all_assignment(names_to_export),
-            *kept_import_stmts,
-        ]
+        """Drop unwanted imports from `__init__` and make the remaining ones lazy."""
+        kept_import_stmts = self._filter_init_imports(module.body)
+        module.body = make_lazy_init_body(kept_import_stmts)
         return ast.fix_missing_locations(module)
 
     def _filter_init_imports(

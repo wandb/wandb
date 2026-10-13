@@ -45,6 +45,30 @@ func prepareSource(src image.Image, fit FitMode, cols, rows, cellW, cellH int, b
 	}
 }
 
+// place draws src into dst within out, compositing with draw.Over. A
+// destination of the source's own size is a plain copy: CatmullRom at 1:1
+// changes no pixel but still allocates a float scratch buffer four times
+// the source and runs both kernel passes, which dominated a terminal
+// viewer's frame time.
+func place(out *image.RGBA, dst image.Rectangle, src image.Image, sb image.Rectangle) {
+	if dst.Dx() == sb.Dx() && dst.Dy() == sb.Dy() {
+		draw.Draw(out, dst, src, sb.Min, draw.Over)
+		return
+	}
+	draw.CatmullRom.Scale(out, dst, src, sb, draw.Over, nil)
+}
+
+// coversTarget reports whether src at target size would hide bg entirely,
+// so the fitted image is src itself and no copy is needed. Opacity is a
+// scan of the source, cheaper than the allocation and copy it saves.
+func coversTarget(src image.Image, sb, target image.Rectangle) bool {
+	if sb.Dx() != target.Dx() || sb.Dy() != target.Dy() {
+		return false
+	}
+	o, ok := src.(interface{ Opaque() bool })
+	return ok && o.Opaque()
+}
+
 // bgIsTransparent reports whether bg has zero alpha — same predicate the
 // removed composite helper used as its short-circuit.
 func bgIsTransparent(bg color.Color) bool {
@@ -58,12 +82,12 @@ func bgIsTransparent(bg color.Color) bool {
 // size, return src unchanged (matches the kitty.go optimization the
 // original composite() preserved for the transparent-bg case).
 func fillTo(src image.Image, sb, target image.Rectangle, bg color.Color) image.Image {
-	if bgIsTransparent(bg) && sb.Dx() == target.Dx() && sb.Dy() == target.Dy() {
+	if (bgIsTransparent(bg) && sb.Dx() == target.Dx() && sb.Dy() == target.Dy()) || coversTarget(src, sb, target) {
 		return src
 	}
 	out := image.NewRGBA(target)
 	draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
-	draw.CatmullRom.Scale(out, target, src, sb, draw.Over, nil)
+	place(out, target, src, sb)
 	return out
 }
 
@@ -71,6 +95,9 @@ func fillTo(src image.Image, sb, target image.Rectangle, bg color.Color) image.I
 // target with bg, then draws src into the inscribed rect with draw.Over so
 // transparent bg yields literal transparency in the output PNG.
 func containTo(src image.Image, sb, target image.Rectangle, bg color.Color) image.Image {
+	if coversTarget(src, sb, target) {
+		return src
+	}
 	out := image.NewRGBA(target)
 	draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
 
@@ -98,7 +125,7 @@ func containTo(src image.Image, sb, target image.Rectangle, bg color.Color) imag
 	ox := (tw - iw) / 2
 	oy := (th - ih) / 2
 	dst := image.Rect(ox, oy, ox+iw, oy+ih)
-	draw.CatmullRom.Scale(out, dst, src, sb, draw.Over, nil)
+	place(out, dst, src, sb)
 	return out
 }
 
@@ -107,6 +134,9 @@ func containTo(src image.Image, sb, target image.Rectangle, bg color.Color) imag
 // the circumscribed rect with draw.Over. Target-bound clipping crops the
 // overflow; bg shows through translucent source pixels.
 func coverTo(src image.Image, sb, target image.Rectangle, bg color.Color, anchor FitAnchor) image.Image {
+	if coversTarget(src, sb, target) {
+		return src
+	}
 	tw, th := target.Dx(), target.Dy()
 	sw, sh := sb.Dx(), sb.Dy()
 
@@ -149,6 +179,6 @@ func coverTo(src image.Image, sb, target image.Rectangle, bg color.Color, anchor
 	dst := image.Rect(ox, oy, ox+cw, oy+ch)
 	out := image.NewRGBA(target)
 	draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
-	draw.CatmullRom.Scale(out, dst, src, sb, draw.Over, nil)
+	place(out, dst, src, sb)
 	return out
 }

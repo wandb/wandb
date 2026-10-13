@@ -17,8 +17,6 @@ import traceback
 from typing import Any
 
 import wandb
-from wandb.apis.public.sweeps import _agent_heartbeat, _register_agent
-from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import config_util
 from wandb.sdk.sweeps import SweepNotFoundError
 
@@ -130,6 +128,8 @@ class Agent:
         self._start_time = time.time()
 
     def _register(self):
+        from wandb.apis.public.sweeps import _register_agent
+
         logger.debug("Agent._register()")
         agent = _register_agent(
             self._api,
@@ -142,6 +142,8 @@ class Agent:
         logger.debug(f"agent_id = {self._agent_id}")
 
     def _setup(self):
+        from wandb.sdk.launch.sweeps import utils as sweep_utils
+
         logger.debug("Agent._setup()")
         self._init()
         parts = dict(entity=self._entity, project=self._project, name=self._sweep_path)
@@ -223,6 +225,8 @@ class Agent:
 
     def _heartbeat_commands(self, run_status: dict) -> list[dict[str, Any]]:
         """Fetch the next batch of agent commands from the server."""
+        from wandb.apis.public.sweeps import _agent_heartbeat
+
         if self._sweep_not_found:
             # The sweep was deleted; stop heartbeating but let the in-process
             # run finish before we shut the agent down.

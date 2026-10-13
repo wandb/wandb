@@ -323,7 +323,7 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
             raise Exception(args)
 
     monkeypatch.setattr(
-        "wandb.cli.cli._launch_add",
+        "wandb.sdk.launch._launch_add._launch_add",
         patched_launch_add,
     )
 
@@ -338,7 +338,7 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
         mock_api.run_queue.side_effect = patched_run_queue
         return mock_api
 
-    monkeypatch.setattr("wandb.cli.cli.LaunchApi", patched_launch_api)
+    monkeypatch.setattr("wandb.sdk.launch.api.LaunchApi", patched_launch_api)
 
     result = "none"
     with runner.isolated_filesystem():
