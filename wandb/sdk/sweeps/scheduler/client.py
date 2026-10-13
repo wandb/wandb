@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 import wandb
+from wandb.analytics import get_telemetry_recorder
 from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk import wandb_setup
@@ -74,6 +75,15 @@ def run_scheduler(
     """
     if not entity or not project or not sweep_id:
         raise ValueError("entity, project and sweep_id must be non-empty")
+
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "sweep_scheduler",
+            "sweep_id": sweep_id,
+            "entity": entity,
+            "project": project,
+        }
+    )
 
     singleton = wandb_setup.singleton()
 
@@ -129,8 +139,23 @@ def run_scheduler(
         run_name=sweep.controller_run_name,
         level=logging.INFO,
     )
+
+    config = sweep.config.get("scheduler", {})
+
+    telemetry_recorder = telemetry_recorder.with_context(
+        high_cardinality_attributes={
+            "engine": optimizer.engine,
+            "optimizer": config.get("optimizer", ""),
+            "search_space": config.get("search_space", ""),
+            "use_terminator": str(optimizer.has_terminator()).lower(),
+        }
+    )
     exchange = SchedulerTaskExchange(
-        service, init_response.session_id, optimizer, logger
+        service,
+        init_response.session_id,
+        optimizer,
+        logger,
+        telemetry_recorder,
     )
 
     previous_handler = _install_sigint_handler(
@@ -151,6 +176,12 @@ def run_scheduler(
         raise wandb.Error(f"The sweep scheduler failed: {message}.")
 
     term.termlog(f"Sweep scheduler for {sweep.name} exited: {message}.")
+    telemetry_recorder.increment_counter_and_log_event(
+        "sweep_scheduler.successful_exit",
+        attributes={
+            "reason": message,
+        },
+    )
     return done
 
 
