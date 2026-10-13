@@ -726,41 +726,47 @@ def test_infer_git_root_skips_if_disable_git(tmp_path):
     assert s.git_root is None
 
 
-def test_x_provenance_to_proto():
-    assert Settings().x_provenance is False
-    assert Settings(x_provenance=True).to_proto().x_provenance.value is True
+@pytest.mark.parametrize("value", [0, 1])
+def test_x_provenance_level_accepts_collection_levels(value):
+    assert Settings(x_provenance_level=value).x_provenance_level == value
 
 
-def test_x_provenance_from_env():
-    s = Settings()
-    s.update_from_env_vars({"WANDB_X_PROVENANCE": "true"})
-    assert s.x_provenance is True
+@pytest.mark.parametrize("value", [-1, 2, True, 1.0])
+def test_x_provenance_level_rejects_other_values(value):
+    with pytest.raises(ValueError):
+        Settings(x_provenance_level=value)
 
 
-def test_x_provenance_logs_is_rejected():
-    with pytest.raises(ValueError, match="x_provenance_logs"):
-        Settings(x_provenance_logs=True)
+@pytest.mark.parametrize("value", [0, 1])
+def test_x_provenance_level_from_env(value):
+    settings = Settings()
+    settings.update_from_env_vars({"WANDB_X_PROVENANCE_LEVEL": str(value)})
+    assert settings.x_provenance_level == value
 
 
-def test_x_provenance_chunk_interval_to_proto():
-    assert not Settings().to_proto().HasField("x_provenance_chunk_interval")
-    # wandb-core owns the 300-3600 s clamp and the 1200 s default, so the SDK passes the value through.
-    proto = Settings(x_provenance_chunk_interval=60).to_proto()
-    assert proto.x_provenance_chunk_interval.value == 60.0
+@pytest.mark.parametrize("value", ["", "true", "2"])
+def test_x_provenance_level_ignores_invalid_env(value):
+    settings = Settings()
+    settings.update_from_env_vars({"WANDB_X_PROVENANCE_LEVEL": value})
+    assert settings.x_provenance_level is None
 
 
-def test_x_provenance_step_metric_to_proto():
-    assert Settings().x_provenance_step_metric is None
-    proto = Settings(x_provenance_step_metric="trainer/global_step").to_proto()
-    assert proto.x_provenance_step_metric.value == "trainer/global_step"
+def test_x_provenance_level_to_proto():
+    assert not Settings().to_proto().HasField("x_provenance_level")
+    assert Settings(x_provenance_level=0).to_proto().x_provenance_level.value == 0
 
 
-def test_x_provenance_comm_to_proto():
-    assert Settings().x_provenance_comm is False
-    assert Settings(x_provenance_comm=True).to_proto().x_provenance_comm.value is True
-
-
-def test_x_provenance_flush_interval_to_proto():
-    assert Settings().to_proto().x_provenance_flush_interval.value == 60.0
-    proto = Settings(x_provenance_flush_interval=300).to_proto()
-    assert proto.x_provenance_flush_interval.value == 300.0
+@pytest.mark.parametrize(
+    "name",
+    [
+        "x_provenance",
+        "x_provenance_logs",
+        "x_provenance_chunk_interval",
+        "x_provenance_step_metric",
+        "x_provenance_comm",
+        "x_provenance_flush_interval",
+    ],
+)
+def test_removed_provenance_settings_are_rejected(name):
+    with pytest.raises(ValueError):
+        Settings(**{name: True})

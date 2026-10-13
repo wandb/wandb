@@ -31,8 +31,10 @@ option go_package = "core/pkg/service_go_proto";
 // sync an older transaction log, it is important to follow proper protobuf
 // versioning practices: https://protobuf.dev/best-practices/
 //
-// Next ID: 31
+// Next ID: 32
 message Record {
+  reserved 29, 30;
+  reserved "device_binding", "comm_stats";
   int64 num = 1;
   oneof record_type {
     // Low numbers for more frequent data
@@ -60,8 +62,7 @@ message Record {
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
     OutputLoggerRecord output_logger = 27;
-    DeviceBindingRecord device_binding = 29;
-    CommStatsRecord comm_stats = 30;
+    ProvenanceRecord provenance = 31;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -69,6 +70,32 @@ message Record {
   Control control = 16;
   string uuid = 19;
   _RecordInfo _info = 200;
+}
+
+message ProvenanceRecord {
+  string kind = 1;
+  bytes payload_json = 2;
+  int64 monotonic_ns = 3;
+  int64 wall_time_ns = 4;
+}
+
+message ProvenanceStartRequest {
+  uint32 protocol_version = 1;
+  uint32 level = 2;
+  string run_id = 3;
+  int32 rank = 4;
+  int32 local_rank = 5;
+  int32 node_rank = 6;
+  int32 attempt = 7;
+  bool primary = 8;
+  bytes identity_json = 9;
+}
+
+message ProvenanceStartResponse {
+  bool accepted = 1;
+  uint32 protocol_version = 2;
+  string reason = 3;
+  string writer_id = 4;
 }
 
 message Control {
@@ -363,38 +390,6 @@ message OutputRawResult {}
  */
 message OutputLoggerRecord {
   string line = 1;
-}
-
-// DeviceBindingRecord: the CUDA device a writer process reports it is bound to.
-message DeviceBindingRecord {
-  string uuid = 1;
-  string pci_bus_id = 2;
-  string source = 3;
-  int32 cuda_index = 4;
-  _RecordInfo _info = 200;
-}
-
-// CollectiveStats: timings of one collective kind from the NCCL flight recorder.
-message CollectiveStats {
-  string name = 1;
-  int64 count = 2;
-  // Duration fields are unset when no collective in the group was timed.
-  optional double p50_ms = 3;
-  optional double p99_ms = 4;
-  optional double max_ms = 5;
-  optional double total_ms = 6;
-  optional int64 bytes = 7;
-  // Number of collectives in the group that carried a duration.
-  int64 n_timed = 8;
-}
-
-// CommStatsRecord: collectives a writer process completed since its previous report.
-message CommStatsRecord {
-  string status = 1;
-  repeated CollectiveStats collectives = 2;
-  // Collectives evicted from the flight recorder ring before they were read; 0 when none were detected.
-  int64 n_lost = 3;
-  _RecordInfo _info = 200;
 }
 
 /*
@@ -737,7 +732,7 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 85
+// Next ID: 86
 message Request {
   reserved 18, 22, 75, 76, 79, 80;
 
@@ -754,6 +749,7 @@ message Request {
     SampledHistoryRequest sampled_history = 9;
     PartialHistoryRequest partial_history = 10;
     HistoryStepRequest history_step = 84;
+    ProvenanceStartRequest provenance_start = 85;
 
     RunStartRequest run_start = 11;
     CheckVersionRequest check_version = 12;
@@ -792,7 +788,7 @@ message Request {
 /*
  * Response: all non persistent responses to Requests
  *
- * Next ID: 75
+ * Next ID: 77
  */
 message Response {
   reserved 32, 72, 73;
@@ -807,6 +803,7 @@ message Response {
 
     SampledHistoryResponse sampled_history_response = 27;
     HistoryStepResponse history_step_response = 75;
+    ProvenanceStartResponse provenance_start_response = 76;
 
     RunStartResponse run_start_response = 28;
     CheckVersionResponse check_version_response = 29;

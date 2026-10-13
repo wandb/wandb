@@ -903,7 +903,7 @@ class _WandbInit:
             if settings.x_label:
                 tel.feature.user_provided_label = True
 
-            if settings.x_provenance:
+            if settings.x_provenance_level is not None:
                 tel.feature.provenance_logs = True
 
             if wandb.env.dcgm_profiling_enabled():
@@ -1015,6 +1015,10 @@ class _WandbInit:
             _set_global_run(run)
 
         run._on_start()
+        if settings.x_provenance_level is not None:
+            from .provenance.bootstrap import attach_run
+
+            attach_run(run)
         self._logger.info("run started, returning control to user process")
         return run
 
@@ -1086,6 +1090,10 @@ def _attach(
     run._set_run_obj(attach_response.run)
     _set_global_run(run)
     run._on_attach()
+    if settings.x_provenance_level is not None:
+        from .provenance.bootstrap import attach_run
+
+        attach_run(run)
     return run
 
 

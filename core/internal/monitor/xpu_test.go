@@ -68,15 +68,15 @@ func TestXPU_WithoutProvenanceRequestsNoSerialOrThrottleReasons(t *testing.T) {
 	assert.False(t, fake.stats[0].GetIncludeThrottleReasons())
 }
 
-func TestXPU_WithProvenanceRequestsSerialAndThrottleReasons(t *testing.T) {
+func TestXPU_WithProvenanceOmitsRawSerialAndRequestsThrottleReasons(t *testing.T) {
 	x, fake := newFakeXPU(true)
 
 	env := x.Probe(context.Background())
 	_, err := x.Sample()
 	require.NoError(t, err)
 
-	assert.Equal(t, "1320000000001", env.GetGpuNvidia()[0].GetSerial())
-	assert.True(t, fake.metadata[0].GetIncludeSerial())
+	assert.Empty(t, env.GetGpuNvidia()[0].GetSerial())
+	assert.False(t, fake.metadata[0].GetIncludeSerial())
 	assert.True(t, fake.stats[0].GetIncludeThrottleReasons())
 	assert.Equal(t, int32(123), fake.stats[0].GetPid())
 	assert.Equal(t, []int32{0, 1}, fake.stats[0].GetGpuDeviceIds())

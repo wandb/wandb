@@ -997,28 +997,32 @@ func TestHandleDerivedSummary(t *testing.T) {
 	}
 }
 
-func TestHandleDeviceBinding_ForwardsWithoutPanic(t *testing.T) {
-	inChan := make(chan runwork.Work, 1)
-	h := makeHandler(t, inChan, "", false)
-
-	record := &spb.Record{RecordType: &spb.Record_DeviceBinding{
-		DeviceBinding: &spb.DeviceBindingRecord{Uuid: "GPU-aaa"},
-	}}
-	inChan <- runwork.NoRequest(runwork.WorkFromRecord(record))
-
-	out := (<-h.OutChan()).WorkImpl.(runwork.WorkRecord).Record
-	assert.Equal(t, "GPU-aaa", out.GetDeviceBinding().GetUuid())
+func TestHandleProvenanceDoesNotForward(t *testing.T) {
+	in := make(chan runwork.Work, 2)
+	handler := makeHandler(t, in, "", false)
+	in <- runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{RecordType: &spb.Record_Provenance{Provenance: &spb.ProvenanceRecord{Kind: "step"}}}))
+	marker := &spb.Record{RecordType: &spb.Record_Stats{Stats: &spb.StatsRecord{}}}
+	in <- runwork.NoRequest(runwork.WorkFromRecord(marker))
+	got := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+	assert.Same(t, marker, got)
 }
 
-func TestHandleCommStats_ForwardsWithoutPanic(t *testing.T) {
-	inChan := make(chan runwork.Work, 1)
-	h := makeHandler(t, inChan, "", false)
-
-	record := &spb.Record{RecordType: &spb.Record_CommStats{
-		CommStats: &spb.CommStatsRecord{Status: "ok"},
-	}}
-	inChan <- runwork.NoRequest(runwork.WorkFromRecord(record))
-
-	out := (<-h.OutChan()).WorkImpl.(runwork.WorkRecord).Record
-	assert.Equal(t, "ok", out.GetCommStats().GetStatus())
+func TestProvenanceStartRejectsProtocolMismatch(t *testing.T) {
+	in := make(chan runwork.Work, 1)
+	_ = makeHandler(t, in, "", false)
+	request, responses := runworktest.SimpleRequest(t, "provenance")
+	record := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_ProvenanceStart{
+					ProvenanceStart: &spb.ProvenanceStartRequest{ProtocolVersion: 99},
+				},
+			},
+		},
+	}
+	in <- runwork.Work{WorkImpl: runwork.WorkFromRecord(record), Request: request}
+	response := (<-responses).GetResultCommunicate().GetResponse().GetProvenanceStartResponse()
+	assert.False(t, response.Accepted)
+	assert.Equal(t, uint32(2), response.ProtocolVersion)
+	assert.Equal(t, "protocol_mismatch", response.Reason)
 }

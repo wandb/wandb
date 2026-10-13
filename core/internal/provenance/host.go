@@ -47,25 +47,3 @@ func readPressure(path func(resource string) string, into map[string]float64) bo
 	}
 	return found
 }
-
-// parseCPUList parses a kernel CPU list such as "0-3,8,10-11".
-func parseCPUList(s string) map[int]bool {
-	cpus := make(map[int]bool)
-	for part := range strings.SplitSeq(strings.TrimSpace(s), ",") {
-		lo, hi, isRange := strings.Cut(part, "-")
-		a, err := strconv.Atoi(lo)
-		if err != nil {
-			continue
-		}
-		b := a
-		if isRange {
-			if b, err = strconv.Atoi(hi); err != nil {
-				continue
-			}
-		}
-		for c := a; c <= b; c++ {
-			cpus[c] = true
-		}
-	}
-	return cpus
-}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/provenance"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
@@ -143,6 +144,7 @@ func (s *Server) exitWhenParentIsGone() {
 	}
 
 	slog.Info("server: parent process exited, terminating service process")
+	provenance.Terminate(5*time.Second, 1)
 
 	// The user process has exited, so there's no need to sync
 	// uncommitted data, and we can quit immediately.

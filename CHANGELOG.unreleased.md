@@ -40,7 +40,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 - `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12900)
-- With the experimental `x_provenance` setting on, run metadata includes each NVIDIA GPU's serial number; with it off, serials are not read (@kr-igor in https://github.com/wandb/wandb/pull/12977)
+- With the experimental `WANDB_X_PROVENANCE_LEVEL` environment variable set to `0` or `1`, each rank of a distributed training job writes pseudonymized rank, GPU, host and framework telemetry as run files under `wandb-telemetry/v2/`, without changes to the training script. The variable must be set before each rank's interpreter starts (@kr-igor in https://github.com/wandb/wandb/pull/12977)
 
 ### Changed
 

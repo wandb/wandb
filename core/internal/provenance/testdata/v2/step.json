@@ -1,0 +1,1 @@
+{"v":2,"kind":"step","writer_id":"writer-a","collected_at":"2026-10-12T10:00:00Z","attempt":0,"rank":0,"source":"cpu_clock","step":1,"event":"train_step","duration_ms":42,"monotonic_ns":1}

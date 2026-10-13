@@ -1,5 +1,6 @@
 from unittest import mock
 
+import pytest
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Feature
 
@@ -23,13 +24,14 @@ def test_telemetry_finish(wandb_backend_spy):
         assert "finish" in get_features(telemetry)
 
 
-def test_telemetry_provenance(wandb_backend_spy):
-    with wandb.init(settings=wandb.Settings(x_provenance=True)) as run:
+@pytest.mark.parametrize("level", [None, 0, 1])
+def test_telemetry_provenance(wandb_backend_spy, level):
+    with wandb.init(settings=wandb.Settings(x_provenance_level=level)) as run:
         pass
 
     with wandb_backend_spy.freeze() as snapshot:
         telemetry = snapshot.telemetry(run_id=run.id)
-        assert "provenance_logs" in get_features(telemetry)
+        assert ("provenance_logs" in get_features(telemetry)) is (level is not None)
 
 
 def test_telemetry_imports(wandb_backend_spy):

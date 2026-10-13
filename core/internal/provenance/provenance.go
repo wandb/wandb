@@ -1,14 +1,12 @@
-// Package provenance writes rank-to-GPU provenance and packed GPU/host telemetry as run files.
 package provenance
 
 import (
 	"bytes"
-	"compress/gzip"
+	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"io"
 	"maps"
 	"math"
 	"os"
@@ -17,680 +15,873 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/provenance/platform"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/version"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// maxEnvValueLen bounds each raw value copied into a rank record.
-const maxEnvValueLen = 256
+const maxBufferedBytes = 4 << 20
+const queueCapacity = 1024
 
-// defaultMaxLineBytes flushes a window early so one window line stays small.
-const defaultMaxLineBytes = 32 << 10
-
-const (
-	// rankNowInterval is the minimum time between NOW registrations of the rank object.
-	rankNowInterval = 5 * time.Minute
-
-	// maxRankRecords is how many of the latest rank records the rank object keeps.
-	maxRankRecords = 100
-)
-
-const (
-	defaultChunkInterval = 20 * time.Minute
-	minChunkInterval     = 5 * time.Minute
-	maxChunkInterval     = time.Hour
-	defaultMaxChunkBytes = 4 << 20
-
-	// chunkSlot is the width of the seal-time buckets in chunk paths, whatever the chunk interval.
-	chunkSlot = 20 * time.Minute
-)
-
-// runFilesDir is the telemetry prefix in the run's files directory; a new format needs a new version.
-var runFilesDir = filepath.Join("wandb-telemetry", "v1")
-
-const (
-	SourceNVMLProcess        = "nvml_process"
-	SourceCudaRuntime        = "cuda_runtime"
-	SourceCVDUUID            = "cuda_visible_devices_uuid"
-	SourceUnresolved         = "unresolved"
-	SourceConflict           = "conflict"
-	SourceNoNvidiaGPU        = "no_nvidia_gpu"
-	SourceGPUInfoUnavailable = "gpu_info_unavailable"
-)
-
-// Job identifies the scheduler job a writer belongs to.
-type Job struct {
-	Scheduler     string `json:"scheduler"`
-	Cluster       string `json:"cluster,omitempty"`
-	ID            string `json:"id,omitempty"`
-	StepID        string `json:"step_id,omitempty"`
-	Attempt       *int   `json:"attempt,omitempty"`
-	StartTime     string `json:"start_time,omitempty"`
-	Nodelist      string `json:"nodelist,omitempty"`
-	NumNodes      *int   `json:"num_nodes,omitempty"`
-	WorldSize     *int   `json:"world_size,omitempty"`
-	NtasksPerNode string `json:"ntasks_per_node,omitempty"`
-	GpusOnNode    *int   `json:"gpus_on_node,omitempty"`
-	TopologyAddr  string `json:"topology_addr,omitempty"`
-}
-
-// Rank identifies a writer within its job.
-type Rank struct {
-	Global   *int   `json:"global,omitempty"`
-	Local    *int   `json:"local,omitempty"`
-	Node     *int   `json:"node,omitempty"`
-	Hostname string `json:"hostname,omitempty"`
-}
-
-// Launch is what the launcher environment says about a writer.
-type Launch struct {
-	Job  Job
-	Rank Rank
-	Env  map[string]string
-}
-
-var launcherEnvKeys = []string{
-	"MASTER_ADDR", "MASTER_PORT", "TORCHELASTIC_RUN_ID",
-	"LOCAL_WORLD_SIZE", "CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER",
-}
-
-// ReadLaunch reads Slurm, torchelastic and OpenMPI variables from env.
-func ReadLaunch(env map[string]string, hostname string) Launch {
-	has := func(k string) bool { _, ok := env[k]; return ok }
-	capped := func(v string) string { return v[:min(len(v), maxEnvValueLen)] }
-
-	id, ok := env["SLURM_JOB_ID"]
-	if !ok {
-		id = env["TORCHELASTIC_RUN_ID"]
-	}
-
-	l := Launch{
-		Job: Job{
-			Scheduler:     "none",
-			Cluster:       env["SLURM_CLUSTER_NAME"],
-			ID:            id,
-			StepID:        env["SLURM_STEP_ID"],
-			Attempt:       firstInt(env, "SLURM_RESTART_COUNT", "TORCHELASTIC_RESTART_COUNT"),
-			StartTime:     env["SLURM_JOB_START_TIME"],
-			Nodelist:      capped(env["SLURM_JOB_NODELIST"]),
-			NumNodes:      firstInt(env, "SLURM_JOB_NUM_NODES"),
-			WorldSize:     firstInt(env, "WORLD_SIZE", "SLURM_NTASKS", "OMPI_COMM_WORLD_SIZE"),
-			NtasksPerNode: env["SLURM_NTASKS_PER_NODE"],
-			GpusOnNode:    firstInt(env, "SLURM_GPUS_ON_NODE"),
-			TopologyAddr:  env["SLURM_TOPOLOGY_ADDR"],
-		},
-		Rank: Rank{
-			Global:   firstInt(env, "RANK", "SLURM_PROCID", "OMPI_COMM_WORLD_RANK", "PMIX_RANK"),
-			Local:    firstInt(env, "LOCAL_RANK", "SLURM_LOCALID", "OMPI_COMM_WORLD_LOCAL_RANK"),
-			Node:     firstInt(env, "GROUP_RANK", "SLURM_NODEID"),
-			Hostname: hostname,
-		},
-	}
-
-	switch {
-	case has("SLURM_JOB_ID"):
-		l.Job.Scheduler = "slurm"
-	case has("TORCHELASTIC_RUN_ID") || (has("LOCAL_RANK") && has("WORLD_SIZE")):
-		l.Job.Scheduler = "torchelastic"
-	case has("OMPI_COMM_WORLD_RANK") || has("PMIX_RANK"):
-		l.Job.Scheduler = "openmpi"
-	}
-
-	for _, k := range launcherEnvKeys {
-		v, ok := env[k]
-		if !ok {
-			continue
-		}
-		if l.Env == nil {
-			l.Env = make(map[string]string)
-		}
-		l.Env[k] = capped(v)
-	}
-
-	return l
-}
-
-// firstInt parses the first present key; a malformed value yields nil, never 0.
-func firstInt(env map[string]string, keys ...string) *int {
-	for _, k := range keys {
-		v, ok := env[k]
-		if !ok {
-			continue
-		}
-		n, err := strconv.Atoi(strings.TrimSpace(v))
-		if err != nil {
-			return nil
-		}
-		return &n
-	}
-	return nil
-}
-
-// GpuIdentity is a physical GPU as seen by NVML.
-type GpuIdentity struct {
-	UUID      string `json:"uuid"`
-	Name      string `json:"name,omitempty"`
-	PciBusID  string `json:"pci_bus_id,omitempty"`
-	Serial    string `json:"serial,omitempty"`
-	IndexHost *int   `json:"index_host,omitempty"`
-	NumaNode  *int   `json:"numa_node,omitempty"`
-	LocalCPUs string `json:"local_cpulist,omitempty"`
-}
-
-// Binding is which GPUs a writer is bound to and the evidence for it.
-type Binding struct {
-	Source          string        `json:"binding_source"`
-	GPUs            []GpuIdentity `json:"gpus"`
-	Ambiguous       bool          `json:"ambiguous,omitempty"`
-	GPUsNVML        []GpuIdentity `json:"gpus_nvml,omitempty"`
-	GPUsCudaRuntime []GpuIdentity `json:"gpus_cuda_runtime,omitempty"`
-}
-
-// ResolveBinding picks the writer's GPUs from the strongest available evidence.
-func ResolveBinding(
-	metrics *spb.StatsRecord,
-	gpus []GpuIdentity,
-	reported *spb.DeviceBindingRecord,
-	env map[string]string,
-) Binding {
-	seen := make(map[int]bool)
-	for _, item := range metrics.GetItem() {
-		rest, ok := strings.CutPrefix(item.GetKey(), "gpu.process.")
-		if !ok {
-			continue
-		}
-		idx, _, _ := strings.Cut(rest, ".")
-		if i, err := strconv.Atoi(idx); err == nil && i >= 0 && i < len(gpus) {
-			seen[i] = true
-		}
-	}
-	var nvml []GpuIdentity
-	for _, i := range slices.Sorted(maps.Keys(seen)) {
-		nvml = append(nvml, gpus[i])
-	}
-
-	if u := reported.GetUuid(); u != "" {
-		sameUUID := func(g GpuIdentity) bool { return strings.EqualFold(g.UUID, u) }
-		cuda := GpuIdentity{UUID: u}
-		if i := slices.IndexFunc(gpus, sameUUID); i >= 0 {
-			cuda = gpus[i]
-		}
-		switch {
-		case len(nvml) == 0:
-			return Binding{Source: SourceCudaRuntime, GPUs: []GpuIdentity{cuda}}
-		case slices.ContainsFunc(nvml, sameUUID):
-			return Binding{Source: SourceNVMLProcess, GPUs: []GpuIdentity{cuda}}
-		default:
-			return Binding{
-				Source:          SourceConflict,
-				GPUs:            []GpuIdentity{},
-				GPUsNVML:        nvml,
-				GPUsCudaRuntime: []GpuIdentity{cuda},
-			}
-		}
-	}
-
-	if len(nvml) > 0 {
-		return Binding{Source: SourceNVMLProcess, GPUs: nvml, Ambiguous: len(nvml) > 1}
-	}
-
-	// Integer entries use CUDA ordering, which need not match NVML's.
-	if cvd := strings.Split(env["CUDA_VISIBLE_DEVICES"], ","); len(cvd) == 1 &&
-		strings.HasPrefix(cvd[0], "GPU-") {
-		for _, g := range gpus {
-			if strings.EqualFold(g.UUID, cvd[0]) {
-				return Binding{Source: SourceCVDUUID, GPUs: []GpuIdentity{g}}
-			}
-		}
-	}
-
-	return Binding{Source: SourceUnresolved, GPUs: []GpuIdentity{}}
-}
-
-// sampleFields maps xpu metric names to sample keys, in output order.
-var sampleFields = []struct{ xpu, name string }{
-	{"smActive", "sm_active"},
-	{"pipeTensorActive", "tensor_active"},
-	{"smOccupancy", "sm_occupancy"},
-	{"dramActive", "dram_active"},
-	{"smClock", "sm_clock_mhz"},
-	{"memoryClock", "mem_clock_mhz"},
-	{"powerWatts", "power_w"},
-	{"temp", "temp_c"},
-	{"gpu", "util_pct"},
-	{"memory", "mem_util_pct"},
-	{"nvlinkTxBytes", "nvlink_tx_bps"},
-	{"nvlinkRxBytes", "nvlink_rx_bps"},
-	{"clockThrottleReasons", "throttle_reasons"},
-}
-
-type header struct {
-	V           int      `json:"v"`
-	Kind        string   `json:"kind"`
-	CollectedAt string   `json:"collected_at"`
-	SDK         string   `json:"sdk"`
-	WriterID    string   `json:"writer_id"`
-	RuntimeS    *float64 `json:"runtime_s,omitempty"`
-	Step        *float64 `json:"step,omitempty"`
-	StepKey     string   `json:"step_key,omitempty"`
-}
-
-type stepValue struct {
-	key   string
-	value float64
-}
-
-type rankBlock struct {
-	Rank
-	Binding
-	CPUsAllowed  string `json:"cpus_allowed,omitempty"`
-	CPUAffinity  string `json:"cpu_affinity,omitempty"`
-	HostGPUCount *int   `json:"host_gpu_count,omitempty"`
-}
-
-type rankRecord struct {
-	header
-	Job         Job               `json:"job"`
-	Rank        rankBlock         `json:"rank"`
-	Cgroup      string            `json:"cgroup,omitempty"`
-	LauncherEnv map[string]string `json:"launcher_env,omitempty"`
-}
-
-type windowTicks struct {
-	DtMs     []int64    `json:"dt_ms"`
-	RuntimeS []*float64 `json:"runtime_s"`
-	Step     []*float64 `json:"step"`
-}
-
-type windowRecord struct {
-	header
-	Rank          *int                                    `json:"rank,omitempty"`
-	T0            string                                  `json:"t0"`
-	Ticks         windowTicks                             `json:"ticks"`
-	GPUs          map[string]map[string][]json.RawMessage `json:"gpus,omitempty"`
-	Host          map[string][]*float64                   `json:"host,omitempty"`
-	PressureScope string                                  `json:"pressure_scope,omitempty"`
-	Gaps          []int                                   `json:"gaps,omitempty"`
-	Comm          map[string]commStats                    `json:"comm,omitempty"`
-	CommStatus    string                                  `json:"comm_status,omitempty"`
-	CommMerged    int                                     `json:"comm_merged,omitempty"`
-	CommNLost     int64                                   `json:"comm_n_lost,omitempty"`
-}
-
-// commStats is one collective kind in a window's comm summary; timings are nil when none was timed.
-type commStats struct {
-	N       int64    `json:"n"`
-	NTimed  int64    `json:"n_timed"`
-	P50Ms   *float64 `json:"p50_ms,omitempty"`
-	P99Ms   *float64 `json:"p99_ms,omitempty"`
-	MaxMs   *float64 `json:"max_ms,omitempty"`
-	TotalMs *float64 `json:"total_ms,omitempty"`
-	Bytes   *int64   `json:"bytes,omitempty"`
-}
-
-// EmitterParams configures an Emitter.
 type EmitterParams struct {
-	Launch   Launch
-	WriterID string
-
-	// Emit queues a FilesRecord for upload and reports whether it was queued.
-	Emit func(*spb.FilesRecord) bool
-
-	// Probe returns NVML GPU identities; called once, on the first sample.
-	Probe func() *spb.EnvironmentRecord
-
-	// Runtime returns the run's `_runtime`; false before the run is initialized.
-	Runtime func() (time.Duration, bool)
-
-	Host HostPaths
-
-	// FlushInterval is how long ticks are packed into one window line; <= 0 flushes every tick.
-	FlushInterval time.Duration
-
-	// MaxLineBytes flushes a window early once its line reaches this size; 0 means the default.
-	MaxLineBytes int
-
-	// FilesDir is the run's files directory, where sealed chunks and the rank object are published.
 	FilesDir string
-
-	// TmpDir holds the open chunk and the rank object before the rename into FilesDir; same filesystem.
-	TmpDir string
-
-	// ChunkInterval is how long a chunk stays open; 0 means 20 minutes, others are clamped to 5-60 minutes.
-	ChunkInterval time.Duration
-
-	// MaxChunkBytes seals a chunk early once its raw size reaches this; 0 means 4 MB.
-	MaxChunkBytes int
-
-	Logger *observability.CoreLogger
-
-	Now func() time.Time
+	WriterID string
+	// Level is the collection level from settings; start requests must match it.
+	Level int32
+	// Work receives file registrations and, on Terminate, a synthetic exit record.
+	Work runwork.ExtraWork
+	Done <-chan struct{}
+	// Tick is the background flush and sampling cadence; zero disables the loop.
+	Tick    time.Duration
+	Runtime func() (time.Duration, bool)
+	Host    HostPaths
+	Now     func() time.Time
 }
 
-// Emitter turns XPU samples and host counters into provenance run files.
+type DrainResult struct {
+	Files   *spb.FilesRecord
+	Quality Quality
+}
+
 type Emitter struct {
 	mu sync.Mutex
-
-	launch          Launch
-	writerID        string
-	emit            func(*spb.FilesRecord) bool
-	probe           func() *spb.EnvironmentRecord
-	runtime         func() (time.Duration, bool)
-	host            HostPaths
-	flushEvery      time.Duration
-	maxLineBytes    int
-	filesDir        string
-	tmpDir          string
-	chunkEvery      time.Duration
-	firstSealJitter time.Duration
-	maxChunkBytes   int
-	rankRunPath     string
-	logger          *observability.CoreLogger
-	now             func() time.Time
-
-	// reported, step and comm are lock-free because the handler goroutine writes them.
-	reported atomic.Pointer[spb.DeviceBindingRecord]
-	step     atomic.Pointer[stepValue]
-	comm     atomic.Pointer[pendingComm]
-
-	initialized  bool
-	gpus         []GpuIdentity
-	hostGPUCount *int
-	last         *Binding
-	lastKey      string
-	win          *windowRecord
-	winStart     time.Time
-
-	// stopped is set by a write error or by Drain; nothing is written afterwards.
-	stopped     bool
-	rankRecords [][]byte
-	rankWritten bool
-	rankPending bool
-	rankNowAt   time.Time
-	chunk       *os.File
-	chunkBytes  int
-	sealAt      time.Time
-	seq         int
-
-	// unregistered holds sealed chunk paths whose FilesRecord has not been queued.
-	unregistered []string
+	// io serializes flushes and drain so file writes run outside mu in order.
+	io                 sync.Mutex
+	config             StartConfig
+	filesDir           string
+	writerID           string
+	level              int32
+	work               runwork.ExtraWork
+	done               <-chan struct{}
+	tick               time.Duration
+	stop               chan struct{}
+	loopDone           chan struct{}
+	writes             []pendingWrite
+	runtime            func() (time.Duration, bool)
+	host               HostPaths
+	now                func() time.Time
+	active             bool
+	stopped            bool
+	collectionDisabled bool
+	quality            Quality
+	queue              [][]byte
+	queuedBytes        int
+	chunk              bytes.Buffer
+	chunkStarted       time.Time
+	startedAt          time.Time
+	sequence           int
+	lastMonotonic      int64
+	lastDocuments      time.Time
+	pending            map[string]spb.FilesItem_PolicyType
+	records            map[string]int64
+	manifest           Manifest
+	redactor           *Redactor
+	platform           platform.Adapter
+	environment        *spb.EnvironmentRecord
+	latest             *spb.StatsRecord
+	boundUUID          string
+	gpuIDs             map[string]string
+	gpuDevices         map[string]*Device
+	gpuBound           bool
+	lastSample         time.Time
+	backoff            bool
+	pressureSamples    int
+	pythonCPU          int64
+	pythonDrops        int64
 }
+
+// running holds emitters between Start and Drain so Terminate can reach their streams.
+var running = struct {
+	sync.Mutex
+	emitters map[*Emitter]struct{}
+}{emitters: map[*Emitter]struct{}{}}
 
 func NewEmitter(p *EmitterParams) *Emitter {
 	now := p.Now
 	if now == nil {
 		now = time.Now
 	}
-	runtime := p.Runtime
-	if runtime == nil {
-		runtime = func() (time.Duration, bool) { return 0, false }
-	}
-	maxLineBytes := p.MaxLineBytes
-	if maxLineBytes <= 0 {
-		maxLineBytes = defaultMaxLineBytes
-	}
-	maxChunkBytes := p.MaxChunkBytes
-	if maxChunkBytes <= 0 {
-		maxChunkBytes = defaultMaxChunkBytes
-	}
-	logger := p.Logger
-	if logger == nil {
-		logger = observability.NewNoOpLogger()
-	}
-	chunkEvery := p.ChunkInterval
-	switch {
-	case chunkEvery == 0:
-		chunkEvery = defaultChunkInterval
-	case chunkEvery < minChunkInterval || chunkEvery > maxChunkInterval:
-		clamped := min(max(chunkEvery, minChunkInterval), maxChunkInterval)
-		logger.Warn("provenance: chunk interval out of range, clamped",
-			"requested", chunkEvery.String(), "used", clamped.String())
-		chunkEvery = clamped
-	}
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(p.WriterID))
-	// Uniform in [-10%, +10%] of the interval and stable per writer.
-	jitter := time.Duration((float64(h.Sum64()%2001)/1000 - 1) * 0.1 * float64(chunkEvery))
 	return &Emitter{
-		launch:          p.Launch,
-		writerID:        p.WriterID,
-		emit:            p.Emit,
-		probe:           p.Probe,
-		runtime:         runtime,
-		host:            p.Host,
-		flushEvery:      p.FlushInterval,
-		maxLineBytes:    maxLineBytes,
-		filesDir:        p.FilesDir,
-		tmpDir:          p.TmpDir,
-		chunkEvery:      chunkEvery,
-		firstSealJitter: jitter,
-		maxChunkBytes:   maxChunkBytes,
-		rankRunPath:     filepath.Join(runFilesDir, "rank", p.WriterID+".jsonl"),
-		logger:          logger,
-		now:             now,
+		filesDir: p.FilesDir,
+		writerID: p.WriterID,
+		level:    p.Level,
+		work:     p.Work,
+		done:     p.Done,
+		tick:     p.Tick,
+		stop:     make(chan struct{}),
+		runtime:  p.Runtime,
+		host:     p.Host,
+		now:      now,
+		pending:  make(map[string]spb.FilesItem_PolicyType),
+		records:  make(map[string]int64),
 	}
 }
 
-// SetDeviceBinding records the device the writer process reported; used from the next sample.
-func (e *Emitter) SetDeviceBinding(r *spb.DeviceBindingRecord) {
-	e.reported.Store(r)
+// Handshake validates a writer's start request and starts the emitter with the core writer ID.
+func (e *Emitter) Handshake(request *spb.ProvenanceStartRequest) *spb.ProvenanceStartResponse {
+	response := &spb.ProvenanceStartResponse{ProtocolVersion: 2}
+	switch {
+	case request.GetProtocolVersion() != 2:
+		response.Reason = "protocol_mismatch"
+	case e == nil:
+		response.Reason = "disabled"
+	case request.GetLevel() > 1 || int32(request.GetLevel()) != e.level:
+		response.Reason = "level_mismatch"
+	}
+	if response.Reason != "" {
+		return response
+	}
+	config := StartConfig{
+		WriterID:     e.writerID,
+		RunID:        request.RunId,
+		Level:        int(request.Level),
+		Rank:         int(request.Rank),
+		LocalRank:    int(request.LocalRank),
+		NodeRank:     int(request.NodeRank),
+		Attempt:      int(request.Attempt),
+		Primary:      request.Primary,
+		IdentityJSON: request.IdentityJson,
+	}
+	if err := e.Start(config); err != nil {
+		response.Reason = err.Error()
+		return response
+	}
+	response.Accepted = true
+	response.WriterId = e.writerID
+	return response
 }
 
-// pendingComm is an immutable merge of the collective summaries not yet attached to a window.
-type pendingComm struct {
-	status string
-	merged int
-	nLost  int64
-	stats  map[string]commStats
+// SetEnvironment supplies probed accelerator metadata used to map GPU stats to the bound device.
+func (e *Emitter) SetEnvironment(environment *spb.EnvironmentRecord) {
+	if e == nil || environment == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.environment = environment
 }
 
-// commStatusRank orders statuses so a merge keeps the most informative one.
-var commStatusRank = map[string]int{"unavailable": 1, "no_timing": 2, "ok": 3}
+// Terminate sends an exit record with exitCode to every started emitter's stream and waits up to timeout for its uploads.
+func Terminate(timeout time.Duration, exitCode int32) {
+	running.Lock()
+	emitters := slices.Collect(maps.Keys(running.emitters))
+	running.Unlock()
+	if len(emitters) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	var wg sync.WaitGroup
+	for _, e := range emitters {
+		wg.Go(func() { e.terminate(ctx, exitCode) })
+	}
+	wg.Wait()
+}
 
-// SetCommStats merges a collective summary into the one queued for the next flushed window.
-func (e *Emitter) SetCommStats(r *spb.CommStatsRecord) {
-	in := make(map[string]commStats, len(r.GetCollectives()))
-	for _, c := range r.GetCollectives() {
-		in[c.GetName()] = commStats{
-			N:       c.GetCount(),
-			NTimed:  c.GetNTimed(),
-			P50Ms:   c.P50Ms,
-			P99Ms:   c.P99Ms,
-			MaxMs:   c.MaxMs,
-			TotalMs: c.TotalMs,
-			Bytes:   c.Bytes,
+func (e *Emitter) terminate(ctx context.Context, exitCode int32) {
+	if e.work == nil {
+		return
+	}
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	request := runwork.NewRequest("", requestCtx, cancel, make(chan *spb.ServerResponse, 1))
+	exit := &spb.Record{RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{ExitCode: exitCode}}}
+	if e.work.AddWorkOrCancel(
+		ctx.Done(),
+		runwork.Work{WorkImpl: runwork.WorkFromRecord(exit), Request: request},
+	) {
+		<-requestCtx.Done()
+	}
+}
+
+func (e *Emitter) Start(config StartConfig) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stopped {
+		return errors.New("writer_finished")
+	}
+	if e.active {
+		return errors.New("already_started")
+	}
+	if !config.valid() {
+		return errors.New("invalid_identity")
+	}
+	e.config = config
+	e.config.Primary = config.Primary && config.Rank == 0
+	e.config.IdentityJSON = nil
+	key, keyStatus := redactionKey()
+	e.redactor = NewRedactor(key)
+	if e.host.SysRoot != "" {
+		e.platform = platform.New(
+			platform.Config{
+				SysRoot:   e.host.SysRoot,
+				Pseudonym: e.redactor.Pseudonym,
+				KeyReason: keyStatus.Reason,
+			},
+		)
+	}
+	e.gpuIDs = map[string]string{}
+	e.gpuDevices = map[string]*Device{}
+	e.chunkStarted = e.now()
+	e.startedAt = e.chunkStarted
+	e.manifest = Manifest{
+		Header:            e.header("manifest"),
+		Level:             config.Level,
+		LocalRank:         config.LocalRank,
+		NodeRank:          config.NodeRank,
+		PrivacyPolicy:     "pseudonymous-1",
+		SDKVersion:        version.Version,
+		Capabilities:      map[string]Capability{},
+		SamplingIntervalS: 15,
+		ChunkIntervalS:    300,
+	}
+	e.manifest.Capabilities["identity_join"] = keyStatus
+	e.manifest.Build, e.manifest.Capabilities["build_identity"] = buildIdentity()
+	e.manifest.Capabilities["pricing"] = Capability{Status: "unavailable", Reason: "not_provided"}
+	e.manifest.JobID, _ = e.redactor.Pseudonym("job", config.RunID)
+	var identity struct {
+		WorldSize *int   `json:"world_size"`
+		Scheduler string `json:"scheduler"`
+	}
+	if len(config.IdentityJSON) <= 64<<10 && json.Unmarshal(config.IdentityJSON, &identity) == nil {
+		if identity.WorldSize != nil && *identity.WorldSize > 0 {
+			e.manifest.WorldSize = identity.WorldSize
+		}
+		if slices.Contains([]string{"torchrun", "slurm", "mpi"}, identity.Scheduler) {
+			e.manifest.Scheduler = identity.Scheduler
 		}
 	}
+	if err := e.documents(false); err != nil {
+		e.stopped = true
+		return err
+	}
+	writes := e.writes
+	e.writes = nil
+	results := e.writeFiles(writes)
+	for _, result := range results {
+		if result.err != nil && !errors.Is(result.err, errSkipped) {
+			e.stopped = true
+			return result.err
+		}
+	}
+	e.register(writes, results)
+	e.active = true
+	running.Lock()
+	running.emitters[e] = struct{}{}
+	running.Unlock()
+	if e.tick > 0 {
+		e.loopDone = make(chan struct{})
+		go e.loop()
+	}
+	return nil
+}
 
-	// CAS loop: the handler goroutine must never block on the emitter.
+// redactionKey returns the inherited HMAC key, or nil with the identity_join reason when it is missing or invalid.
+func redactionKey() ([]byte, Capability) {
+	text := os.Getenv("WANDB_X_PROVENANCE_REDACTION_KEY")
+	if text == "" {
+		return nil, Capability{Status: "partial", Reason: "missing_redaction_key"}
+	}
+	key, err := hex.DecodeString(text)
+	if len(text) != 64 || err != nil || strings.ToLower(text) != text {
+		return nil, Capability{Status: "partial", Reason: "invalid_redaction_key"}
+	}
+	return key, Capability{Status: "available"}
+}
+
+func (e *Emitter) loop() {
+	defer close(e.loopDone)
+	ticker := time.NewTicker(e.tick)
+	defer ticker.Stop()
 	for {
-		old := e.comm.Load()
-		next := &pendingComm{status: r.GetStatus(), merged: 1, nLost: r.GetNLost(), stats: in}
-		if old != nil {
-			next.merged = old.merged + 1
-			next.nLost += old.nLost
-			if commStatusRank[old.status] > commStatusRank[next.status] {
-				next.status = old.status
-			}
-			next.stats = maps.Clone(old.stats)
-			for name, b := range in {
-				a, ok := next.stats[name]
-				if !ok {
-					next.stats[name] = b
-					continue
-				}
-				m := commStats{
-					N:       a.N + b.N,
-					NTimed:  a.NTimed + b.NTimed,
-					P99Ms:   maxPtr(a.P99Ms, b.P99Ms),
-					MaxMs:   maxPtr(a.MaxMs, b.MaxMs),
-					TotalMs: a.TotalMs,
-				}
-				switch {
-				case a.P50Ms == nil:
-					m.P50Ms = b.P50Ms
-				case b.P50Ms == nil:
-					m.P50Ms = a.P50Ms
-				case a.NTimed+b.NTimed > 0:
-					wa, wb := float64(a.NTimed), float64(b.NTimed)
-					v := (*a.P50Ms*wa + *b.P50Ms*wb) / (wa + wb)
-					m.P50Ms = &v
-				default:
-					v := (*a.P50Ms + *b.P50Ms) / 2
-					m.P50Ms = &v
-				}
-				if b.TotalMs != nil {
-					v := *b.TotalMs
-					if a.TotalMs != nil {
-						v += *a.TotalMs
-					}
-					m.TotalMs = &v
-				}
-				// Unknown bytes in either part leave the total unknown.
-				if a.Bytes != nil && b.Bytes != nil {
-					v := *a.Bytes + *b.Bytes
-					m.Bytes = &v
-				}
-				next.stats[name] = m
-			}
-		}
-		if e.comm.CompareAndSwap(old, next) {
+		e.flush()
+		select {
+		case <-ticker.C:
+		case <-e.stop:
+			return
+		case <-e.done:
 			return
 		}
 	}
 }
 
-func maxPtr(a, b *float64) *float64 {
-	if a == nil || (b != nil && *b > *a) {
-		return b
-	}
-	return a
+type fieldShape int
+
+const (
+	quantityField fieldShape = iota + 1
+	pseudonymField
+	numberField
+	textField
+)
+
+var recordKinds = map[string]bool{
+	"step":              true,
+	"phase":             true,
+	"metrics":           true,
+	"lifecycle":         true,
+	"checkpoint":        true,
+	"binding":           true,
+	"communication":     true,
+	"diagnostic":        true,
+	"capability":        true,
+	"test_ground_truth": true,
+	"quality":           true,
 }
 
-// SetStep records the writer's latest step under the history key it came from.
-func (e *Emitter) SetStep(key string, value float64) {
-	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return
-	}
-	e.step.Store(&stepValue{key: key, value: value})
+var capabilityStatuses = []string{
+	"available",
+	"partial",
+	"unavailable",
+	"permission_denied",
+	"timeout",
+	"unsupported",
+	"self_disabled",
 }
 
-// OnSample handles one XPU sample tick; metrics is nil when sampling failed.
-func (e *Emitter) OnSample(metrics *spb.StatsRecord, _ error) {
+var payloadFields = func() map[string]fieldShape {
+	fields := map[string]fieldShape{}
+	for shape, keys := range map[fieldShape][]string{
+		quantityField:  {"collector_cpu_ns", "peak_memory_bytes", "dropped_records", "queue_depth"},
+		pseudonymField: {"gpu_uuid_hmac", "hostname_hmac", "instance_id_hmac", "pod_name_hmac", "node_name_hmac", "scheduler_uid_hmac", "topology_value_hmac"},
+		numberField:    {"step", "duration_ms", "loss", "tokens", "cumulative_tokens", "tokens_per_second", "mfu_percent", "tflops", "flops", "finite_count", "nonfinite_count", "norm", "count", "timed_count", "lost_count", "bytes", "total_ms", "p50_ms", "p99_ms", "max_ms", "cuda_index", "rank", "local_rank", "node_rank", "attempt", "dp", "dp_shard", "dp_replicate", "tp", "pp", "cp", "ep", "world_size"},
+		textField:      {"phase", "event", "status", "reason", "source", "collective", "collector", "scenario"},
+	} {
+		for _, key := range keys {
+			fields[key] = shape
+		}
+	}
+	return fields
+}()
+
+// validField reports whether value has the shape payloadFields assigns to key in a record of kind.
+func validField(kind, key string, value json.RawMessage) bool {
+	switch payloadFields[key] {
+	case quantityField:
+		var number int64
+		return kind == "quality" && json.Unmarshal(value, &number) == nil && number >= 0
+	case pseudonymField:
+		var pseudonym string
+		prefix := strings.TrimSuffix(key, "_hmac") + "_"
+		return json.Unmarshal(value, &pseudonym) == nil && strings.HasPrefix(pseudonym, prefix) &&
+			len(pseudonym) == len(prefix)+24 &&
+			strings.Trim(pseudonym[len(prefix):], "0123456789abcdef") == ""
+	case numberField:
+		var number float64
+		return json.Unmarshal(value, &number) == nil && !bytes.Equal(value, []byte("null"))
+	case textField:
+		var name string
+		return json.Unmarshal(value, &name) == nil && len(name) <= 128
+	}
+	return false
+}
+
+// capabilityRecord is the payload of a capability record.
+type capabilityRecord struct {
+	Collector string `json:"collector"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason"`
+	Source    string `json:"source"`
+}
+
+// payloadOf returns the decoded payload of a well-formed record, or false if core must reject it.
+func (e *Emitter) payloadOf(record Record) (map[string]json.RawMessage, bool) {
+	var payload map[string]json.RawMessage
+	if len(record.PayloadJSON) > 64<<10 || record.MonotonicNS < e.lastMonotonic ||
+		!recordKinds[record.Kind] ||
+		json.Unmarshal(record.PayloadJSON, &payload) != nil ||
+		payload == nil {
+		return nil, false
+	}
+	for key, value := range payload {
+		if !validField(record.Kind, key, value) {
+			return nil, false
+		}
+	}
+	if record.Kind == "capability" {
+		var capability capabilityRecord
+		_ = json.Unmarshal(record.PayloadJSON, &capability)
+		_, exists := e.manifest.Capabilities[capability.Collector]
+		if capability.Collector == "" || !slices.Contains(capabilityStatuses, capability.Status) ||
+			(!exists && len(e.manifest.Capabilities) >= 64) {
+			return nil, false
+		}
+	}
+	if len(e.redactor.key) == 0 {
+		for key := range payload {
+			if payloadFields[key] != pseudonymField {
+				continue
+			}
+			delete(payload, key)
+			if record.Kind == "binding" && key == "gpu_uuid_hmac" {
+				payload["status"] = json.RawMessage(`"partial"`)
+				payload["reason"], _ = json.Marshal(e.manifest.Capabilities["identity_join"].Reason)
+			}
+		}
+	}
+	return payload, true
+}
+
+func (e *Emitter) AddRecord(record Record) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
-	if e.stopped {
+	if !e.active || e.stopped || e.collectionDisabled {
 		return
 	}
-
-	if !e.initialized {
-		e.loadGPUIdentities()
+	elapsed := collectorCPU()
+	defer func() { e.addCollectorCPU(elapsed()) }()
+	payload, ok := e.payloadOf(record)
+	if !ok {
+		e.quality.RejectedRecords++
+		return
 	}
+	header := e.header(record.Kind)
+	if record.WallTimeNS > 0 {
+		header.CollectedAt = time.Unix(0, record.WallTimeNS).UTC()
+	}
+	encoded, _ := json.Marshal(header)
+	var document map[string]json.RawMessage
+	_ = json.Unmarshal(encoded, &document)
+	for key, value := range payload {
+		if key == "rank" || key == "attempt" {
+			continue
+		}
+		document[key] = value
+	}
+	document["monotonic_ns"], _ = json.Marshal(record.MonotonicNS)
+	encoded, err := json.Marshal(document)
+	if err != nil {
+		e.quality.RejectedRecords++
+		return
+	}
+	if len(e.queue) >= queueCapacity || e.queuedBytes+len(encoded) > maxBufferedBytes {
+		e.quality.DroppedRecords++
+		if !e.backoff {
+			e.backoff = true
+			e.quality.BackoffTransitions++
+			e.manifest.Capabilities["sampling"] = Capability{
+				Status: "partial",
+				Reason: "queue_pressure",
+			}
+		}
+		return
+	}
+	e.observe(record, payload)
+	e.lastMonotonic = record.MonotonicNS
+	e.queue = append(e.queue, encoded)
+	e.queuedBytes += len(encoded)
+	e.quality.QueueDepth = len(e.queue)
+	e.quality.PeakMemoryBytes = max(e.quality.PeakMemoryBytes, int64(e.queuedBytes+e.chunk.Len()))
+}
 
+// observe applies an accepted record's effects on the manifest and quality counters.
+func (e *Emitter) observe(record Record, payload map[string]json.RawMessage) {
+	switch record.Kind {
+	case "binding":
+		e.manifest.Binding = payload
+		e.boundUUID = ""
+		_ = json.Unmarshal(payload["gpu_uuid_hmac"], &e.boundUUID)
+		e.gpuBound = e.boundUUID != ""
+		e.manifest.Device = e.gpuDevices[e.boundUUID]
+	case "capability":
+		var capability capabilityRecord
+		_ = json.Unmarshal(record.PayloadJSON, &capability)
+		e.manifest.Capabilities[capability.Collector] = Capability{
+			Status: capability.Status,
+			Reason: capability.Reason,
+		}
+		if capability.Collector == "torchtitan" && capability.Status == "available" {
+			e.manifest.Framework = "torchtitan"
+			if len(capability.Source) >= 7 && len(capability.Source) <= 40 &&
+				strings.Trim(capability.Source, "0123456789abcdef") == "" {
+				e.manifest.FrameworkRevision = capability.Source
+			}
+		}
+		if capability.Collector == "writer" && capability.Status == "self_disabled" {
+			e.collectionDisabled = true
+		}
+	case "quality":
+		var metrics struct {
+			CPU   int64 `json:"collector_cpu_ns"`
+			Peak  int64 `json:"peak_memory_bytes"`
+			Drops int64 `json:"dropped_records"`
+		}
+		_ = json.Unmarshal(record.PayloadJSON, &metrics)
+		cpu := max(0, metrics.CPU-e.pythonCPU)
+		e.addCollectorCPU(&cpu)
+		e.quality.DroppedRecords += max(0, metrics.Drops-e.pythonDrops)
+		e.pythonCPU = max(e.pythonCPU, metrics.CPU)
+		e.pythonDrops = max(e.pythonDrops, metrics.Drops)
+		e.quality.PeakMemoryBytes = max(
+			e.quality.PeakMemoryBytes,
+			metrics.Peak+int64(e.queuedBytes+e.chunk.Len()),
+		)
+	}
+	for _, axis := range []string{"dp_shard", "dp_replicate", "tp", "pp", "cp", "ep"} {
+		var coordinate int
+		if value, ok := payload[axis]; ok && json.Unmarshal(value, &coordinate) == nil &&
+			coordinate >= 0 {
+			if e.manifest.ParallelCoordinates == nil {
+				e.manifest.ParallelCoordinates = map[string]int{}
+			}
+			e.manifest.ParallelCoordinates[axis] = coordinate
+		}
+	}
+}
+
+// addCollectorCPU adds ns to the collector CPU counter; nil means the thread clock is unavailable.
+func (e *Emitter) addCollectorCPU(ns *int64) {
+	if ns == nil {
+		return
+	}
+	if e.quality.CollectorCPUNS == nil {
+		e.quality.CollectorCPUNS = new(int64)
+	}
+	*e.quality.CollectorCPUNS += *ns
+}
+
+// OnSample records the latest accelerator stats and flushes; slow collection runs outside the lock.
+func (e *Emitter) OnSample(stats *spb.StatsRecord, sampleErr error) {
+	e.mu.Lock()
+	if !e.active || e.stopped {
+		e.mu.Unlock()
+		return
+	}
+	if sampleErr != nil {
+		e.quality.Gaps++
+	}
+	if stats != nil {
+		e.latest = stats
+	}
+	e.mu.Unlock()
+	e.flush()
+}
+
+func (e *Emitter) flush() {
+	e.io.Lock()
+	defer e.io.Unlock()
+	elapsed := collectorCPU()
+	e.mu.Lock()
+	if !e.active || e.stopped {
+		e.mu.Unlock()
+		elapsed()
+		return
+	}
 	now := e.now()
-	host, scope := e.sampleHost()
-
-	// XPU.Sample returns (nil, nil) both on a start failure and when there is nothing to sample.
-	gap := len(e.gpus) > 0 && len(metrics.GetItem()) == 0
-	gpus := make(map[string]map[string]json.RawMessage)
-	if !gap && len(e.gpus) > 0 {
-		e.emitRankIfChanged(metrics)
-		gpus = e.boundGPUValues(metrics)
+	e.flushQueue(now)
+	interval := 15 * time.Second
+	if e.backoff {
+		interval = 60 * time.Second
 	}
-	if e.rankPending && (e.rankNowAt.IsZero() || now.Sub(e.rankNowAt) >= rankNowInterval) {
-		e.rankNowAt = now
-		e.rankPending = !e.emit(&spb.FilesRecord{Files: []*spb.FilesItem{
-			{Path: e.rankRunPath, Policy: spb.FilesItem_NOW},
-		}})
+	due := !e.collectionDisabled && (e.lastSample.IsZero() || now.Sub(e.lastSample) >= interval)
+	stats := e.latest
+	if due {
+		e.lastSample = now
+		e.latest = nil
+	}
+	level := e.config.Level
+	e.mu.Unlock()
+
+	var host map[string]float64
+	var scope string
+	var snapshot *platform.Snapshot
+	if due {
+		host, scope = e.sampleHost()
+		if e.platform != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			collected := e.platform.Collect(ctx, level)
+			cancel()
+			snapshot = &collected
+		}
 	}
 
-	if !gap && len(gpus) == 0 && len(host) == 0 {
+	e.mu.Lock()
+	if e.stopped {
+		e.mu.Unlock()
+		elapsed()
 		return
 	}
-
-	e.appendTick(now, host, gpus, scope, gap)
-}
-
-// loadGPUIdentities probes NVML once and enriches each GPU with its NUMA node and local CPUs from sysfs.
-func (e *Emitter) loadGPUIdentities() {
-	e.initialized = true
-	// NVML may only see GPUs allocated to this process; sysfs sees every NVIDIA GPU on the host.
-	if e.host.SysRoot != "" {
-		pciDevices := filepath.Join(e.host.SysRoot, "bus", "pci", "devices")
-		if entries, err := os.ReadDir(pciDevices); err == nil {
-			count := 0
-			for _, entry := range entries {
-				dev := filepath.Join(pciDevices, entry.Name())
-				vendor, err := os.ReadFile(filepath.Join(dev, "vendor"))
-				if err != nil || strings.TrimSpace(string(vendor)) != "0x10de" {
-					continue
-				}
-				class, err := os.ReadFile(filepath.Join(dev, "class"))
-				if err != nil {
-					continue
-				}
-				c := strings.TrimSpace(string(class))
-				if strings.HasPrefix(c, "0x0300") || strings.HasPrefix(c, "0x0302") {
-					count++
-				}
-			}
-			e.hostGPUCount = &count
-		}
+	if due {
+		e.appendSample(now, stats, host, scope, snapshot)
 	}
-	env := e.probe()
-	for i, g := range env.GetGpuNvidia() {
-		id := GpuIdentity{
-			UUID:      g.GetUuid(),
-			Name:      g.GetName(),
-			PciBusID:  g.GetPciBusId(),
-			Serial:    g.GetSerial(),
-			IndexHost: &i,
-		}
-		// sysfs uses a 4-digit lowercase domain: 00000000:1B:00.0 -> 0000:1b:00.0.
-		if dom, rest, ok := strings.Cut(id.PciBusID, ":"); ok && e.host.SysRoot != "" {
-			if d, err := strconv.ParseUint(dom, 16, 32); err == nil {
-				dev := filepath.Join(e.host.SysRoot, "bus", "pci", "devices",
-					fmt.Sprintf("%04x:%s", d, strings.ToLower(rest)))
-				if b, err := os.ReadFile(filepath.Join(dev, "numa_node")); err == nil {
-					if n, err := strconv.Atoi(
-						strings.TrimSpace(string(b)),
-					); err == nil &&
-						n >= 0 {
-						id.NumaNode = &n
-					}
-				}
-				if b, err := os.ReadFile(filepath.Join(dev, "local_cpulist")); err == nil {
-					id.LocalCPUs = strings.TrimSpace(string(b))
-				}
-			}
-		}
-		e.gpus = append(e.gpus, id)
+	e.chargeFlushCPU(elapsed(), due)
+	if now.Sub(e.chunkStarted) >= 300*time.Second {
+		e.seal(now)
 	}
-	if len(e.gpus) == 0 {
-		source := SourceNoNvidiaGPU
-		if env == nil {
-			source = SourceGPUInfoUnavailable
+	// Chunks are written first so the documents carry their compression time.
+	e.writeQueued()
+	if now.Sub(e.lastDocuments) >= 60*time.Second {
+		if e.documents(false) != nil {
+			e.quality.Gaps++
 		}
-		e.writeRank(&rankRecord{
-			header: e.header("rank"),
-			Job:    e.launch.Job,
-			Rank: rankBlock{
-				Rank:         e.launch.Rank,
-				Binding:      Binding{Source: source, GPUs: []GpuIdentity{}},
-				HostGPUCount: e.hostGPUCount,
-			},
-			Cgroup:      e.host.CgroupDir,
-			LauncherEnv: e.launch.Env,
-		})
+		e.writeQueued()
+	}
+	files := e.takeFiles()
+	e.mu.Unlock()
+	if files == nil {
+		return
+	}
+	started := time.Now()
+	accepted := e.emit(files)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.quality.UploadRegistrationNS += time.Since(started).Nanoseconds()
+	if accepted {
+		return
+	}
+	for _, item := range files.Files {
+		if len(e.pending) >= queueCapacity {
+			e.manifest.Capabilities["upload_registration"] = Capability{
+				Status: "self_disabled",
+				Reason: "queue_pressure",
+			}
+			e.quality.DroppedRecords++
+			continue
+		}
+		e.pending[item.Path] = item.Policy
 	}
 }
 
-// sampleHost reads scheduler, cgroup and PSI pressure counters for the writer's process tree.
+// chargeFlushCPU accounts a flush's CPU time and backs off sampling after three over-budget samples.
+func (e *Emitter) chargeFlushCPU(duration *int64, sampled bool) {
+	if duration == nil {
+		e.manifest.Capabilities["collector_cpu"] = Capability{
+			Status: "unsupported",
+			Reason: "thread_clock_unavailable",
+		}
+		return
+	}
+	e.addCollectorCPU(duration)
+	switch {
+	case !sampled:
+	case *duration > 75_000_000:
+		e.pressureSamples++
+	default:
+		e.pressureSamples = 0
+	}
+	if e.pressureSamples >= 3 && !e.backoff {
+		e.backoff = true
+		e.quality.BackoffTransitions++
+		e.manifest.Capabilities["sampling"] = Capability{Status: "partial", Reason: "cpu_budget"}
+	}
+}
+
+func (e *Emitter) emit(files *spb.FilesRecord) bool {
+	if e.work == nil {
+		return true
+	}
+	record := &spb.Record{RecordType: &spb.Record_Files{Files: files}}
+	return e.work.AddWorkOrCancel(e.done, runwork.NoRequest(runwork.WorkFromRecord(record)))
+}
+
+func (e *Emitter) appendSample(
+	now time.Time,
+	stats *spb.StatsRecord,
+	host map[string]float64,
+	scope string,
+	snapshot *platform.Snapshot,
+) {
+	// Pseudonymize the probed GPUs once so stats indices map to device identities.
+	if len(e.gpuIDs) == 0 && e.environment != nil {
+		for index, gpu := range e.environment.GpuNvidia {
+			if id, ok := e.redactor.Pseudonym("gpu_uuid", gpu.Uuid); ok {
+				e.gpuIDs[strconv.Itoa(index)] = id
+				pci, _ := e.redactor.Pseudonym("pci", gpu.PciBusId)
+				e.gpuDevices[id] = &Device{
+					ID:          id,
+					Name:        gpu.Name,
+					MemoryBytes: gpu.MemoryTotal,
+					PCIID:       pci,
+					NUMA:        gpu.NumaNode,
+				}
+			}
+		}
+	}
+	e.manifest.Device = e.gpuDevices[e.boundUUID]
+	values := make(map[string]float64)
+	for _, item := range stats.GetItem() {
+		if !strings.HasPrefix(item.Key, "gpu.") && !strings.HasPrefix(item.Key, "cpu") &&
+			!strings.HasPrefix(item.Key, "memory") {
+			continue
+		}
+		key := item.Key
+		if strings.HasPrefix(key, "gpu.") {
+			parts := strings.SplitN(key, ".", 3)
+			if len(parts) != 3 || !e.gpuBound || e.gpuIDs[parts[1]] != e.boundUUID {
+				continue
+			}
+			key = "gpu." + e.boundUUID + "." + parts[2]
+		}
+		var value float64
+		if json.Unmarshal([]byte(item.ValueJson), &value) == nil && !math.IsNaN(value) &&
+			!math.IsInf(value, 0) {
+			values[key] = value
+		}
+	}
+	if len(values) > 0 || len(host) > 0 {
+		encoded, err := json.Marshal(struct {
+			Header
+			Values    map[string]float64 `json:"values,omitempty"`
+			Host      map[string]float64 `json:"host,omitempty"`
+			HostScope string             `json:"host_scope,omitempty"`
+		}{e.header("infrastructure"), values, host, scope})
+		if err == nil {
+			e.appendRecord(encoded, now, "infrastructure")
+		}
+	}
+	if snapshot != nil {
+		e.manifest.Platform = snapshot
+		encoded, err := json.Marshal(struct {
+			Header
+			Snapshot platform.Snapshot `json:"platform"`
+		}{e.header("platform"), *snapshot})
+		if err == nil {
+			e.appendRecord(encoded, now, "platform")
+		}
+	}
+}
+
+func (e *Emitter) flushQueue(now time.Time) {
+	for _, line := range e.queue {
+		var record struct {
+			Kind string `json:"kind"`
+		}
+		_ = json.Unmarshal(line, &record)
+		e.appendRecord(line, now, record.Kind)
+	}
+	clear(e.queue)
+	e.queue = e.queue[:0]
+	e.queuedBytes = 0
+	e.quality.QueueDepth = 0
+}
+
+func (e *Emitter) appendRecord(line []byte, now time.Time, kind string) {
+	if e.chunk.Len()+len(line)+1 > maxBufferedBytes {
+		e.seal(now)
+	}
+	e.chunk.Write(line)
+	e.chunk.WriteByte('\n')
+	e.quality.SerializedBytes += int64(len(line) + 1)
+	e.quality.PeakMemoryBytes = max(e.quality.PeakMemoryBytes, int64(e.queuedBytes+e.chunk.Len()))
+	e.records[kind]++
+}
+
+func (e *Emitter) documents(finalized bool) error {
+	policy := spb.FilesItem_NOW
+	if finalized {
+		policy = spb.FilesItem_END
+	}
+	paths := Paths{WriterID: e.config.WriterID}
+	e.manifest.Header = e.header("manifest")
+	e.manifest.Quality = e.quality
+	e.manifest.Finalized = finalized
+	e.manifest.PeakFLOPs, e.manifest.Capabilities["peak_flops"] = peakFLOPs(e.manifest.Device)
+	if e.backoff {
+		e.manifest.SamplingIntervalS = 60
+	}
+	if err := e.writeDocument(paths.Manifest(), e.manifest, policy); err != nil {
+		return err
+	}
+	if err := e.writeDocument(
+		paths.Rollup(),
+		Rollup{
+			Header:       e.header("rollup"),
+			Quality:      e.quality,
+			Records:      e.records,
+			LastSequence: e.sequence - 1,
+			Finalized:    finalized,
+		},
+		policy,
+	); err != nil {
+		return err
+	}
+	if e.config.Primary && (finalized || e.lastDocuments.IsZero()) {
+		pointer := Primary{
+			Version:   2,
+			WriterID:  e.config.WriterID,
+			Attempt:   e.config.Attempt,
+			StartedAt: e.startedAt.UTC(),
+			Manifest:  paths.Manifest(),
+			Rollup:    paths.Rollup(),
+			Finalized: finalized,
+		}
+		if err := e.writeDocument(paths.Primary(), pointer, policy); err != nil {
+			return err
+		}
+		e.writes[len(e.writes)-1].primary = &pointer
+	}
+	e.lastDocuments = e.now()
+	return nil
+}
+
+func (e *Emitter) takeFiles() *spb.FilesRecord {
+	if len(e.pending) == 0 {
+		return nil
+	}
+	result := &spb.FilesRecord{}
+	names := make([]string, 0, len(e.pending))
+	for name := range e.pending {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		result.Files = append(result.Files, &spb.FilesItem{Path: name, Policy: e.pending[name]})
+	}
+	clear(e.pending)
+	return result
+}
+
+// Drain stops the loop, waits for in-flight flushes, writes the final files and returns those left to register.
+func (e *Emitter) Drain() DrainResult {
+	e.mu.Lock()
+	if !e.active || e.stopped {
+		defer e.mu.Unlock()
+		return DrainResult{Quality: e.quality}
+	}
+	e.stopped = true
+	close(e.stop)
+	e.mu.Unlock()
+	running.Lock()
+	delete(running.emitters, e)
+	running.Unlock()
+	if e.loopDone != nil {
+		<-e.loopDone
+	}
+	e.io.Lock()
+	defer e.io.Unlock()
+	e.mu.Lock()
+	e.flushQueue(e.now())
+	e.seal(e.now())
+	e.writeQueued()
+	if e.documents(true) != nil {
+		e.quality.Gaps++
+	}
+	e.writeQueued()
+	defer e.mu.Unlock()
+	return DrainResult{Files: e.takeFiles(), Quality: e.quality}
+}
+
+func (e *Emitter) header(kind string) Header {
+	result := Header{
+		Version:     2,
+		Kind:        kind,
+		WriterID:    e.config.WriterID,
+		CollectedAt: e.now().UTC(),
+		Attempt:     e.config.Attempt,
+		Rank:        e.config.Rank,
+		Source:      "wandb-core",
+	}
+	if e.runtime != nil {
+		if runtime, ok := e.runtime(); ok {
+			seconds := runtime.Seconds()
+			result.RuntimeS = &seconds
+		}
+	}
+	return result
+}
+
 func (e *Emitter) sampleHost() (map[string]float64, string) {
 	host := make(map[string]float64)
 	scope := ""
@@ -699,6 +890,34 @@ func (e *Emitter) sampleHost() (map[string]float64, string) {
 	}
 	e.sampleSchedStats(host)
 	e.sampleCgroupCPU(host)
+	if e.host.CgroupDir != "" {
+		if data, err := os.ReadFile(filepath.Join(e.host.CgroupDir, "memory.current")); err == nil {
+			if value, err := strconv.ParseUint(
+				strings.TrimSpace(string(data)),
+				10,
+				64,
+			); err == nil {
+				host["cgroup_memory.current_bytes"] = float64(value)
+			}
+		}
+		if data, err := os.ReadFile(filepath.Join(e.host.CgroupDir, "io.stat")); err == nil {
+			for line := range strings.SplitSeq(string(data), "\n") {
+				for _, field := range strings.Fields(line) {
+					key, raw, ok := strings.Cut(field, "=")
+					if !ok ||
+						!slices.Contains(
+							[]string{"rbytes", "wbytes", "rios", "wios", "dbytes", "dios"},
+							key,
+						) {
+						continue
+					}
+					if value, err := strconv.ParseUint(raw, 10, 64); err == nil {
+						host["cgroup_io."+key] += float64(value)
+					}
+				}
+			}
+		}
+	}
 
 	switch {
 	case e.host.CgroupDir != "" && readPressure(func(res string) string {
@@ -718,7 +937,7 @@ func (e *Emitter) sampleSchedStats(host map[string]float64) {
 	var run, wait, timeslices uint64
 	threads, processes := 0, 0
 	seen := make(map[int]bool)
-	for stack := []int{e.host.Pid}; len(stack) > 0; {
+	for stack := []int{e.host.Pid}; len(stack) > 0 && len(seen) < 4096; {
 		pid := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if seen[pid] {
@@ -733,7 +952,7 @@ func (e *Emitter) sampleSchedStats(host map[string]float64) {
 		if len(tasks) > 0 {
 			processes++
 		}
-		for _, task := range tasks {
+		for _, task := range tasks[:min(len(tasks), 8192)] {
 			dir := filepath.Join(taskDir, task.Name())
 			if b, err := os.ReadFile(filepath.Join(dir, "schedstat")); err == nil {
 				var r, w, s uint64
@@ -777,385 +996,4 @@ func (e *Emitter) sampleCgroupCPU(host map[string]float64) {
 			}
 		}
 	}
-}
-
-// emitRankIfChanged resolves the writer's current GPU binding and emits a rank record when it changed.
-func (e *Emitter) emitRankIfChanged(metrics *spb.StatsRecord) {
-	b := ResolveBinding(metrics, e.gpus, e.reported.Load(), e.launch.Env)
-	// Dedupe on the GPU set and conflict state, not binding_source, so a transient NVML miss doesn't re-emit.
-	uuids := make([]string, len(b.GPUs))
-	for i, g := range b.GPUs {
-		uuids[i] = strings.ToUpper(g.UUID)
-	}
-	slices.Sort(uuids)
-	key := strconv.FormatBool(b.Source == SourceConflict) + "|" + strings.Join(uuids, ",")
-	if e.last != nil && (b.Source == SourceUnresolved || key == e.lastKey) {
-		return
-	}
-	e.last, e.lastKey = &b, key
-	block := rankBlock{Rank: e.launch.Rank, Binding: b, HostGPUCount: e.hostGPUCount}
-	if e.host.ProcRoot != "" {
-		status, _ := os.ReadFile(
-			filepath.Join(e.host.ProcRoot, strconv.Itoa(e.host.Pid), "status"),
-		)
-		var cpusAllowedFull string
-		for line := range strings.SplitSeq(string(status), "\n") {
-			if v, ok := strings.CutPrefix(line, "Cpus_allowed_list:"); ok {
-				cpusAllowedFull = strings.TrimSpace(v)
-				block.CPUsAllowed = cpusAllowedFull[:min(len(cpusAllowedFull), maxEnvValueLen)]
-			}
-		}
-		online, _ := os.ReadFile(
-			filepath.Join(e.host.SysRoot, "devices", "system", "cpu", "online"),
-		)
-		allowed, onlineSet := parseCPUList(cpusAllowedFull), parseCPUList(string(online))
-		local := make(map[int]bool)
-		for _, g := range b.GPUs {
-			maps.Copy(local, parseCPUList(g.LocalCPUs))
-		}
-		inLocal := 0
-		for c := range allowed {
-			if local[c] {
-				inLocal++
-			}
-		}
-		switch {
-		case len(allowed) == 0 || len(local) == 0:
-		case maps.Equal(allowed, onlineSet):
-			block.CPUAffinity = "unbound"
-		case inLocal == len(allowed):
-			block.CPUAffinity = "local"
-		case inLocal > 0:
-			block.CPUAffinity = "partial"
-		default:
-			block.CPUAffinity = "remote"
-		}
-	}
-	e.writeRank(&rankRecord{
-		header:      e.header("rank"),
-		Job:         e.launch.Job,
-		Rank:        block,
-		Cgroup:      e.host.CgroupDir,
-		LauncherEnv: e.launch.Env,
-	})
-}
-
-// writeRank appends a rank record to the writer's history and rewrites the rank object; OnSample registers it.
-func (e *Emitter) writeRank(r *rankRecord) {
-	if e.stopped {
-		return
-	}
-	b, err := json.Marshal(r)
-	if err != nil {
-		return
-	}
-	e.rankRecords = append(e.rankRecords, b)
-	if n := len(e.rankRecords) - maxRankRecords; n > 0 {
-		e.rankRecords = slices.Delete(e.rankRecords, 0, n)
-	}
-	tmp := filepath.Join(e.tmpDir, "rank-"+e.writerID+".jsonl")
-	final := filepath.Join(e.filesDir, e.rankRunPath)
-	err = os.MkdirAll(e.tmpDir, 0o755)
-	if err == nil {
-		err = os.MkdirAll(filepath.Dir(final), 0o755)
-	}
-	if err == nil {
-		err = os.WriteFile(tmp, append(bytes.Join(e.rankRecords, []byte{'\n'}), '\n'), 0o644)
-	}
-	if err == nil {
-		err = os.Rename(tmp, final)
-	}
-	if err != nil {
-		e.fail(err)
-		return
-	}
-	e.rankWritten, e.rankPending = true, true
-}
-
-// boundGPUValues extracts this tick's per-GPU sample fields for the GPUs in the current binding.
-func (e *Emitter) boundGPUValues(metrics *spb.StatsRecord) map[string]map[string]json.RawMessage {
-	gpus := make(map[string]map[string]json.RawMessage)
-	values := make(map[string]string, len(metrics.GetItem()))
-	for _, item := range metrics.GetItem() {
-		values[item.GetKey()] = item.GetValueJson()
-	}
-	for _, g := range e.last.GPUs {
-		if g.IndexHost == nil {
-			continue
-		}
-		prefix := "gpu." + strconv.Itoa(*g.IndexHost) + "."
-		m := make(map[string]json.RawMessage)
-		for _, f := range sampleFields {
-			if v, ok := values[prefix+f.xpu]; ok && json.Valid([]byte(v)) {
-				m[f.name] = json.RawMessage(v)
-			}
-		}
-		gpus[g.UUID] = m
-	}
-	return gpus
-}
-
-// appendTick appends the tick's host and GPU samples to the buffered window and flushes it if due.
-func (e *Emitter) appendTick(
-	now time.Time,
-	host map[string]float64,
-	gpus map[string]map[string]json.RawMessage,
-	scope string,
-	gap bool,
-) {
-	if e.win == nil {
-		e.win = &windowRecord{T0: now.UTC().Format(time.RFC3339Nano)}
-		e.winStart = now
-	}
-	w := e.win
-	i := len(w.Ticks.DtMs)
-	w.Ticks.DtMs = append(w.Ticks.DtMs, now.Sub(e.winStart).Milliseconds())
-	var rt, step *float64
-	if d, ok := e.runtime(); ok {
-		secs := d.Seconds()
-		rt = &secs
-	}
-	if st := e.step.Load(); st != nil {
-		v := st.value
-		step = &v
-	}
-	w.Ticks.RuntimeS = append(w.Ticks.RuntimeS, rt)
-	w.Ticks.Step = append(w.Ticks.Step, step)
-	if gap {
-		w.Gaps = append(w.Gaps, i)
-	}
-	for uuid, m := range gpus {
-		if w.GPUs == nil {
-			w.GPUs = make(map[string]map[string][]json.RawMessage)
-		}
-		cols := w.GPUs[uuid]
-		if cols == nil {
-			cols = make(map[string][]json.RawMessage)
-			w.GPUs[uuid] = cols
-		}
-		for name, v := range m {
-			cols[name] = appendAt(cols[name], i, v)
-		}
-	}
-	for k, v := range host {
-		if w.Host == nil {
-			w.Host = make(map[string][]*float64)
-		}
-		w.Host[k] = appendAt(w.Host[k], i, &v)
-	}
-	if scope != "" {
-		w.PressureScope = scope
-	}
-
-	line, ok := e.windowJSON()
-	if !ok {
-		e.win = nil
-		return
-	}
-	if now.Sub(e.winStart) >= e.flushEvery || len(line) >= e.maxLineBytes {
-		if e.attachComm() {
-			line, ok = e.windowJSON()
-		}
-		if ok && e.writeWindow(now, line) {
-			files := make([]*spb.FilesItem, len(e.unregistered))
-			for i, p := range e.unregistered {
-				files[i] = &spb.FilesItem{Path: p, Policy: spb.FilesItem_NOW}
-			}
-			if e.emit(&spb.FilesRecord{Files: files}) {
-				e.unregistered = nil
-			}
-		}
-		e.win = nil
-	}
-}
-
-// writeWindow appends a window line to the open chunk and seals the chunk once it is due; it reports whether it sealed.
-func (e *Emitter) writeWindow(now time.Time, line []byte) bool {
-	if e.stopped {
-		return false
-	}
-	if e.chunk == nil {
-		err := os.MkdirAll(e.tmpDir, 0o755)
-		if err == nil {
-			e.chunk, err = os.Create(
-				filepath.Join(e.tmpDir, fmt.Sprintf("%s-%06d.jsonl", e.writerID, e.seq)))
-		}
-		if err != nil {
-			e.fail(err)
-			return false
-		}
-		e.sealAt = now.Add(e.chunkEvery)
-		if e.seq == 0 {
-			e.sealAt = e.sealAt.Add(e.firstSealJitter)
-		}
-	}
-	if _, err := e.chunk.Write(append(line, '\n')); err != nil {
-		e.fail(err)
-		return false
-	}
-	e.chunkBytes += len(line) + 1
-	if now.Before(e.sealAt) && e.chunkBytes < e.maxChunkBytes {
-		return false
-	}
-	return e.seal(now)
-}
-
-// seal gzips the open chunk into its slot directory in FilesDir and adds it to the unregistered list.
-func (e *Emitter) seal(now time.Time) bool {
-	raw := e.chunk.Name()
-	err := e.chunk.Close()
-	e.chunk = nil
-	runPath := filepath.Join(runFilesDir, "chunks",
-		now.UTC().Truncate(chunkSlot).Format("20060102T1504"),
-		filepath.Base(raw)+".gz")
-	e.seq++
-	e.chunkBytes = 0
-
-	var src, dst *os.File
-	if err == nil {
-		src, err = os.Open(raw)
-	}
-	if err == nil {
-		dst, err = os.Create(raw + ".gz")
-		if err != nil {
-			_ = src.Close()
-		}
-	}
-	if err == nil {
-		zw := gzip.NewWriter(dst)
-		_, err = io.Copy(zw, src)
-		err = errors.Join(err, zw.Close(), dst.Close(), src.Close())
-	}
-	final := filepath.Join(e.filesDir, runPath)
-	if err == nil {
-		err = os.MkdirAll(filepath.Dir(final), 0o755)
-	}
-	if err == nil {
-		err = os.Rename(raw+".gz", final)
-	}
-	if err != nil {
-		e.fail(err)
-		return false
-	}
-	e.unregistered = append(e.unregistered, runPath)
-	_ = os.Remove(raw)
-	return true
-}
-
-// fail logs a write error and stops all further telemetry writes for the run.
-func (e *Emitter) fail(err error) {
-	if e.chunk != nil {
-		_ = e.chunk.Close()
-		e.chunk = nil
-	}
-	e.stopped = true
-	e.logger.Warn("provenance: cannot write telemetry files, stopping", "error", err)
-}
-
-// Drain writes the buffered window, seals the open chunk and returns the files left to register, or nil.
-func (e *Emitter) Drain() *spb.FilesRecord {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	now := e.now()
-	if e.win == nil && e.comm.Load() != nil {
-		// A zero-tick window carries a summary published after the last flush.
-		e.win = &windowRecord{
-			T0:    now.UTC().Format(time.RFC3339Nano),
-			Ticks: windowTicks{DtMs: []int64{}, RuntimeS: []*float64{}, Step: []*float64{}},
-		}
-	}
-	if e.win != nil {
-		e.attachComm()
-		if line, ok := e.windowJSON(); ok {
-			e.writeWindow(now, line)
-		}
-		e.win = nil
-	}
-	if e.chunk != nil {
-		e.seal(now)
-	}
-	files := make([]*spb.FilesItem, 0, len(e.unregistered)+1)
-	for _, p := range e.unregistered {
-		files = append(files, &spb.FilesItem{Path: p, Policy: spb.FilesItem_NOW})
-	}
-	if e.rankWritten {
-		files = append(files, &spb.FilesItem{Path: e.rankRunPath, Policy: spb.FilesItem_END})
-	}
-	e.unregistered, e.rankWritten, e.rankPending, e.stopped = nil, false, false, true
-	if len(files) == 0 {
-		return nil
-	}
-	return &spb.FilesRecord{Files: files}
-}
-
-// attachComm moves the pending collective summary, if any, onto the buffered window.
-func (e *Emitter) attachComm() bool {
-	p := e.comm.Swap(nil)
-	if p == nil {
-		return false
-	}
-	w := e.win
-	w.CommStatus = p.status
-	w.CommNLost = p.nLost
-	if len(p.stats) > 0 {
-		w.Comm = p.stats
-	}
-	if p.merged > 1 {
-		w.CommMerged = p.merged
-	}
-	return true
-}
-
-// windowJSON pads every column to the tick count and renders the buffered window.
-func (e *Emitter) windowJSON() ([]byte, bool) {
-	w := e.win
-	n := len(w.Ticks.DtMs)
-	for _, cols := range w.GPUs {
-		for k, col := range cols {
-			cols[k] = padTo(col, n)
-		}
-	}
-	for k, col := range w.Host {
-		w.Host[k] = padTo(col, n)
-	}
-	w.header = e.header("window")
-	w.Rank = e.launch.Rank.Global
-
-	b, err := json.Marshal(w)
-	if err != nil {
-		return nil, false
-	}
-	return b, true
-}
-
-// appendAt appends v at index i, padding skipped ticks with the zero value (JSON null).
-func appendAt[T any](col []T, i int, v T) []T {
-	return append(padTo(col, i), v)
-}
-
-func padTo[T any](col []T, n int) []T {
-	for len(col) < n {
-		var zero T
-		col = append(col, zero)
-	}
-	return col
-}
-
-func (e *Emitter) header(kind string) header {
-	h := header{
-		V:           1,
-		Kind:        kind,
-		CollectedAt: e.now().UTC().Format(time.RFC3339Nano),
-		SDK:         version.Version,
-		WriterID:    e.writerID,
-	}
-	if rt, ok := e.runtime(); ok {
-		secs := rt.Seconds()
-		h.RuntimeS = &secs
-	}
-	if st := e.step.Load(); st != nil {
-		h.Step, h.StepKey = &st.value, st.key
-	}
-	return h
 }

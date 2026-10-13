@@ -22,7 +22,7 @@ type XPU struct {
 	pid          int32
 	gpuDeviceIds []int32
 
-	// provenance also requests provenance-only fields: throttle reasons and GPU serials.
+	// Throttle reasons are consumed only by the local provenance emitter.
 	provenance bool
 
 	startOnce        sync.Once
@@ -89,7 +89,7 @@ func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 		return nil
 	}
 
-	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{IncludeSerial: a.provenance})
+	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{})
 	if err != nil {
 		return nil
 	}

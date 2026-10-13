@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -27,10 +26,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/provenance"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -118,9 +115,6 @@ type SystemMonitor struct {
 
 	// provenance writes rank/GPU provenance run files; nil when disabled.
 	provenance *provenance.Emitter
-
-	// provenanceLocalSteps counts observed history rows for shared-mode writer_local steps.
-	provenanceLocalSteps int64
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -216,29 +210,13 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 
 	if provenanceOn {
 		cgroupDir, _ := cgroupV2Dir(cgroupPaths{procRoot: procfs.DefaultMountPoint, pid: int(pid)})
-		env := make(map[string]string)
-		for _, kv := range os.Environ() {
-			if k, v, ok := strings.Cut(kv, "="); ok {
-				env[k] = v
-			}
-		}
-		hostname := sm.settings.GetHostname()
-		launch := provenance.ReadLaunch(env, hostname)
 		sm.provenance = provenance.NewEmitter(&provenance.EmitterParams{
-			Launch:   launch,
+			FilesDir: sm.settings.GetFilesDir(),
 			WriterID: string(sm.writerID),
-			Emit: func(files *spb.FilesRecord) bool {
-				record := &spb.Record{RecordType: &spb.Record_Files{Files: files}}
-				return sm.extraWork.AddWorkOrCancel(
-					sm.ctx.Done(),
-					runwork.NoRequest(runwork.WorkFromRecord(record)),
-				)
-			},
-			Probe: func() *spb.EnvironmentRecord {
-				ctx, cancel := context.WithTimeout(sm.ctx, 30*time.Second)
-				defer cancel()
-				return sm.xpu.Probe(ctx)
-			},
+			Level:    sm.settings.Proto.XProvenanceLevel.GetValue(),
+			Work:     sm.extraWork,
+			Done:     sm.ctx.Done(),
+			Tick:     time.Second,
 			Runtime: func() (time.Duration, bool) {
 				if sm.runHandle == nil {
 					return 0, false
@@ -248,15 +226,6 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 				}
 				return sm.runHandle.Runtime(), true
 			},
-			FlushInterval: time.Duration(
-				sm.settings.GetProvenanceFlushInterval() * float64(time.Second),
-			),
-			FilesDir: sm.settings.GetFilesDir(),
-			TmpDir:   filepath.Join(sm.settings.GetSyncDir(), "tmp", "provenance"),
-			ChunkInterval: time.Duration(
-				sm.settings.GetProvenanceChunkInterval() * float64(time.Second),
-			),
-			Logger: sm.logger,
 			Host: provenance.HostPaths{
 				ProcRoot:   procfs.DefaultMountPoint,
 				SysRoot:    "/sys",
@@ -400,6 +369,9 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 			}
 
 			if rec := resource.Probe(gctx); rec != nil {
+				if resource == sm.xpu {
+					sm.provenance.SetEnvironment(rec)
+				}
 				mu.Lock()
 				proto.Merge(e, rec)
 				mu.Unlock()
@@ -487,46 +459,30 @@ func (sm *SystemMonitor) Probe() {
 	}
 }
 
-// SetDeviceBinding passes the device a writer process reported to the provenance emitter.
-func (sm *SystemMonitor) SetDeviceBinding(r *spb.DeviceBindingRecord) {
-	if sm == nil || sm.provenance == nil {
-		return
+// StartProvenance answers a writer's local provenance start request.
+func (sm *SystemMonitor) StartProvenance(
+	request *spb.ProvenanceStartRequest,
+) *spb.ProvenanceStartResponse {
+	var emitter *provenance.Emitter
+	if sm != nil {
+		emitter = sm.provenance
 	}
-	sm.provenance.SetDeviceBinding(r)
+	return emitter.Handshake(request)
 }
 
-// SetCommStats passes a writer's collective timings to the provenance emitter.
-func (sm *SystemMonitor) SetCommStats(r *spb.CommStatsRecord) {
-	if sm == nil || sm.provenance == nil {
+// SetProvenanceRecord queues a writer's local provenance event.
+func (sm *SystemMonitor) SetProvenanceRecord(record *spb.ProvenanceRecord) {
+	if sm == nil || sm.provenance == nil || record == nil {
 		return
 	}
-	sm.provenance.SetCommStats(r)
-}
-
-// SetStep passes the writer's latest step to the provenance emitter.
-func (sm *SystemMonitor) SetStep(key string, value float64) {
-	if sm == nil || sm.provenance == nil {
-		return
-	}
-	sm.provenance.SetStep(key, value)
-}
-
-// ObserveHistoryRow picks the provenance step source for a flushed history row (spec section 4).
-func (sm *SystemMonitor) ObserveHistoryRow(row *runhistory.RunHistory, useStep bool, step int64) {
-	if sm == nil || sm.provenance == nil {
-		return
-	}
-	switch metric := sm.settings.GetProvenanceStepMetric(); {
-	case metric != "":
-		if v, ok := row.GetNumber(pathtree.PathOf(metric)); ok {
-			sm.provenance.SetStep(metric, v)
-		}
-	case !sm.settings.IsSharedMode() && useStep:
-		sm.provenance.SetStep("_step", float64(step))
-	case sm.settings.IsSharedMode():
-		sm.provenanceLocalSteps++
-		sm.provenance.SetStep("writer_local", float64(sm.provenanceLocalSteps))
-	}
+	sm.provenance.AddRecord(
+		provenance.Record{
+			Kind:        record.Kind,
+			PayloadJSON: record.PayloadJson,
+			MonotonicNS: record.MonotonicNs,
+			WallTimeNS:  record.WallTimeNs,
+		},
+	)
 }
 
 // DrainProvenance seals the open provenance chunk and returns the files left to register; call after Finish.
@@ -534,7 +490,7 @@ func (sm *SystemMonitor) DrainProvenance() []*spb.Record {
 	if sm == nil || sm.provenance == nil {
 		return nil
 	}
-	files := sm.provenance.Drain()
+	files := sm.provenance.Drain().Files
 	if files == nil {
 		return nil
 	}

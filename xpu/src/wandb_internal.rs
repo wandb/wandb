@@ -591,7 +591,7 @@ pub struct Deprecated {
 /// sync an older transaction log, it is important to follow proper protobuf
 /// versioning practices: <https://protobuf.dev/best-practices/>
 ///
-/// Next ID: 31
+/// Next ID: 32
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
     #[prost(int64, tag = "1")]
@@ -604,7 +604,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 31, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -659,14 +659,55 @@ pub mod record {
         Environment(super::EnvironmentRecord),
         #[prost(message, tag = "27")]
         OutputLogger(super::OutputLoggerRecord),
-        #[prost(message, tag = "29")]
-        DeviceBinding(super::DeviceBindingRecord),
-        #[prost(message, tag = "30")]
-        CommStats(super::CommStatsRecord),
+        #[prost(message, tag = "31")]
+        Provenance(super::ProvenanceRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
     }
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ProvenanceRecord {
+    #[prost(string, tag = "1")]
+    pub kind: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "2")]
+    pub payload_json: ::prost::alloc::vec::Vec<u8>,
+    #[prost(int64, tag = "3")]
+    pub monotonic_ns: i64,
+    #[prost(int64, tag = "4")]
+    pub wall_time_ns: i64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ProvenanceStartRequest {
+    #[prost(uint32, tag = "1")]
+    pub protocol_version: u32,
+    #[prost(uint32, tag = "2")]
+    pub level: u32,
+    #[prost(string, tag = "3")]
+    pub run_id: ::prost::alloc::string::String,
+    #[prost(int32, tag = "4")]
+    pub rank: i32,
+    #[prost(int32, tag = "5")]
+    pub local_rank: i32,
+    #[prost(int32, tag = "6")]
+    pub node_rank: i32,
+    #[prost(int32, tag = "7")]
+    pub attempt: i32,
+    #[prost(bool, tag = "8")]
+    pub primary: bool,
+    #[prost(bytes = "vec", tag = "9")]
+    pub identity_json: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ProvenanceStartResponse {
+    #[prost(bool, tag = "1")]
+    pub accepted: bool,
+    #[prost(uint32, tag = "2")]
+    pub protocol_version: u32,
+    #[prost(string, tag = "3")]
+    pub reason: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub writer_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Control {
@@ -1145,55 +1186,6 @@ pub struct OutputRawResult {}
 pub struct OutputLoggerRecord {
     #[prost(string, tag = "1")]
     pub line: ::prost::alloc::string::String,
-}
-/// DeviceBindingRecord: the CUDA device a writer process reports it is bound to.
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct DeviceBindingRecord {
-    #[prost(string, tag = "1")]
-    pub uuid: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub pci_bus_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub source: ::prost::alloc::string::String,
-    #[prost(int32, tag = "4")]
-    pub cuda_index: i32,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
-}
-/// CollectiveStats: timings of one collective kind from the NCCL flight recorder.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CollectiveStats {
-    #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(int64, tag = "2")]
-    pub count: i64,
-    /// Duration fields are unset when no collective in the group was timed.
-    #[prost(double, optional, tag = "3")]
-    pub p50_ms: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "4")]
-    pub p99_ms: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "5")]
-    pub max_ms: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "6")]
-    pub total_ms: ::core::option::Option<f64>,
-    #[prost(int64, optional, tag = "7")]
-    pub bytes: ::core::option::Option<i64>,
-    /// Number of collectives in the group that carried a duration.
-    #[prost(int64, tag = "8")]
-    pub n_timed: i64,
-}
-/// CommStatsRecord: collectives a writer process completed since its previous report.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CommStatsRecord {
-    #[prost(string, tag = "1")]
-    pub status: ::prost::alloc::string::String,
-    #[prost(message, repeated, tag = "2")]
-    pub collectives: ::prost::alloc::vec::Vec<CollectiveStats>,
-    /// Collectives evicted from the flight recorder ring before they were read; 0 when none were detected.
-    #[prost(int64, tag = "3")]
-    pub n_lost: i64,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
 }
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1747,12 +1739,12 @@ pub struct AlertResult {}
 /// step with a PartialHistoryRequest, which produces artificial Records
 /// when a step is committed).
 ///
-/// Next ID: 85
+/// Next ID: 86
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 85, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1782,6 +1774,8 @@ pub mod request {
         PartialHistory(super::PartialHistoryRequest),
         #[prost(message, tag = "84")]
         HistoryStep(super::HistoryStepRequest),
+        #[prost(message, tag = "85")]
+        ProvenanceStart(super::ProvenanceStartRequest),
         #[prost(message, tag = "11")]
         RunStart(super::RunStartRequest),
         #[prost(message, tag = "12")]
@@ -1840,12 +1834,12 @@ pub mod request {
 }
 /// Response: all non persistent responses to Requests
 ///
-/// Next ID: 75
+/// Next ID: 77
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 75, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 76, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1869,6 +1863,8 @@ pub mod response {
         SampledHistoryResponse(super::SampledHistoryResponse),
         #[prost(message, tag = "75")]
         HistoryStepResponse(super::HistoryStepResponse),
+        #[prost(message, tag = "76")]
+        ProvenanceStartResponse(super::ProvenanceStartResponse),
         #[prost(message, tag = "28")]
         RunStartResponse(super::RunStartResponse),
         #[prost(message, tag = "29")]

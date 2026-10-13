@@ -32,6 +32,8 @@ func (wr WorkRecord) Accept(
 	fn(wr.Record, request)
 
 	switch wr.Record.RecordType.(type) {
+	case *spb.Record_Provenance:
+		return false
 	case *spb.Record_Final:
 		// Deprecated.
 		return false

@@ -90,20 +90,19 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         self._publish(rec, nowait=nowait)
 
     @override
-    def _publish_device_binding(self, binding: pb.DeviceBindingRecord) -> None:
-        rec = pb.Record()
-        rec.device_binding.CopyFrom(binding)
-        # Keeps it out of the transaction log, which older `wandb sync` can't parse.
-        rec.control.local = True
-        self._publish(rec, nowait=True)
+    def deliver_provenance_start(
+        self, request: pb.ProvenanceStartRequest
+    ) -> MailboxHandle[pb.ProvenanceStartResponse]:
+        record = pb.Record(request=pb.Request(provenance_start=request))
+        record.control.local = True
+        record.control.req_resp = True
+        return self._deliver(record).map(lambda r: r.response.provenance_start_response)
 
     @override
-    def _publish_comm_stats(self, stats: pb.CommStatsRecord) -> None:
-        rec = pb.Record()
-        rec.comm_stats.CopyFrom(stats)
-        # Keeps it out of the transaction log, which older `wandb sync` can't parse.
+    def publish_provenance_record(self, record: pb.ProvenanceRecord) -> None:
+        rec = pb.Record(provenance=record)
         rec.control.local = True
-        self._publish(rec, nowait=True)
+        self._publish(rec)
 
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)

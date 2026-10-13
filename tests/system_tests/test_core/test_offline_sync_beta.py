@@ -15,6 +15,7 @@ import wandb
 from click.testing import CliRunner
 from typing_extensions import Any, TypeVar
 from wandb.cli import beta_sync, cli
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_sync_pb2
 from wandb.sdk import wandb_setup
@@ -225,18 +226,29 @@ def test_syncs_provenance_files(
         mode="offline",
         settings=wandb.Settings(
             console="wrap",
-            x_provenance=True,
-            x_provenance_comm=True,
-            x_provenance_flush_interval=0,
+            x_provenance_level=0,
         ),
     ) as run:
-        # Publishes a comm status, so the exit seal writes a window even without /proc or a GPU.
+        response = run._interface.deliver_provenance_start(
+            pb.ProvenanceStartRequest(
+                protocol_version=2, run_id=run.id, primary=True, identity_json=b"{}"
+            )
+        ).wait_or(timeout=5)
+        assert response.accepted
+        run._interface.publish_provenance_record(
+            pb.ProvenanceRecord(
+                kind="step",
+                payload_json=b'{"step":1}',
+                monotonic_ns=1,
+                wall_time_ns=time.time_ns(),
+            )
+        )
         run.log({"x": 1})
         print("training output")
         files_dir = pathlib.Path(run.settings.files_dir)
-        rank_dir = files_dir / "wandb-telemetry" / "v1" / "rank"
+        rank_dir = files_dir / "wandb-telemetry" / "v2" / "manifest"
         deadline = time.monotonic() + 60
-        while not any(rank_dir.glob("*.jsonl")):
+        while not any(rank_dir.glob("*.json")):
             assert time.monotonic() < deadline, "no rank object was written"
             time.sleep(0.1)
 
@@ -262,11 +274,11 @@ def test_syncs_provenance_files(
         for line in gzip.decompress((files_dir / c).read_bytes()).splitlines()
     ]
     assert windows
-    assert all(w["kind"] == "window" for w in windows)
-    assert any("comm_status" in w for w in windows)
+    assert all(w["v"] == 2 for w in windows)
+    assert any(w["kind"] == "step" for w in windows)
     output_log = (files_dir / "output.log").read_text()
     assert "training output" in output_log
-    assert '"kind":"window"' not in output_log
+    assert '"kind":"step"' not in output_log
 
 
 def test_sync_reports_init_error(

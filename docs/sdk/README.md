@@ -11,6 +11,7 @@ This is intentionally separate from the public W&B docs site. It is for SDK main
 3. [wandb-core Internals](wandb-core.md) - the Go service, streams, handler/sender pipeline, transaction log, filestream, file transfer, and Public API routing.
 4. [Development Guide](development-guide.md) - practical setup, test strategy, proto generation, and review habits.
 5. [Source Map](source-map.md) - the main packages and functions to inspect when changing behavior.
+6. [Distributed Training Telemetry](provenance.md) - the experimental `WANDB_X_PROVENANCE_LEVEL` opt-in, its run files, redaction, and capability states.
 
 ## Visual guide
 

@@ -4,9 +4,11 @@ import os
 import pathlib
 import platform
 import re
+import runpy
 import shutil
 import sys
 import sysconfig
+import tempfile
 from typing import Any
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
@@ -47,6 +49,12 @@ class CustomBuildHook(BuildHookInterface):
 
     def _prepare_wheel(self, build_data: dict[str, Any]) -> None:
         build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
+        startup = runpy.run_path(
+            str(pathlib.Path(self.root, "wandb/sdk/provenance/startup.py"))
+        )
+        pth = pathlib.Path(tempfile.mkdtemp(), startup["PTH_NAME"])
+        pth.write_text(startup["PTH_LINE"])
+        build_data.setdefault("force_include", {})[str(pth)] = startup["PTH_NAME"]
 
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())

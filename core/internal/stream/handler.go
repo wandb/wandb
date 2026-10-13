@@ -226,10 +226,8 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Environment:
 	// The above are no-ops in the handler.
 
-	case *spb.Record_DeviceBinding:
-		h.systemMonitor.SetDeviceBinding(x.DeviceBinding)
-	case *spb.Record_CommStats:
-		h.systemMonitor.SetCommStats(x.CommStats)
+	case *spb.Record_Provenance:
+		h.systemMonitor.SetProvenanceRecord(x.Provenance)
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit, request)
 	case *spb.Record_Header:
@@ -332,6 +330,16 @@ func (h *Handler) handleRequest(
 		h.handleRequestOperations(record, request)
 	case *spb.Request_ProbeSystemInfo:
 		h.handleRequestProbeSystemInfo(record)
+	case *spb.Request_ProvenanceStart:
+		response := h.systemMonitor.StartProvenance(x.ProvenanceStart)
+		h.respond(
+			request,
+			&spb.Response{
+				ResponseType: &spb.Response_ProvenanceStartResponse{
+					ProvenanceStartResponse: response,
+				},
+			},
+		)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			"stream",
@@ -1060,10 +1068,6 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 			pathtree.PathOf("_step"),
 			h.partialHistoryStep,
 		)
-	}
-
-	if h.settings.IsProvenance() {
-		h.systemMonitor.ObserveHistoryRow(h.partialHistory, useStep, h.partialHistoryStep)
 	}
 
 	// Expand any new metrics that match a `define_metric()` glob.

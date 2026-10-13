@@ -34,6 +34,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
+	"github.com/wandb/wandb/core/internal/provenance"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -198,6 +199,7 @@ func serviceMain() int {
 			}
 		case sig := <-signalCh:
 			slog.Info("main: received shutdown signal", "signal", sig)
+			provenance.Terminate(5*time.Second, 128+int32(sig.(syscall.Signal)))
 			srv.ForceStop()
 			if err := <-srvCh; err != nil {
 				slog.Error("main: Serve() returned error", "error", err)
