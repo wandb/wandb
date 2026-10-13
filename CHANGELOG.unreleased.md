@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- In W&B LEET TUI, `l` links the console logs to the charts in the single-run view: with the logs pane focused, the charts show a crosshair at the time the selected line was logged as you move through the log, and inspecting a chart with the mouse selects the console line logged nearest to that point. `l` again unlinks (@dmitryduev in https://github.com/wandb/wandb/pull/12737)
 - `wandb leet symon` now shows the utilization of every CPU core and, on Linux, the CPU temperature (@dmitryduev in https://github.com/wandb/wandb/pull/13012)
 - `wandb leet symon` now charts network and disk throughput in bytes per second instead of totals since it started (@dmitryduev in https://github.com/wandb/wandb/pull/13013)
 - In W&B LEET TUI, the `CPU Core (%)` chart opens as a heatmap with one row per core; `y` switches it back to lines (@dmitryduev in https://github.com/wandb/wandb/pull/13014)
@@ -49,6 +50,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
 - AMD GPU system metrics are now read through the ROCm SMI library (`librocm_smi64.so`) instead of running the `rocm-smi` tool on every sample, and readings a GPU does not provide are left out instead of reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12990)
+- `import wandb` and the `wandb` CLI start about twice as fast. On Linux with Python 3.13, `import wandb` takes about 290 ms instead of 650 ms and `wandb --version` about 310 ms instead of 660 ms: the generated GraphQL models, the OpenTelemetry SDK, `requests`, the public API and the launch and sweeps modules are now imported when they are first used (@dmitryduev in https://github.com/wandb/wandb/pull/13144, https://github.com/wandb/wandb/pull/13145, https://github.com/wandb/wandb/pull/13146, https://github.com/wandb/wandb/pull/13147, https://github.com/wandb/wandb/pull/13148)
 
 ### Removed
 
@@ -71,3 +73,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
 - The Docker image ID recorded for runs inside Kubernetes no longer loses the start of the image name and the end of the digest when the `docker-pullable://` prefix is removed (@David-Wu1119 in https://github.com/wandb/wandb/pull/13035)
 - `wandb.Api(overrides={"base_url": ...})` no longer changes the W&B server URL used by `wandb.init()` and other W&B calls later in the same process (@dmitryduev in https://github.com/wandb/wandb/pull/13125)
+- `wandb verify` no longer hangs on its final sweep check against W&B Server instances that deduplicate sweep run configs (Dedicated Cloud and Self-Managed 0.8x with sweep dedup enabled) (@rsong9527 in https://github.com/wandb/wandb/pull/13136)

@@ -144,7 +144,7 @@ def test_login_verify_wraps_service_errors(monkeypatch: pytest.MonkeyPatch):
         raise ConnectionRefusedError("the service process is not running")
 
     monkeypatch.setattr(
-        "wandb.sdk.wandb_login.ServiceApi.authenticate",
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
         raise_service_error,
     )
     with pytest.raises(wandb.errors.AuthenticationError):
@@ -156,7 +156,7 @@ def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
         raise WandbApiFailedError("invalid credentials")
 
     monkeypatch.setattr(
-        "wandb.sdk.wandb_login.ServiceApi.authenticate",
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
         reject_credentials,
     )
     with pytest.raises(wandb.errors.AuthenticationError):

@@ -2,6 +2,7 @@ package picture
 
 import (
 	"bytes"
+	"compress/zlib"
 	"fmt"
 	"image"
 	"image/color"
@@ -70,12 +71,71 @@ func buildKittyAPC(img image.Image, id, cols, rows int, format KittyFormat, z ..
 		}
 		return buildKittyRGBAAPC(data, b.Dx(), b.Dy(), id, cols, rows, z...)
 	}
+	if format == KittyFormatZlib {
+		return buildKittyZlibAPC(img, id, cols, rows, z...)
+	}
 	var buf bytes.Buffer
 	encoder := png.Encoder{CompressionLevel: png.BestSpeed}
 	if err := encoder.Encode(&buf, img); err != nil {
 		return ""
 	}
 	return buildKittyPNGAPC(buf.Bytes(), id, cols, rows, z...)
+}
+
+// buildKittyZlibAPC sends raw pixels compressed with zlib (o=z): RGB (f=24)
+// for an opaque image, straight-alpha RGBA (f=32) otherwise. PNG's encoder
+// tries every filter on every row even at BestSpeed; zlib alone is about
+// three times faster for a comparable payload.
+func buildKittyZlibAPC(img image.Image, id, cols, rows int, z ...int) string {
+	b := img.Bounds()
+	if b.Empty() {
+		return ""
+	}
+	o := kittyRGBAOptions(b.Dx(), b.Dy(), id, cols, rows, z...)
+	o.Compression = kitty.Zlib
+	var raw []byte
+	if opaque, ok := img.(interface{ Opaque() bool }); ok && opaque.Opaque() {
+		o.Format = kitty.RGB
+		raw = kittyRGBBytes(img)
+	} else {
+		raw = kittyRGBABytes(img)
+	}
+	var packed bytes.Buffer
+	packed.Grow(len(raw) / 4)
+	w, err := zlib.NewWriterLevel(&packed, zlib.BestSpeed)
+	if err != nil {
+		return ""
+	}
+	if _, err := w.Write(raw); err != nil || w.Close() != nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	if err := encodeKittyGraphicsData(&buf, packed.Bytes(), o); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+// kittyRGBBytes returns an opaque img as tightly packed RGB rows.
+func kittyRGBBytes(img image.Image) []byte {
+	b := img.Bounds()
+	out := make([]byte, 0, 3*b.Dx()*b.Dy())
+	if src, ok := img.(*image.RGBA); ok {
+		for y := 0; y < b.Dy(); y++ {
+			row := src.Pix[y*src.Stride : y*src.Stride+4*b.Dx()]
+			for x := 0; x < len(row); x += 4 {
+				out = append(out, row[x], row[x+1], row[x+2])
+			}
+		}
+		return out
+	}
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+			out = append(out, c.R, c.G, c.B)
+		}
+	}
+	return out
 }
 
 // KittyFormat selects how a Kitty frame's pixels are transmitted.
@@ -89,20 +149,30 @@ const (
 	// encode, no decode in the terminal, but 4 bytes per pixel before
 	// base64 — about 5.3 bytes per pixel through the terminal stream.
 	KittyFormatRGBA
+	// KittyFormatZlib sends raw pixels compressed with zlib (o=z): RGB
+	// (f=24) for an opaque frame, RGBA (f=32) otherwise. About three times
+	// faster to encode than PNG for a comparable payload, since PNG tries
+	// every filter on every row; the terminal inflates instead of decoding
+	// PNG. Any terminal implementing the protocol's compression takes it.
+	KittyFormatZlib
 )
 
 func (f KittyFormat) String() string {
-	if f == KittyFormatRGBA {
+	switch f {
+	case KittyFormatRGBA:
 		return "rgba"
+	case KittyFormatZlib:
+		return "zlib"
 	}
 	return "png"
 }
 
 func normalizeKittyFormat(f KittyFormat) KittyFormat {
-	if f != KittyFormatRGBA {
-		return KittyFormatPNG
+	switch f {
+	case KittyFormatRGBA, KittyFormatZlib:
+		return f
 	}
-	return f
+	return KittyFormatPNG
 }
 
 func kittyRGBAOptions(width, height, id, cols, rows int, z ...int) *kitty.Options {
