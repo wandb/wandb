@@ -1075,3 +1075,31 @@ func TestWorkspace_DroppedRunClearsFocusFromEmptiedPane(t *testing.T) {
 	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
 		"focus must not stay on a pane emptied by a dropped run")
 }
+
+func TestWorkspace_KeyHandling_SystemMetricsFilterFollowsHighlightedRun(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	require.NoError(t, cfg.SetWorkspaceSystemMetricsVisible(true))
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	stats := leet.StatsMsg{Timestamp: 1, Metrics: map[string]float64{"cpu": 1, "gpu.0.gpu": 2}}
+	for _, key := range []string{"run-a", "run-b"} {
+		run := leet.TestNewWorkspaceRun(key)
+		w.TestAttachRun(run, true)
+		w.TestHandleWorkspaceRecord(run, stats)
+	}
+	w.TestApplyRunKeys([]string{"run-a", "run-b"})
+
+	// Filter run A's system metrics down to the GPU chart, then highlight run B.
+	require.Nil(t, w.Update(keyRune('\\')))
+	typeWorkspaceFilter(t, w, "gpu")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyDown}))
+	require.Equal(t, "run-b", w.TestCurrentRunKey())
+
+	view := stripANSI(w.View().Content)
+	require.Contains(t, view, "GPU Utilization")
+	require.NotContains(t, view, "Process CPU")
+}
