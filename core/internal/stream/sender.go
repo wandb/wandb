@@ -896,6 +896,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	// Measure re-reading the history items produced by the handler.
 	ingestStart := time.Now()
 	history := runhistory.New()
+	var readCounts filestreamstats.HistoryReadCounts
 	for _, item := range record.GetItem() {
 		if err := history.SetFromRecord(item); err != nil {
 			s.logger.CaptureError(
@@ -904,6 +905,8 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 				"key", item.GetKey(),
 				"nested_key", item.GetNestedKey(),
 			)
+		} else {
+			readCounts.Add(item)
 		}
 	}
 	ingestDuration := time.Since(ingestStart)
@@ -912,6 +915,11 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		filestreamstats.SegmentUploadIngest,
 		filestreamstats.StreamHistory,
 		ingestDuration,
+	)
+	s.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentUploadIngest,
+		readCounts,
 	)
 
 	s.runHistorySampler.SampleNext(history)
