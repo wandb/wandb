@@ -86,8 +86,7 @@ class WandbAgentTestEnv:
         api.register_agent.return_value = {"id": agent_id}
         if for_cli:
             api.sweep.return_value = None
-        self.patch_sweep_helpers("wandb.wandb_agent", api)
-        self.patch_sweep_helpers("wandb.agents.pyagent", api)
+        self.patch_sweep_helpers("wandb.apis.public.sweeps", api)
         return api
 
     def patch_sweep_helpers(self, module: str, api: mock.MagicMock) -> None:

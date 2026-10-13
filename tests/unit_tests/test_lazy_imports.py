@@ -34,6 +34,9 @@ def modules_loaded_by_cli() -> set[str]:
         "opentelemetry.sdk.metrics",
         # HTTP sessions are created when something is uploaded or exported.
         "requests",
+        # The public API and launch serve `wandb.Api()` and the CLI.
+        "wandb.apis.public",
+        "wandb.sdk.launch",
     ],
 )
 def test_import_wandb_does_not_load(module, modules_loaded_by_import_wandb):
@@ -48,6 +51,7 @@ def test_import_wandb_does_not_load(module, modules_loaded_by_import_wandb):
         "wandb.sdk.verify.verify",
         # Only `wandb launch-sweep` reads YAML.
         "yaml",
+        "wandb.apis.public",
     ],
 )
 def test_cli_does_not_load(module, modules_loaded_by_cli):

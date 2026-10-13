@@ -6,7 +6,6 @@ import os
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
-from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -16,6 +15,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
 
+    from wandb.apis.public import Api
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
@@ -37,6 +37,8 @@ class WBArtifactHandler(StorageHandler):
 
     @property
     def client(self) -> Api:
+        from wandb.apis.public import Api
+
         if self._client is None:
             self._client = Api()
         return self._client
