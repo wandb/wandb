@@ -38,9 +38,9 @@ def test_tensorflow_hook(wandb_backend_spy):
     # test digesting encoded summary
     assert wandb.tensorboard.tf_summary_to_dict(summary1) == {"const_1": 42.0}
 
-    # test digesting a list of encoded summaries
+    # test digesting a parsed summary
     assert wandb.tensorboard.tf_summary_to_dict(
-        summary_pb2.Summary().ParseFromString(summary1)
+        summary_pb2.Summary.FromString(summary1)
     ) == {"const_1": 42.0}
 
     # test digesting a list of encoded summaries
