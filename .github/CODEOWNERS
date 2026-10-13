@@ -80,10 +80,12 @@
 
 # Sweeps
 /wandb/wandb_agent.py                                  @wandb/sweeps-reviewers @wandb/sdk-team
+/wandb/agents/                                         @wandb/sweeps-reviewers @wandb/sdk-team
 /wandb/apis/public/sweeps.py                           @wandb/sweeps-reviewers @wandb/sdk-team
 /tests/system_tests/test_sweep/                        @wandb/sweeps-reviewers @wandb/sdk-team
 /tests/unit_tests/test_wandb_agent_teardown.py         @wandb/sweeps-reviewers @wandb/sdk-team
 /tests/unit_tests/test_wandb_agent_signals.py          @wandb/sweeps-reviewers @wandb/sdk-team
+/tests/unit_tests/test_wandb_agent/                    @wandb/sweeps-reviewers @wandb/sdk-team
 /wandb/sdk/wandb_sweep.py                              @wandb/sweeps-reviewers @wandb/sdk-team
 /tools/graphql_codegen/api/sweeps.graphql              @wandb/sweeps-reviewers @wandb/sdk-team
 /tests/unit_tests/test_public_api/test_sweeps.py       @wandb/sweeps-reviewers @wandb/sdk-team
