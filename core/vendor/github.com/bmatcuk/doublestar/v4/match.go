@@ -176,7 +176,7 @@ MATCH:
 						patRune, patRuneLen = utf8.DecodeRuneInString(pattern[patIdx:])
 						patIdx += patRuneLen
 
-						if last <= nameRune && nameRune <= patRune {
+						if matchRuneRange(last, patRune, nameRune, caseInsensitive) {
 							matched = true
 							break
 						}
@@ -314,6 +314,14 @@ MATCH:
 	// reached the end of `pattern`, or if the rest of `pattern` can match a
 	// zero-length string
 	return isZeroLengthPattern(pattern[patIdx:], separator, validate)
+}
+
+func matchRuneRange(lo, hi, r rune, caseInsensitive bool) bool {
+	if caseInsensitive {
+		rl := unicode.ToLower(r)
+		return unicode.ToLower(lo) <= rl && rl <= unicode.ToLower(hi)
+	}
+	return lo <= r && r <= hi
 }
 
 func matchRune(a, b rune, caseInsensitive bool) bool {
