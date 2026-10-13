@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb import env
@@ -40,6 +42,16 @@ if env.ssl_disabled():
     _disable_ssl()
 
 
-from .public import Api  # noqa
-
 __all__ = ["Api"]
+
+if TYPE_CHECKING:
+    from .public import Api
+
+
+def __getattr__(name: str) -> Any:
+    # `wandb.apis.public` is imported on first use, so that `import wandb`
+    # does not pay for it.
+    if name in ("Api", "public"):
+        public = import_module(".public", __name__)
+        return public if name == "public" else public.Api
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

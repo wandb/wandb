@@ -19,26 +19,15 @@ from functools import wraps
 from typing import Any
 
 import click
-import yaml
 from click.exceptions import ClickException
 
 import wandb
 import wandb.errors
-import wandb.sdk.verify.verify as wandb_verify
 from wandb import Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
-from wandb.apis.public.sweeps import _set_sweep_state, _sweep_with_runs, _upsert_sweep
-from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
-from wandb.sdk.launch import utils as launch_utils
-from wandb.sdk.launch._launch_add import _launch_add
-from wandb.sdk.launch.api import LaunchApi
-from wandb.sdk.launch.errors import ExecutionError, LaunchError
-from wandb.sdk.launch.sweeps import utils as sweep_utils
-from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import config_util, filesystem, settings_file, urls, wbauth
 from wandb.sdk.lib.filenames import DIFF_FNAME
 from wandb.sdk.lib.hashutil import md5_file_b64
@@ -665,6 +654,8 @@ def sync(
 
     for more info.
     """
+    from wandb.cli import beta_sync
+
     if clean is not None or clean_old_hours is not None or clean_force is not None:
         raise ClickException("Use `wandb clean` instead of `wandb sync --clean`")
 
@@ -873,6 +864,13 @@ def sweep(
 
         $ wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
     """
+    from wandb.apis.public.sweeps import (
+        _set_sweep_state,
+        _sweep_with_runs,
+        _upsert_sweep,
+    )
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
     is_state_change_command = sum(lcls[k] for k in state_args)
@@ -1114,6 +1112,14 @@ def launch_sweep(
     resume_id,
     prior_runs,
 ):
+    import yaml
+
+    from wandb.apis.public.sweeps import _sweep_with_runs, _upsert_sweep
+    from wandb.sdk.launch import utils as launch_utils
+    from wandb.sdk.launch.api import LaunchApi
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+    from wandb.sdk.launch.sweeps.scheduler import Scheduler
+
     api = LaunchApi()
     env = os.environ
 
@@ -1543,6 +1549,11 @@ def launch(
     Running `wandb launch [URI]` will launch the run directly. To add the
     run to a queue, run `wandb launch [URI] --queue [optional queuename]`.
     """
+    from wandb.sdk.launch import utils as launch_utils
+    from wandb.sdk.launch._launch_add import _launch_add
+    from wandb.sdk.launch.api import LaunchApi
+    from wandb.sdk.launch.errors import ExecutionError, LaunchError
+
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
@@ -1779,6 +1790,8 @@ def launch_agent(
     log_file=None,
     verbose=0,
 ):
+    from wandb.sdk.launch.errors import LaunchError
+
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1945,6 +1958,8 @@ def scheduler(
     ctx,
     sweep_id,
 ):
+    from wandb.sdk.launch.api import LaunchApi
+
     api = LaunchApi()
 
     telemetry_recorder = get_telemetry_recorder().with_context(
@@ -2028,6 +2043,7 @@ def sweep_scheduler(
     re-created on each restart. This custom function may be used to configure
     the engine's sampler and pruner.
     """
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
     from wandb.sdk.sweeps.scheduler import client
     from wandb.sdk.sweeps.scheduler.optimizer import make_optimizer
 
@@ -2262,6 +2278,7 @@ def create(
     code: A code path, containing a requirements.txt file.
     image: A docker image.
     """
+    from wandb.sdk.launch.api import LaunchApi
     from wandb.sdk.launch.create_job import _create_job
 
     api = LaunchApi()
@@ -3040,6 +3057,8 @@ def cleanup(target_size, remove_temp):
 
         $ wandb artifact cache cleanup --remove-temp 5GB
     """
+    from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+
     target_size = util.from_human_size(target_size)
     cache = get_artifact_file_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
@@ -3498,6 +3517,8 @@ def verify(host):
 
         $ wandb verify --host https://my-wandb-server.example.com
     """
+    import wandb.sdk.verify.verify as wandb_verify
+
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"

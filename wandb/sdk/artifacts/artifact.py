@@ -39,7 +39,6 @@ from wandb._iterutils import one, unique_list
 from wandb._pydantic import from_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.data_types import WBValue
 from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
@@ -111,6 +110,7 @@ from .storage_policies._multipart import should_multipart_download
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
     from wandb.apis.public.service_api import ServiceApi
 
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
@@ -637,6 +637,8 @@ class Artifact:
         The collection that an artifact originates from is known as
         the source sequence.
         """
+        from wandb.apis.public import ArtifactCollection
+
         if (service_api := self._service_api) is None:
             raise RuntimeError("ServiceApi not initialized")
         base_name = self.name.split(":")[0]
@@ -693,6 +695,8 @@ class Artifact:
 
         The source collection is the collection that the artifact was logged from.
         """
+        from wandb.apis.public import ArtifactCollection
+
         if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized")
         base_name = self.source_name.split(":")[0]
@@ -2419,6 +2423,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from wandb.apis.public import ArtifactFiles
+
         if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized")
         return ArtifactFiles(service_api, self, names, per_page, start=start)
@@ -2649,6 +2655,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from wandb.apis.public import Run
+
         from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy
 
         if (service_api := self._service_api) is None:
@@ -2689,6 +2697,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from wandb.apis.public import Run
+
         from ._generated import (
             ARTIFACT_CREATED_BY_GQL,
             ArtifactCreatedBy,

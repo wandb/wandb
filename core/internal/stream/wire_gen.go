@@ -46,7 +46,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
-	stats := streamFileStreamStats(coreLogger)
+	stats := streamFileStreamStats(coreLogger, settings2)
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
 		Logger:             coreLogger,
 		RunHandle:          runHandle,
