@@ -18,8 +18,8 @@ class WandbCallback:
         - metric_period: (int) if you are passing `metric_period` to your CatBoost model please pass the same value here (default=1).
 
     Passing `WandbCallback` to CatBoost will:
-    - log training and validation metrics at every `metric_period`
-    - log iteration at every `metric_period`
+    - log training and validation metrics each time CatBoost evaluates them: on the first iteration, every `metric_period` iterations after it, and on the last one
+    - log the iteration alongside them
 
     Example:
         ```
@@ -50,19 +50,14 @@ class WandbCallback:
             tel.feature.catboost_wandb_callback = True
 
         self.metric_period: int = metric_period
-        self._num_logged_evals: int = 0
+        self._num_values: int = 0
 
     def after_iteration(self, info: SimpleNamespace) -> bool:
-        # CatBoost evaluates on the first iteration, every metric_period after
-        # it and on the last one, appending to info.metrics. Log each new value
-        # when it appears, not when the 1-based info.iteration is a multiple of
-        # metric_period, which logs the previous value and skips the final ones.
-        num_evals = max(
-            (len(log) for metric in info.metrics.values() for log in metric.values()),
-            default=0,
+        num_values = sum(
+            len(log) for metric in info.metrics.values() for log in metric.values()
         )
-        if num_evals != self._num_logged_evals:
-            self._num_logged_evals = num_evals
+        if num_values > self._num_values:
+            self._num_values = num_values
             for data, metric in info.metrics.items():
                 for metric_name, log in metric.items():
                     # todo: replace with wandb.run._log once available
