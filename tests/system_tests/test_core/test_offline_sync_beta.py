@@ -212,6 +212,48 @@ def test_syncs_run(
         assert "test_file.txt" in files
 
 
+# This test is a reminder to add typed-only case to
+# test_syncs_history_values_from_completed_offline_run below.
+def test_rejects_typed_only_history_value_encoding():
+    with pytest.raises(ValueError, match="Use 'json,typed'"):
+        wandb.Settings(x_history_value_encoding="typed")
+
+
+# TODO: when typed-only encoding is available, add it to this paramter list
+@pytest.mark.parametrize("encoding", ("json", "json,typed"))
+def test_syncs_history_values_from_completed_offline_run(
+    encoding: str,
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    _unauthenticate_for_test()
+    wide = 2**53 + 1
+    with wandb.init(
+        mode="offline",
+        settings=wandb.Settings(x_history_value_encoding=encoding),
+    ) as run:
+        run.log({"wide": wide, "first": 0}, step=2)
+        run.log({"second": False}, step=5)
+        run.log({"wide": wide + 2, "last": "done"}, step=9)
+
+    result = runner.invoke(cli.sync, [run.sync_dir])
+    assert result.exit_code == 0, result.output
+    assert "Finished syncing" in result.output
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 3
+        assert [history[i]["_step"] for i in range(3)] == [2, 5, 9]
+        assert history[0]["wide"] == wide
+        assert history[0]["first"] == 0
+        assert history[1]["second"] is False
+        assert history[2]["wide"] == wide + 2
+        assert history[2]["last"] == "done"
+        assert "wide" not in history[1]
+        assert "second" not in history[0]
+        assert "second" not in history[2]
+
+
 def test_sync_reports_init_error(
     runner: CliRunner,
     wandb_backend_spy: WandbBackendSpy,
