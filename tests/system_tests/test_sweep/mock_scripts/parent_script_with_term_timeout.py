@@ -5,15 +5,15 @@ import sys
 import threading
 import time
 
-import wandb.wandb_agent as wandb_agent
+import wandb.apis.public.sweeps as sweeps
 from wandb.wandb_agent import Agent
 
 child_script = sys.argv[1]
 term_timeout = int(sys.argv[2])
 
-wandb_agent._sweep_with_runs = lambda api, sweep_id, spec: None
-wandb_agent._register_agent = lambda api, host, sweep_id=None: {"id": "agent-1"}
-wandb_agent._agent_heartbeat = lambda api, agent_id, spec, run_status: []
+sweeps._sweep_with_runs = lambda api, sweep_id, spec: None
+sweeps._register_agent = lambda api, host, sweep_id=None: {"id": "agent-1"}
+sweeps._agent_heartbeat = lambda api, agent_id, spec, run_status: []
 
 
 # Seed agent command queue to run the child script

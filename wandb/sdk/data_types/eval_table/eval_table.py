@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 from typing_extensions import override
 
 import wandb
-from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table._writer import (
@@ -192,6 +191,8 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore -->
         """
+        from wandb.apis.public.service_api import ServiceApi
+
         # TODO: Remove when we add support for offline mode
         if run.offline:
             raise UsageError(
