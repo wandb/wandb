@@ -1,5 +1,6 @@
 """config tests."""
 
+import numpy as np
 import pytest
 import yaml
 from wandb import sdk as wandb_sdk
@@ -62,6 +63,13 @@ def test_update(consolidated, config):
     config.update(dict(that=4))
     assert dict(config) == dict(this=8, that=4)
     assert consolidated == dict(config)
+
+
+def test_single_element_numpy_array_is_stored_as_native_scalar(config):
+    config.testing = np.array([2.0], dtype=np.float32)
+
+    assert config.testing == 2.0
+    assert type(config.testing) is float
 
 
 def test_setdefaults(consolidated, config):
