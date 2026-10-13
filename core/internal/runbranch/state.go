@@ -206,17 +206,21 @@ func (r *RunParams) Update(
 		r.Notes = record.Notes
 	}
 
-	if record.Git.GetCommit() != "" {
-		r.Commit = record.Git.GetCommit()
-	}
-	if record.Git.GetRemoteUrl() != "" {
-		r.RemoteURL = record.Git.GetRemoteUrl()
+	if !runSettings.IsMetadataExcluded("git") {
+		if record.Git.GetCommit() != "" {
+			r.Commit = record.Git.GetCommit()
+		}
+		if record.Git.GetRemoteUrl() != "" {
+			r.RemoteURL = record.Git.GetRemoteUrl()
+		}
 	}
 
-	if !runSettings.IsDisableMachineInfo() && record.Host != "" {
+	if !runSettings.IsDisableMachineInfo() &&
+		!runSettings.IsMetadataExcluded("host") &&
+		record.Host != "" {
 		r.Host = record.Host
 	}
-	if runSettings.GetProgram() != "" {
+	if runSettings.GetProgram() != "" && !runSettings.IsMetadataExcluded("program") {
 		r.Program = runSettings.GetProgram()
 	}
 	if record.JobType != "" {

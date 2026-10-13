@@ -283,7 +283,7 @@ func (sm *SystemMonitor) GetState() int32 {
 func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
-	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
+	return sm.environmentRecord(&spb.EnvironmentRecord{
 		Os:            sm.settings.GetOS(),
 		Python:        sm.settings.GetPython(),
 		Host:          sm.settings.GetHostProcessorName(),
@@ -301,7 +301,20 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Git:           sm.git,
 
 		WriterId: string(sm.writerID),
-	}}}
+	})
+}
+
+// environmentRecord wraps e in a Record, dropping the fields excluded by
+// the exclude_metadata setting.
+func (sm *SystemMonitor) environmentRecord(e *spb.EnvironmentRecord) *spb.Record {
+	m := e.ProtoReflect()
+	fields := m.Descriptor().Fields()
+	for i := range fields.Len() {
+		if fd := fields.Get(i); sm.settings.IsMetadataExcluded(string(fd.Name())) {
+			m.Clear(fd)
+		}
+	}
+	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
 }
 
 // probeResources gathers system information from all resources and merges their metadata.
@@ -354,7 +367,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		e.GpuType = sm.settings.GetStatsGpuType()
 	}
 
-	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
+	return sm.environmentRecord(e)
 }
 
 // Start begins resource monitoring.

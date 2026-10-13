@@ -295,6 +295,9 @@ message Settings {
   // Whether to disable metadata collection.
   google.protobuf.BoolValue x_disable_meta = 7;
 
+  // Names of EnvironmentRecord fields not to collect, e.g. "executable".
+  ListStringValue exclude_metadata = 212;
+
   // Whether to save the code used to create the run.
   google.protobuf.BoolValue save_code = 115;
 

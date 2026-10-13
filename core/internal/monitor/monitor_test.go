@@ -11,7 +11,9 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -222,4 +224,25 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSystemMonitor_ProbeDropsExcludedMetadata(t *testing.T) {
+	work := runwork.New(2, observability.NewNoOpLogger())
+	factory := &monitor.SystemMonitorFactory{
+		Logger: observabilitytest.NewTestLogger(t),
+		Settings: settings.From(&spb.Settings{
+			XPrimary:        wrapperspb.Bool(true),
+			XDisableStats:   wrapperspb.Bool(true),
+			XOs:             wrapperspb.String("macOS"),
+			XExecutable:     wrapperspb.String("/usr/bin/python"),
+			ExcludeMetadata: &spb.ListStringValue{Value: []string{"executable"}},
+		}),
+		XPUResourceManager: monitor.NewXPUResourceManager(false),
+	}
+
+	factory.New(work).Probe()
+
+	env := (<-work.Chan()).ToRecord().GetEnvironment()
+	assert.Equal(t, "macOS", env.GetOs())
+	assert.Empty(t, env.GetExecutable())
 }
