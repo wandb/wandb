@@ -65,6 +65,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.integration.huggingface.autolog()` no longer requires the `pytz` package (@dmitryduev in https://github.com/wandb/wandb/pull/13139)
 - Calling a pipeline that `wandb.integration.diffusers.autolog()` does not support no longer raises an error; the call is not logged (@dmitryduev in https://github.com/wandb/wandb/pull/13139)
 - Importing `wandb.integration.lightning.fabric` or `wandb.integration.ultralytics` without the libraries they need now fails with an `ImportError` naming the missing package (@dmitryduev in https://github.com/wandb/wandb/pull/13139)
+- Runs that finish right after they initialize, for example when `wandb sync` uploads a short run, no longer risk exiting before their final data and exit status are uploaded (@dmitryduev in https://github.com/wandb/wandb/pull/13153)
 - Resumed runs no longer report a huge or negative `_runtime` and run duration, a regression in v0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12999)
 - `wandb leet inspect` no longer prints "skipped corrupt data" forever when its output is piped and the file is not a `.wandb` log it can read; it now exits with an error (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
 - In W&B LEET TUI, the system metrics filter now applies to whichever run is highlighted, not only the run it was typed on. `Space` and `Enter` work in the runs list right after you filter runs with `f` from another pane (@dmitryduev in https://github.com/wandb/wandb/pull/12533)
