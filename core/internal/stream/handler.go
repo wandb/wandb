@@ -709,7 +709,10 @@ func (h *Handler) handleExit(
 
 	// Stop generating system statistics events.
 	h.systemMonitor.Finish()
-
+	// Publish system metrics for server versions <= 0.77.x
+	for _, record := range h.systemMonitor.ClearHeld() {
+		h.fwdRecord(record, nil)
+	}
 	// Flush any history data---any further history records must
 	// be configured to flush.
 	if h.settings.IsSharedMode() {

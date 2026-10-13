@@ -22,17 +22,21 @@ import (
 	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/version"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
 	defaultSamplingInterval = 15.0 * time.Second
+	// holdDruation is how log system metrics are held back for server versions <= 0.77.x.
+	holdDuration = 120 * time.Second
 )
 
 // State definitions for the SystemMonitor.
@@ -105,6 +109,14 @@ type SystemMonitor struct {
 
 	// Information about the Git repository, if applicable.
 	git *spb.GitRepoRecord
+
+	// held contains system metrics records that are held until the holdUntil time.
+	// system metrics sampled before holdUntil are stored here.
+	held []*spb.Record
+	// guards until holdUntil and held.
+	heldMu sync.Mutex
+	// when to stop holding back system metrics; see checkServerVersion
+	holdUntil time.Time
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -376,10 +388,50 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	}
 
 	sm.logger.Debug("monitor: starting")
-	sm.wg.Go(func() {
-		sm.loop()
-	})
+	if sm.graphqlClient != nil {
+		// Hold system metrics until the server version is known.
+		sm.heldMu.Lock()
+		sm.holdUntil = time.Now().Add(holdDuration)
+		sm.heldMu.Unlock()
+		sm.wg.Go(sm.checkServerVersion)
+	}
+	sm.wg.Go(sm.loop)
 	sm.wake()
+}
+
+// checkServerVersion stops holding back system metrics unless the server is
+// W&B Server older than 0.78.0.
+//
+// Those servers export a run's system metrics early if any exist, and then
+// return only the exported rows (fixed in wandb/core#37503). Holding the
+// samples for holdDuration keeps them out of that export without changing
+// the sampling rate.
+func (sm *SystemMonitor) checkServerVersion() {
+	ctx, cancel := context.WithTimeout(sm.ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := gql.ServerInfo(ctx, sm.graphqlClient)
+	if sm.ctx.Err() != nil {
+		return // the run is finishing; handleExit sends the held records
+	}
+
+	// W&B Cloud reports no version.
+	if err == nil && resp.ServerInfo != nil && resp.ServerInfo.LatestLocalVersionInfo != nil {
+		// Invalid versions such as "development" compare below "0.0.0".
+		v := resp.ServerInfo.LatestLocalVersionInfo.VersionOnThisInstanceString
+		if version.Compare(v, "0.0.0") >= 0 && version.Compare(v, "0.78.0") < 0 {
+			sm.logger.Info("monitor: holding system metrics",
+				"duration", holdDuration, "version", v)
+			return
+		}
+	}
+
+	sm.heldMu.Lock()
+	sm.holdUntil = time.Time{}
+	records := sm.held
+	sm.held = nil
+	sm.heldMu.Unlock()
+	sm.send(records)
 }
 
 // wake forces the system monitor to sample resources immediately.
@@ -509,12 +561,47 @@ func (sm *SystemMonitor) sample() {
 					Stats: metrics,
 				},
 			}
-			sm.extraWork.AddWorkOrCancel(
-				sm.ctx.Done(),
-				runwork.NoRequest(runwork.WorkFromRecord(record)),
-			)
+			sm.publish(record)
 		})
 	}
+}
+
+// publish sends a system metrics record, or holds it until holdUntil.
+//
+// The first record after holdUntil also sends everything held before it.
+func (sm *SystemMonitor) publish(record *spb.Record) {
+	sm.heldMu.Lock()
+	sm.held = append(sm.held, record)
+	if time.Now().Before(sm.holdUntil) {
+		sm.heldMu.Unlock()
+		return
+	}
+	records := sm.held
+	sm.held = nil
+	sm.heldMu.Unlock()
+	sm.send(records)
+}
+
+// send passes system metrics records to the run.
+func (sm *SystemMonitor) send(records []*spb.Record) {
+	for _, record := range records {
+		sm.extraWork.AddWorkOrCancel(
+			sm.ctx.Done(),
+			runwork.NoRequest(runwork.WorkFromRecord(record)),
+		)
+	}
+}
+
+// ClearHeld returns and clears records still held when run ends
+func (sm *SystemMonitor) ClearHeld() []*spb.Record {
+	if sm == nil {
+		return nil
+	}
+	sm.heldMu.Lock()
+	defer sm.heldMu.Unlock()
+	held := sm.held
+	sm.held = nil
+	return held
 }
 
 // ShouldCaptureSamplingError checks if a resource sampling error should be captured as a telemetry error.
