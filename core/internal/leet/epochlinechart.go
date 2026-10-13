@@ -250,16 +250,15 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.XLabelFormatter = func(_ int, v float64) string {
 		return FormatXAxisTick(v, chart.maxXLabelWidth())
 	}
-	// ntcharts sizes the label column from the stepped ticks only, so pad
-	// labels to the width of the top label when drawYLabels adds one.
-	chart.YLabelFormatter = func(_ int, v float64) string {
-		s := chart.formatYTick(v)
-		if hasTopYTick(chart.GraphHeight(), chart.YStep()) {
-			if top := chart.formatYTick(chart.ViewMaxY()); len(top) > len(s) {
-				s = strings.Repeat(" ", len(top)-len(s)) + s
-			}
+	// ntcharts labels rows 0, yStep, 2*yStep, ... and the top of the axis,
+	// which stacks onto the last stepped label when the gap is too small
+	// (e.g. "4.86" on row 6 right above "4.05" on row 5). Blank that one;
+	// ntcharts then neither draws it nor reserves width for it.
+	chart.YLabelFormatter = func(i int, v float64) string {
+		if yStep := chart.YStep(); yStep > 0 && i%yStep != 0 && !hasTopYTick(i, yStep) {
+			return ""
 		}
-		return s
+		return chart.formatYTick(v)
 	}
 
 	return chart
@@ -622,15 +621,7 @@ func (c *EpochLineChart) Draw() {
 	c.cachedViewOK = false
 	c.Clear()
 
-	// Draw axes and X labels via ntcharts, but suppress its Y labels and
-	// draw our own. ntcharts v2.0.1 forces a label at graphHeight, which
-	// stacks on top of the previous tick when graphHeight is just above a
-	// multiple of yStep (e.g. "4.86" sitting on row y=6 and "4.05" on y=5).
-	origYFmter := c.YLabelFormatter
-	c.YLabelFormatter = func(int, float64) string { return "" }
 	c.DrawXYAxisAndLabel()
-	c.YLabelFormatter = origYFmter
-	c.drawYLabels()
 
 	if c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
 		c.dirty = false
@@ -675,7 +666,7 @@ func (c *EpochLineChart) drawChartGuides(startX int) {
 		}
 
 	case ChartGuidesHorizontal:
-		// Guides sit on the Y tick rows placed by drawYLabels, so each line
+		// Guides sit on the Y tick rows labeled by ntcharts, so each line
 		// corresponds to a labeled value in both linear and log mode. The top
 		// row is skipped: a guide hugging the chart's upper edge reads as a
 		// border rather than a reference line.
@@ -693,46 +684,9 @@ func (c *EpochLineChart) drawChartGuides(startX int) {
 	}
 }
 
-// drawYLabels draws Y-axis tick labels at positions i = 0, yStep, 2*yStep, ...
-// and optionally at graphHeight when there's enough gap above the previous
-// tick. Replaces ntcharts' drawYLabel, which in v2.0.1 unconditionally draws
-// a label at graphHeight and stacks it onto the previous tick when graphHeight
-// mod yStep is small.
-func (c *EpochLineChart) drawYLabels() {
-	yStep := c.YStep()
-	graphH := c.GraphHeight()
-	if yStep <= 0 || graphH <= 0 {
-		return
-	}
-	viewMinY, viewMaxY := c.ViewMinY(), c.ViewMaxY()
-	increment := (viewMaxY - viewMinY) / float64(graphH)
-	origin := c.Origin()
-
-	draw := func(i int, lastVal string) string {
-		v := viewMinY + increment*float64(i)
-		s := c.YLabelFormatter(i, v)
-		if s == "" || s == lastVal {
-			return lastVal
-		}
-		c.Canvas.SetStringWithStyle(
-			canvas.Point{X: origin.X - len(s), Y: origin.Y - i},
-			s, c.LabelStyle,
-		)
-		return s
-	}
-
-	var lastVal string
-	for i := 0; i <= graphH; i += yStep {
-		lastVal = draw(i, lastVal)
-	}
-	if hasTopYTick(graphH, yStep) {
-		draw(graphH, lastVal)
-	}
-}
-
-// hasTopYTick reports whether drawYLabels labels the top of the axis, which
-// it does when the top is not a stepped tick and there is room for a
-// non-adjacent label above the last one.
+// hasTopYTick reports whether the top of the axis gets its own label: when
+// it is not a stepped tick and there is room for a non-adjacent label above
+// the last one.
 func hasTopYTick(graphH, yStep int) bool {
 	return yStep > 0 && graphH%yStep >= (yStep+1)/2
 }
