@@ -84,6 +84,54 @@ def test_process_without_process_group_creates_no_run(tmp_path):
     assert not list(tmp_path.rglob("wandb-telemetry"))
 
 
+def test_failed_process_group_init_still_records_the_attempt(tmp_path):
+    import gzip
+    import json
+
+    code = (
+        f"import site;site.addsitedir({_site_dir(tmp_path)!r})\n"
+        "import wandb, torch.distributed as dist\n"
+        "try:\n"
+        "    dist.init_process_group('no-such-backend', rank=0, world_size=1)\n"
+        "except Exception:\n"
+        "    pass\n"
+        "else:\n"
+        "    raise AssertionError('init should fail')\n"
+        "assert wandb.run is not None\n"
+        "wandb.run.finish(exit_code=1)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env=_clean_env(
+            tmp_path,
+            **_RANK_ENV,
+            TORCHELASTIC_RESTART_COUNT="1",
+            TORCHELASTIC_MAX_RESTARTS="3",
+        ),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    (manifest_path,) = tmp_path.rglob("wandb-telemetry/v2/manifest/*.json")
+    manifest = json.loads(manifest_path.read_text())
+    assert (manifest["attempt"], manifest["exit"]) == (
+        1,
+        {"code": 1, "reason": "finish"},
+    )
+    records = [
+        json.loads(line)
+        for chunk in tmp_path.rglob("wandb-telemetry/v2/chunks/*/*.jsonl.gz")
+        for line in gzip.decompress(chunk.read_bytes()).splitlines()
+    ]
+    (lifecycle,) = [r for r in records if r["kind"] == "lifecycle"]
+    assert (lifecycle["attempt"], lifecycle["reason"], lifecycle["max_restarts"]) == (
+        1,
+        "attempt_failed",
+        3,
+    )
+
+
 _INIT_PG = (
     "dist.init_process_group('gloo', init_method={store!r}, rank=0, world_size=1)\n"
     "auto = wandb.run\n"
@@ -158,7 +206,7 @@ def test_same_id_in_other_project_returns_writer_with_one_warning(tmp_path):
     }
 
 
-def test_only_primary_rank_sets_shared_finish_state(monkeypatch):
+def test_every_rank_reports_its_own_finish_state(monkeypatch):
     import wandb
     from wandb.sdk.provenance import bootstrap, run
 
@@ -178,7 +226,7 @@ def test_only_primary_rank_sets_shared_finish_state(monkeypatch):
     monkeypatch.setenv("WANDB_INIT_TIMEOUT", "30")
     run.ensure_shared_run()
     assert [call["settings"].x_update_finish_state for call in calls] == [
-        False,
+        True,
         True,
         True,
     ]

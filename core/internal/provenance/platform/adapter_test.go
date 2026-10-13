@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,34 @@ func TestSemanticNetworkCountersAndReset(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("12"), 0o600))
 	second := adapter.Collect(context.Background(), 0)
 	assert.Equal(t, "counter_reset", second.Capabilities["network"].Reason)
+}
+
+func TestDriverCountersReportOnlyMatchedEthtoolCounters(t *testing.T) {
+	for _, tc := range []struct {
+		output string
+		want   platform.Capability
+		count  int
+	}{
+		{"NIC statistics:\n     rx_queue_0_drops: 3\n", platform.Capability{Status: "partial", Reason: "no_known_counters"}, 0},
+		{"NIC statistics:\n     rx_desc_err_dropped_pkt: 4\n     tx_timeouts: 1\n", platform.Capability{Status: "available"}, 2},
+	} {
+		bin := t.TempDir()
+		script := "#!/bin/sh\nprintf '" + tc.output + "'\n"
+		require.NoError(t, os.WriteFile(filepath.Join(bin, "ethtool"), []byte(script), 0o700))
+		t.Setenv("PATH", bin)
+		root := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "class", "net", "ens6"), 0o700))
+		snapshot := platform.NewLocal(platform.Config{SysRoot: root}).
+			Collect(context.Background(), 1)
+		assert.Equal(t, tc.want, snapshot.Capabilities["driver_counters"])
+		ethtool := 0
+		for _, counter := range snapshot.Counters {
+			if strings.HasPrefix(counter.Name, "ethtool.") {
+				ethtool++
+			}
+		}
+		assert.Equal(t, tc.count, ethtool)
+	}
 }
 
 func TestProviderHintRequiresKnownValue(t *testing.T) {

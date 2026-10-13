@@ -49,7 +49,8 @@ def test_gemm_is_lazy_bounded_and_at_most_every_hundred_steps(monkeypatch):
         collector.step(engine, step)
     assert len(allocations) == 3
     assert sum(rows * columns * 2 for rows, columns in allocations) <= 64 << 20
-    assert len(multiplies) == 3
+    # One untimed warm-up, then one timed probe per 100 steps.
+    assert len(multiplies) == 4
     collector.close()
     assert collector._tensors is None
 

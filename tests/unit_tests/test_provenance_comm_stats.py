@@ -526,3 +526,53 @@ def test_publish_exception_disables(torch, published):
     clock.t += 120
     r.report()
     assert calls == ["ok"]
+
+
+def test_reads_the_nccl_recorder_through_the_renamed_dump(torch, reporter, published):
+    c10d = torch._C._distributed_c10d
+    del c10d._dump_nccl_trace
+    backends = []
+
+    def dump_fr_trace(includeCollectives, includeStackTraces, onlyActive, backend):  # noqa: N803
+        """_dump_fr_trace(includeCollectives, ..., backend: str = 'gloo') -> bytes"""
+        backends.append(backend)
+        return torch._dump(includeCollectives, includeStackTraces, onlyActive)
+
+    c10d._dump_fr_trace = dump_fr_trace
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert backends == ["nccl"]
+    assert published[-1][0] == "ok"
+    assert [c.name for c in published[-1][1]] == ["all_reduce"]
+
+
+def test_generic_dump_without_backend_falls_back_to_the_nccl_dump(
+    torch, reporter, published
+):
+    c10d = torch._C._distributed_c10d
+
+    def dump_fr_trace(includeCollectives, includeStackTraces, onlyActive):  # noqa: N803
+        """_dump_fr_trace(includeCollectives, includeStackTraces, onlyActive) -> bytes"""
+        raise AssertionError("the generic dump holds only the gloo recorder")
+
+    c10d._dump_fr_trace = dump_fr_trace
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert torch.dump_calls == 1
+    assert published[-1][0] == "ok"
+    del c10d._dump_nccl_trace
+    reporter.clock.t += 120
+    reporter.report()
+    assert published[-1] == ("unavailable", [])
+
+
+def test_nccl_dump_wins_over_the_generic_recorder(torch, reporter, published):
+    def dump_fr_trace(**kwargs):
+        """_dump_fr_trace(..., backend: str = 'gloo') -> bytes"""
+        raise AssertionError("backend='nccl' reads an empty CPU-event recorder")
+
+    torch._C._distributed_c10d._dump_fr_trace = dump_fr_trace
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert torch.dump_calls == 1
+    assert published[-1][0] == "ok"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import math
 import os
 import pickle
@@ -151,7 +152,11 @@ class CommStatsReporter:
         torch = sys.modules.get("torch")
         dist = getattr(torch, "distributed", None)
         c10d = getattr(getattr(torch, "_C", None), "_distributed_c10d", None)
+        # NCCL records into the CUDA recorder that only _dump_nccl_trace reads.
         dump_fn = getattr(c10d, "_dump_nccl_trace", None)
+        fr_dump = getattr(c10d, "_dump_fr_trace", None)
+        if dump_fn is None and "backend" in (getattr(fr_dump, "__doc__", None) or ""):
+            dump_fn = functools.partial(fr_dump, backend="nccl")
         buffer_size = os.environ.get("TORCH_FR_BUFFER_SIZE") or os.environ.get(
             "TORCH_NCCL_TRACE_BUFFER_SIZE", "0"
         )

@@ -32,9 +32,15 @@ type NetworkDevice struct {
 	PCIID string `json:"pci_id,omitempty"`
 	NUMA  *int   `json:"numa,omitempty"`
 }
+
+// TransportEvidence is configured and loaded NCCL evidence, never the negotiated transport.
 type TransportEvidence struct {
-	Name   string `json:"name"`
-	Source string `json:"source,omitempty"`
+	Name       string            `json:"name"`
+	Source     string            `json:"source,omitempty"`
+	Confidence string            `json:"confidence,omitempty"`
+	Configured string            `json:"configured,omitempty"`
+	Loaded     string            `json:"loaded,omitempty"`
+	Env        map[string]string `json:"env,omitempty"`
 }
 type Counter struct {
 	Family    string   `json:"family"`

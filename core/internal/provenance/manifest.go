@@ -30,6 +30,12 @@ type Manifest struct {
 	Device              *Device                    `json:"device,omitempty"`
 	PeakFLOPs           *PeakFLOPs                 `json:"peak_flops,omitempty"`
 	Build               *Build                     `json:"build,omitempty"`
+	Exit                *Exit                      `json:"exit,omitempty"`
+}
+
+type Exit struct {
+	Code   int32  `json:"code"`
+	Reason string `json:"reason"`
 }
 
 type Device struct {

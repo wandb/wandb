@@ -105,12 +105,22 @@ def install() -> None:
 
 def _distributed_ready(context) -> None:
     global rank_ready
-    if context.error is not None:
-        return
     rank_ready = True
     from .run import ensure_shared_run
 
     ensure_shared_run()
+    # A failed attempt still gets a writer so its restart is visible.
+    if context.error is not None and emitter is not None:
+        payload = {
+            "event": "init_process_group",
+            "status": "partial",
+            "reason": "attempt_failed",
+            "source": "bootstrap",
+        }
+        max_restarts = os.environ.get("TORCHELASTIC_MAX_RESTARTS", "")
+        if max_restarts.isdigit():
+            payload["max_restarts"] = int(max_restarts)
+        emitter.emit("lifecycle", payload)
 
 
 def _device_selected(context) -> None:

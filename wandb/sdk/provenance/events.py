@@ -40,6 +40,7 @@ class EventEmitter:
         self._cpu_ns = 0
         self.dropped = 0
         self.disabled = False
+        self._binding: bytes | None = None
         self._thread = threading.Thread(
             target=self._work, name="wandb-provenance", daemon=True
         )
@@ -102,12 +103,17 @@ class EventEmitter:
                 self.dropped += 1
                 return
             with self._lock:
+                # The manifest carries the current binding, so only changes are recorded.
+                if kind == "binding" and encoded == self._binding:
+                    return
                 if self._queued_bytes + len(encoded) > 4 << 20:
                     self.dropped += 1
                     return
                 self._queue.put_nowait(
                     (kind, encoded, time.monotonic_ns(), time.time_ns())
                 )
+                if kind == "binding":
+                    self._binding = encoded
                 self._queued_bytes += len(encoded)
                 self._peak_bytes = max(
                     self._peak_bytes, self._queued_bytes + self._queue.qsize() * 128

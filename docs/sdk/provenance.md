@@ -8,7 +8,7 @@ Experimental. Each rank of a distributed training job writes pseudonymized rank,
 | --- | --- | --- |
 | `WANDB_X_PROVENANCE_LEVEL` | unset | Nothing. The startup hook does not import `wandb`. |
 | | `0` | Baseline: phase timing, binding, host, GPU, network and platform counters. No extra collectives. |
-| | `1` | Level 0 plus bounded NCCL flight-recorder reads, sampled gradient health, sampled GEMM diagnostics and one platform enrichment call. |
+| | `1` | Level 0 plus bounded NCCL flight-recorder reads, sampled gradient health, sampled GEMM diagnostics, one capped NCCL transport evidence read and one platform enrichment call. |
 
 Any other string is ignored with one warning. The setting `x_provenance_level` mirrors the variable; it is not a separate feature flag. Every other `WANDB_X_PROVENANCE_*` variable below is launcher or test plumbing, not a user option.
 
@@ -44,7 +44,7 @@ Supported launchers: `torchrun` (`RANK`, `LOCAL_RANK`, `GROUP_RANK`, `WORLD_SIZE
 | `WANDB_X_PROVENANCE_BUILD_BASE_COMMIT`, `WANDB_X_PROVENANCE_BUILD_SOURCE_DIFF_SHA256`, `WANDB_X_PROVENANCE_BUILD_WHEEL_SHA256`, `WANDB_X_PROVENANCE_BUILD_IMAGE_DIGEST` | launcher | Build identity copied from the build record into the manifest's `build` object: a 40-hex base commit, the 64-hex digest of every source change against it, the 64-hex wheel SHA-256, and the `sha256:<64 hex>` image digest. Invalid values are dropped and reported in `build_identity`. Not a user option. |
 | `WANDB_X_PROVENANCE_SCENARIO`, `WANDB_X_PROVENANCE_TEST_PLUGINS` | tests | Load allowlisted fault-injection plugins. Never set in baseline jobs. |
 
-The shared run is created in `shared` mode when the resolved mode is online, stays offline when offline, and is not created when disabled. Rank 0 is primary and alone sets the run's final state. The shared run uses normal wandb init, finish and console settings, because a framework `wandb.init` on any rank can receive it. When a rank has no launcher run ID, or creating the shared run fails, it prints one local warning and collects nothing.
+The shared run is created in `shared` mode when the resolved mode is online, stays offline when offline, and is not created when disabled. Rank 0 is primary. Every writer reports its own exit as the run's final state, because the backend reopens a finished run on any later non-terminal request; the last writer to finish decides the state, and each manifest's `exit` keeps every rank's code. The shared run uses normal wandb init, finish and console settings, because a framework `wandb.init` on any rank can receive it. When a rank has no launcher run ID, or creating the shared run fails, it prints one local warning and collects nothing.
 
 ## Run files
 
@@ -53,7 +53,7 @@ All paths are under the run's files directory and upload through the normal run-
 | Path | Writer | Refresh |
 | --- | --- | --- |
 | `wandb-telemetry/v2/primary.json` | rank 0 | Points at the current attempt's manifest and rollup. A write is skipped when the file already names a higher attempt, or the same attempt from another writer with a later `started_at`. |
-| `wandb-telemetry/v2/manifest/<writer_id>.json` | every writer | 60 s and at drain. Level, ranks, scheduler, framework revision, parallel coordinates, capabilities, quality, platform snapshot, binding, device, `peak_flops`, `build`, `finalized`. |
+| `wandb-telemetry/v2/manifest/<writer_id>.json` | every writer | 60 s and at drain. Level, ranks, scheduler, framework revision, parallel coordinates, capabilities, quality, platform snapshot (Level 1 adds `transport` evidence), binding, device, `peak_flops`, `build`, `exit` (`code` and `reason`: `finish` or `terminated`), `finalized`. |
 | `wandb-telemetry/v2/rollup/<writer_id>.json` | every writer | 60 s and at drain. |
 | `wandb-telemetry/v2/chunks/<slot>/<writer_id>-<seq>.jsonl.gz` | every writer | Sealed every 300 s, at 4 MiB raw, or at drain. `<slot>` is the UTC 20-minute bucket. |
 
@@ -85,8 +85,14 @@ Each collector reports `available`, `partial`, `unavailable`, `permission_denied
 | `identity_join: partial/invalid_redaction_key` | Key present but not 64 lowercase hex characters. |
 | `writer: partial/run_conflict` | The script called `wandb.init` with another run ID. The shared writer keeps running and the user's run becomes `wandb.run` beside it. |
 | `writer: partial/run_conflict/project_mismatch` | `wandb.init` used the shared run ID with another project. The shared run is returned with one warning. |
-| `nccl_transport: unavailable/bounded_source_unavailable` | No bounded source for NCCL transport exists; NCCL logs are never enabled or read. |
-| `flight_recorder: unavailable/recorder_unavailable` | Level 1 could not read the NCCL flight recorder (no process group, no recorder in this PyTorch build, or buffer unset). |
+| `nccl_transport: partial/configured_and_loaded`, `configured_only`, `loaded_only`, `configured_not_loaded` | Level 1 evidence from one capped (4 MiB) read of `/proc/self/maps` for the loaded NCCL net plugin, a check that `/sys/class/infiniband` is non-empty (names are not kept), and allowlisted NCCL network variables, after the first step. TCPX, TCPXO and EFA come only from their plugin libraries; `ib` needs an RDMA device or an IB plugin, because `libibverbs` loads on every host; otherwise `socket`. `platform.transport.name` is `socket`, `ib`, `tcpx`, `tcpxo` or `efa`; it is configured and loaded evidence, never the negotiated transport. Only families and numeric values are kept; paths and interface names are reduced to `set`. NCCL logs are never enabled or read. |
+| `nccl_transport: unavailable/no_evidence`, `unrecognized_plugin`, `maps_truncated` | No NCCL library or configuration was seen, an unknown plugin was loaded without configuration, or the maps read hit its cap. |
+| `flight_recorder: unavailable/recorder_unavailable` | Level 1 could not read the NCCL flight recorder (no process group, no recorder in this PyTorch build, or buffer unset). Reads use `_dump_nccl_trace`, which holds the CUDA recorder NCCL writes to; `_dump_fr_trace(backend="nccl")` reads a separate CPU-event recorder and is used only when `_dump_nccl_trace` is absent. Level 1 sets `TORCH_NCCL_TRACE_BUFFER_SIZE=2000` and `TORCH_NCCL_ENABLE_TIMING=1` before torch import unless the user set them. `available` after a read; `partial/no_timing` when entries have no durations; `partial/generic_recorder` when only `_dump_fr_trace` exists. |
+| `gradient_health: available`, records `partial/tensor_sample` | Every 100 steps, fused on-device L2 norms over a fixed stride of at most 64 local gradient tensors, copied back without a host sync and read on a later step. `finite_count`, `nonfinite_count` and `count` are tensors; `norm` covers the sampled tensors. |
+| `gradient_health: self_disabled/cpu_budget` or `collector_failure` | A sample after the first used more than 20 ms of thread CPU, or the scan raised. GEMM probes continue. |
+| `active_diagnostics: self_disabled/gpu_budget` or `collector_failure` | A timed 2048x2048 fp16 GEMM, after one untimed warm-up call, took over 100 ms between its CUDA events, or raised. Gradient health continues. `queue_pressure` disables both. |
+| `gpu_metrics: unavailable/environment_not_probed`, `no_nvidia_gpu`, `<identity_join reason>`, `binding_not_proven`, `binding_not_joined` | GPU samples cannot be joined to the bound device; each dropped sample window also counts as a `quality.gaps`. |
+| `driver_counters: partial/no_known_counters` | `ethtool -S` ran but no allowlisted counter name matched. |
 | `nccl_sweep: unsupported/unsupported_boundary` | No proven all-rank boundary at the pinned framework, so no active sweep runs. |
 | `gradient_health`, `active_diagnostics: unavailable/cuda_unavailable` | CUDA was not initialized, so Level 1 diagnostics did not run. |
 | `... unavailable/step_threshold_not_reached` | The run ended before any step reached the sampling gate. |
@@ -100,6 +106,7 @@ Each collector reports `available`, `partial`, `unavailable`, `permission_denied
 
 ## Attempts and termination
 
+- When `init_process_group` raises, the rank still creates its writer and records a `lifecycle` record (`event: init_process_group`, `reason: attempt_failed`, `max_restarts` when torchelastic sets it), so an attempt that never initializes is visible. This waits up to the 5 s init timeout before the original exception propagates.
 - The attempt comes from `TORCHELASTIC_RESTART_COUNT` or `SLURM_RESTART_COUNT`. A manual or Job-level relaunch with the same `WANDB_RUN_ID` starts at attempt 0 again; the frontend splits it into a new launch when a writer repeats a (rank, restart count) already held by another writer of the current launch, which also covers in-place container restarts, or when it starts after every earlier writer finalized or went silent for 60 s. It shifts the attempt so attempts never merge.
 - SIGTERM or SIGINT reaching `wandb-core` records exit code 128 plus the signal (143 for SIGTERM) through a bounded 5 s synthetic exit, then core stops as before. Parent-process exit records exit code 1.
 - SIGTERM sent only to `torchrun` is forwarded to the workers but not to their `wandb-core`, so core takes the parent-exit path and records exit 1, not 143. Signal every process in the job to record 143.

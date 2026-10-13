@@ -125,13 +125,14 @@ func (a *collector) driverCounters(ctx context.Context, device string, snapshot 
 		}
 		return
 	}
+	matched := 0
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
 		key, raw, ok := strings.Cut(strings.TrimSpace(scanner.Text()), ":")
 		if !ok {
 			continue
 		}
-		family := map[string]string{"rx_dropped": "discards", "tx_dropped": "discards", "rx_errors": "link_errors", "tx_errors": "link_errors", "rx_crc_errors": "link_errors", "rx_missed_errors": "discards"}[key]
+		family := map[string]string{"rx_dropped": "discards", "tx_dropped": "discards", "rx_errors": "link_errors", "tx_errors": "link_errors", "rx_crc_errors": "link_errors", "rx_missed_errors": "discards", "rx_desc_err_dropped_pkt": "discards", "rx_buf_alloc_fail": "discards", "tx_timeouts": "link_errors"}[key]
 		if family == "" {
 			continue
 		}
@@ -140,6 +141,7 @@ func (a *collector) driverCounters(ctx context.Context, device string, snapshot 
 			continue
 		}
 		number := float64(value)
+		matched++
 		snapshot.Counters = append(
 			snapshot.Counters,
 			Counter{
@@ -152,5 +154,12 @@ func (a *collector) driverCounters(ctx context.Context, device string, snapshot 
 			},
 		)
 	}
-	snapshot.Capabilities["driver_counters"] = Capability{Status: "available"}
+	if matched > 0 {
+		snapshot.Capabilities["driver_counters"] = Capability{Status: "available"}
+	} else if _, seen := snapshot.Capabilities["driver_counters"]; !seen {
+		snapshot.Capabilities["driver_counters"] = Capability{
+			Status: "partial",
+			Reason: "no_known_counters",
+		}
+	}
 }

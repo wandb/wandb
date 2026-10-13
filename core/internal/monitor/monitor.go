@@ -369,7 +369,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 			}
 
 			if rec := resource.Probe(gctx); rec != nil {
-				if resource == sm.xpu {
+				if resource.Resource == sm.xpu {
 					sm.provenance.SetEnvironment(rec)
 				}
 				mu.Lock()
@@ -456,6 +456,9 @@ func (sm *SystemMonitor) Probe() {
 				),
 			)
 		}()
+	} else if sm.provenance != nil {
+		// probeResources did not run, but provenance still needs the GPU inventory.
+		sm.wg.Go(func() { sm.provenance.SetEnvironment(sm.xpu.Probe(sm.ctx)) })
 	}
 }
 
@@ -485,11 +488,12 @@ func (sm *SystemMonitor) SetProvenanceRecord(record *spb.ProvenanceRecord) {
 	)
 }
 
-// DrainProvenance seals the open provenance chunk and returns the files left to register; call after Finish.
-func (sm *SystemMonitor) DrainProvenance() []*spb.Record {
+// DrainProvenance records the exit code, seals the open provenance chunk and returns the files left to register; call after Finish.
+func (sm *SystemMonitor) DrainProvenance(exitCode int32) []*spb.Record {
 	if sm == nil || sm.provenance == nil {
 		return nil
 	}
+	sm.provenance.SetExit(exitCode, "finish")
 	files := sm.provenance.Drain().Files
 	if files == nil {
 		return nil

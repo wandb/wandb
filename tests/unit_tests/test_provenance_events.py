@@ -94,3 +94,21 @@ def test_event_queue_is_byte_bounded_and_reports_drops():
         release.set()
         emitter.close()
     assert not emitter._thread.is_alive()
+
+
+def test_binding_is_recorded_only_when_it_changes(monkeypatch):
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.provenance.events import EventEmitter
+
+    monkeypatch.setenv("WANDB_X_PROVENANCE_REDACTION_KEY", "ab" * 32)
+    records = Queue()
+    emitter = EventEmitter(InterfaceQueue(record_q=records), "writer")
+    for index in (0, 0, 0, 1, 1, 0):
+        emitter.emit("binding", {"gpu_uuid": f"GPU-{index}", "cuda_index": index})
+    emitter.close()
+    kinds = []
+    while not records.empty():
+        record = records.get_nowait().provenance
+        if record.kind == "binding":
+            kinds.append(json.loads(record.payload_json)["cuda_index"])
+    assert kinds == [0, 1, 0]

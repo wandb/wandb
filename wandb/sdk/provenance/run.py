@@ -72,7 +72,8 @@ def ensure_shared_run() -> Any:
             settings=wandb.Settings(
                 x_label=spec.label,
                 x_primary=spec.primary,
-                x_update_finish_state=spec.primary,
+                # Any later non-terminal request reopens a finished run.
+                x_update_finish_state=True,
                 x_provenance_level=bootstrap.level,
                 # Bounds the per-rank init wait unless the user set one.
                 **({} if "WANDB_INIT_TIMEOUT" in os.environ else {"init_timeout": 5}),

@@ -723,7 +723,7 @@ func (h *Handler) handleExit(
 	h.systemMonitor.Finish()
 
 	// Forwarded directly: extraWork is drained by this goroutine, so queuing there could block.
-	for _, record := range h.systemMonitor.DrainProvenance() {
+	for _, record := range h.systemMonitor.DrainProvenance(exit.GetExitCode()) {
 		h.fwdRecord(record, nil)
 	}
 

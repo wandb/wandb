@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -91,6 +92,8 @@ type Emitter struct {
 	pressureSamples    int
 	pythonCPU          int64
 	pythonDrops        int64
+	exit               *Exit
+	transport          *platform.TransportEvidence
 }
 
 // running holds emitters between Start and Drain so Terminate can reach their streams.
@@ -164,6 +167,18 @@ func (e *Emitter) SetEnvironment(environment *spb.EnvironmentRecord) {
 	e.environment = environment
 }
 
+// SetExit records the writer's exit code and terminal reason for the final manifest; the first call wins.
+func (e *Emitter) SetExit(exitCode int32, reason string) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.exit == nil {
+		e.exit = &Exit{Code: exitCode, Reason: reason}
+	}
+}
+
 // Terminate sends an exit record with exitCode to every started emitter's stream and waits up to timeout for its uploads.
 func Terminate(timeout time.Duration, exitCode int32) {
 	running.Lock()
@@ -176,6 +191,7 @@ func Terminate(timeout time.Duration, exitCode int32) {
 	defer cancel()
 	var wg sync.WaitGroup
 	for _, e := range emitters {
+		e.SetExit(exitCode, "terminated")
 		wg.Go(func() { e.terminate(ctx, exitCode) })
 	}
 	wg.Wait()
@@ -315,6 +331,7 @@ const (
 	pseudonymField
 	numberField
 	textField
+	ncclEnvField
 )
 
 var recordKinds = map[string]bool{
@@ -346,8 +363,9 @@ var payloadFields = func() map[string]fieldShape {
 	for shape, keys := range map[fieldShape][]string{
 		quantityField:  {"collector_cpu_ns", "peak_memory_bytes", "dropped_records", "queue_depth"},
 		pseudonymField: {"gpu_uuid_hmac", "hostname_hmac", "instance_id_hmac", "pod_name_hmac", "node_name_hmac", "scheduler_uid_hmac", "topology_value_hmac"},
-		numberField:    {"step", "duration_ms", "loss", "tokens", "cumulative_tokens", "tokens_per_second", "mfu_percent", "tflops", "flops", "finite_count", "nonfinite_count", "norm", "count", "timed_count", "lost_count", "bytes", "total_ms", "p50_ms", "p99_ms", "max_ms", "cuda_index", "rank", "local_rank", "node_rank", "attempt", "dp", "dp_shard", "dp_replicate", "tp", "pp", "cp", "ep", "world_size"},
-		textField:      {"phase", "event", "status", "reason", "source", "collective", "collector", "scenario"},
+		numberField:    {"step", "duration_ms", "loss", "tokens", "cumulative_tokens", "tokens_per_second", "mfu_percent", "tflops", "flops", "finite_count", "nonfinite_count", "norm", "count", "timed_count", "lost_count", "bytes", "total_ms", "p50_ms", "p99_ms", "max_ms", "cuda_index", "rank", "local_rank", "node_rank", "attempt", "dp", "dp_shard", "dp_replicate", "tp", "pp", "cp", "ep", "world_size", "max_restarts"},
+		textField:      {"phase", "event", "status", "reason", "source", "collective", "collector", "scenario", "transport", "configured", "loaded", "confidence"},
+		ncclEnvField:   {"nccl_env"},
 	} {
 		for _, key := range keys {
 			fields[key] = shape
@@ -374,16 +392,43 @@ func validField(kind, key string, value json.RawMessage) bool {
 	case textField:
 		var name string
 		return json.Unmarshal(value, &name) == nil && len(name) <= 128
+	case ncclEnvField:
+		var env map[string]string
+		if kind != "capability" || json.Unmarshal(value, &env) != nil || len(env) > 32 {
+			return false
+		}
+		for name, setting := range env {
+			if !ncclEnvName.MatchString(name) || !ncclEnvValue.MatchString(setting) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
 
+// ncclEnvName and ncclEnvValue bound NCCL network evidence to allowlisted names and enum or numeric values.
+var (
+	ncclEnvName = regexp.MustCompile(
+		`^NCCL_(NET|NET_PLUGIN|IB_DISABLE|GPUDIRECTTCPX_[A-Z_]{1,48}|FASTRAK_[A-Z_]{1,48})$`,
+	)
+	ncclEnvValue = regexp.MustCompile(`^(socket|ib|tcpx|tcpxo|efa|none|other|set|-?\d{1,10})$`)
+)
+
+// transportNames are the NCCL transport families Level 1 may report.
+var transportNames = []string{"socket", "ib", "tcpx", "tcpxo", "efa"}
+
 // capabilityRecord is the payload of a capability record.
 type capabilityRecord struct {
-	Collector string `json:"collector"`
-	Status    string `json:"status"`
-	Reason    string `json:"reason"`
-	Source    string `json:"source"`
+	Collector  string            `json:"collector"`
+	Status     string            `json:"status"`
+	Reason     string            `json:"reason"`
+	Source     string            `json:"source"`
+	Transport  string            `json:"transport"`
+	Configured string            `json:"configured"`
+	Loaded     string            `json:"loaded"`
+	Confidence string            `json:"confidence"`
+	Env        map[string]string `json:"nccl_env"`
 }
 
 // payloadOf returns the decoded payload of a well-formed record, or false if core must reject it.
@@ -501,6 +546,20 @@ func (e *Emitter) observe(record Record, payload map[string]json.RawMessage) {
 		}
 		if capability.Collector == "writer" && capability.Status == "self_disabled" {
 			e.collectionDisabled = true
+		}
+		if capability.Collector == "nccl_transport" && e.config.Level == 1 &&
+			slices.Contains(transportNames, capability.Transport) {
+			e.transport = &platform.TransportEvidence{
+				Name:       capability.Transport,
+				Source:     "proc_maps+nccl_env",
+				Confidence: capability.Confidence,
+				Configured: capability.Configured,
+				Loaded:     capability.Loaded,
+				Env:        capability.Env,
+			}
+			if e.manifest.Platform != nil {
+				e.manifest.Platform.Transport = *e.transport
+			}
 		}
 	case "quality":
 		var metrics struct {
@@ -683,7 +742,62 @@ func (e *Emitter) appendSample(
 	scope string,
 	snapshot *platform.Snapshot,
 ) {
-	// Pseudonymize the probed GPUs once so stats indices map to device identities.
+	e.resolveGPUs()
+	values := make(map[string]float64)
+	dropped, joined := 0, false
+	for _, item := range stats.GetItem() {
+		if !strings.HasPrefix(item.Key, "gpu.") && !strings.HasPrefix(item.Key, "cpu") &&
+			!strings.HasPrefix(item.Key, "memory") {
+			continue
+		}
+		key := item.Key
+		if strings.HasPrefix(key, "gpu.") {
+			parts := strings.SplitN(key, ".", 3)
+			if len(parts) != 3 || !e.gpuBound || e.gpuIDs[parts[1]] != e.boundUUID {
+				dropped++
+				continue
+			}
+			key = "gpu." + e.boundUUID + "." + parts[2]
+			joined = true
+		}
+		var value float64
+		if json.Unmarshal([]byte(item.ValueJson), &value) == nil && !math.IsNaN(value) &&
+			!math.IsInf(value, 0) {
+			values[key] = value
+		}
+	}
+	// GPU samples that never join the bound device are a gap, not silence.
+	if dropped > 0 && !joined {
+		e.quality.Gaps++
+	}
+	if len(values) > 0 || len(host) > 0 {
+		encoded, err := json.Marshal(struct {
+			Header
+			Values    map[string]float64 `json:"values,omitempty"`
+			Host      map[string]float64 `json:"host,omitempty"`
+			HostScope string             `json:"host_scope,omitempty"`
+		}{e.header("infrastructure"), values, host, scope})
+		if err == nil {
+			e.appendRecord(encoded, now, "infrastructure")
+		}
+	}
+	if snapshot != nil {
+		if e.transport != nil {
+			snapshot.Transport = *e.transport
+		}
+		e.manifest.Platform = snapshot
+		encoded, err := json.Marshal(struct {
+			Header
+			Snapshot platform.Snapshot `json:"platform"`
+		}{e.header("platform"), *snapshot})
+		if err == nil {
+			e.appendRecord(encoded, now, "platform")
+		}
+	}
+}
+
+// resolveGPUs pseudonymizes the probed GPUs once so stats indices map to device identities.
+func (e *Emitter) resolveGPUs() {
 	if len(e.gpuIDs) == 0 && e.environment != nil {
 		for index, gpu := range e.environment.GpuNvidia {
 			if id, ok := e.redactor.Pseudonym("gpu_uuid", gpu.Uuid); ok {
@@ -700,47 +814,6 @@ func (e *Emitter) appendSample(
 		}
 	}
 	e.manifest.Device = e.gpuDevices[e.boundUUID]
-	values := make(map[string]float64)
-	for _, item := range stats.GetItem() {
-		if !strings.HasPrefix(item.Key, "gpu.") && !strings.HasPrefix(item.Key, "cpu") &&
-			!strings.HasPrefix(item.Key, "memory") {
-			continue
-		}
-		key := item.Key
-		if strings.HasPrefix(key, "gpu.") {
-			parts := strings.SplitN(key, ".", 3)
-			if len(parts) != 3 || !e.gpuBound || e.gpuIDs[parts[1]] != e.boundUUID {
-				continue
-			}
-			key = "gpu." + e.boundUUID + "." + parts[2]
-		}
-		var value float64
-		if json.Unmarshal([]byte(item.ValueJson), &value) == nil && !math.IsNaN(value) &&
-			!math.IsInf(value, 0) {
-			values[key] = value
-		}
-	}
-	if len(values) > 0 || len(host) > 0 {
-		encoded, err := json.Marshal(struct {
-			Header
-			Values    map[string]float64 `json:"values,omitempty"`
-			Host      map[string]float64 `json:"host,omitempty"`
-			HostScope string             `json:"host_scope,omitempty"`
-		}{e.header("infrastructure"), values, host, scope})
-		if err == nil {
-			e.appendRecord(encoded, now, "infrastructure")
-		}
-	}
-	if snapshot != nil {
-		e.manifest.Platform = snapshot
-		encoded, err := json.Marshal(struct {
-			Header
-			Snapshot platform.Snapshot `json:"platform"`
-		}{e.header("platform"), *snapshot})
-		if err == nil {
-			e.appendRecord(encoded, now, "platform")
-		}
-	}
 }
 
 func (e *Emitter) flushQueue(now time.Time) {
@@ -777,6 +850,27 @@ func (e *Emitter) documents(finalized bool) error {
 	e.manifest.Header = e.header("manifest")
 	e.manifest.Quality = e.quality
 	e.manifest.Finalized = finalized
+	e.manifest.Exit = e.exit
+	e.resolveGPUs()
+	gpu := Capability{Status: "available"}
+	switch {
+	case e.environment == nil:
+		gpu = Capability{Status: "unavailable", Reason: "environment_not_probed"}
+	case len(e.environment.GpuNvidia) == 0:
+		gpu = Capability{Status: "unavailable", Reason: "no_nvidia_gpu"}
+	case len(e.redactor.key) == 0:
+		gpu = Capability{
+			Status: "unavailable",
+			Reason: e.manifest.Capabilities["identity_join"].Reason,
+		}
+	case len(e.gpuIDs) == 0:
+		gpu = Capability{Status: "unavailable", Reason: "gpu_identity_unavailable"}
+	case !e.gpuBound:
+		gpu = Capability{Status: "unavailable", Reason: "binding_not_proven"}
+	case e.manifest.Device == nil:
+		gpu = Capability{Status: "unavailable", Reason: "binding_not_joined"}
+	}
+	e.manifest.Capabilities["gpu_metrics"] = gpu
 	e.manifest.PeakFLOPs, e.manifest.Capabilities["peak_flops"] = peakFLOPs(e.manifest.Device)
 	if e.backoff {
 		e.manifest.SamplingIntervalS = 60

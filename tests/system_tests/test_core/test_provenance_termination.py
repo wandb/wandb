@@ -42,6 +42,7 @@ os._exit(23)
     assert len(manifests) == 1
     manifest = json.loads(manifests[0].read_text())
     assert manifest["finalized"] is True
+    assert manifest["exit"] == {"code": 143, "reason": "terminated"}
     chunks = list(tmp_path.rglob("wandb-telemetry/v2/chunks/*/*.jsonl.gz"))
     records = [
         json.loads(line)

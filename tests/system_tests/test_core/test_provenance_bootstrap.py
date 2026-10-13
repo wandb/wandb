@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 
+import wandb
+
 
 def test_interpreter_bootstrap_shared_ranks(wandb_backend_spy, tmp_path):
     from wandb.sdk.provenance import startup
@@ -57,3 +59,8 @@ print(json.dumps({{'id':run.id,'writer':writer,'label':run.settings.x_label,'pri
     assert all(
         f"wandb-telemetry/v2/manifest/{writer}.json" in files for writer in writers
     )
+    # Rank 1 finished after primary rank 0, so its last request must not reopen the run.
+    api_run = wandb.Api().run(
+        f"{os.environ['WANDB_ENTITY']}/provenance-bootstrap/{run_id}"
+    )
+    assert api_run.state == "finished"
