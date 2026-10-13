@@ -87,6 +87,10 @@ type Sender struct {
 	// receivedExitCh is closed once the Sender receives an Exit record.
 	receivedExitCh chan struct{}
 
+	// fileStreamStart tracks the goroutine that starts the FileStream
+	// once the run is initialized.
+	fileStreamStart sync.WaitGroup
+
 	// settings is the settings for the sender
 	settings *settings.Settings
 
@@ -274,8 +278,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise("stream")
 	s.logger.Info("sender: started")
 
-	var wg sync.WaitGroup
-	s.startFileStreamAfterRunInit(&wg)
+	s.startFileStreamAfterRunInit()
 
 	hangDetectionInChan := make(chan runwork.Work, 32)
 	hangDetectionOutChan := make(chan struct{}, 32)
@@ -296,7 +299,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
 
-	wg.Wait()
+	s.fileStreamStart.Wait()
 
 	s.logger.Info("sender: closed")
 }
@@ -475,12 +478,12 @@ func (s *Sender) sendRequest(
 //
 // The goroutine returns early if the exit record is received before the run
 // initializes.
-func (s *Sender) startFileStreamAfterRunInit(wg *sync.WaitGroup) {
+func (s *Sender) startFileStreamAfterRunInit() {
 	if s.fileStream == nil {
 		return
 	}
 
-	wg.Go(func() {
+	s.fileStreamStart.Go(func() {
 		select {
 		case <-s.receivedExitCh:
 			return
@@ -693,7 +696,8 @@ func (s *Sender) finishRunSync(
 	// Report the run's telemetry metrics.
 	s.stats.RecordRun(context.Background())
 
-	// Mark the run finished.
+	// Mark the run finished, after the FileStream has started.
+	s.fileStreamStart.Wait()
 	if s.fileStream != nil {
 		if exitRecord.NotComplete || !s.settings.ShouldUpdateFinishState() {
 			s.fileStream.FinishWithoutExit()

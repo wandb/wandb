@@ -11,7 +11,7 @@ from wandb._strutils import nameof
 from wandb.apis.public.teams import Team
 from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.artifacts._models import RegistryData
+from wandb.sdk.artifacts._models.registry import RegistryData
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._members import (

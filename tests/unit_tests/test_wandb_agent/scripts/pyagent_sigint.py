@@ -8,6 +8,7 @@ from unittest import mock
 
 import wandb
 import wandb.agents.pyagent as pyagent
+import wandb.apis.public.sweeps as sweeps
 
 
 def main() -> None:
@@ -18,10 +19,10 @@ def main() -> None:
     ] + [[]] * 1000
 
     wandb.Api = lambda *args, **kwargs: api
-    pyagent._register_agent = lambda _api, *args, **kwargs: _api.register_agent(
+    sweeps._register_agent = lambda _api, *args, **kwargs: _api.register_agent(
         *args, **kwargs
     )
-    pyagent._agent_heartbeat = lambda _api, *args, **kwargs: _api.agent_heartbeat(
+    sweeps._agent_heartbeat = lambda _api, *args, **kwargs: _api.agent_heartbeat(
         *args, **kwargs
     )
     pyagent.Agent.HEARTBEAT_SLEEP_SECONDS = 0.05

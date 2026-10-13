@@ -760,56 +760,7 @@ def binary_size_check(session: nox.Session) -> None:
 
 @nox.session(name="wandb-import-time-check", python="3.12")
 def wandb_import_time_check(session: nox.Session) -> None:
-    """Compare wandb import time against main branch."""
-
-    def measure_import_time(num_samples: int = 5) -> float:
-        """Measure the average time to import wandb across multiple samples."""
-        times = []
-        for _ in range(num_samples):
-            result = session.run(
-                "python",
-                "-c",
-                "import time; tic = time.perf_counter(); import wandb; print(time.perf_counter() - tic)",
-                external=True,
-                silent=True,
-            )
-            times.append(float(result.strip()))
-        return sum(times) / len(times)
-
-    session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "switch", "--detach", "origin/main", external=True)
-    install_wandb(session, dev=False)
-    main_time = measure_import_time()
-
-    session.run("git", "checkout", "-", external=True)
-    install_wandb(session, dev=False)
-    current_time = measure_import_time()
-
-    diff = current_time - main_time
-    pct = (diff / main_time) if main_time else 0
-
-    session.log("=" * 60)
-    session.log(f"Main branch:  {main_time:.2g}s")
-    session.log(f"Current:      {current_time:.2g}")
-    session.log(f"Difference:   {abs(diff):.2g} ({pct:+.0%})")
-    session.log("=" * 60)
-
-    if pct > 0.20:
-        session.log(
-            textwrap.dedent("""\
-
-                ❌ Import time increased beyond acceptable threshold!
-
-                If this increase is necessary:
-                  1. Verify the increase is justified.
-                  2. Consider lazy imports or module reorganization.
-                  3. Document the reason in your PR description.
-
-                To debug import time issues:
-                  uv pip install -U pyinstrument
-                  pyinstrument -r html -c 'import wandb'
-            """)
-        )
-        session.error(f"Import time increased by {pct:+.0%} (>20% threshold)")
-    elif pct > 0.10:
-        session.warn(f"Import time increased by {pct:+.0%}")
+    """Fail if `import wandb` or the CLI got slower than the pull request's base."""
+    # Both trees are imported from source, so only the dependencies are installed.
+    install_timed(session, "-r", "pyproject.toml")
+    session.run("python", "tools/import_time_check.py", *session.posargs)
