@@ -493,6 +493,14 @@ class _WandbInit:
             exclude=config_exclude_keys,
         )
 
+        # TEST: Add a lot of cognitive complexity.
+        if config:
+            if isinstance(config, dict):
+                if isinstance(config["xyz"], dict):
+                    if isinstance(config["xyz"]["abc"], list):
+                        for x in config["xyz"]["abc"]:
+                            print(f"FOUND {x}")
+
         result = _ConfigParts(
             base_no_artifacts=dict(),
             sweep_no_artifacts=dict(),
