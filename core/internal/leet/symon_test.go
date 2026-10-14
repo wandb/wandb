@@ -184,3 +184,32 @@ func TestSymon_ProcessFilterAndFocus(t *testing.T) {
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.Equal(t, leet.FocusSystemChart, sym.TestFocusState().Type)
 }
+
+func TestSymon_RunsPaneAttributesProcessTree(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{
+		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
+		Processes: []monitor.ProcessStat{
+			{PID: 10, PPID: 1, Name: "python", CPUPercent: 100, RSS: 1 << 30},
+			{PID: 11, PPID: 10, Name: "python", CPUPercent: 250, RSS: 2 << 30},
+			{PID: 12, PPID: 10, Name: "wandb-core", CPUPercent: 5, RSS: 1 << 20},
+		},
+		Runs: []monitor.LiveRun{{
+			Path:      "/tmp/proj/wandb/run-20260928_150000-abc123/run-abc123.wandb",
+			PID:       12,
+			ClientPID: 10,
+		}},
+	})
+
+	view := stripANSI(m.View().Content)
+	require.Contains(t, view, "run-20260928_150000-abc123")
+	require.Regexp(t, `CPU\s+355%`, view)
+	require.Contains(t, view, "3GiB")
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+	require.NotContains(t, stripANSI(m.View().Content), "run-20260928_150000-abc123")
+}

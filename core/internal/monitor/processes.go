@@ -14,6 +14,7 @@ const processNameSettle = 10 * time.Second
 // in percent of one core, and its resident memory in bytes.
 type ProcessStat struct {
 	PID        int32
+	PPID       int32
 	Name       string
 	CPUPercent float64
 	RSS        uint64
@@ -77,8 +78,10 @@ func (p *Processes) Sample() ([]ProcessStat, error) {
 		if err != nil || mem.RSS == 0 {
 			continue
 		}
+		ppid, _ := handle.Ppid()
 		stats = append(stats, ProcessStat{
 			PID:        pid,
+			PPID:       ppid,
 			Name:       handle.name,
 			CPUPercent: cpuPercent,
 			RSS:        mem.RSS,

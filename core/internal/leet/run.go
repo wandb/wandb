@@ -835,6 +835,8 @@ type Layout struct {
 	mediaHeight            int
 	consoleLogsY           int
 	consoleLogsHeight      int
+	runsY                  int
+	runsHeight             int
 }
 
 // attachFilters restores the filters remembered for the run's wandb

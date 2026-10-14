@@ -107,6 +107,9 @@ type Config struct {
 	// SymonSidebarVisible controls whether symon opens with its vitals sidebar.
 	SymonSidebarVisible bool `json:"symon_sidebar_visible" leet:"desc=Show the vitals sidebar in the standalone system monitor by default."`
 
+	// SymonRunsVisible controls whether symon shows the live runs pane.
+	SymonRunsVisible bool `json:"symon_runs_visible" leet:"desc=Show the live runs pane in the standalone system monitor by default."`
+
 	// Mouse-dragged pane proportions per view. Managed by drag-resize and
 	// the "0" reset key, not the config editor.
 	RunLayout       LayoutOverrides `json:"run_layout,omitzero"       leet:"-"`
@@ -184,6 +187,7 @@ type LayoutOverrides struct {
 	System       float64 `json:"system,omitempty"`
 	Media        float64 `json:"media,omitempty"`
 	Logs         float64 `json:"logs,omitempty"`
+	Runs         float64 `json:"runs,omitempty"`
 
 	// Run overview section shares, set by dragging the separator rules
 	// between sections. Each is a fraction of the sidebar rows available
@@ -258,6 +262,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Cols: DefaultSymonGridCols,
 			},
 			SymonSidebarVisible:           true,
+			SymonRunsVisible:              true,
 			StartupMode:                   DefaultStartupMode,
 			ChartGuides:                   DefaultChartGuides,
 			ColorScheme:                   DefaultColorScheme,
@@ -415,7 +420,7 @@ func nextChartGuides(guides string) string {
 // config save (encoding/json rejects NaN), so it resets to the default.
 func normalizeLayoutOverrides(o *LayoutOverrides) {
 	for _, f := range []*float64{
-		&o.LeftSidebar, &o.RightSidebar, &o.System, &o.Media, &o.Logs,
+		&o.LeftSidebar, &o.RightSidebar, &o.System, &o.Media, &o.Logs, &o.Runs,
 	} {
 		if math.IsNaN(*f) {
 			*f = 0
@@ -615,6 +620,18 @@ func (cm *ConfigManager) SymonSidebarVisible() bool {
 // SetSymonSidebarVisible sets and persists the symon sidebar visibility.
 func (cm *ConfigManager) SetSymonSidebarVisible(visible bool) error {
 	return cm.set(func(c *Config) { c.SymonSidebarVisible = visible })
+}
+
+// SymonRunsVisible returns whether symon shows the live runs pane.
+func (cm *ConfigManager) SymonRunsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonRunsVisible
+}
+
+// SetSymonRunsVisible sets and persists the symon runs pane visibility.
+func (cm *ConfigManager) SetSymonRunsVisible(visible bool) error {
+	return cm.set(func(c *Config) { c.SymonRunsVisible = visible })
 }
 
 // RunLayout returns the single-run view's layout overrides.

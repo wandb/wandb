@@ -26,10 +26,12 @@ type SymonProbeMsg struct {
 	CPUModel string
 }
 
-// SymonSampleMsg is one sampling pass: the system metrics and the processes.
+// SymonSampleMsg is one sampling pass: the system metrics, the processes
+// and the live W&B runs.
 type SymonSampleMsg struct {
 	StatsMsg
 	Processes []monitor.ProcessStat
+	Runs      []monitor.LiveRun
 }
 
 // DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
@@ -153,6 +155,8 @@ func (s *SymonSampler) Sample() SymonSampleMsg {
 	}
 
 	_ = g.Wait()
+
+	out.Runs = monitor.SampleLiveRuns(out.Processes)
 
 	metrics := out.Metrics
 	counters := maps.Clone(metrics)
