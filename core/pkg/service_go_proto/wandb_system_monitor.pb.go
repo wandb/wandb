@@ -37,7 +37,22 @@ type SubscribeRequest struct {
 	//
 	// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
 	// If not set, metrics for all GPUs will be captured.
-	GpuDeviceIds  []int32 `protobuf:"varint,3,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
+	GpuDeviceIds []int32 `protobuf:"varint,3,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
+	// Identifies the subscriber across streams, such as the run's writer ID.
+	//
+	// Metrics that count since the subscription started keep counting when a
+	// stream with the same ID reopens, as after a pause or a reconnect.
+	SubscriberId string `protobuf:"bytes,4,opt,name=subscriber_id,json=subscriberId,proto3" json:"subscriber_id,omitempty"`
+	// Whether process metrics cover the descendants of the process as well.
+	TrackProcessTree bool `protobuf:"varint,5,opt,name=track_process_tree,json=trackProcessTree,proto3" json:"track_process_tree,omitempty"`
+	// Processes whose CPU and memory use, with their children's, is reported
+	// as wandb.cpu and wandb.memory.rssMB.
+	WandbPids []int32 `protobuf:"varint,7,rep,packed,name=wandb_pids,json=wandbPids,proto3" json:"wandb_pids,omitempty"`
+	// Paths whose file systems' usage and device I/O are reported.
+	DiskPaths []string `protobuf:"bytes,8,rep,name=disk_paths,json=diskPaths,proto3" json:"disk_paths,omitempty"`
+	// Whether to ignore the cgroup limits that apply to the process when
+	// reporting memory and CPU usage.
+	DisableCgroup bool `protobuf:"varint,9,opt,name=disable_cgroup,json=disableCgroup,proto3" json:"disable_cgroup,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -93,6 +108,41 @@ func (x *SubscribeRequest) GetGpuDeviceIds() []int32 {
 	return nil
 }
 
+func (x *SubscribeRequest) GetSubscriberId() string {
+	if x != nil {
+		return x.SubscriberId
+	}
+	return ""
+}
+
+func (x *SubscribeRequest) GetTrackProcessTree() bool {
+	if x != nil {
+		return x.TrackProcessTree
+	}
+	return false
+}
+
+func (x *SubscribeRequest) GetWandbPids() []int32 {
+	if x != nil {
+		return x.WandbPids
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetDiskPaths() []string {
+	if x != nil {
+		return x.DiskPaths
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetDisableCgroup() bool {
+	if x != nil {
+		return x.DisableCgroup
+	}
+	return false
+}
+
 type SubscribeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// System metrics.
@@ -139,7 +189,9 @@ func (x *SubscribeResponse) GetRecord() *Record {
 }
 
 type GetMetadataRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Paths whose file systems' size and usage are reported.
+	DiskPaths     []string `protobuf:"bytes,1,rep,name=disk_paths,json=diskPaths,proto3" json:"disk_paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -172,6 +224,13 @@ func (x *GetMetadataRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetMetadataRequest.ProtoReflect.Descriptor instead.
 func (*GetMetadataRequest) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetMetadataRequest) GetDiskPaths() []string {
+	if x != nil {
+		return x.DiskPaths
+	}
+	return nil
 }
 
 type GetMetadataResponse struct {
@@ -295,14 +354,23 @@ var File_wandb_proto_wandb_system_monitor_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\n" +
-	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"u\n" +
+	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\xad\x02\n" +
 	"\x10SubscribeRequest\x12)\n" +
 	"\x10interval_seconds\x18\x01 \x01(\x01R\x0fintervalSeconds\x12\x10\n" +
 	"\x03pid\x18\x02 \x01(\x05R\x03pid\x12$\n" +
-	"\x0egpu_device_ids\x18\x03 \x03(\x05R\fgpuDeviceIds\"C\n" +
+	"\x0egpu_device_ids\x18\x03 \x03(\x05R\fgpuDeviceIds\x12#\n" +
+	"\rsubscriber_id\x18\x04 \x01(\tR\fsubscriberId\x12,\n" +
+	"\x12track_process_tree\x18\x05 \x01(\bR\x10trackProcessTree\x12\x1d\n" +
+	"\n" +
+	"wandb_pids\x18\a \x03(\x05R\twandbPids\x12\x1d\n" +
+	"\n" +
+	"disk_paths\x18\b \x03(\tR\tdiskPaths\x12%\n" +
+	"\x0edisable_cgroup\x18\t \x01(\bR\rdisableCgroup\"C\n" +
 	"\x11SubscribeResponse\x12.\n" +
-	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x14\n" +
-	"\x12GetMetadataRequest\"E\n" +
+	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"3\n" +
+	"\x12GetMetadataRequest\x12\x1d\n" +
+	"\n" +
+	"disk_paths\x18\x01 \x03(\tR\tdiskPaths\"E\n" +
 	"\x13GetMetadataResponse\x12.\n" +
 	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x11\n" +
 	"\x0fTearDownRequest\"\x12\n" +

@@ -18,6 +18,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -59,7 +60,10 @@ type SymonSampler struct {
 	resources []monitor.Resource
 	processes *monitor.Processes
 	xpu       *monitor.XPU
-	logger    *observability.CoreLogger
+
+	// subscription describes what the sampler subscribes to.
+	subscription *spb.SubscribeRequest
+	logger       *observability.CoreLogger
 
 	// accelerators is the sidecar's latest sample.
 	accelerators atomic.Pointer[spb.StatsRecord]
@@ -101,9 +105,12 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		context.Background(),
 		monitor.NewXPUResourceManager(false),
 		logger,
-		0,
-		nil,
 	)
+	sampler.subscription = &spb.SubscribeRequest{
+		IntervalSeconds: interval.Seconds(),
+		SubscriberId:    string(sharedmode.RandomClientID()),
+		DiskPaths:       defaultSymonDiskPaths(),
+	}
 
 	return sampler
 }
@@ -119,7 +126,7 @@ func (s *SymonSampler) Interval() time.Duration {
 // The first call starts the sidecar, whose metrics arrive from the next
 // call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
-	s.xpu.Subscribe(s.interval, func(_ context.Context, record *spb.StatsRecord) {
+	s.xpu.Subscribe(s.subscription, func(_ context.Context, record *spb.StatsRecord) {
 		s.accelerators.Store(record)
 	})
 
@@ -260,7 +267,8 @@ func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
 			proto.Merge(msg.Env, rec)
 		}
 	}
-	if rec := s.xpu.Probe(ctx); rec != nil {
+	metadata := &spb.GetMetadataRequest{DiskPaths: s.subscription.GetDiskPaths()}
+	if rec := s.xpu.Probe(ctx, metadata); rec != nil {
 		proto.Merge(msg.Env, rec)
 	}
 	return msg

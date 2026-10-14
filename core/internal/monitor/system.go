@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"maps"
-
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -655,35 +653,12 @@ func (s *System) CollectDiskIOMetrics(metrics map[string]any) error {
 	return nil
 }
 
-// getSlurmEnvVars collects SLURM-related environment variables.
-func getSlurmEnvVars() map[string]string {
-	slurmVars := make(map[string]string)
-
-	for _, envVar := range os.Environ() {
-		parts := strings.SplitN(envVar, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		if strings.HasPrefix(key, "SLURM_") {
-			suffix := strings.ToLower(strings.TrimPrefix(key, "SLURM_"))
-			slurmVars[suffix] = value
-		}
-	}
-
-	return slurmVars
-}
-
 // Probe collects system information.
 //
 // Gathers hardware details about the system including:
 //   - CPU information (count, logical count)
 //   - Memory information (total available)
 //   - Disk information (space usage for monitored paths)
-//   - SLURM environment variables if running in a SLURM environment
 func (s *System) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	// TODO: capture more detailed CPU information.
 	info := &spb.EnvironmentRecord{
@@ -712,12 +687,6 @@ func (s *System) Probe(ctx context.Context) *spb.EnvironmentRecord {
 				Used:  usage.Used,
 			}
 		}
-	}
-
-	// Collect SLURM environment variables.
-	if slurmVars := getSlurmEnvVars(); len(slurmVars) > 0 {
-		info.Slurm = make(map[string]string)
-		maps.Copy(info.Slurm, slurmVars)
 	}
 
 	return info
