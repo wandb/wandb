@@ -89,4 +89,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - NVIDIA GPM system metrics such as `gpu.N.smActive` are now averaged over each run's own sampling interval. When several runs shared one process, each run's value covered only the time since any run's previous sample, and the cost of sampling system metrics grew with the number of runs (@dmitryduev in https://github.com/wandb/wandb/pull/13080)
 - GPU, TPU and Apple accelerator system metrics resume when the helper process that collects them exits or fails to start; they used to stop for the rest of the run (@dmitryduev in https://github.com/wandb/wandb/pull/13098)
 - `linked_at` is now accepted as a filter field in `api.registries().collections().versions(filter={"linked_at": ...})`, matching the existing `linked_at` order field (@ibindlish in https://github.com/wandb/wandb/pull/13161)
-- Run metadata on AWS Trainium records the Neuron device and NeuronCore counts; they were always 0 (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- Run metadata on AWS Trainium records the Neuron device and NeuronCore counts; they were always 0 (@dmitryduev in https://github.com/wandb/wandb/pull/13156)
