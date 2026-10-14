@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
-	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
@@ -78,7 +76,7 @@ type SystemMonitor struct {
 	// The list of resources to monitor.
 	resources []*monitoredResource
 
-	// xpu streams accelerator metrics from the wandb-xpu sidecar.
+	// xpu streams system metrics from the wandb-xpu sidecar.
 	xpu *XPU
 
 	// extraWork accepts outgoing messages for the run.
@@ -120,7 +118,7 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// XPUResourceManager manages the sidecar for GPU/TPU metrics.
+	// XPUResourceManager manages the wandb-xpu sidecar process.
 	XPUResourceManager *XPUResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
@@ -183,18 +181,6 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
 	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
-
-	if system := NewSystem(
-		SystemParams{
-			Pid:                         pid,
-			TrackProcessTree:            sm.settings.GetStatsTrackProcessTree(),
-			DisableCgroupResourceLimits: sm.settings.GetStatsNoCgroup(),
-			ReportSelfUsage:             sm.settings.GetStatsSelfUsage(),
-			DiskPaths:                   sm.settings.GetStatsDiskPaths(),
-		},
-	); system != nil {
-		sm.addResource(system)
-	}
 
 	request := &spb.SubscribeRequest{
 		IntervalSeconds:  sm.samplingInterval.Seconds(),
@@ -583,11 +569,6 @@ func ShouldCaptureSamplingError(err error) bool {
 		return false
 	}
 
-	// The monitored process may exit before its last sample completes.
-	if errors.Is(err, process.ErrorProcessNotRunning) {
-		return false
-	}
-
 	// The caller went away, e.g. the run finished mid-sample.
 	if errors.Is(err, context.Canceled) {
 		return false
@@ -597,18 +578,6 @@ func ShouldCaptureSamplingError(err error) bool {
 	switch {
 	// Error connecting to a Prometheus server.
 	case strings.Contains(msg, "connection refused"):
-		return false
-
-	// Platforms without netstat (gopsutil may shell out on some OSes).
-	case errors.Is(err, exec.ErrNotFound):
-		return false
-	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
-		return false
-
-	// Container/lean Linux builds without /proc/diskstats.
-	case strings.Contains(msg, "/proc/diskstats") &&
-		(strings.Contains(msg, "no such file") ||
-			strings.Contains(msg, "no such file or directory")):
 		return false
 
 	// Windows sporadic low-level API failure wording.

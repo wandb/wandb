@@ -28,7 +28,6 @@ require (
 	github.com/mattn/go-isatty v0.0.24
 	github.com/mattn/go-runewidth v0.0.31
 	github.com/prometheus/common v0.72.1
-	github.com/prometheus/procfs v0.22.0
 	github.com/radovskyb/watcher v1.0.7
 	github.com/rogpeppe/go-internal v1.16.0
 	github.com/shirou/gopsutil/v4 v4.26.9

@@ -51,6 +51,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
 - AMD GPU system metrics are now read through the ROCm SMI library (`librocm_smi64.so`) instead of running the `rocm-smi` tool on every sample, and readings a GPU does not provide are left out instead of reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12990)
 - `import wandb` and the `wandb` CLI start about twice as fast. On Linux with Python 3.13, `import wandb` takes about 290 ms instead of 650 ms and `wandb --version` about 310 ms instead of 660 ms: the generated GraphQL models, the OpenTelemetry SDK, `requests`, the public API and the launch and sweeps modules are now imported when they are first used (@dmitryduev in https://github.com/wandb/wandb/pull/13144, https://github.com/wandb/wandb/pull/13145, https://github.com/wandb/wandb/pull/13146, https://github.com/wandb/wandb/pull/13147, https://github.com/wandb/wandb/pull/13148)
+- The `cpu` system metric reports the monitored process's CPU utilization over the sampling interval instead of its average since the process started, and sampling system metrics no longer costs more with the number of runs in a process (@dmitryduev in https://github.com/wandb/wandb/pull/13101)
 
 ### Removed
 
