@@ -217,6 +217,23 @@ func TestV2PrimaryKeepsTheLaterStartOfTheSameAttempt(t *testing.T) {
 	assert.Contains(t, string(b), `"finalized":true`)
 }
 
+func TestV2ManifestCarriesWriterStartTime(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 10, 14, 16, 51, 5, 0, time.UTC)
+	emitter := provenance.NewEmitter(
+		&provenance.EmitterParams{FilesDir: dir, Now: func() time.Time { return now }},
+	)
+	require.NoError(t, emitter.Start(provenance.StartConfig{WriterID: "writer", Rank: 1}))
+	now = now.Add(3 * time.Minute)
+	emitter.Drain()
+	b, err := os.ReadFile(filepath.Join(dir, "wandb-telemetry", "v2", "manifest", "writer.json"))
+	require.NoError(t, err)
+	var manifest map[string]any
+	require.NoError(t, json.Unmarshal(b, &manifest))
+	assert.Equal(t, "2026-10-14T16:51:05Z", manifest["started_at"])
+	assert.Equal(t, "2026-10-14T16:54:05Z", manifest["collected_at"])
+}
+
 func TestV2ManifestAndRollupReportChunkCompressionTime(t *testing.T) {
 	dir := t.TempDir()
 	emitter := provenance.NewEmitter(&provenance.EmitterParams{FilesDir: dir})
@@ -348,4 +365,99 @@ func TestV2OnlySamplesProvenBoundGPUAndRevokesPartialBinding(t *testing.T) {
 		count++
 	}
 	assert.Equal(t, 1, count)
+}
+
+func TestV2CommunicationScheduleReachesTheChunk(t *testing.T) {
+	dir := t.TempDir()
+	emitter := provenance.NewEmitter(&provenance.EmitterParams{FilesDir: dir})
+	require.NoError(t, emitter.Start(provenance.StartConfig{WriterID: "writer-a"}))
+	emitter.AddRecord(provenance.Record{
+		Kind: "communication_schedule",
+		PayloadJSON: []byte(`{"schedule_id":1,"effective_from_step":3,"collective":"all_gather",` +
+			`"count_per_step":168,"bytes_per_step":4096,"group_count":2,"replays_per_step":1,` +
+			`"source":"cuda_graph_capture"}`),
+		MonotonicNS: 1,
+	})
+	emitter.AddRecord(provenance.Record{
+		Kind:        "communication_schedule",
+		PayloadJSON: []byte(`{"schedule_id":1,"stack":"frame"}`),
+		MonotonicNS: 2,
+	})
+	result := emitter.Drain()
+	assert.EqualValues(t, 1, result.Quality.RejectedRecords)
+	paths, err := filepath.Glob(
+		filepath.Join(dir, "wandb-telemetry", "v2", "chunks", "*", "*.jsonl.gz"),
+	)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	f, err := os.Open(paths[0])
+	require.NoError(t, err)
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	require.NoError(t, err)
+	chunk, err := io.ReadAll(gz)
+	require.NoError(t, err)
+	var found []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(chunk)), "\n") {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["kind"] == "communication_schedule" {
+			found = append(found, record)
+		}
+	}
+	require.Len(t, found, 1)
+	assert.EqualValues(t, 168, found[0]["count_per_step"])
+	assert.EqualValues(t, 3, found[0]["effective_from_step"])
+	assert.Equal(t, "cuda_graph_capture", found[0]["source"])
+}
+
+func TestV2RecorderReadFieldsReachTheChunk(t *testing.T) {
+	dir := t.TempDir()
+	emitter := provenance.NewEmitter(&provenance.EmitterParams{FilesDir: dir})
+	require.NoError(t, emitter.Start(provenance.StartConfig{WriterID: "writer-a"}))
+	read := `"read_id":3,"window_start_unix_ms":1791993374004,"window_end_unix_ms":1791993434004`
+	wall := time.UnixMilli(1791993434004).UnixNano()
+	emitter.AddRecord(provenance.Record{
+		Kind: "capability",
+		PayloadJSON: []byte(
+			`{"collector":"flight_recorder","status":"partial","reason":"backed_off","interval_s":120,"lost_count":4,` + read + `}`,
+		),
+		MonotonicNS: 1,
+		WallTimeNS:  wall,
+	})
+	emitter.AddRecord(provenance.Record{
+		Kind:        "communication",
+		PayloadJSON: []byte(`{"collective":"all_reduce","count":2,"timed_count":2,` + read + `}`),
+		MonotonicNS: 2,
+		WallTimeNS:  wall,
+	})
+	result := emitter.Drain()
+	assert.Zero(t, result.Quality.RejectedRecords)
+	paths, err := filepath.Glob(
+		filepath.Join(dir, "wandb-telemetry", "v2", "chunks", "*", "*.jsonl.gz"),
+	)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	f, err := os.Open(paths[0])
+	require.NoError(t, err)
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	require.NoError(t, err)
+	chunk, err := io.ReadAll(gz)
+	require.NoError(t, err)
+	var stamps []string
+	for _, line := range strings.Split(strings.TrimSpace(string(chunk)), "\n") {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["kind"] == "capability" || record["kind"] == "communication" {
+			assert.EqualValues(t, 3, record["read_id"])
+			assert.EqualValues(t, 1791993374004, record["window_start_unix_ms"])
+			if record["kind"] == "capability" {
+				assert.EqualValues(t, 120, record["interval_s"])
+			}
+			stamps = append(stamps, record["collected_at"].(string))
+		}
+	}
+	require.Len(t, stamps, 2)
+	assert.Equal(t, stamps[0], stamps[1])
 }

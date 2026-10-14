@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import os
 import re
 import sys
@@ -7,10 +8,11 @@ import threading
 import time
 from typing import Any
 
-from .comm_stats import CommStatsReporter
+from .comm_stats import CommStatsReporter, collective_family, fr_buffer_setting
 from .timing import CudaEventQueue
 
 _SCAN_TENSORS = 64
+_GEMM_SIZE = 2048
 _CPU_BUDGET_NS = 20_000_000
 _MAPS = "/proc/self/maps"
 _IB_CLASS = "/sys/class/infiniband"
@@ -18,16 +20,16 @@ _MAPS_LIMIT = 4 << 20
 _PLUGIN_FAMILIES = ("tcpxo", "tcpx", "efa")
 _SUFFIX = re.compile(r"[A-Z_]{1,48}")
 _NUMBER = re.compile(r"-?[0-9]{1,10}")
+# Clear of torch's own hook ids ('FREC', 'NANC').
+_HOOK_ID = 0x57414E44
 
 
 def install_level1_bootstrap() -> None:
     if "torch.distributed" in sys.modules:
         return
-    if (
-        "TORCH_FR_BUFFER_SIZE" not in os.environ
-        and "TORCH_NCCL_TRACE_BUFFER_SIZE" not in os.environ
-    ):
-        os.environ["TORCH_NCCL_TRACE_BUFFER_SIZE"] = "2000"
+    name, size = fr_buffer_setting()
+    if name is None:
+        os.environ["TORCH_FR_BUFFER_SIZE"] = str(size)
     # Recorder entries carry durations only when NCCL timing is on.
     os.environ.setdefault("TORCH_NCCL_ENABLE_TIMING", "1")
 
@@ -95,9 +97,15 @@ class Level1Collectors:
         self._sampled = False
         self._cuda_reported = False
         self._recorder: str | None = None
+        # TorchTitan graph wrappers seen so far; None until the first forward_backward.
+        self._graphs: list[Any] | None = None
+        self._capture: dict[str, Any] | None = None
+        self._schedules = 0
+        self._schedule_disabled = False
+        self._replaying = False
         self._capability("nccl_sweep", "unsupported", "unsupported_boundary")
 
-    def _communication(self, status, collectives, lost):
+    def _communication(self, status, collectives, lost, read):
         if status == "unavailable":
             self._capability("flight_recorder", "unavailable", "recorder_unavailable")
             self._recorder = None
@@ -116,36 +124,183 @@ class Level1Collectors:
                 },
             )
             return
+        self.emit.account(cpu_ns=read.cpu_ns, transient_bytes=read.dump_bytes)
         # A read with nothing new keeps the last state; available needs emitted records.
-        if status != self._recorder and (collectives or status == "recorder_empty"):
+        if status != self._recorder and (collectives or status != "ok"):
             self._recorder = status
-            c10d = getattr(
-                getattr(sys.modules.get("torch"), "_C", None), "_distributed_c10d", None
-            )
-            payload = {"collector": "flight_recorder", "status": "partial"}
-            if not hasattr(c10d, "_dump_nccl_trace"):
-                # The generic dump may not hold the recorder NCCL writes to.
-                payload["reason"] = "generic_recorder"
-            elif status == "ok":
+        window = {
+            "read_id": read.read_id,
+            "window_end_unix_ms": read.end_ns // 1_000_000,
+        }
+        if read.start_ns is not None:
+            window["window_start_unix_ms"] = read.start_ns // 1_000_000
+        # Loss belongs to the read, so only the read's capability record carries it.
+        if self._recorder is not None or read.backoff_s is not None or self._replaying:
+            payload = {
+                "collector": "flight_recorder",
+                "status": "partial",
+                "lost_count": lost,
+                **window,
+            }
+            if read.backoff_s is not None:
+                payload["reason"] = "backed_off"
+                payload["interval_s"] = read.backoff_s
+            elif self._replaying:
+                # Replayed graphs bypass c10d, so the recorder sees eager steps only.
+                payload["reason"] = "cuda_graph_replay"
+            elif self._recorder == "ok":
                 payload["status"] = "available"
-            elif status == "no_recognized_collectives":
-                payload["reason"] = status
-                payload["count"] = sum(c.count for c in collectives)
             else:
-                payload["reason"] = status
-            self.emit.emit("capability", payload)
+                payload["reason"] = self._recorder
+                if self._recorder == "no_recognized_collectives":
+                    payload["count"] = sum(c.count for c in collectives)
+            self.emit.emit("capability", payload, wall_time_ns=read.end_ns)
         for collective in collectives:
             payload = {
                 "collective": collective.name,
                 "count": collective.count,
                 "timed_count": collective.n_timed,
-                "lost_count": lost,
+                **window,
             }
             for field in ("p50_ms", "p99_ms", "max_ms", "total_ms", "bytes"):
                 value = getattr(collective, field)
                 if value is not None:
                     payload[field] = value
-            self.emit.emit("communication", payload)
+            self.emit.emit("communication", payload, wall_time_ns=read.end_ns)
+
+    def before_forward_backward(self, engine, step: int) -> None:
+        """Watches c10d ops while a TorchTitan CUDA graph is still to be captured."""
+        graphs = self._graphs
+        if self._capture is not None or self._schedule_disabled or graphs == []:
+            return
+        if graphs and all(w._graph is not None for w in graphs):
+            return
+        graphs = self._wrappers()
+        capture: dict[str, Any] = {
+            "step": step,
+            # Warm-up calls run eagerly, so a step holding them is not fully replayed.
+            "mixed": not graphs or any(w._warmup_remaining for w in graphs),
+            "ready": [w for w in graphs if w._graph is not None],
+            "ops": {},
+            "groups": [],
+            "cpu_ns": 0,
+            "failed": False,
+        }
+        started = time.thread_time_ns()
+        try:
+            torch = sys.modules["torch"]
+            capturing = torch.cuda.is_current_stream_capturing
+            ops = capture["ops"]
+
+            def record(group, args):
+                # Errors would surface in the user's collective; the hook map is in use.
+                try:
+                    if not capturing():
+                        return
+                    began = time.thread_time_ns()
+                    family = collective_family(args.name.name)
+                    op = ops.setdefault(family, [0, 0, set()])
+                    op[0] += 1
+                    op[1] += sum(
+                        t.numel() * t.element_size() for t in args.input_tensors
+                    )
+                    op[2].add(group)
+                    capture["cpu_ns"] += time.thread_time_ns() - began
+                except Exception:
+                    capture["failed"] = True
+
+            self._capture = capture
+            # Hook maps are unlocked; CPU-only groups may be busy on checkpoint threads.
+            for index, group in enumerate(
+                list(torch.distributed.distributed_c10d._world.pg_map)
+            ):
+                if any(d.type == "cuda" for d in group._device_types):
+                    group.register_pre_hook(_HOOK_ID, functools.partial(record, index))
+                    capture["groups"].append(group)
+        except Exception:
+            self._capture = None
+            self._release(capture)
+            self._fail_schedule()
+        finally:
+            self.emit.account(cpu_ns=time.thread_time_ns() - started)
+
+    def after_forward_backward(self, engine) -> None:
+        """Publishes the schedule a capture in this call recorded."""
+        capture, self._capture = self._capture, None
+        if capture is None:
+            return
+        started = time.thread_time_ns()
+        self._release(capture)
+        if capture["failed"]:
+            self._fail_schedule()
+            self.emit.account(cpu_ns=time.thread_time_ns() - started)
+            return
+        try:
+            captured = any(
+                w._graph is not None and all(w is not r for r in capture["ready"])
+                for w in self._wrappers()
+            )
+            if not captured:
+                return
+            self._replaying = True
+            self._schedules += 1
+            replays = getattr(engine, "num_accumulation_steps", 1)
+            if not getattr(engine, "_cuda_graph_per_accumulation_group_enabled", False):
+                replays = 1
+            window = {
+                "schedule_id": self._schedules,
+                "effective_from_step": capture["step"] + int(capture["mixed"]),
+            }
+            self.emit.emit(
+                "capability",
+                {
+                    "collector": "communication_schedule",
+                    "status": "available",
+                    **window,
+                },
+            )
+            for family, (count, nbytes, groups) in sorted(capture["ops"].items()):
+                self.emit.emit(
+                    "communication_schedule",
+                    {
+                        **window,
+                        "collective": family,
+                        "count_per_step": count * replays,
+                        "bytes_per_step": nbytes * replays,
+                        "group_count": len(groups),
+                        "replays_per_step": replays,
+                        "source": "cuda_graph_capture",
+                    },
+                )
+        except Exception:
+            self._fail_schedule()
+        finally:
+            self.emit.account(
+                cpu_ns=time.thread_time_ns() - started + capture["cpu_ns"]
+            )
+
+    def _wrappers(self) -> list[Any]:
+        # TorchTitan registers each wrapper on first call and forgets it at teardown.
+        module = sys.modules.get("torchtitan.distributed.cuda_graph")
+        known = self._graphs or []
+        wrappers = getattr(getattr(module, "_manager", None), "_wrappers", ())
+        self._graphs = known + [w for w in wrappers if all(w is not k for k in known)]
+        return self._graphs
+
+    @staticmethod
+    def _release(capture: dict[str, Any] | None) -> None:
+        for group in capture["groups"] if capture else ():
+            try:
+                group.unregister_pre_hook(_HOOK_ID)
+            except Exception:
+                pass
+
+    def _fail_schedule(self) -> None:
+        if not self._schedule_disabled:
+            self._schedule_disabled = True
+            self._capability(
+                "communication_schedule", "self_disabled", "collector_failure"
+            )
 
     def _capability(self, collector: str, status: str, reason: str | None) -> None:
         payload = {"collector": collector, "status": status}
@@ -197,43 +352,52 @@ class Level1Collectors:
                 self._cuda_reported = True
                 self._report_skipped("cuda_unavailable")
             return
-        with torch.no_grad():
-            if not self._gradient_disabled and self._gradient_pending is None:
-                try:
-                    self._scan_gradients(torch, engine, step)
-                except Exception:
-                    self._gradient_disabled = True
-                    self._capability(
-                        "gradient_health", "self_disabled", "collector_failure"
-                    )
-            if self._gemm_disabled:
-                return
-            try:
-                if self._tensors is None:
-                    self._tensors = tuple(
-                        torch.full(
-                            (2048, 2048),
-                            0.01,
-                            device=engine.device,
-                            dtype=torch.float16,
+        started = time.thread_time_ns()
+        try:
+            with torch.no_grad():
+                if not self._gradient_disabled and self._gradient_pending is None:
+                    try:
+                        self._scan_gradients(torch, engine, step)
+                    except Exception:
+                        self._gradient_disabled = True
+                        self._capability(
+                            "gradient_health", "self_disabled", "collector_failure"
                         )
-                        for _ in range(3)
+                if self._gemm_disabled:
+                    return
+                try:
+                    if self._tensors is None:
+                        self._tensors = tuple(
+                            torch.full(
+                                (_GEMM_SIZE, _GEMM_SIZE),
+                                0.01,
+                                device=engine.device,
+                                dtype=torch.float16,
+                            )
+                            for _ in range(3)
+                        )
+                        self.emit.account(held_bytes=3 * _GEMM_SIZE**2 * 2)
+                        self._timing = CudaEventQueue(
+                            lambda: torch.cuda.Event(enable_timing=True), capacity=4
+                        )
+                        # Untimed first call keeps cuBLAS setup out of GEMM time.
+                        torch.mm(
+                            self._tensors[0], self._tensors[1], out=self._tensors[2]
+                        )
+                        self._capability("active_diagnostics", "available", None)
+                    token = self._timing.start("gemm", step)
+                    if token is not None:
+                        torch.mm(
+                            self._tensors[0], self._tensors[1], out=self._tensors[2]
+                        )
+                        self._timing.finish(token)
+                except Exception:
+                    self._gemm_disabled = True
+                    self._capability(
+                        "active_diagnostics", "self_disabled", "collector_failure"
                     )
-                    self._timing = CudaEventQueue(
-                        lambda: torch.cuda.Event(enable_timing=True), capacity=4
-                    )
-                    # Untimed first call, so cuBLAS setup is not measured as GEMM time.
-                    torch.mm(self._tensors[0], self._tensors[1], out=self._tensors[2])
-                    self._capability("active_diagnostics", "available", None)
-                token = self._timing.start("gemm", step)
-                if token is not None:
-                    torch.mm(self._tensors[0], self._tensors[1], out=self._tensors[2])
-                    self._timing.finish(token)
-            except Exception:
-                self._gemm_disabled = True
-                self._capability(
-                    "active_diagnostics", "self_disabled", "collector_failure"
-                )
+        finally:
+            self.emit.account(cpu_ns=time.thread_time_ns() - started)
 
     def _scan_gradients(self, torch, engine, step: int) -> None:
         started = time.thread_time_ns()
@@ -411,6 +575,8 @@ class Level1Collectors:
 
     def close(self) -> None:
         self._comm.stop()
+        self._release(self._capture)
+        self._capture = None
         if not self._sampled and not self._disabled:
             self._report_skipped("step_threshold_not_reached")
         if not self._transport_started:

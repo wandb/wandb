@@ -382,4 +382,5 @@ def test_level1_configured_before_torch_import(monkeypatch):
     present = "torch" in sys.modules
     install_level1_bootstrap()
     assert ("torch" in sys.modules) is present
-    assert os.environ["TORCH_NCCL_TRACE_BUFFER_SIZE"] == "2000"
+    assert os.environ["TORCH_FR_BUFFER_SIZE"] == "2000"
+    assert "TORCH_NCCL_TRACE_BUFFER_SIZE" not in os.environ

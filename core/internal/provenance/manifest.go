@@ -9,6 +9,7 @@ import (
 
 type Manifest struct {
 	Header
+	StartedAt           time.Time                  `json:"started_at"`
 	Level               int                        `json:"level"`
 	LocalRank           int                        `json:"local_rank"`
 	NodeRank            int                        `json:"node_rank"`

@@ -216,3 +216,24 @@ def test_close_lifecycle_is_emitted_before_finish_tears_down_the_writer(
     assert len(closes) == 2
     assert closed == [1]
     assert all(p["step"] == 6 for p in closes)
+
+
+def test_forward_backward_brackets_the_level1_graph_watch(tmp_path, monkeypatch):
+    class TrainingEngine:
+        def __init__(self):
+            self.num_completed_steps = 2
+
+        def forward_backward(self):
+            calls.append("forward_backward")
+
+    calls = []
+    _, registry, integration = _observed(
+        tmp_path, monkeypatch, "torchtitan.training_engine", TrainingEngine
+    )
+    integration._level1 = SimpleNamespace(
+        before_forward_backward=lambda engine, step: calls.append(("before", step)),
+        after_forward_backward=lambda engine: calls.append("after"),
+    )
+    TrainingEngine().forward_backward()
+    registry.detach()
+    assert calls == [("before", 3), "forward_backward", "after"]

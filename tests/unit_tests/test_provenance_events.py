@@ -112,3 +112,39 @@ def test_binding_is_recorded_only_when_it_changes(monkeypatch):
         if record.kind == "binding":
             kinds.append(json.loads(record.payload_json)["cuda_index"])
     assert kinds == [0, 1, 0]
+
+
+def test_records_of_one_read_share_the_given_wall_time():
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.provenance.events import EventEmitter
+
+    records = Queue()
+    emitter = EventEmitter(InterfaceQueue(record_q=records), "writer")
+    for name in ("all_gather", "all_reduce"):
+        emitter.emit(
+            "communication", {"collective": name, "count": 1}, wall_time_ns=12345
+        )
+    emitter.emit("step", {"step": 1})
+    emitter.close()
+    sent = [records.get_nowait().provenance for _ in range(3)]
+    assert [r.wall_time_ns for r in sent[:2]] == [12345, 12345]
+    assert sent[2].wall_time_ns > 12345
+    assert sent[0].monotonic_ns <= sent[1].monotonic_ns <= sent[2].monotonic_ns
+
+
+def test_collector_work_outside_emit_is_in_the_quality_record():
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.provenance.events import EventEmitter
+
+    records = Queue()
+    emitter = EventEmitter(InterfaceQueue(record_q=records), "writer")
+    emitter.account(cpu_ns=5_000_000_000, held_bytes=24 << 20)
+    emitter.account(cpu_ns=1, transient_bytes=8 << 20)
+    emitter.close()
+    quality = None
+    while not records.empty():
+        record = records.get_nowait().provenance
+        if record.kind == "quality":
+            quality = json.loads(record.payload_json)
+    assert quality["collector_cpu_ns"] >= 5_000_000_001
+    assert quality["peak_memory_bytes"] >= (24 << 20) + (8 << 20)

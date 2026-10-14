@@ -37,9 +37,12 @@ def test_gemm_is_lazy_bounded_and_at_most_every_hundred_steps(monkeypatch):
         randn=forbidden,
     )
     monkeypatch.setitem(sys.modules, "torch", torch)
+    accounted = []
     collector = Level1Collectors(
         SimpleNamespace(
-            emit=lambda kind, payload: events.append((kind, payload)), dropped=0
+            emit=lambda kind, payload: events.append((kind, payload)),
+            dropped=0,
+            account=lambda **kw: accounted.append(kw),
         )
     )
     collector._comm = SimpleNamespace(maybe_start=lambda: None, stop=lambda: None)
@@ -51,6 +54,11 @@ def test_gemm_is_lazy_bounded_and_at_most_every_hundred_steps(monkeypatch):
     assert sum(rows * columns * 2 for rows, columns in allocations) <= 64 << 20
     # One untimed warm-up, then one timed probe per 100 steps.
     assert len(multiplies) == 4
+    # The probe tensors stay owned by the collector, and each sampled step is charged.
+    assert [a["held_bytes"] for a in accounted if "held_bytes" in a] == [
+        3 * 2048**2 * 2
+    ]
+    assert [a["cpu_ns"] >= 0 for a in accounted if "cpu_ns" in a] == [True] * 3
     collector.close()
     assert collector._tensors is None
 

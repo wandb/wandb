@@ -7,7 +7,11 @@ import time
 import types
 
 import pytest
-from wandb.sdk.provenance.comm_stats import CollectiveSummary, CommStatsReporter
+from wandb.sdk.provenance.comm_stats import (
+    CollectiveSummary,
+    CommStatsReporter,
+    fr_buffer_setting,
+)
 
 
 def _entry(
@@ -39,12 +43,23 @@ def _entry(
 class _FakeTorch:
     """Stands in for torch with a scripted NCCL flight recorder."""
 
-    def __init__(self, *, initialized=True, has_dump=True):
+    def __init__(
+        self, *, initialized=True, has_dump=True, backends=(("cuda", "nccl"),)
+    ):
         self.entries: list[dict] = []
+        self.pg_config = {"0": {"name": "0", "desc": "default_pg", "ranks": "[0, 1]"}}
         self.dump_calls = 0
         self.dump_threads: list[threading.Thread] = []
         self.dump_times: list[float] = []
-        self.distributed = types.SimpleNamespace(is_initialized=lambda: initialized)
+        names = dict(backends)
+        pg = types.SimpleNamespace(
+            _device_types=[types.SimpleNamespace(type=d) for d in names],
+            _get_backend=lambda d: types.SimpleNamespace(name=lambda: names[d.type]),
+        )
+        self.distributed = types.SimpleNamespace(
+            is_initialized=lambda: initialized,
+            distributed_c10d=types.SimpleNamespace(_get_default_group=lambda: pg),
+        )
         c10d = types.SimpleNamespace()
         if has_dump:
             c10d._dump_nccl_trace = self._dump
@@ -59,7 +74,13 @@ class _FakeTorch:
         self.dump_calls += 1
         self.dump_threads.append(threading.current_thread())
         self.dump_times.append(time.monotonic())
-        return pickle.dumps({"version": "2.10", "entries": list(self.entries)})
+        return pickle.dumps(
+            {
+                "version": "2.10",
+                "pg_config": dict(self.pg_config),
+                "entries": list(self.entries),
+            }
+        )
 
 
 class _Clock:
@@ -84,22 +105,31 @@ def lost():
 def torch(monkeypatch):
     t = _FakeTorch()
     monkeypatch.setitem(sys.modules, "torch", t)
+    monkeypatch.delenv("TORCH_FR_BUFFER_SIZE", raising=False)
     monkeypatch.setenv("TORCH_NCCL_TRACE_BUFFER_SIZE", "2000")
     return t
 
 
 @pytest.fixture
-def reporter(published, lost):
-    clock = _Clock()
+def read_log():
+    return []
 
-    def publish(status, colls, n_lost):
+
+@pytest.fixture
+def reporter(published, lost, read_log):
+    clock = _Clock()
+    wall = iter(range(5_000_000_000, 10**12, 60_000_000_000))
+
+    def publish(status, colls, n_lost, read):
         published.append((status, colls))
         lost.append(n_lost)
+        read_log.append(read)
 
     r = CommStatsReporter(
         publish,
         interval=60.0,
         clock=clock,
+        wall_clock=lambda: next(wall),
     )
     r.clock = clock
     return r
@@ -300,6 +330,28 @@ def test_an_empty_recorder_is_reported(torch, reporter, published):
     assert published == [("recorder_empty", [])]
 
 
+def test_a_recorder_no_group_feeds_is_detached_not_empty(torch, reporter, published):
+    torch.pg_config = {}
+    reporter.report()
+    assert published == [("recorder_detached", [])]
+
+
+def test_entries_that_never_completed_are_pending_not_ok(torch, reporter, published):
+    torch.entries = [_entry(1, state="scheduled"), _entry(2, state="started")]
+    reporter.report()
+    torch.entries.append(_entry(3))
+    reporter.clock.t += 60
+    reporter.report()
+    torch.entries.append(_entry(4, state="scheduled"))
+    reporter.clock.t += 60
+    reporter.report()
+    assert [status for status, _ in published] == [
+        "no_completed_collectives",
+        "ok",
+        "ok",
+    ]
+
+
 def test_no_new_entries_is_ok_and_empty(torch, reporter, published):
     torch.entries = [_entry(1)]
     reporter.report()
@@ -308,7 +360,7 @@ def test_no_new_entries_is_ok_and_empty(torch, reporter, published):
     assert published[-1] == ("ok", [])
 
 
-def test_no_timing_sends_counts_only(torch, reporter, published):
+def test_no_timing_sends_counts_and_known_bytes(torch, reporter, published):
     torch.entries = [_entry(1, duration=None), _entry(2, duration=None)]
 
     reporter.report()
@@ -316,9 +368,99 @@ def test_no_timing_sends_counts_only(torch, reporter, published):
     assert published == [
         (
             "no_timing",
-            [CollectiveSummary("all_reduce", 2, 0, None, None, None, None, None)],
+            [CollectiveSummary("all_reduce", 2, 0, None, None, None, None, 128)],
         )
     ]
+
+
+def test_an_untimed_all_reduce_keeps_its_known_bytes(torch, reporter, published):
+    torch.entries = [_entry(1, duration=None, sizes=((4, 4),), dtypes=("Float",))]
+    reporter.report()
+    assert published[0][1][0].bytes == 64
+
+
+def test_a_collective_pending_while_a_later_one_completes_is_counted_once(
+    torch, reporter, published, lost
+):
+    torch.entries = [_entry(2, state="started"), _entry(3)]
+    reporter.report()
+    torch.entries = [_entry(2), _entry(3)]
+    reporter.clock.t += 60
+    reporter.report()
+    reporter.clock.t += 60
+    reporter.report()
+
+    assert [sum(c.count for c in colls) for _, colls in published] == [1, 1, 0]
+    assert lost == [0, 0, 0]
+
+
+def test_a_pending_collective_evicted_before_completing_is_lost(
+    torch, reporter, published, lost
+):
+    torch.entries = [_entry(1), _entry(2, state="started"), _entry(3)]
+    reporter.report()
+    # 2 and 4 leave the ring before a read sees them completed.
+    torch.entries = [_entry(5), _entry(6)]
+    reporter.clock.t += 60
+    reporter.report()
+
+    assert [sum(c.count for c in colls) for _, colls in published] == [2, 2]
+    assert lost == [0, 2]
+
+
+def test_duplicate_entries_of_one_sequence_count_once(torch, reporter, published):
+    torch.entries = [
+        _entry(1, name="nccl:send", p2p=True, state="scheduled"),
+        _entry(1, name="nccl:coalesced", p2p=True),
+        _entry(1, name="nccl:coalesced", p2p=True),
+    ]
+    reporter.report()
+    torch.entries.append(_entry(2, name="nccl:send", p2p=True, state="scheduled"))
+    reporter.clock.t += 60
+    reporter.report()
+
+    assert [(c.name, c.count) for c in published[0][1]] == [("other", 1)]
+    assert published[1][1] == []
+
+
+def test_pending_identities_are_bounded_and_overflow_is_lost(
+    torch, reporter, published, lost
+):
+    torch.entries = [_entry(i, state="started") for i in range(1, 1101)]
+    torch.entries.append(_entry(1101))
+    reporter.report()
+    torch.entries = [_entry(i) for i in range(1, 1102)]
+    reporter.clock.t += 60
+    reporter.report()
+
+    assert lost == [76, 0]
+    assert published[1][1][0].count == 1024
+
+
+def test_every_read_has_an_identity_and_the_interval_since_the_last_read(
+    torch, reporter, published, read_log
+):
+    torch.entries = [_entry(1)]
+    reporter.report()
+    reporter.clock.t += 60
+    reporter.report()
+    torch.pg_config = {}
+    torch.entries = []
+    reporter.clock.t += 60
+    reporter.report()
+
+    assert [(r.read_id, r.start_ns, r.end_ns) for r in read_log] == [
+        (1, None, 5_000_000_000),
+        (2, 5_000_000_000, 65_000_000_000),
+        (3, 65_000_000_000, 125_000_000_000),
+    ]
+    assert all(r.dump_bytes > 0 and r.cpu_ns >= 0 for r in read_log)
+
+
+def test_statuses_without_a_read_carry_no_read(monkeypatch, reporter, read_log):
+    monkeypatch.delitem(sys.modules, "torch", raising=False)
+    reporter.report()
+    assert read_log == [None]
 
 
 def test_untimed_group_has_no_durations(torch, reporter, published):
@@ -376,24 +518,53 @@ def test_no_torch_is_unavailable(monkeypatch, reporter, published):
     [
         (_FakeTorch(initialized=False), "2000"),
         (_FakeTorch(has_dump=False), "2000"),
-        (_FakeTorch(), None),
         (_FakeTorch(), "0"),
         (_FakeTorch(), "-1"),
+        (_FakeTorch(), "lots"),
     ],
-    ids=["not_initialized", "no_dump_function", "env_unset", "env_zero", "env_neg"],
+    ids=["not_initialized", "no_dump_function", "env_zero", "env_neg", "env_junk"],
 )
 def test_unavailable(monkeypatch, reporter, published, fake, env):
     monkeypatch.setitem(sys.modules, "torch", fake)
     monkeypatch.delenv("TORCH_FR_BUFFER_SIZE", raising=False)
-    if env is None:
-        monkeypatch.delenv("TORCH_NCCL_TRACE_BUFFER_SIZE", raising=False)
-    else:
-        monkeypatch.setenv("TORCH_NCCL_TRACE_BUFFER_SIZE", env)
+    monkeypatch.setenv("TORCH_NCCL_TRACE_BUFFER_SIZE", env)
 
     reporter.report()
 
     assert published == [("unavailable", [])]
     assert fake.dump_calls == 0
+
+
+def test_unset_buffer_reads_with_the_torch_default(
+    monkeypatch, torch, reporter, published
+):
+    monkeypatch.delenv("TORCH_NCCL_TRACE_BUFFER_SIZE")
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert published[-1][0] == "ok"
+
+
+@pytest.mark.parametrize(
+    "fr, trace, expected",
+    [
+        ("20000", "2000", ("TORCH_FR_BUFFER_SIZE", 20000)),
+        (None, "100", ("TORCH_NCCL_TRACE_BUFFER_SIZE", 100)),
+        ("", "100", ("TORCH_NCCL_TRACE_BUFFER_SIZE", 100)),
+        ("0", "2000", ("TORCH_FR_BUFFER_SIZE", 0)),
+        ("x", None, ("TORCH_FR_BUFFER_SIZE", 0)),
+        (None, None, (None, 2000)),
+    ],
+)
+def test_buffer_setting_follows_torch_precedence(monkeypatch, fr, trace, expected):
+    for name, value in (
+        ("TORCH_FR_BUFFER_SIZE", fr),
+        ("TORCH_NCCL_TRACE_BUFFER_SIZE", trace),
+    ):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    assert fr_buffer_setting() == expected
 
 
 def test_fr_buffer_size_env_alias(monkeypatch, torch, reporter, published):
@@ -437,18 +608,353 @@ def test_torchtitan_fr_size_wins_over_the_bootstrap_default(
     assert torch.dump_calls == 0
 
 
-def test_slow_read_publishes_then_self_disables(
-    monkeypatch, torch, reporter, published, lost
-):
+def _cpu_costs(monkeypatch, *costs_ms):
     from wandb.sdk.provenance import comm_stats
 
-    clock = iter((0, 300_000_000))
-    monkeypatch.setattr(comm_stats.time, "thread_time_ns", lambda: next(clock))
+    ticks = iter(t for ms in costs_ms for t in (0, ms * 1_000_000))
+    monkeypatch.setattr(comm_stats.time, "thread_time_ns", lambda: next(ticks))
+
+
+def test_an_over_budget_read_backs_off_instead_of_disabling(
+    monkeypatch, torch, reporter, published, read_log
+):
+    _cpu_costs(monkeypatch, 300)
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert [status for status, _ in published] == ["ok"]
+    assert read_log[0].cpu_ns == 300_000_000
+    assert read_log[0].backoff_s == 120
+    assert not reporter._disabled
+
+
+@pytest.mark.parametrize(
+    ("cost_ms", "backoff_s"),
+    [(250, None), (251, 120), (500, 120), (501, 240), (1000, 240)],
+)
+def test_backoff_doubles_the_interval_until_the_read_fits_its_share(
+    monkeypatch, torch, reporter, read_log, cost_ms, backoff_s
+):
+    _cpu_costs(monkeypatch, cost_ms)
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert read_log[0].backoff_s == backoff_s
+    assert not reporter._disabled
+
+
+def test_a_read_over_the_capped_share_publishes_then_self_disables(
+    monkeypatch, torch, reporter, published, lost, read_log
+):
+    _cpu_costs(monkeypatch, 1001)
     torch.entries = [_entry(1)]
     reporter.report()
     assert [status for status, _ in published] == ["ok", "cpu_budget"]
-    assert lost[-1] == 300
+    assert lost[-1] == 1001
+    assert read_log[0].backoff_s is None
     assert reporter._disabled
+
+
+def test_backed_off_reader_waits_the_longer_interval(monkeypatch, torch, reporter):
+    _cpu_costs(monkeypatch, 600, 10)
+    torch.entries = [_entry(1)]
+    reporter.report()
+    reporter.clock.t += 239
+    reporter.report()
+    assert torch.dump_calls == 1
+    reporter.clock.t += 1
+    reporter.report()
+    assert torch.dump_calls == 2
+
+
+def test_cheap_reads_recover_the_nominal_interval(
+    monkeypatch, torch, reporter, read_log
+):
+    _cpu_costs(monkeypatch, 300, 100, 10)
+    torch.entries = [_entry(1)]
+    reporter.report()
+    reporter.clock.t += 120
+    torch.entries.append(_entry(2))
+    reporter.report()
+    reporter.clock.t += 60
+    reporter.report()
+    assert [r.backoff_s for r in read_log] == [120, None, None]
+    assert torch.dump_calls == 3
+
+
+def test_a_backed_off_span_that_overruns_the_ring_is_lost(
+    monkeypatch, torch, reporter, published, lost
+):
+    _cpu_costs(monkeypatch, 600, 10)
+    torch.entries = [_entry(s) for s in range(1, 11)]
+    reporter.report()
+    reporter.clock.t += 240
+    # Seqs 11-25 were overwritten while the reader waited.
+    torch.entries = [_entry(s) for s in range(26, 36)]
+    reporter.report()
+    assert lost == [0, 15]
+    assert published[-1][1][0].count == 10
+
+
+def test_backoff_uses_the_reader_thread_wait(monkeypatch, torch, published):
+    waits = []
+    r = CommStatsReporter(lambda *a: published.append(a), 60.0)
+    _cpu_costs(monkeypatch, 300)
+    torch.entries = [_entry(1)]
+    monkeypatch.setattr(r._stop, "wait", lambda t: waits.append(t) or True)
+    r._run()
+    assert waits == [120]
+
+
+_NAMES = (
+    "nccl2:_all_gather_base",
+    "nccl2:_reduce_scatter_base",
+    "nccl2:allreduce",
+    "nccl2:all_gather_into_tensor_coalesced",
+    "nccl2:reduce_scatter_tensor_coalesced",
+    "nccl2:broadcast",
+    "nccl2:barrier",
+    "nccl2:mystery_op",
+)
+
+
+def _synthetic(offset, n=20000):
+    entries = []
+    for g in range(offset, offset + n):
+        p2p = g % 97 == 0
+        name = "nccl2:send" if p2p else _NAMES[g % len(_NAMES)]
+        e = {
+            "pg_id": g % 6,
+            "collective_seq_id": 0 if p2p else g // 6 + 1,
+            "p2p_seq_id": g if p2p else 0,
+            "is_p2p": p2p,
+            "profiling_name": name,
+            "state": "scheduled" if g >= offset + n - 50 else "completed",
+            "input_sizes": [[1024 * (1 + g % 4)], [8, 16]],
+            "input_dtypes": [
+                "ComplexFloat" if name.endswith("mystery_op") else "BFloat16",
+                "Float",
+            ],
+        }
+        if g % 11:
+            e["duration_ms"] = (g % 997) * 0.01 + 0.05
+        entries.append(e)
+        if g % 50 == 0:
+            entries.append(dict(e))
+    return entries[:n]
+
+
+# Captured from the reader before the per-key and per-name caches.
+_SYNTHETIC_READS = [
+    (
+        "ok",
+        0,
+        [
+            CollectiveSummary(
+                "all_gather",
+                4851,
+                4411,
+                4.95,
+                9.920000000000002,
+                10.010000000000002,
+                21947.72,
+                27323904,
+            ),
+            CollectiveSummary(
+                "all_reduce",
+                2425,
+                2204,
+                4.9399999999999995,
+                9.920000000000002,
+                10.010000000000002,
+                10955.550000000001,
+                16140800,
+            ),
+            CollectiveSummary(
+                "barrier",
+                2426,
+                2206,
+                4.93,
+                9.89,
+                10.010000000000002,
+                10948.68,
+                16147456,
+            ),
+            CollectiveSummary(
+                "broadcast",
+                2426,
+                2206,
+                4.93,
+                9.89,
+                10.010000000000002,
+                10956.48,
+                11179008,
+            ),
+            CollectiveSummary(
+                "other",
+                2425,
+                2204,
+                4.9399999999999995,
+                9.91,
+                10.010000000000002,
+                10969.880000000001,
+                None,
+            ),
+            CollectiveSummary(
+                "reduce_scatter",
+                4851,
+                4409,
+                4.95,
+                9.91,
+                10.010000000000002,
+                21934.84,
+                17384960,
+            ),
+            CollectiveSummary(
+                "send", 203, 184, 5.06, 9.96, 10.010000000000002, 934.11, 1140224
+            ),
+        ],
+    ),
+    (
+        "ok",
+        0,
+        [
+            CollectiveSummary(
+                "all_gather",
+                989,
+                897,
+                5.05,
+                9.930000000000001,
+                10.010000000000002,
+                4524.49,
+                5566976,
+            ),
+            CollectiveSummary(
+                "all_reduce",
+                495,
+                451,
+                5.07,
+                9.930000000000001,
+                10.010000000000002,
+                2275.9,
+                3294720,
+            ),
+            CollectiveSummary("barrier", 495, 449, 5.06, 9.91, 9.99, 2263.0, 3294720),
+            CollectiveSummary(
+                "broadcast", 495, 449, 5.03, 9.9, 10.010000000000002, 2258.09, 2280960
+            ),
+            CollectiveSummary(
+                "other",
+                495,
+                451,
+                5.05,
+                9.920000000000002,
+                10.000000000000002,
+                2279.7000000000003,
+                None,
+            ),
+            CollectiveSummary(
+                "reduce_scatter",
+                990,
+                902,
+                5.01,
+                9.89,
+                10.000000000000002,
+                4522.27,
+                3548160,
+            ),
+            CollectiveSummary("send", 41, 37, 5.32, 9.9, 9.9, 189.11, 233984),
+        ],
+    ),
+    (
+        "ok",
+        48291,
+        [
+            CollectiveSummary(
+                "all_gather",
+                4852,
+                4410,
+                4.99,
+                9.9,
+                10.010000000000002,
+                22037.83,
+                27326464,
+            ),
+            CollectiveSummary(
+                "all_reduce",
+                2426,
+                2207,
+                5.0,
+                9.89,
+                10.010000000000002,
+                11030.17,
+                16147456,
+            ),
+            CollectiveSummary(
+                "barrier",
+                2425,
+                2204,
+                4.99,
+                9.920000000000002,
+                10.010000000000002,
+                11053.53,
+                16140800,
+            ),
+            CollectiveSummary(
+                "broadcast",
+                2426,
+                2206,
+                4.9799999999999995,
+                9.920000000000002,
+                10.010000000000002,
+                11045.470000000001,
+                11179008,
+            ),
+            CollectiveSummary(
+                "other",
+                2424,
+                2204,
+                5.0,
+                9.920000000000002,
+                10.010000000000002,
+                11036.07,
+                None,
+            ),
+            CollectiveSummary(
+                "reduce_scatter",
+                4852,
+                4410,
+                4.99,
+                9.91,
+                10.010000000000002,
+                22059.09,
+                17389568,
+            ),
+            CollectiveSummary(
+                "send",
+                202,
+                184,
+                5.09,
+                9.940000000000001,
+                10.000000000000002,
+                937.88,
+                1141760,
+            ),
+        ],
+    ),
+]
+
+
+def test_full_buffer_summaries_match_the_reference_reader(
+    monkeypatch, torch, reporter, published, lost
+):
+    monkeypatch.setenv("TORCH_FR_BUFFER_SIZE", "20000")
+    for offset in (0, 4000, 30000):
+        torch.entries = _synthetic(offset)
+        reporter.report()
+        reporter.clock.t += 60
+    got = [
+        (status, n, colls) for (status, colls), n in zip(published, lost, strict=True)
+    ]
+    assert got == _SYNTHETIC_READS
 
 
 def _wait_for(cond, timeout=5.0):
@@ -509,7 +1015,7 @@ def test_reads_on_background_thread_at_interval(torch, published):
     assert threading.current_thread() not in torch.dump_threads
     assert len(set(torch.dump_threads)) == 1
     assert torch.dump_calls == 1
-    assert published[0] == (
+    assert published[0][:3] == (
         "ok",
         [CollectiveSummary("all_reduce", 1, 1, 1.0, 1.0, 1.0, 1.0, 64)],
         0,
@@ -543,7 +1049,7 @@ def test_thread_failure_never_raises_into_caller(torch, published):
 
     r.maybe_start()
     r.stop()
-    assert published == [("unavailable", [], 0)]
+    assert published == [("unavailable", [], 0, None)]
 
 
 def test_is_initialized_failure_never_raises(monkeypatch, reporter, published):
@@ -595,7 +1101,7 @@ def test_exception_disables(torch, reporter, published):
 def test_publish_exception_disables(torch, published):
     calls = []
 
-    def publish(status, colls, n_lost):
+    def publish(status, colls, n_lost, read):
         calls.append(status)
         raise RuntimeError("closed")
 
@@ -656,3 +1162,34 @@ def test_nccl_dump_wins_over_the_generic_recorder(torch, reporter, published):
     reporter.report()
     assert torch.dump_calls == 1
     assert published[-1][0] == "ok"
+
+
+def test_nccl2_reads_the_recorder_its_hook_feeds(torch, reporter, published):
+    backends = []
+
+    def nccl_dump(**kwargs):
+        raise AssertionError("nccl2 never writes to the CUDA-event recorder")
+
+    def dump_fr_trace(includeCollectives, includeStackTraces, onlyActive, backend):  # noqa: N803
+        """_dump_fr_trace(includeCollectives, ..., backend: str = 'gloo') -> bytes"""
+        backends.append(backend)
+        return torch._dump(includeCollectives, includeStackTraces, onlyActive)
+
+    torch.distributed = _FakeTorch(
+        backends=(("cpu", "gloo"), ("cuda", "nccl2"))
+    ).distributed
+    torch._C._distributed_c10d._dump_nccl_trace = nccl_dump
+    torch._C._distributed_c10d._dump_fr_trace = dump_fr_trace
+    torch.entries = [_entry(1, name="nccl2:_reduce_scatter_base")]
+    reporter.report()
+    assert backends == ["nccl2"]
+    assert published[-1][0] == "ok"
+    assert [c.name for c in published[-1][1]] == ["reduce_scatter"]
+
+
+def test_nccl2_without_the_generic_dump_is_unavailable(torch, reporter, published):
+    torch.distributed = _FakeTorch(backends=(("cuda", "nccl2"),)).distributed
+    torch.entries = [_entry(1)]
+    reporter.report()
+    assert published == [("unavailable", [])]
+    assert torch.dump_calls == 0

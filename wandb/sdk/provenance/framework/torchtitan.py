@@ -114,6 +114,8 @@ class TorchTitanIntegration:
             step = None
         if name == "optim_step" and self._level1 is not None and step is not None:
             self._level1.step(engine, step)
+        if name == "forward_backward" and self._level1 is not None and step is not None:
+            self._level1.before_forward_backward(engine, step)
         token = None
         torch = sys.modules.get("torch")
         cuda = getattr(torch, "cuda", None)
@@ -194,6 +196,10 @@ class TorchTitanIntegration:
         if state is None:
             return
         token, step = state["pending"].pop(context.started_ns, (None, None))
+        if name == "forward_backward" and self._level1 is not None:
+            self._level1.after_forward_backward(
+                getattr(context.instance, "engine", context.instance)
+            )
         timing = state["timing"]
         if timing is not None:
             timing.finish(token)

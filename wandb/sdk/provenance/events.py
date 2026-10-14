@@ -37,6 +37,8 @@ class EventEmitter:
         self._lock = threading.Lock()
         self._queued_bytes = 0
         self._peak_bytes = 0
+        # Collector-owned allocations outside the queue, such as diagnostic tensors.
+        self._held_bytes = 0
         self._cpu_ns = 0
         self.dropped = 0
         self.disabled = False
@@ -46,7 +48,9 @@ class EventEmitter:
         )
         self._thread.start()
 
-    def emit(self, kind: str, payload: Mapping[str, Any]) -> None:
+    def emit(
+        self, kind: str, payload: Mapping[str, Any], wall_time_ns: int | None = None
+    ) -> None:
         if self.disabled or os.getpid() != self._pid or self._stop.is_set():
             return
         started = time.thread_time_ns()
@@ -109,20 +113,37 @@ class EventEmitter:
                 if self._queued_bytes + len(encoded) > 4 << 20:
                     self.dropped += 1
                     return
+                # Core rejects backwards monotonic time, so only wall time is shared.
                 self._queue.put_nowait(
-                    (kind, encoded, time.monotonic_ns(), time.time_ns())
+                    (kind, encoded, time.monotonic_ns(), wall_time_ns or time.time_ns())
                 )
                 if kind == "binding":
                     self._binding = encoded
                 self._queued_bytes += len(encoded)
                 self._peak_bytes = max(
-                    self._peak_bytes, self._queued_bytes + self._queue.qsize() * 128
+                    self._peak_bytes,
+                    self._queued_bytes + self._queue.qsize() * 128 + self._held_bytes,
                 )
         except Exception:
             self.dropped += 1
         finally:
             with self._lock:
                 self._cpu_ns += time.thread_time_ns() - started
+
+    def account(
+        self, cpu_ns: int = 0, held_bytes: int = 0, transient_bytes: int = 0
+    ) -> None:
+        """Charges collector work and memory that happen outside emit."""
+        with self._lock:
+            self._cpu_ns += cpu_ns
+            self._held_bytes += held_bytes
+            self._peak_bytes = max(
+                self._peak_bytes,
+                self._queued_bytes
+                + self._queue.qsize() * 128
+                + self._held_bytes
+                + transient_bytes,
+            )
 
     def _work(self) -> None:
         from wandb.proto import wandb_internal_pb2 as pb

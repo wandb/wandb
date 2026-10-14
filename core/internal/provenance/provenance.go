@@ -257,6 +257,7 @@ func (e *Emitter) Start(config StartConfig) error {
 	e.startedAt = e.chunkStarted
 	e.manifest = Manifest{
 		Header:            e.header("manifest"),
+		StartedAt:         e.startedAt.UTC(),
 		Level:             config.Level,
 		LocalRank:         config.LocalRank,
 		NodeRank:          config.NodeRank,
@@ -347,17 +348,18 @@ const (
 )
 
 var recordKinds = map[string]bool{
-	"step":              true,
-	"phase":             true,
-	"metrics":           true,
-	"lifecycle":         true,
-	"checkpoint":        true,
-	"binding":           true,
-	"communication":     true,
-	"diagnostic":        true,
-	"capability":        true,
-	"test_ground_truth": true,
-	"quality":           true,
+	"step":                   true,
+	"phase":                  true,
+	"metrics":                true,
+	"lifecycle":              true,
+	"checkpoint":             true,
+	"binding":                true,
+	"communication":          true,
+	"communication_schedule": true,
+	"diagnostic":             true,
+	"capability":             true,
+	"test_ground_truth":      true,
+	"quality":                true,
 }
 
 var capabilityStatuses = []string{
@@ -375,7 +377,7 @@ var payloadFields = func() map[string]fieldShape {
 	for shape, keys := range map[fieldShape][]string{
 		quantityField:  {"collector_cpu_ns", "peak_memory_bytes", "dropped_records", "queue_depth"},
 		pseudonymField: {"gpu_uuid_hmac", "hostname_hmac", "instance_id_hmac", "pod_name_hmac", "node_name_hmac", "scheduler_uid_hmac", "topology_value_hmac"},
-		numberField:    {"step", "duration_ms", "loss", "tokens", "cumulative_tokens", "tokens_per_second", "mfu_percent", "tflops", "flops", "finite_count", "nonfinite_count", "norm", "count", "timed_count", "lost_count", "bytes", "total_ms", "p50_ms", "p99_ms", "max_ms", "cuda_index", "rank", "local_rank", "node_rank", "attempt", "dp", "dp_shard", "dp_replicate", "tp", "pp", "cp", "ep", "world_size", "max_restarts"},
+		numberField:    {"step", "duration_ms", "loss", "tokens", "cumulative_tokens", "tokens_per_second", "mfu_percent", "tflops", "flops", "finite_count", "nonfinite_count", "norm", "count", "timed_count", "lost_count", "interval_s", "schedule_id", "effective_from_step", "count_per_step", "bytes_per_step", "group_count", "replays_per_step", "read_id", "window_start_unix_ms", "window_end_unix_ms", "bytes", "total_ms", "p50_ms", "p99_ms", "max_ms", "cuda_index", "rank", "local_rank", "node_rank", "attempt", "dp", "dp_shard", "dp_replicate", "tp", "pp", "cp", "ep", "world_size", "max_restarts"},
 		textField:      {"phase", "event", "status", "reason", "source", "collective", "collector", "scenario", "transport", "configured", "loaded", "confidence"},
 		ncclEnvField:   {"nccl_env"},
 	} {
