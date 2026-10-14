@@ -615,15 +615,23 @@ def _cpu_costs(monkeypatch, *costs_ms):
     monkeypatch.setattr(comm_stats.time, "thread_time_ns", lambda: next(ticks))
 
 
+def _primed(reporter, torch):
+    # The first read has no entry rate, so backoff starts from the second.
+    torch.entries = [_entry(1)]
+    reporter.report()
+    reporter.clock.t += 60
+
+
 def test_an_over_budget_read_backs_off_instead_of_disabling(
     monkeypatch, torch, reporter, published, read_log
 ):
-    _cpu_costs(monkeypatch, 300)
-    torch.entries = [_entry(1)]
+    _cpu_costs(monkeypatch, 10, 300)
+    _primed(reporter, torch)
     reporter.report()
-    assert [status for status, _ in published] == ["ok"]
-    assert read_log[0].cpu_ns == 300_000_000
-    assert read_log[0].backoff_s == 120
+    assert [status for status, _ in published] == ["ok", "ok"]
+    assert read_log[1].cpu_ns == 300_000_000
+    assert read_log[1].backoff_s == 120
+    assert not read_log[1].over_budget
     assert not reporter._disabled
 
 
@@ -634,10 +642,10 @@ def test_an_over_budget_read_backs_off_instead_of_disabling(
 def test_backoff_doubles_the_interval_until_the_read_fits_its_share(
     monkeypatch, torch, reporter, read_log, cost_ms, backoff_s
 ):
-    _cpu_costs(monkeypatch, cost_ms)
-    torch.entries = [_entry(1)]
+    _cpu_costs(monkeypatch, 10, cost_ms)
+    _primed(reporter, torch)
     reporter.report()
-    assert read_log[0].backoff_s == backoff_s
+    assert read_log[1].backoff_s == backoff_s
     assert not reporter._disabled
 
 
@@ -654,54 +662,68 @@ def test_a_read_over_the_capped_share_publishes_then_self_disables(
 
 
 def test_backed_off_reader_waits_the_longer_interval(monkeypatch, torch, reporter):
-    _cpu_costs(monkeypatch, 600, 10)
-    torch.entries = [_entry(1)]
+    _cpu_costs(monkeypatch, 10, 600, 10)
+    _primed(reporter, torch)
     reporter.report()
     reporter.clock.t += 239
     reporter.report()
-    assert torch.dump_calls == 1
+    assert torch.dump_calls == 2
     reporter.clock.t += 1
     reporter.report()
-    assert torch.dump_calls == 2
+    assert torch.dump_calls == 3
 
 
 def test_cheap_reads_recover_the_nominal_interval(
     monkeypatch, torch, reporter, read_log
 ):
-    _cpu_costs(monkeypatch, 300, 100, 10)
-    torch.entries = [_entry(1)]
+    _cpu_costs(monkeypatch, 10, 300, 100, 10)
+    _primed(reporter, torch)
     reporter.report()
     reporter.clock.t += 120
     torch.entries.append(_entry(2))
     reporter.report()
     reporter.clock.t += 60
     reporter.report()
-    assert [r.backoff_s for r in read_log] == [120, None, None]
-    assert torch.dump_calls == 3
+    assert [r.backoff_s for r in read_log] == [None, 120, None, None]
+    assert torch.dump_calls == 4
 
 
 def test_a_backed_off_span_that_overruns_the_ring_is_lost(
     monkeypatch, torch, reporter, published, lost
 ):
-    _cpu_costs(monkeypatch, 600, 10)
+    _cpu_costs(monkeypatch, 10, 600, 10)
     torch.entries = [_entry(s) for s in range(1, 11)]
+    reporter.report()
+    reporter.clock.t += 60
     reporter.report()
     reporter.clock.t += 240
     # Seqs 11-25 were overwritten while the reader waited.
     torch.entries = [_entry(s) for s in range(26, 36)]
     reporter.report()
-    assert lost == [0, 15]
+    assert lost == [0, 0, 15]
     assert published[-1][1][0].count == 10
 
 
 def test_backoff_uses_the_reader_thread_wait(monkeypatch, torch, published):
-    waits = []
-    r = CommStatsReporter(lambda *a: published.append(a), 60.0)
-    _cpu_costs(monkeypatch, 300)
+    waits, clock = [], _Clock()
+    r = CommStatsReporter(
+        lambda *a: published.append(a),
+        60.0,
+        clock=clock,
+        wall_clock=lambda: int(clock.t * 1e9),
+    )
+    _cpu_costs(monkeypatch, 10, 300, 10)
     torch.entries = [_entry(1)]
-    monkeypatch.setattr(r._stop, "wait", lambda t: waits.append(t) or True)
+
+    def wait(timeout):
+        waits.append(timeout)
+        clock.t += timeout
+        return len(waits) > 1
+
+    monkeypatch.setattr(r._stop, "wait", wait)
     r._run()
-    assert waits == [120]
+    assert waits == [60, 120]
+    assert torch.dump_calls == 3
 
 
 _NAMES = (
@@ -1014,7 +1036,8 @@ def test_reads_on_background_thread_at_interval(torch, published):
 
     assert threading.current_thread() not in torch.dump_threads
     assert len(set(torch.dump_threads)) == 1
-    assert torch.dump_calls == 1
+    # One read at start, then the final read on stop.
+    assert torch.dump_calls == 2
     assert published[0][:3] == (
         "ok",
         [CollectiveSummary("all_reduce", 1, 1, 1.0, 1.0, 1.0, 1.0, 64)],
@@ -1031,7 +1054,8 @@ def test_stop_ends_thread(torch, published):
 
     assert not r._thread.is_alive()
     r.maybe_start()
-    assert torch.dump_calls == 1
+    # The final read on stop is the only one after the thread's.
+    assert torch.dump_calls == 2
 
 
 def test_stop_without_start_is_noop(reporter):
@@ -1192,4 +1216,124 @@ def test_nccl2_without_the_generic_dump_is_unavailable(torch, reporter, publishe
     torch.entries = [_entry(1)]
     reporter.report()
     assert published == [("unavailable", [])]
+    assert torch.dump_calls == 0
+
+
+class _Ring:
+    """A 20000-entry recorder fed at a fixed rate on a simulated clock."""
+
+    def __init__(self, torch, clock, per_minute, size=20000):
+        self.torch, self.clock, self.per_minute, self.size = (
+            torch,
+            clock,
+            per_minute,
+            size,
+        )
+        self.start = clock.t
+
+    def fill(self):
+        produced = int((self.clock.t - self.start) * self.per_minute / 60)
+        first = max(1, produced - self.size + 1)
+        self.torch.entries = [_entry(s) for s in range(first, produced + 1)]
+
+
+def _simulated(monkeypatch, torch, cost_ms, per_minute, minutes):
+    from wandb.sdk.provenance import comm_stats
+
+    monkeypatch.setenv("TORCH_FR_BUFFER_SIZE", "20000")
+    clock, reads, lost = _Clock(), [], []
+    ring = _Ring(torch, clock, per_minute)
+    r = CommStatsReporter(
+        lambda status, colls, n, read: (reads.append(read), lost.append(n)),
+        60.0,
+        clock=clock,
+        wall_clock=lambda: int(clock.t * 1e9),
+    )
+    ticks = iter(t for _ in range(10**6) for t in (0, cost_ms * 1_000_000))
+    monkeypatch.setattr(comm_stats.time, "thread_time_ns", lambda: next(ticks))
+    end = clock.t + minutes * 60
+    while clock.t < end:
+        clock.t += 1
+        if r._last_read is None or clock.t - r._last_read >= r._wait:
+            ring.fill()
+            r.report()
+    return r, [x for x in reads if x is not None], lost
+
+
+def test_the_interval_is_capped_so_the_ring_holds_a_window(monkeypatch, torch):
+    _, reads, lost = _simulated(monkeypatch, torch, 600, 4600, 30)
+    gaps = [(b.end_ns - a.end_ns) / 1e9 for a, b in zip(reads, reads[1:], strict=False)]
+    assert max(gaps) <= 0.8 * 20000 / (4600 / 60) + 1
+    assert max(gaps) > 120
+    assert sum(lost) == 0
+    # 600 ms per 208 s is still within 250 ms per 60 s.
+    assert not any(r.over_budget for r in reads[1:])
+
+
+def test_a_ring_too_small_for_the_cpu_share_is_read_over_budget(monkeypatch, torch):
+    _, reads, lost = _simulated(monkeypatch, torch, 600, 12000, 20)
+    gaps = [(b.end_ns - a.end_ns) / 1e9 for a, b in zip(reads, reads[1:], strict=False)]
+    assert max(gaps) <= 0.8 * 20000 / (12000 / 60) + 1
+    assert all(r.over_budget for r in reads)
+    assert sum(lost) == 0
+
+
+def test_a_slow_rate_keeps_the_cpu_backoff(monkeypatch, torch):
+    _, reads, lost = _simulated(monkeypatch, torch, 600, 1000, 30)
+    assert {r.backoff_s for r in reads[1:]} == {240}
+    assert not any(r.over_budget for r in reads[1:])
+    assert sum(lost) == 0
+
+
+def test_the_first_read_has_no_rate_and_stays_nominal(
+    monkeypatch, torch, reporter, read_log
+):
+    _cpu_costs(monkeypatch, 600)
+    torch.entries = [_entry(s) for s in range(1, 100)]
+    reporter.report()
+    assert read_log[0].backoff_s is None
+    assert read_log[0].over_budget
+
+
+def test_stop_reads_the_tail_once_regardless_of_backoff(monkeypatch, torch, published):
+    r = CommStatsReporter(lambda *a: published.append(a), 60.0)
+    _cpu_costs(monkeypatch, 600, 10)
+    torch.entries = [_entry(1)]
+    r.maybe_start()
+    _wait_for(lambda: torch.dump_calls == 1)
+    torch.entries.append(_entry(2))
+    r.stop()
+    assert torch.dump_calls == 2
+    assert len(set(torch.dump_threads)) == 1
+    assert threading.current_thread() not in torch.dump_threads
+    assert published[-1][1] == [
+        CollectiveSummary("all_reduce", 1, 1, 1.0, 1.0, 1.0, 1.0, 64)
+    ]
+    r.stop()
+    assert torch.dump_calls == 2
+
+
+def test_stop_skips_the_final_read_once_the_group_is_gone(torch, published):
+    r = CommStatsReporter(lambda *a: published.append(a), 60.0)
+    torch.entries = [_entry(1)]
+    r.maybe_start()
+    _wait_for(lambda: torch.dump_calls == 1)
+    torch.distributed.is_initialized = lambda: False
+    r.stop()
+    assert torch.dump_calls == 1
+    assert [p[0] for p in published] == ["ok"]
+
+
+def test_stop_skips_the_final_read_when_self_disabled(monkeypatch, torch, published):
+    r = CommStatsReporter(lambda *a: published.append(a), 60.0)
+    _cpu_costs(monkeypatch, 1001)
+    torch.entries = [_entry(1)]
+    r.maybe_start()
+    _wait_for(lambda: not r._thread.is_alive())
+    r.stop()
+    assert torch.dump_calls == 1
+
+
+def test_stop_without_a_reader_thread_reads_nothing(torch, published):
+    CommStatsReporter(lambda *a: published.append(a), 60.0).stop()
     assert torch.dump_calls == 0

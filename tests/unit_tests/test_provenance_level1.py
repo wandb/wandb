@@ -72,11 +72,21 @@ def _collector(events, dropped=0, times=None, accounted=None):
     return collector
 
 
-def _read(read_id, start_ns=None, end_ns=None, cpu_ns=0, dump_bytes=0, backoff_s=None):
+def _read(
+    read_id,
+    start_ns=None,
+    end_ns=None,
+    cpu_ns=0,
+    dump_bytes=0,
+    backoff_s=None,
+    over_budget=False,
+):
     from wandb.sdk.provenance.comm_stats import RecorderRead
 
     end_ns = read_id * 60_000_000_000 if end_ns is None else end_ns
-    return RecorderRead(read_id, start_ns, end_ns, cpu_ns, dump_bytes, backoff_s)
+    return RecorderRead(
+        read_id, start_ns, end_ns, cpu_ns, dump_bytes, backoff_s, over_budget
+    )
 
 
 def _engine(parameters):
@@ -646,3 +656,30 @@ def test_a_failing_record_never_reaches_the_collective(graphs):
             "reason": "collector_failure",
         },
     )
+
+
+def test_a_read_held_by_the_ring_reports_its_cost_over_budget():
+    from wandb.sdk.provenance.comm_stats import CollectiveSummary
+
+    events = []
+    collector = _collector(events)
+    summary = CollectiveSummary("all_gather", 1, 1, 1.0, 1.0, 1.0, 1.0, 64)
+    collector._communication(
+        "ok",
+        [summary],
+        0,
+        _read(1, cpu_ns=600_000_000, backoff_s=80.0, over_budget=True),
+    )
+    collector._communication(
+        "ok", [summary], 0, _read(2, cpu_ns=600_000_000, over_budget=True)
+    )
+    collector._communication("ok", [summary], 0, _read(3, backoff_s=208.0))
+    assert [
+        (p["status"], p.get("reason"), p.get("interval_s"), p.get("count"))
+        for _, p in events
+        if p.get("collector") == "flight_recorder"
+    ] == [
+        ("partial", "cpu_over_budget", 80.0, 600),
+        ("partial", "cpu_over_budget", None, 600),
+        ("partial", "backed_off", 208.0, None),
+    ]

@@ -24,6 +24,8 @@ _MAX_DUMP_BYTES = 32 << 20
 # CPU allowed per nominal interval; a costlier read stretches the next one.
 _READ_CPU_NS = 250_000_000
 _BACKOFF = (1, 2, 4)
+# Share of the ring one interval may fill at the last read's entry rate.
+_BUFFER_FILL = 0.8
 _MAX_TRACKED = 1024
 # Ordered so compound names match before "reduce", "gather" and "scatter".
 _COLLECTIVE_FAMILIES = (
@@ -116,6 +118,8 @@ class RecorderRead:
     dump_bytes: int
     # Seconds until the next read when it is later than the nominal interval.
     backoff_s: float | None = None
+    # The ring's capacity held the next read too soon for the CPU share.
+    over_budget: bool = False
 
 
 class CommStatsReporter:
@@ -137,6 +141,7 @@ class CommStatsReporter:
         self._disabled = False
         self._last_read: float | None = None
         self._wait = self._interval
+        self._closing = False
         self._last_check: float | None = None
         self._reads = 0
         self._last_end_ns: int | None = None
@@ -177,19 +182,21 @@ class CommStatsReporter:
             self._emit(STATUS_UNAVAILABLE, [], 0)
 
     def stop(self) -> None:
-        """Stops the reader thread and waits briefly for an in-flight read."""
-        self._disabled = True
+        """Wakes the reader for one final read and waits at most 5 s for it."""
+        self._closing = True
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=5)
+        self._disabled = True
 
     def _run(self) -> None:
-        while not self._disabled:
+        while not self._disabled and not self._closing:
             self.report()
             if self._disabled or self._stop.wait(self._wait):
-                return
+                break
+        self.report(final=True)
 
-    def report(self) -> None:  # noqa: C901
+    def report(self, final: bool = False) -> None:  # noqa: C901
         """Reads the flight recorder once and publishes the new collectives."""
         if self._disabled:
             return
@@ -202,7 +209,9 @@ class CommStatsReporter:
 
         try:
             if dist is None or not dist.is_initialized() or buffer_size <= 0:
-                self._emit(STATUS_UNAVAILABLE, [], 0)
+                # A final read after the group is destroyed has nothing to read.
+                if not final:
+                    self._emit(STATUS_UNAVAILABLE, [], 0)
                 return
 
             if buffer_size > _MAX_BUFFER_SIZE:
@@ -210,7 +219,11 @@ class CommStatsReporter:
                 self._emit(STATUS_BUFFER_TOO_LARGE, [], buffer_size)
                 return
             now = self._clock()
-            if self._last_read is not None and now - self._last_read < self._wait:
+            if (
+                not final
+                and self._last_read is not None
+                and now - self._last_read < self._wait
+            ):
                 return
             self._last_read = now
 
@@ -244,6 +257,7 @@ class CommStatsReporter:
             tracks: dict[
                 tuple[Any, bool], tuple[set[int], set[int], int, frozenset[int]]
             ] = {}
+            fresh = 0
             dump = pickle.loads(raw)
             entries = dump.get("entries") or []
             if len(entries) > _MAX_BUFFER_SIZE:
@@ -263,6 +277,7 @@ class CommStatsReporter:
                     track = tracks[key] = (set(), set(), *prior)
                 seqs, done, watermark, pending = track
                 seqs.add(seq)
+                fresh += seq > watermark
                 # Coalesced ops share a seq, so a seq is counted once.
                 if e.get("state") != "completed" or seq in done:
                     continue
@@ -339,7 +354,18 @@ class CommStatsReporter:
             )
             cpu_ns = time.thread_time_ns() - started
             backoff = next((m for m in _BACKOFF if cpu_ns <= _READ_CPU_NS * m), None)
-            self._wait = self._interval * (backoff or 1)
+            # Entries per second since the last read, lost included; unknown at first.
+            window_s = (end_ns - (self._last_end_ns or end_ns)) / 1e9
+            rate = (fresh + n_lost) / window_s if window_s > 0 else None
+            capacity = (
+                math.inf
+                if rate == 0
+                else self._interval
+                if rate is None
+                else max(self._interval, math.floor(_BUFFER_FILL * buffer_size / rate))
+            )
+            wanted = self._interval * (backoff or 1)
+            self._wait = min(wanted, capacity)
             self._reads += 1
             read = RecorderRead(
                 self._reads,
@@ -347,7 +373,8 @@ class CommStatsReporter:
                 end_ns,
                 cpu_ns,
                 len(raw),
-                self._wait if backoff and backoff > 1 else None,
+                self._wait if self._wait > self._interval else None,
+                cpu_ns * self._interval > _READ_CPU_NS * self._wait,
             )
             self._last_end_ns = end_ns
             self._emit(status, collectives, n_lost, read)

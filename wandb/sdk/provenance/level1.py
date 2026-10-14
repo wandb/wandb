@@ -135,14 +135,25 @@ class Level1Collectors:
         if read.start_ns is not None:
             window["window_start_unix_ms"] = read.start_ns // 1_000_000
         # Loss belongs to the read, so only the read's capability record carries it.
-        if self._recorder is not None or read.backoff_s is not None or self._replaying:
+        if (
+            self._recorder is not None
+            or read.backoff_s is not None
+            or read.over_budget
+            or self._replaying
+        ):
             payload = {
                 "collector": "flight_recorder",
                 "status": "partial",
                 "lost_count": lost,
                 **window,
             }
-            if read.backoff_s is not None:
+            if read.over_budget:
+                # The count is the read's CPU milliseconds.
+                payload["reason"] = "cpu_over_budget"
+                payload["count"] = read.cpu_ns // 1_000_000
+                if read.backoff_s is not None:
+                    payload["interval_s"] = read.backoff_s
+            elif read.backoff_s is not None:
                 payload["reason"] = "backed_off"
                 payload["interval_s"] = read.backoff_s
             elif self._replaying:

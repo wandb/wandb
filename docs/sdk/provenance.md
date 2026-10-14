@@ -89,9 +89,24 @@ Completed entries are counted once per sequence number, per process group and se
 
 Every record from one read shares `read_id` (1, 2, ... per writer), `window_end_unix_ms` (the read's wall time, also the record time) and `window_start_unix_ms` (the previous read's end; absent on the first read). Each read emits one `flight_recorder` capability record, once a state is known, that carries `lost_count`: sequence numbers that left the ring before this read saw them, from ring wrap, from pending entries that never showed their completion, or past the 1024 pending entries tracked per group. Each family with new entries gets one `communication` record with `count`, `timed_count`, and `p50_ms`, `p99_ms`, `max_ms` and `total_ms` when any entry was timed. `bytes` (input sizes times dtype width) is present whenever every entry in the family has known sizes and dtypes, timed or not.
 
-Each read dumps and parses the whole ring, so its cost follows how full the buffer is, not how long since the last read (an eager FSDP job fills 20000 entries in about 5 minutes). The CPU guard is 250 ms of reader-thread CPU per 60 s. A read that costs more is still published, and the next read waits 120 s if the read cost at most 500 ms, or 240 s if at most 1 s; a cheaper read returns to 60 s. So each read is followed by at least 60 s of wall time per 250 ms it cost, which holds the reader to about 0.42% of one core. A read over 1 s stops the reader, so it is the only read that can exceed 1 s. Entries that leave the ring during a longer wait are counted in the next read's `lost_count` as ring wrap.
+Each read dumps and parses the whole ring, so its cost follows how full the buffer is, not how long since the last read (an eager FSDP job fills 20000 entries in about 5 minutes). The CPU guard is 250 ms of reader-thread CPU per 60 s, and the ring bound keeps one interval's entries at or below 80% of the buffer.
 
-Under CUDA graph replay (the TorchTitan default) collectives replayed from a graph never reach c10d, and the recorder hook skips them during capture, so the recorder only sees eager steps. Once a graph is captured, every read's capability is `partial/cuda_graph_replay` (after `backed_off`, before the recorder state), and its `communication` records cover eager collectives only.
+- **CPU guard.** A read that costs more than 250 ms is still published. The next read then waits 120 s if the read cost at most 500 ms, or 240 s if at most 1 s; a cheaper read returns to 60 s.
+- **Ring bound.** The wait is also capped at 80% of the buffer size divided by the entry rate, never below 60 s. The rate is the new entries per second since the previous read, including lost ones.
+  - The first read has no rate, so it waits 60 s.
+  - A read that found no new entries is not capped.
+  - At 4600 entries/min and a 20000-entry buffer, the cap is 208 s.
+- **Which bound wins.** When the two disagree, the ring bound wins, so no data is lost, and the read is reported as `cpu_over_budget`.
+- **CPU cost.**
+  - While no read is `cpu_over_budget`, each read is followed by at least 60 s of wall time per 250 ms it cost, which holds the reader to about 0.42% of one core.
+  - In the worst case, a read of up to 1 s every 60 s, it is about 1.7% of one core.
+  - A read over 1 s stops the reader, so it is the only read that can exceed 1 s.
+- **Loss.** Entries that still leave the ring are counted in the next read's `lost_count` as ring wrap.
+- **Final read.** When the collector closes (`Trainer.close` or the run's finish), the reader thread makes one final read, whatever the backoff, so the tail since the last read is not lost.
+  - It is skipped if the reader self-disabled, or if the default process group is no longer initialized (for example, the user destroyed it first). TorchTitan's `main` destroys the group only after `Trainer.close`.
+  - Close waits at most 5 s for an in-flight read plus the final read, then proceeds; at a full A100 buffer, a read costs about 0.5 s.
+
+Under CUDA graph replay (the TorchTitan default) collectives replayed from a graph never reach c10d, and the recorder hook skips them during capture, so the recorder only sees eager steps. Once a graph is captured, every read's capability is `partial/cuda_graph_replay` (after `cpu_over_budget` and `backed_off`, before the recorder state), and its `communication` records cover eager collectives only.
 
 ## Collective schedule under CUDA graphs (Level 1, TorchTitan)
 
@@ -124,7 +139,8 @@ Each collector reports `available`, `partial`, `unavailable`, `permission_denied
 | `flight_recorder: partial/recorder_detached`, `recorder_empty`, `no_completed_collectives` | The dump had no entries and no registered process group (the backend feeds a recorder this read cannot see), had registered groups but no entries, or had entries none of which ever completed. |
 | `flight_recorder: partial/no_recognized_collectives`, `no_timing` | Every new completed entry was `other` (`count` holds how many), or no new entry had a duration. |
 | `flight_recorder: partial/cuda_graph_replay` | A CUDA graph was captured, so replayed collectives bypass the recorder; its records cover eager steps only, and `communication_schedule` carries per-step counts and bytes. |
-| `flight_recorder: partial/backed_off` | The read cost more than 250 ms of thread CPU, so the next read is later than 60 s; `interval_s` holds the wait (120 or 240). The read's collectives are still emitted. It returns to the recorder state once a read costs 250 ms or less. |
+| `flight_recorder: partial/backed_off` | The read cost more than 250 ms of thread CPU, so the next read is later than 60 s. `interval_s` holds the wait: 120 or 240, or less when the ring bound caps it. The read's collectives are still emitted. It returns to the recorder state once a read costs 250 ms or less. |
+| `flight_recorder: partial/cpu_over_budget` | The ring bound held the next read sooner than 250 ms per 60 s allows, so the reader keeps the data and exceeds the CPU share. `count` is the read's CPU milliseconds, and `interval_s` is the wait when it is longer than 60 s. |
 | `flight_recorder: partial/buffer_too_large`, `self_disabled/cpu_budget` | The buffer is over 20000 entries (the size is in `count`) and is never read, or one read used more than 1 s of thread CPU (the milliseconds are in `count`). Both stop the reader. |
 | `flight_recorder: unavailable/recorder_unavailable` | No initialized default process group, a buffer size of 0 or a non-integer, no dump function for the backend, a dump over 32 MiB or 20000 entries, more than 1024 tracked process groups (point-to-point counted separately), or a read that raised. |
 | `gradient_health: available`, records `partial/tensor_sample` | Every 100 steps, fused on-device L2 norms over a fixed stride of at most 64 local gradient tensors, copied back without a host sync and read on a later step. `finite_count`, `nonfinite_count` and `count` are tensors; `norm` covers the sampled tensors. |
