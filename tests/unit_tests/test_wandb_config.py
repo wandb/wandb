@@ -3,6 +3,7 @@
 import pytest
 import yaml
 from wandb import sdk as wandb_sdk
+from wandb.sdk.lib import config_util
 
 
 def get_callback(d):
@@ -113,6 +114,24 @@ def test_load_empty_config_default(capsys):
     err_log = capsys.readouterr().err
     warn_msg = "wandb: WARNING Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
     assert warn_msg in err_log
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        "a: [1, 2\n",
+        "a: b: c\n",
+        'a: "unclosed\n',
+        "a:\n\t- 1\n",
+    ],
+    ids=["parser", "mapping", "quote", "tab"],
+)
+def test_load_invalid_yaml_config_default(monkeypatch, tmp_path, contents):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config-defaults.yaml").write_text(contents)
+
+    with pytest.raises(config_util.ConfigError, match="Invalid YAML"):
+        wandb_sdk.Config()
 
 
 def test_config_getattr_default(config):
