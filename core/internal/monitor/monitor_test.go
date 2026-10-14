@@ -2,6 +2,8 @@ package monitor_test
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -200,6 +202,7 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			false,
 		},
 		{"GrpcUnavailable", status.Error(codes.Unavailable, "connection error"), false},
+		{"StreamEnded", fmt.Errorf("stream ended: %w", io.EOF), false},
 		{
 			"ConnRefused",
 			errors.New(

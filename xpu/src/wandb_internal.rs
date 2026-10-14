@@ -3190,21 +3190,29 @@ impl ServerFeature {
         }
     }
 }
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct GetStatsRequest {
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubscribeRequest {
+    /// Seconds between the samples delivered to this subscriber, 0.1 or more.
+    ///
+    /// The service samples the hardware once for all of its subscribers and may
+    /// sample more often than this to serve a subscriber with a shorter interval.
+    /// Metrics that describe the time since the previous sample, such as GPM
+    /// utilization, are averaged over this interval.
+    #[prost(double, tag = "1")]
+    pub interval_seconds: f64,
     /// Capture the system metrics for the process with this PID, in addition to
     /// system-wide metrics.
-    #[prost(int32, tag = "1")]
+    #[prost(int32, tag = "2")]
     pub pid: i32,
     /// GPU device IDs to capture metrics for.
     ///
     /// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
     /// If not set, metrics for all GPUs will be captured.
-    #[prost(int32, repeated, tag = "2")]
+    #[prost(int32, repeated, tag = "3")]
     pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetStatsResponse {
+pub struct SubscribeResponse {
     /// System metrics.
     #[prost(message, optional, tag = "1")]
     pub record: ::core::option::Option<Record>,
@@ -3315,12 +3323,13 @@ pub mod system_monitor_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// GetStats samples system metrics.
-        pub async fn get_stats(
+        /// Subscribe streams system metrics sampled at the subscriber's interval
+        /// until the client cancels the stream.
+        pub async fn subscribe(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetStatsRequest>,
+            request: impl tonic::IntoRequest<super::SubscribeRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetStatsResponse>,
+            tonic::Response<tonic::codec::Streaming<super::SubscribeResponse>>,
             tonic::Status,
         > {
             self.inner
@@ -3333,14 +3342,14 @@ pub mod system_monitor_service_client {
                 })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/wandb_internal.SystemMonitorService/GetStats",
+                "/wandb_internal.SystemMonitorService/Subscribe",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("wandb_internal.SystemMonitorService", "GetStats"),
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "Subscribe"),
                 );
-            self.inner.unary(req, path, codec).await
+            self.inner.server_streaming(req, path, codec).await
         }
         /// GetMetadata returns static metadata about the system.
         pub async fn get_metadata(
@@ -3411,14 +3420,18 @@ pub mod system_monitor_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with SystemMonitorServiceServer.
     #[async_trait]
     pub trait SystemMonitorService: std::marker::Send + std::marker::Sync + 'static {
-        /// GetStats samples system metrics.
-        async fn get_stats(
+        /// Server streaming response type for the Subscribe method.
+        type SubscribeStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::SubscribeResponse, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
+        /// Subscribe streams system metrics sampled at the subscriber's interval
+        /// until the client cancels the stream.
+        async fn subscribe(
             &self,
-            request: tonic::Request<super::GetStatsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetStatsResponse>,
-            tonic::Status,
-        >;
+            request: tonic::Request<super::SubscribeRequest>,
+        ) -> std::result::Result<tonic::Response<Self::SubscribeStream>, tonic::Status>;
         /// GetMetadata returns static metadata about the system.
         async fn get_metadata(
             &self,
@@ -3516,25 +3529,26 @@ pub mod system_monitor_service_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
-                "/wandb_internal.SystemMonitorService/GetStats" => {
+                "/wandb_internal.SystemMonitorService/Subscribe" => {
                     #[allow(non_camel_case_types)]
-                    struct GetStatsSvc<T: SystemMonitorService>(pub Arc<T>);
+                    struct SubscribeSvc<T: SystemMonitorService>(pub Arc<T>);
                     impl<
                         T: SystemMonitorService,
-                    > tonic::server::UnaryService<super::GetStatsRequest>
-                    for GetStatsSvc<T> {
-                        type Response = super::GetStatsResponse;
+                    > tonic::server::ServerStreamingService<super::SubscribeRequest>
+                    for SubscribeSvc<T> {
+                        type Response = super::SubscribeResponse;
+                        type ResponseStream = T::SubscribeStream;
                         type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
+                            tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetStatsRequest>,
+                            request: tonic::Request<super::SubscribeRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitorService>::get_stats(&inner, request)
+                                <T as SystemMonitorService>::subscribe(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -3546,7 +3560,7 @@ pub mod system_monitor_service_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let method = GetStatsSvc(inner);
+                        let method = SubscribeSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -3557,7 +3571,7 @@ pub mod system_monitor_service_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.unary(method, req).await;
+                        let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

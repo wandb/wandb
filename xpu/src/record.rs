@@ -23,8 +23,14 @@ const PROCESS_METRICS: &[&str] = &[
 
 /// The stats items for a client monitoring the processes in `pids`.
 ///
-/// An empty `gpu_device_ids` selects every GPU.
-pub fn stats_items(sample: &Sample, pids: &[u32], gpu_device_ids: &[i32]) -> Vec<StatsItem> {
+/// `averages` are the sample's averaged readings as this client should see
+/// them. An empty `gpu_device_ids` selects every GPU.
+pub fn stats_items(
+    sample: &Sample,
+    averages: &[(String, f64)],
+    pids: &[u32],
+    gpu_device_ids: &[i32],
+) -> Vec<StatsItem> {
     let gpus_in_use: HashSet<u32> = sample
         .gpu_pids
         .iter()
@@ -33,22 +39,16 @@ pub fn stats_items(sample: &Sample, pids: &[u32], gpu_device_ids: &[i32]) -> Vec
         .collect();
 
     let mut items = Vec::new();
-    for (key, value) in &sample.metrics {
-        if key.starts_with('_') {
-            continue;
-        }
+    let mut push = |key: &str, value_json: String| {
         let gpu = gpu_key(key);
         if let Some((device, _)) = gpu
             && !gpu_device_ids.is_empty()
             && !gpu_device_ids.contains(&(device as i32))
         {
-            continue;
+            return;
         }
-        let Ok(value_json) = serde_json::to_string(value) else {
-            continue;
-        };
         items.push(StatsItem {
-            key: key.clone(),
+            key: key.to_string(),
             value_json: value_json.clone(),
         });
         if let Some((device, name)) = gpu
@@ -59,6 +59,20 @@ pub fn stats_items(sample: &Sample, pids: &[u32], gpu_device_ids: &[i32]) -> Vec
                 key: format!("gpu.process.{device}.{name}"),
                 value_json,
             });
+        }
+    };
+
+    for (key, value) in &sample.metrics {
+        if key.starts_with('_') {
+            continue;
+        }
+        if let Ok(value_json) = serde_json::to_string(value) {
+            push(key, value_json);
+        }
+    }
+    for (key, value) in averages {
+        if let Ok(value_json) = serde_json::to_string(value) {
+            push(key, value_json);
         }
     }
     items
@@ -135,29 +149,36 @@ mod tests {
                 ("gpu.1.temp".to_string(), MetricValue::Float(61.0)),
                 ("tpu.0.dutyCycle".to_string(), MetricValue::Float(0.5)),
             ],
+            averages: vec![
+                ("gpu.0.smActive".to_string(), 50.0),
+                ("gpu.1.smActive".to_string(), 51.0),
+            ],
             gpu_pids: [(0, vec![42]), (1, vec![42])].into(),
         };
 
-        let items = stats_items(&sample, &[7, 42], &[0]);
+        let items = stats_items(&sample, &sample.averages, &[7, 42], &[0]);
         assert_eq!(
             keys(&items),
             [
                 "gpu.0.temp",
                 "gpu.process.0.temp",
                 "gpu.0.smClock",
-                "tpu.0.dutyCycle"
+                "tpu.0.dutyCycle",
+                "gpu.0.smActive",
             ]
         );
         assert_eq!(items[1].value_json, "60.0");
 
-        let items = stats_items(&sample, &[], &[]);
+        let items = stats_items(&sample, &sample.averages, &[], &[]);
         assert_eq!(
             keys(&items),
             [
                 "gpu.0.temp",
                 "gpu.0.smClock",
                 "gpu.1.temp",
-                "tpu.0.dutyCycle"
+                "tpu.0.dutyCycle",
+                "gpu.0.smActive",
+                "gpu.1.smActive",
             ]
         );
     }
