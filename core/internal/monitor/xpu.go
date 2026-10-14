@@ -171,7 +171,9 @@ func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	}
 
 	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{
-		DiskPaths: a.request.GetDiskPaths(),
+		DiskPaths:              a.request.GetDiskPaths(),
+		DcgmExporter:           a.request.GetDcgmExporter(),
+		OpenMetricsHttpHeaders: a.request.GetOpenMetricsHttpHeaders(),
 	})
 	if err != nil {
 		return nil

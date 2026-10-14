@@ -247,8 +247,8 @@ impl Subscriptions {
             }
 
             let pids = match scoped {
-                Some(readings) => readings.pids.as_slice(),
-                None => std::slice::from_ref(&sub.scope.pid),
+                Some(readings) if !readings.pids.is_empty() => readings.pids.as_slice(),
+                _ => std::slice::from_ref(&sub.scope.pid),
             };
             let items = record::stats_items(sample, &values, pids, &sub.gpu_device_ids);
             if items.is_empty() {

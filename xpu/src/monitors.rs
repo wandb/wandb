@@ -72,6 +72,10 @@ impl Collectors {
             }
         }
 
+        if let Some(collector) = crate::scrape::Scraper::new() {
+            collectors.push(Arc::new(collector));
+        }
+
         Self { collectors }
     }
 

@@ -8,11 +8,13 @@
 //! - AMD GPUs (Linux only)
 //! - Google TPUs via libtpu (Linux only)
 //! - Host CPU, memory, disk and network via sysinfo, plus cgroup v2 limits on Linux
+//! - OpenMetrics and DCGM exporter endpoints over HTTP
 
 mod host;
 mod metrics;
 mod monitors;
 mod record;
+mod scrape;
 mod subscriptions;
 #[allow(dead_code)]
 mod wandb_internal;
@@ -402,6 +404,11 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
+
+    // The TLS provider for HTTPS scrapes; ring keeps aws-lc out of the build.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
 
     // Initialize logging — write to a persistent file matching wandb-core's pattern:
     //   {cache_dir}/wandb/logs/xpu-debug-{timestamp}.log
