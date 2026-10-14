@@ -3254,6 +3254,10 @@ pub struct SubscribeRequest {
     /// gpu.<index>.<metric>.
     #[prost(string, tag = "13")]
     pub dcgm_exporter: ::prost::alloc::string::String,
+    /// Path to the configuration file for neuron-monitor, which reports AWS
+    /// Trainium metrics. A default configuration is written when empty.
+    #[prost(string, tag = "14")]
+    pub neuron_monitor_config_path: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OpenMetricsFilter {
