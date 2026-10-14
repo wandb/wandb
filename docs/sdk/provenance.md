@@ -53,9 +53,11 @@ All paths are under the run's files directory and upload through the normal run-
 | Path | Writer | Refresh |
 | --- | --- | --- |
 | `wandb-telemetry/v2/primary.json` | rank 0 | Points at the current attempt's manifest and rollup. A write is skipped when the file already names a higher attempt, or the same attempt from another writer with a later `started_at`. |
-| `wandb-telemetry/v2/manifest/<writer_id>.json` | every writer | 60 s and at drain. Level, ranks, scheduler, framework revision, parallel coordinates, capabilities, quality, platform snapshot (Level 1 adds `transport` evidence), binding, device, `peak_flops`, `build`, `exit` (`code` and `reason`: `finish` or `terminated`), `finalized`. |
+| `wandb-telemetry/v2/manifest/<writer_id>.json` | every writer | 60 s and at drain. Level, ranks, scheduler, framework revision, parallel coordinates, capabilities, quality, platform snapshot (Level 1 adds `transport` evidence), binding, device, `peak_flops`, `build`, `exit` (`code` and `reason`: `finish`; `attempt_failed` when the attempt's `init_process_group` failed; `terminated` on a signal to core; `parent_exited` when the training process died, for example a killed worker), `finalized`. |
 | `wandb-telemetry/v2/rollup/<writer_id>.json` | every writer | 60 s and at drain. |
 | `wandb-telemetry/v2/chunks/<slot>/<writer_id>-<seq>.jsonl.gz` | every writer | Sealed every 300 s, at 4 MiB raw, or at drain. `<slot>` is the UTC 20-minute bucket. |
+
+Infrastructure records key bound-GPU samples as `gpu.<gpu_uuid_hmac>.<metric>`, never with the W&B `/l:<label>` suffix. Checkpoint records are written only for saves and loads that ran (TorchTitan returns `False` for a no-op). `primary.json` moves to a newer attempt as soon as that attempt's rank 0 writer writes its first manifest; an attempt whose rank 0 never starts a writer leaves the pointer at the last attempt that had one.
 
 `<writer_id>` is the core shared-mode client ID returned by the start handshake; `rank<N>` is only a label. Documents are replaced atomically on the same filesystem. Do not add `wandb-telemetry/v2/**` to `ignore_globs`.
 

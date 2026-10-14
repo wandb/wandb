@@ -138,22 +138,28 @@ def test_checkpoint_records_only_executed_saves_at_the_completed_step(
                 raise OSError("disk full")
             return self.num_completed_steps % 2 == 0
 
+        def load_checkpoint(self):
+            return self.num_completed_steps == 4
+
     events, registry, _ = _observed(
         tmp_path, monkeypatch, "torchtitan.training_engine", TrainingEngine
     )
     engine = TrainingEngine()
+    engine.load_checkpoint()
     for _ in range(4):
         engine.optim_step()
         engine.save_checkpoint()
+    engine.load_checkpoint()
     engine.fail = True
     with pytest.raises(OSError):
         engine.save_checkpoint()
     registry.detach()
     checkpoints = [payload for kind, payload in events if kind == "checkpoint"]
-    assert [(p["step"], p.get("status")) for p in checkpoints] == [
-        (2, None),
-        (4, None),
-        (4, "partial"),
+    assert [(p["event"], p["step"], p.get("status")) for p in checkpoints] == [
+        ("save_checkpoint", 2, None),
+        ("save_checkpoint", 4, None),
+        ("load_checkpoint", 5, None),
+        ("save_checkpoint", 4, "partial"),
     ]
 
 

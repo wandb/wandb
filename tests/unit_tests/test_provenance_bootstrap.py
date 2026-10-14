@@ -117,7 +117,7 @@ def test_failed_process_group_init_still_records_the_attempt(tmp_path):
     manifest = json.loads(manifest_path.read_text())
     assert (manifest["attempt"], manifest["exit"]) == (
         1,
-        {"code": 1, "reason": "finish"},
+        {"code": 1, "reason": "attempt_failed"},
     )
     records = [
         json.loads(line)

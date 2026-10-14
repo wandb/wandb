@@ -227,8 +227,8 @@ class TorchTitanIntegration:
         except Exception:
             pass
         kind = _RECORD_KINDS.get(name)
-        # TorchTitan calls save every step; False means nothing was written.
-        unsaved = name == "save_checkpoint" and not context.result
+        # TorchTitan calls save every step and load at start; False means nothing ran.
+        unsaved = name in ("save_checkpoint", "load_checkpoint") and not context.result
         if kind is not None:
             if context.error is not None or not unsaved:
                 self.emit.emit(kind, payload)

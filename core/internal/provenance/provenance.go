@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/provenance/platform"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/version"
@@ -93,6 +95,7 @@ type Emitter struct {
 	pythonCPU          int64
 	pythonDrops        int64
 	exit               *Exit
+	lifecycleReasons   map[string]bool
 	transport          *platform.TransportEvidence
 }
 
@@ -174,6 +177,9 @@ func (e *Emitter) SetExit(exitCode int32, reason string) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.exit == nil && e.lifecycleReasons["attempt_failed"] {
+		reason = "attempt_failed"
+	}
 	if e.exit == nil {
 		e.exit = &Exit{Code: exitCode, Reason: reason}
 	}
@@ -190,8 +196,13 @@ func Terminate(timeout time.Duration, exitCode int32) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var wg sync.WaitGroup
+	// Core passes 128+signal on a signal and 1 when the parent process exited.
+	reason := "terminated"
+	if exitCode == 1 {
+		reason = "parent_exited"
+	}
 	for _, e := range emitters {
-		e.SetExit(exitCode, "terminated")
+		e.SetExit(exitCode, reason)
 		wg.Go(func() { e.terminate(ctx, exitCode) })
 	}
 	wg.Wait()
@@ -240,6 +251,7 @@ func (e *Emitter) Start(config StartConfig) error {
 		)
 	}
 	e.gpuIDs = map[string]string{}
+	e.lifecycleReasons = map[string]bool{}
 	e.gpuDevices = map[string]*Device{}
 	e.chunkStarted = e.now()
 	e.startedAt = e.chunkStarted
@@ -561,6 +573,12 @@ func (e *Emitter) observe(record Record, payload map[string]json.RawMessage) {
 				e.manifest.Platform.Transport = *e.transport
 			}
 		}
+	case "lifecycle":
+		var lifecycle struct {
+			Reason string `json:"reason"`
+		}
+		_ = json.Unmarshal(record.PayloadJSON, &lifecycle)
+		e.lifecycleReasons[lifecycle.Reason] = true
 	case "quality":
 		var metrics struct {
 			CPU   int64 `json:"collector_cpu_ns"`
@@ -611,8 +629,9 @@ func (e *Emitter) OnSample(stats *spb.StatsRecord, sampleErr error) {
 	if sampleErr != nil {
 		e.quality.Gaps++
 	}
+	// The monitor relabels and filters stats in place after this call.
 	if stats != nil {
-		e.latest = stats
+		e.latest = proto.Clone(stats).(*spb.StatsRecord)
 	}
 	e.mu.Unlock()
 	e.flush()
