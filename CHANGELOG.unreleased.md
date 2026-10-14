@@ -42,7 +42,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 - `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12900)
-- Run metadata now records the CPU model (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- Run metadata now records the CPU model (@dmitryduev in https://github.com/wandb/wandb/pull/13157)
 
 ### Changed
 
