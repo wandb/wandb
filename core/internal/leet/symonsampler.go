@@ -18,6 +18,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -101,8 +102,11 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		context.Background(),
 		monitor.NewXPUResourceManager(false),
 		logger,
-		0,
-		nil,
+		&spb.SubscribeRequest{
+			IntervalSeconds: interval.Seconds(),
+			SubscriberId:    string(sharedmode.RandomClientID()),
+			DiskPaths:       defaultSymonDiskPaths(),
+		},
 	)
 
 	return sampler
@@ -119,7 +123,7 @@ func (s *SymonSampler) Interval() time.Duration {
 // The first call starts the sidecar, whose metrics arrive from the next
 // call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
-	s.xpu.Subscribe(s.interval, func(_ context.Context, record *spb.StatsRecord) {
+	s.xpu.Subscribe(func(_ context.Context, record *spb.StatsRecord) {
 		s.accelerators.Store(record)
 	})
 

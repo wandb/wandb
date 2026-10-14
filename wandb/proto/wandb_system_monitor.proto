@@ -39,6 +39,26 @@ message SubscribeRequest {
   // Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
   // If not set, metrics for all GPUs will be captured.
   repeated int32 gpu_device_ids = 3;
+
+  // Identifies the subscriber across streams, such as the run's writer ID.
+  //
+  // Metrics that count since the subscription started keep counting when a
+  // stream with the same ID reopens, as after a pause or a reconnect.
+  string subscriber_id = 4;
+
+  // Whether process metrics cover the descendants of the process as well.
+  bool track_process_tree = 5;
+
+  // Processes whose CPU and memory use, with their children's, is reported
+  // as wandb.cpu and wandb.memory.rssMB.
+  repeated int32 wandb_pids = 7;
+
+  // Paths whose file systems' usage and device I/O are reported.
+  repeated string disk_paths = 8;
+
+  // Whether to ignore the cgroup limits that apply to the process when
+  // reporting memory and CPU usage.
+  bool disable_cgroup = 9;
 }
 
 message SubscribeResponse {
@@ -46,7 +66,10 @@ message SubscribeResponse {
   Record record = 1;
 }
 
-message GetMetadataRequest {}
+message GetMetadataRequest {
+  // Paths whose file systems' size and usage are reported.
+  repeated string disk_paths = 1;
+}
 
 message GetMetadataResponse {
   // Static metadata about the system.
