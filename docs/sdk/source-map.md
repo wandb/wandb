@@ -49,7 +49,7 @@ This page maps concepts to code. It is meant for navigation, not exhaustive owne
 
 | Path | Why it matters |
 | --- | --- |
-| [`xpu`](../../xpu) | `wandb-xpu`, hardware accelerator metric collection. |
+| [`symon`](../../symon) | `wandb-symon`, system metrics collection. |
 | [`parquet-rust-wrapper`](../../parquet-rust-wrapper) | Rust Arrow/Parquet FFI library (`librust_parquet_ffi`) bundled under `wandb/bin/`. |
 
 ## Protobufs

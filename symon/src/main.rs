@@ -113,11 +113,11 @@ pub struct SystemMonitorServiceImpl {
     shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// Handle to the task that monitors the parent process.
     parent_monitor_handle: Option<JoinHandle<()>>,
-    /// The hardware metric sources available on this machine.
+    /// The metric sources available on this machine.
     collectors: Arc<Collectors>,
     /// The clients receiving metrics and the clock that serves them.
     subscriptions: Arc<Subscriptions>,
-    /// Static facts about the hardware, gathered on the first request.
+    /// Static facts about the machine, gathered on the first request.
     metadata: OnceCell<EnvironmentRecord>,
 }
 
@@ -287,8 +287,10 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                 .expect("time should go forward")
                 .as_millis();
 
-            let socket_filename =
-                format!("wandb_xpu-{}-{}-{}.sock", args.parent_pid, pid, time_stamp);
+            let socket_filename = format!(
+                "wandb_symon-{}-{}-{}.sock",
+                args.parent_pid, pid, time_stamp
+            );
             socket_path.push(socket_filename);
 
             // Ensure the socket is removed if it already exists
@@ -357,7 +359,7 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
         .join("logs");
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
         eprintln!(
-            "wandb-xpu: failed to create log dir {}: {e}",
+            "wandb-symon: failed to create log dir {}: {e}",
             log_dir.display()
         );
         Builder::new().filter_level(level).init();
@@ -365,7 +367,7 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
     }
 
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let log_path = log_dir.join(format!("xpu-debug-{timestamp}.log"));
+    let log_path = log_dir.join(format!("symon-debug-{timestamp}.log"));
 
     match std::fs::OpenOptions::new()
         .create(true)
@@ -393,7 +395,7 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
         }
         Err(e) => {
             eprintln!(
-                "wandb-xpu: failed to open log file {}: {e}",
+                "wandb-symon: failed to open log file {}: {e}",
                 log_path.display()
             );
             Builder::new().filter_level(level).init();
@@ -414,7 +416,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok();
 
     // Initialize logging — write to a persistent file matching wandb-core's pattern:
-    //   {cache_dir}/wandb/logs/xpu-debug-{timestamp}.log
+    //   {cache_dir}/wandb/logs/symon-debug-{timestamp}.log
     let wandb_debug = std::env::var("WANDB_DEBUG")
         .ok()
         .is_some_and(|v| !v.is_empty() && v != "0" && v.to_lowercase() != "false");
@@ -430,8 +432,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
-    // Bind the socket and publish the portfile before initializing hardware
-    // monitors, so wandb-core does not wait on driver initialization.
+    // Bind the socket and publish the portfile before initializing the
+    // collectors, so wandb-core does not wait on driver initialization.
     let listener = create_listener(&args).await?;
 
     let system_monitor_service = SystemMonitorServiceImpl::new(

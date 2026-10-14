@@ -29,13 +29,13 @@ const (
 	collectorShutdownTimeout = 5 * time.Second
 )
 
-type XPUResourceManagerRef int
+type SymonResourceManagerRef int
 
-// XPUResourceManager manages the wandb-xpu sidecar process.
+// SymonResourceManager manages the wandb-symon sidecar process.
 //
 // The sidecar runs while at least one reference is held and is started
 // again by the next Client call after it exits.
-type XPUResourceManager struct {
+type SymonResourceManager struct {
 	mu sync.Mutex
 
 	collectorProcess *exec.Cmd
@@ -45,25 +45,25 @@ type XPUResourceManager struct {
 	// collectorExited is closed when collectorProcess exits.
 	collectorExited chan struct{}
 
-	refs      map[XPUResourceManagerRef]struct{}
+	refs      map[SymonResourceManagerRef]struct{}
 	nextRefId int
 
 	enableDCGMProfiling bool
 }
 
-func NewXPUResourceManager(enableDCGMProfiling bool) *XPUResourceManager {
-	return &XPUResourceManager{
-		refs:                map[XPUResourceManagerRef]struct{}{},
+func NewSymonResourceManager(enableDCGMProfiling bool) *SymonResourceManager {
+	return &SymonResourceManager{
+		refs:                map[SymonResourceManagerRef]struct{}{},
 		enableDCGMProfiling: enableDCGMProfiling,
 	}
 }
 
 // Acquire registers a reference to the sidecar.
-func (m *XPUResourceManager) Acquire() XPUResourceManagerRef {
+func (m *SymonResourceManager) Acquire() SymonResourceManagerRef {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	refID := XPUResourceManagerRef(m.nextRefId)
+	refID := SymonResourceManagerRef(m.nextRefId)
 	m.nextRefId++
 	m.refs[refID] = struct{}{}
 	return refID
@@ -71,15 +71,15 @@ func (m *XPUResourceManager) Acquire() XPUResourceManagerRef {
 
 // Client returns a client for the sidecar, starting it if it is not
 // running. ctx bounds the start.
-func (m *XPUResourceManager) Client(
+func (m *SymonResourceManager) Client(
 	ctx context.Context,
-	ref XPUResourceManagerRef,
+	ref SymonResourceManagerRef,
 ) (spb.SystemMonitorServiceClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, ok := m.refs[ref]; !ok {
-		return nil, errors.New("monitor: xpu reference was released")
+		return nil, errors.New("monitor: symon reference was released")
 	}
 
 	if m.collectorExited != nil {
@@ -102,7 +102,7 @@ func (m *XPUResourceManager) Client(
 	return m.collectorClient, nil
 }
 
-func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
+func (m *SymonResourceManager) Release(ref SymonResourceManagerRef) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -135,7 +135,7 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 	}()
 }
 
-func (m *XPUResourceManager) startCollector(ctx context.Context) error {
+func (m *SymonResourceManager) startCollector(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -146,9 +146,9 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	}
 	defer func() { _ = pf.Delete() }()
 
-	cmdPath, err := getXPUCmdPath()
+	cmdPath, err := symonPath()
 	if err != nil {
-		return fmt.Errorf("monitor: wandb-xpu binary not found: %v", err)
+		return fmt.Errorf("monitor: wandb-symon binary not found: %v", err)
 	}
 
 	cmd := exec.Command(
@@ -164,7 +164,7 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("monitor: could not start wandb-xpu binary: %v", err)
+		return fmt.Errorf("monitor: could not start wandb-symon binary: %v", err)
 	}
 	exited := make(chan struct{})
 	go func() {
@@ -178,7 +178,7 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	if err != nil {
 		_ = cmd.Process.Kill()
 		<-exited
-		return fmt.Errorf("monitor: wandb-xpu binary failed to start: %w", err)
+		return fmt.Errorf("monitor: wandb-symon binary failed to start: %w", err)
 	}
 
 	conn, err := grpc.NewClient(
@@ -188,7 +188,7 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	if err != nil {
 		_ = cmd.Process.Kill()
 		<-exited
-		return fmt.Errorf("monitor: could not connect to wandb-xpu binary: %v", err)
+		return fmt.Errorf("monitor: could not connect to wandb-symon binary: %v", err)
 	}
 
 	m.collectorProcess = cmd
@@ -198,15 +198,15 @@ func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	return nil
 }
 
-// getXPUCmdPath returns the path to the wandb-xpu sidecar binary.
-func getXPUCmdPath() (string, error) {
+// symonPath returns the path to the wandb-symon sidecar binary.
+func symonPath() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
 	dir := filepath.Dir(ex)
 
-	p := filepath.Join(dir, "wandb-xpu")
+	p := filepath.Join(dir, "wandb-symon")
 	if runtime.GOOS == "windows" {
 		p += ".exe"
 	}
@@ -214,7 +214,7 @@ func getXPUCmdPath() (string, error) {
 		return p, nil
 	}
 
-	return "", fmt.Errorf("wandb-xpu found in %s", dir)
+	return "", fmt.Errorf("wandb-symon not found in %s", dir)
 }
 
 func supportsUDS() bool {

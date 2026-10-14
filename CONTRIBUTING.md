@@ -231,8 +231,7 @@ brew install go
 
 ### Setting up Rust
 
-You will need the Rust toolchain to build the `wandb-xpu` binary used to monitor hardware accelerators
-including Nvidia, AMD and Apple Arm GPU, as well as Google TPU.
+You will need the Rust toolchain to build the `wandb-symon` binary that collects system metrics.
 Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
 
 ```shell

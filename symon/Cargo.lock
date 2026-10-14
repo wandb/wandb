@@ -2030,8 +2030,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "wandb-xpu"
-version = "0.7.1"
+name = "wandb-symon"
+version = "0.8.0"
 dependencies = [
  "async-trait",
  "chrono",

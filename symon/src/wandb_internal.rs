@@ -3196,7 +3196,7 @@ impl ServerFeature {
 pub struct SubscribeRequest {
     /// Seconds between the samples delivered to this subscriber, 0.1 or more.
     ///
-    /// The service samples the hardware once for all of its subscribers and may
+    /// The service samples the system once for all of its subscribers and may
     /// sample more often than this to serve a subscriber with a shorter interval.
     /// Metrics that describe the time since the previous sample, such as GPM
     /// utilization, are averaged over this interval.

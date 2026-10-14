@@ -1,22 +1,20 @@
-"""Builds the wandb-xpu binary for monitoring hardware accelerators."""
+"""Builds the wandb-symon binary that collects system metrics."""
 
 import json
 import pathlib
 import subprocess
 
 
-class WandbXpuBuildError(Exception):
-    """Raised when building wandb-xpu service fails."""
+class WandbSymonBuildError(Exception):
+    """Raised when building wandb-symon service fails."""
 
 
-def build_wandb_xpu(
+def build_wandb_symon(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
     target_triple: str | None = None,
 ) -> None:
-    """Builds the `wandb-xpu` Rust binary for monitoring hardware accelerators.
-
-    `wandb-xpu` supports NVIDIA and AMD GPU, Apple ARM CPU/GPU, and Google TPU.
+    """Builds the `wandb-symon` Rust binary that collects system metrics.
 
     NOTE: Cargo creates a cache under `./target/release`, which speeds up
     subsequent builds, but may grow large over time and/or cause issues
@@ -29,7 +27,7 @@ def build_wandb_xpu(
             workspace root.
         target_triple: Rust target triple, or None to build for the host.
     """
-    rust_pkg_root = pathlib.Path("./xpu")
+    rust_pkg_root = pathlib.Path("./symon")
 
     cmd = [
         str(cargo_binary),
@@ -37,7 +35,7 @@ def build_wandb_xpu(
         "--locked",
         "--release",
         "--bin",
-        "wandb-xpu",
+        "wandb-symon",
         "--message-format=json",
     ]
     if target_triple:
@@ -46,23 +44,22 @@ def build_wandb_xpu(
     try:
         cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root, text=True)
     except subprocess.CalledProcessError as e:
-        raise WandbXpuBuildError(
-            "Failed to build the `wandb-xpu` Rust binary. If you didn't"
+        raise WandbSymonBuildError(
+            "Failed to build the `wandb-symon` Rust binary. If you didn't"
             " break the build, you may need to install Rust; see"
             " https://www.rust-lang.org/tools/install."
             "\n\n"
-            "As a workaround, you can set the WANDB_BUILD_SKIP_WANDB_XPU"
+            "As a workaround, you can set the WANDB_BUILD_SKIP_WANDB_SYMON"
             " environment variable to true to skip this step and build a wandb"
-            " package that doesn't collect hardware accelerator metrics or any"
-            " other system metrics."
+            " package that doesn't collect system metrics."
         ) from e
     for line in cargo_output.splitlines():
         if executable := json.loads(line).get("executable"):
             built_binary_path = pathlib.Path(executable)
             break
     else:
-        raise WandbXpuBuildError(
-            "Failed to find the `wandb-xpu` binary. `cargo build` output:\n"
+        raise WandbSymonBuildError(
+            "Failed to find the `wandb-symon` binary. `cargo build` output:\n"
             + cargo_output,
         )
 

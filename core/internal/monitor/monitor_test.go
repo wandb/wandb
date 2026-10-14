@@ -16,9 +16,9 @@ import (
 func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
 	t.Helper()
 	factory := &monitor.SystemMonitorFactory{
-		Logger:             observabilitytest.NewTestLogger(t),
-		Settings:           settings.From(&spb.Settings{XDisableStats: wrapperspb.Bool(true)}),
-		XPUResourceManager: monitor.NewXPUResourceManager(false),
+		Logger:               observabilitytest.NewTestLogger(t),
+		Settings:             settings.From(&spb.Settings{XDisableStats: wrapperspb.Bool(true)}),
+		SymonResourceManager: monitor.NewSymonResourceManager(false),
 	}
 	return factory.New(runworktest.New())
 }

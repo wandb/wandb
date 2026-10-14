@@ -40,7 +40,7 @@ var SystemMonitorProviders = wire.NewSet(
 	wire.Struct(new(SystemMonitorFactory), "*"),
 )
 
-// SystemMonitor publishes the system metrics streamed by the wandb-xpu
+// SystemMonitor publishes the system metrics streamed by the wandb-symon
 // sidecar to the run and probes the compute environment.
 type SystemMonitor struct {
 	// The context for the system monitor.
@@ -50,8 +50,8 @@ type SystemMonitor struct {
 	// The state of the system monitor: stopped, running, or paused.
 	state atomic.Int32
 
-	// xpu streams system metrics from the wandb-xpu sidecar.
-	xpu *XPU
+	// symon streams system metrics from the wandb-symon sidecar.
+	symon *Symon
 
 	// coreweave probes the CoreWeave compute environment, if any.
 	coreweave *CoreWeaveMetadata
@@ -95,8 +95,8 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// XPUResourceManager manages the wandb-xpu sidecar process.
-	XPUResourceManager *XPUResourceManager
+	// SymonResourceManager manages the wandb-symon sidecar process.
+	SymonResourceManager *SymonResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
@@ -141,15 +141,15 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(f.XPUResourceManager)
+	sm.initializeResources(f.SymonResourceManager)
 
 	return sm
 }
 
 // initializeResources builds the sidecar subscription from the settings and
 // the CoreWeave probe.
-func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
-	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger)
+func (sm *SystemMonitor) initializeResources(symonResourceManager *SymonResourceManager) {
+	sm.symon = NewSymon(sm.ctx, symonResourceManager, sm.logger)
 
 	// CoreWeave compute environment metadata.
 	if cwm, err := NewCoreWeaveMetadata(
@@ -271,8 +271,8 @@ func (sm *SystemMonitor) metadataRequest() *spb.GetMetadataRequest {
 	}
 }
 
-// probeResources merges the hardware facts from the sidecar with the
-// CoreWeave environment metadata.
+// probeResources merges the sidecar's probe with the CoreWeave
+// environment metadata.
 func (sm *SystemMonitor) probeResources() *spb.Record {
 	sm.logger.Debug("monitor: probing resources")
 
@@ -282,7 +282,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	var wg sync.WaitGroup
 	for _, probe := range []func(context.Context) *spb.EnvironmentRecord{
 		func(ctx context.Context) *spb.EnvironmentRecord {
-			return sm.xpu.Probe(ctx, sm.metadataRequest())
+			return sm.symon.Probe(ctx, sm.metadataRequest())
 		},
 		sm.coreweave.Probe,
 	} {
@@ -342,7 +342,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	}
 
 	sm.logger.Debug("monitor: starting")
-	sm.xpu.Subscribe(sm.subscribeRequest(), sm.publish)
+	sm.symon.Subscribe(sm.subscribeRequest(), sm.publish)
 }
 
 // Probe collects environment and resource information.
@@ -381,7 +381,7 @@ func (sm *SystemMonitor) Probe() {
 func (sm *SystemMonitor) Pause() {
 	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
 		sm.logger.Debug("monitor: pausing")
-		sm.xpu.Unsubscribe()
+		sm.symon.Unsubscribe()
 	}
 }
 
@@ -389,7 +389,7 @@ func (sm *SystemMonitor) Pause() {
 func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Debug("monitor: resuming")
-		sm.xpu.Subscribe(sm.subscribeRequest(), sm.publish)
+		sm.symon.Subscribe(sm.subscribeRequest(), sm.publish)
 	}
 }
 
@@ -447,6 +447,6 @@ func (sm *SystemMonitor) Finish() {
 
 	sm.logger.Debug("monitor: stopping")
 	sm.cancel()
-	sm.xpu.Close()
+	sm.symon.Close()
 	sm.logger.Debug("monitor: stopped")
 }

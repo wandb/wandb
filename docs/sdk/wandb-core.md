@@ -63,7 +63,7 @@ The diagram shows the main routes; the full `switch` in `handleIncomingRequests`
 - `StreamMux`: stream ID to per-run stream.
 - `RunSyncManager`: `wandb beta sync` operations.
 - `IPCSessionBroker`: sweep scheduler session mux.
-- `XPUResourceManager`: expensive accelerator metric resources.
+- `SymonResourceManager`: the system metrics sidecar process.
 - Listener and connection lifetime.
 
 `server.Connection` owns one socket connection. It runs three goroutines:
@@ -209,16 +209,16 @@ Core artifact work is mostly under:
 - [`core/pkg/launch`](../../core/pkg/launch) for job artifacts
 - Sender artifact cases in [`core/internal/stream/sender.go`](../../core/internal/stream/sender.go)
 
-## System metrics and XPU
+## System metrics and Symon
 
 The handler starts the system monitor after run start and stops it during exit. The monitor writes stats records into the same stream.
 
 Core packages:
 
 - [`core/internal/monitor`](../../core/internal/monitor)
-- [`xpu`](../../xpu) for Rust accelerator metric collection
+- [`symon`](../../symon) for Rust system metrics collection
 
-Process isolation for accelerator monitoring matters. Treat direct GPU/TPU library access as a reliability-sensitive boundary.
+Process isolation for system metrics matters. Treat direct GPU/TPU library access as a reliability-sensitive boundary.
 
 ## Public API through core
 

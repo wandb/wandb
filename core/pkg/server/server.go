@@ -50,8 +50,8 @@ type Server struct {
 	// sweepSchedBroker implements `wandb sweep-scheduler` sessions.
 	sweepSchedBroker *scheduler.IPCSessionBroker
 
-	// xpuResourceManager manages costly resources for accelerator system metrics.
-	xpuResourceManager *monitor.XPUResourceManager
+	// symonResourceManager manages the system metrics sidecar.
+	symonResourceManager *monitor.SymonResourceManager
 
 	// connectionsWG is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
@@ -117,20 +117,20 @@ func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx:  serverLifetimeCtx,
-		stopServer:         stopServer,
-		streamMux:          stream.NewStreamMux(),
-		runSyncManager:     runsync.NewRunSyncManager(),
-		sweepSchedBroker:   scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
-		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
-		connectionsWG:      sync.WaitGroup{},
-		parentPID:          params.ParentPID,
-		detached:           params.Detached,
-		idleTimeout:        params.IdleTimeout,
-		commit:             params.Commit,
-		listenOnLocalhost:  params.ListenOnLocalhost,
-		loggerPath:         params.LoggerPath,
-		logLevel:           params.LogLevel,
+		serverLifetimeCtx:    serverLifetimeCtx,
+		stopServer:           stopServer,
+		streamMux:            stream.NewStreamMux(),
+		runSyncManager:       runsync.NewRunSyncManager(),
+		sweepSchedBroker:     scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
+		symonResourceManager: monitor.NewSymonResourceManager(params.EnableDCGMProfiling),
+		connectionsWG:        sync.WaitGroup{},
+		parentPID:            params.ParentPID,
+		detached:             params.Detached,
+		idleTimeout:          params.IdleTimeout,
+		commit:               params.Commit,
+		listenOnLocalhost:    params.ListenOnLocalhost,
+		loggerPath:           params.LoggerPath,
+		logLevel:             params.LogLevel,
 	}
 }
 
@@ -286,15 +286,15 @@ func (s *Server) handleConnection(conn net.Conn) {
 		s.serverLifetimeCtx,
 		s.stopServer,
 		ConnectionParams{
-			ID:                 id,
-			Conn:               conn,
-			StreamMux:          s.streamMux,
-			RunSyncManager:     s.runSyncManager,
-			SweepSchedBroker:   s.sweepSchedBroker,
-			XPUResourceManager: s.xpuResourceManager,
-			Commit:             s.commit,
-			LoggerPath:         s.loggerPath,
-			LogLevel:           s.logLevel,
+			ID:                   id,
+			Conn:                 conn,
+			StreamMux:            s.streamMux,
+			RunSyncManager:       s.runSyncManager,
+			SweepSchedBroker:     s.sweepSchedBroker,
+			SymonResourceManager: s.symonResourceManager,
+			Commit:               s.commit,
+			LoggerPath:           s.loggerPath,
+			LogLevel:             s.logLevel,
 		},
 	).ManageConnectionData()
 }

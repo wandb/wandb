@@ -28,7 +28,7 @@ import (
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	openTelemetryProxy := streamOTelProxy(settings2)
@@ -48,12 +48,12 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	wandbOperations := wboperation.NewOperations()
 	stats := streamFileStreamStats(coreLogger, settings2)
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
-		Logger:             coreLogger,
-		RunHandle:          runHandle,
-		Settings:           settings2,
-		XPUResourceManager: xpuResourceManager,
-		GraphqlClient:      client,
-		WriterID:           clientID,
+		Logger:               coreLogger,
+		RunHandle:            runHandle,
+		Settings:             settings2,
+		SymonResourceManager: symonResourceManager,
+		GraphqlClient:        client,
+		WriterID:             clientID,
 	}
 	printer := providePrinter()
 	handlerFactory := &HandlerFactory{

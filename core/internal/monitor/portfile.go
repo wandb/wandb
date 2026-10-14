@@ -12,13 +12,13 @@ import (
 )
 
 // portfile is used to communicate the token of the gRPC service
-// started by the wandb-xpu sidecar binary to the wandb-core process.
+// started by the wandb-symon sidecar binary to the wandb-core process.
 type portfile struct {
 	Path string
 }
 
 func NewPortfile() *portfile {
-	file, err := os.CreateTemp("", "wandb-xpu-portfile-*")
+	file, err := os.CreateTemp("", "wandb-symon-portfile-*")
 	if err != nil {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (p *portfile) Read(ctx context.Context, exited <-chan struct{}) (string, er
 		case <-ctx.Done():
 			return "", fmt.Errorf("reading portfile %s: %w", p.Path, ctx.Err())
 		case <-exited:
-			return "", errors.New("wandb-xpu exited before writing its portfile")
+			return "", errors.New("wandb-symon exited before writing its portfile")
 		case <-time.After(20 * time.Millisecond):
 		}
 	}

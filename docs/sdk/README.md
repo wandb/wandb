@@ -62,7 +62,7 @@ Older architecture material uses names like "frontend/backend", "internal proces
 - The user process talks to `wandb-core` through `wandb/sdk/lib/service/` and `wandb/sdk/interface/`.
 - Go stream processing lives under `core/internal/stream/`.
 - Run data persistence uses a transaction log and flow control in `wandb-core`.
-- Hardware monitoring uses the Rust `wandb-xpu` binary for accelerator metrics.
+- System metrics come from the Rust `wandb-symon` binary.
 - Public API GraphQL calls are being routed through `wandb-core`.
 
 ## How to use this as an agent

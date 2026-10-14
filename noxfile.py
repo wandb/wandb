@@ -191,7 +191,7 @@ def unit_tests(session: nox.Session) -> None:
         # Linux already exercises the heavier Go race/coverage build path.
         # Skipping it on Windows keeps this job focused on Python compatibility
         # and avoids multi-minute rebuilds.
-        session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
+        session.env["WANDB_BUILD_SKIP_WANDB_SYMON"] = "true"
 
     install_wandb(session, dev=not is_windows)
 
@@ -506,7 +506,7 @@ def gql_codegen(session: nox.Session) -> None:
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
     session.run("./core/api/proto/install-protoc.sh", "34.1", external=True)
-    session.run("./xpu/tools/generate-proto.sh", external=True)
+    session.run("./symon/tools/generate-proto.sh", external=True)
 
 
 @nox.session(python=False, name="proto-go", tags=["proto"])

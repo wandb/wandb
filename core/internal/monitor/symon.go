@@ -12,26 +12,24 @@ import (
 )
 
 const (
-	// xpuRetryMinDelay is the delay before the first attempt to reopen
+	// symonRetryMinDelay is the delay before the first attempt to reopen
 	// a subscription whose stream ended or failed to start.
-	xpuRetryMinDelay = time.Second
+	symonRetryMinDelay = time.Second
 
-	// xpuRetryMaxDelay caps the delay between attempts, which doubles
+	// symonRetryMaxDelay caps the delay between attempts, which doubles
 	// after each consecutive failure.
-	xpuRetryMaxDelay = time.Minute
+	symonRetryMaxDelay = time.Minute
 )
 
-// XPU streams system metrics from the wandb-xpu sidecar binary: the host's
-// CPU, memory, disk and network metrics, and GPU (Nvidia, AMD, Apple) and
-// Google TPU metrics.
+// Symon streams system metrics from the wandb-symon sidecar binary.
 //
-// The sidecar is started by the first Subscribe or Probe call, not by NewXPU.
+// The sidecar is started by the first Subscribe or Probe call, not by NewSymon.
 // If it exits or its stream ends while subscribed, it is started again and
 // the subscription is reopened.
-type XPU struct {
+type Symon struct {
 	ctx             context.Context
-	resourceManager *XPUResourceManager
-	resourceRef     XPUResourceManagerRef
+	resourceManager *SymonResourceManager
+	resourceRef     SymonResourceManagerRef
 	logger          *observability.CoreLogger
 
 	errorReported atomic.Bool
@@ -42,14 +40,14 @@ type XPU struct {
 	unsubscribe context.CancelFunc
 }
 
-// NewXPU returns an XPU resource whose sidecar start and requests are
+// NewSymon returns a Symon resource whose sidecar start and requests are
 // canceled together with ctx.
-func NewXPU(
+func NewSymon(
 	ctx context.Context,
-	resourceManager *XPUResourceManager,
+	resourceManager *SymonResourceManager,
 	logger *observability.CoreLogger,
-) *XPU {
-	return &XPU{
+) *Symon {
+	return &Symon{
 		ctx:             ctx,
 		resourceManager: resourceManager,
 		resourceRef:     resourceManager.Acquire(),
@@ -62,7 +60,7 @@ func NewXPU(
 //
 // publish may block until its context is done, which happens when the
 // subscription ends. Subscribing while subscribed does nothing.
-func (a *XPU) Subscribe(
+func (a *Symon) Subscribe(
 	request *spb.SubscribeRequest,
 	publish func(context.Context, *spb.SubscribeResponse),
 ) {
@@ -82,7 +80,7 @@ func (a *XPU) Subscribe(
 
 // Unsubscribe ends the subscription, if any. A publish in flight returns
 // once its context is done.
-func (a *XPU) Unsubscribe() {
+func (a *Symon) Unsubscribe() {
 	if a == nil {
 		return
 	}
@@ -102,20 +100,20 @@ func (a *XPU) Unsubscribe() {
 // after a delay that doubles with each consecutive failure and starts over
 // after a stream that outlived the longest delay. The first failure is
 // captured; later ones are debug-logged.
-func (a *XPU) stream(
+func (a *Symon) stream(
 	ctx context.Context,
 	request *spb.SubscribeRequest,
 	publish func(context.Context, *spb.SubscribeResponse),
 ) {
-	delay := xpuRetryMinDelay
+	delay := symonRetryMinDelay
 	for {
 		started := time.Now()
 		err := a.subscribe(ctx, request, publish)
 		if ctx.Err() != nil {
 			return
 		}
-		if time.Since(started) > xpuRetryMaxDelay {
-			delay = xpuRetryMinDelay
+		if time.Since(started) > symonRetryMaxDelay {
+			delay = symonRetryMinDelay
 		}
 
 		if a.errorReported.Swap(true) {
@@ -129,13 +127,13 @@ func (a *XPU) stream(
 			return
 		case <-time.After(delay):
 		}
-		delay = min(2*delay, xpuRetryMaxDelay)
+		delay = min(2*delay, symonRetryMaxDelay)
 	}
 }
 
 // subscribe opens a stream and passes its samples to publish until the
 // stream ends.
-func (a *XPU) subscribe(
+func (a *Symon) subscribe(
 	ctx context.Context,
 	request *spb.SubscribeRequest,
 	publish func(context.Context, *spb.SubscribeResponse),
@@ -147,13 +145,13 @@ func (a *XPU) subscribe(
 
 	stream, err := client.Subscribe(ctx, request)
 	if err != nil {
-		return fmt.Errorf("monitor: xpu subscribe failed: %w", err)
+		return fmt.Errorf("monitor: symon subscribe failed: %w", err)
 	}
 
 	for {
 		response, err := stream.Recv()
 		if err != nil {
-			return fmt.Errorf("monitor: xpu stream ended: %w", err)
+			return fmt.Errorf("monitor: symon stream ended: %w", err)
 		}
 		publish(ctx, response)
 	}
@@ -161,7 +159,7 @@ func (a *XPU) subscribe(
 
 // Probe returns the sidecar's static facts about the machine described
 // by request, or nil if the sidecar cannot be reached.
-func (a *XPU) Probe(
+func (a *Symon) Probe(
 	ctx context.Context,
 	request *spb.GetMetadataRequest,
 ) *spb.EnvironmentRecord {
@@ -181,7 +179,7 @@ func (a *XPU) Probe(
 }
 
 // Close ends the subscription and releases the sidecar reference.
-func (a *XPU) Close() {
+func (a *Symon) Close() {
 	if a == nil {
 		return
 	}
