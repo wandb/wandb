@@ -190,7 +190,7 @@ func TestSymon_RunsPaneAttributesProcessTree(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
-	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 220, Height: 45})
 	m, _ = m.Update(leet.SymonSampleMsg{
 		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
 		Processes: []monitor.ProcessStat{
@@ -198,18 +198,27 @@ func TestSymon_RunsPaneAttributesProcessTree(t *testing.T) {
 			{PID: 11, PPID: 10, Name: "python", CPUPercent: 250, RSS: 2 << 30},
 			{PID: 12, PPID: 10, Name: "wandb-core", CPUPercent: 5, RSS: 1 << 20},
 		},
-		Runs: []monitor.LiveRun{{
-			Path:      "/tmp/proj/wandb/run-20260928_150000-abc123/run-abc123.wandb",
-			PID:       12,
-			ClientPID: 10,
+		Runs: []leet.SymonRun{{
+			LiveRun: monitor.LiveRun{
+				Path:      "/tmp/proj/wandb/run-20260928_150000-abc123/run-abc123.wandb",
+				PID:       12,
+				ClientPID: 10,
+			},
+			Name:    "dazzling-owl-42",
+			Project: "nlp",
+			Step:    1200,
+			Metric:  "loss",
+			Values:  []float64{2, 1.5, 1.1, 0.8},
 		}},
 	})
 
 	view := stripANSI(m.View().Content)
-	require.Contains(t, view, "run-20260928_150000-abc123")
+	require.Contains(t, view, "dazzling-owl-42")
+	require.Contains(t, view, "step 1200")
+	require.Regexp(t, `loss\s+0\.8\s+█▅▂▁`, view)
 	require.Regexp(t, `CPU\s+355%`, view)
 	require.Contains(t, view, "3GiB")
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
-	require.NotContains(t, stripANSI(m.View().Content), "run-20260928_150000-abc123")
+	require.NotContains(t, stripANSI(m.View().Content), "dazzling-owl-42")
 }
