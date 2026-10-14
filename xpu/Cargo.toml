@@ -14,7 +14,7 @@ build-proto = ["dep:tempfile", "dep:tonic-prost-build"]
 
 [dependencies]
 log = "0.4.33"
-env_logger = { version = "0.11.11", features = ["auto-color"] }
+env_logger = { version = "0.11.11", default-features = false, features = ["auto-color"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 clap = { version = "4.6.5", features = ["derive"] }
@@ -26,6 +26,9 @@ tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
 chrono = "0.4.45"
 sysinfo = { version = "0.38", default-features = false, features = ["system", "disk", "network"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+regex-lite = "0.1"
 
 tonic-prost-build = { version = "0.14.6", optional = true }
 tempfile = { version = "3.27.0", optional = true }

@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
 use crate::wandb_internal::SubscribeRequest;
@@ -12,8 +12,19 @@ pub enum MetricValue {
     String(String),
 }
 
-/// The parts of a subscription that select what the host collector reads
-/// for it. Subscribers with equal scopes share one set of readings.
+/// One of the filters selecting the OpenMetrics samples a subscriber
+/// receives.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Filter {
+    /// Matched against `<endpoint name>.<metric name>`.
+    pub metric_regex: String,
+    /// Label name to the regex its value must match. All must match.
+    pub label_regexes: BTreeMap<String, String>,
+}
+
+/// The parts of a subscription that select what the host and scraping
+/// collectors read for it. Subscribers with equal scopes share one set of
+/// readings.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
     /// The subscriber's sampling interval.
@@ -23,6 +34,12 @@ pub struct Scope {
     pub disable_cgroup: bool,
     pub wandb_pids: Vec<u32>,
     pub disk_paths: Vec<String>,
+    /// OpenMetrics endpoint URLs by name.
+    pub open_metrics_endpoints: BTreeMap<String, String>,
+    pub open_metrics_filters: Vec<Filter>,
+    pub open_metrics_http_headers: BTreeMap<String, String>,
+    /// Prometheus instant-query URL of a DCGM exporter, or empty.
+    pub dcgm_exporter: String,
 }
 
 impl From<&SubscribeRequest> for Scope {
@@ -35,6 +52,16 @@ impl From<&SubscribeRequest> for Scope {
             .collect();
         wandb_pids.sort_unstable();
         wandb_pids.dedup();
+        let mut open_metrics_filters: Vec<Filter> = request
+            .open_metrics_filters
+            .iter()
+            .map(|filter| Filter {
+                metric_regex: filter.metric_regex.clone(),
+                label_regexes: filter.label_regexes.clone().into_iter().collect(),
+            })
+            .collect();
+        open_metrics_filters.sort();
+        open_metrics_filters.dedup();
         Self {
             interval: Duration::from_millis((request.interval_seconds.max(0.0) * 1000.0) as u64),
             pid: request.pid.max(0) as u32,
@@ -42,6 +69,14 @@ impl From<&SubscribeRequest> for Scope {
             disable_cgroup: request.disable_cgroup,
             wandb_pids,
             disk_paths: request.disk_paths.clone(),
+            open_metrics_endpoints: request.open_metrics_endpoints.clone().into_iter().collect(),
+            open_metrics_filters,
+            open_metrics_http_headers: request
+                .open_metrics_http_headers
+                .clone()
+                .into_iter()
+                .collect(),
+            dcgm_exporter: request.dcgm_exporter.clone(),
         }
     }
 }

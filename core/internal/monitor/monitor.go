@@ -211,29 +211,23 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			),
 		)
 	}
+}
 
-	// DCGM Exporter.
-	if url := sm.settings.GetStatsDcgmExporter(); url != "" {
-		params := DCGMExporterParams{
-			URL:     url,
-			Headers: sm.settings.GetStatsOpenMetricsHeaders(),
-			Logger:  sm.logger,
-		}
-		if de := NewDCGMExporter(params); de != nil {
-			sm.addResource(de)
-		}
+// openMetricsFilters converts the x_stats_open_metrics_filters setting, a
+// sequence of metric regexes or a mapping from metric regex to the label
+// regexes its samples must match, to the sidecar's filters.
+func openMetricsFilters(filters *spb.OpenMetricsFilters) []*spb.OpenMetricsFilter {
+	var result []*spb.OpenMetricsFilter
+	for _, regex := range filters.GetSequence().GetValue() {
+		result = append(result, &spb.OpenMetricsFilter{MetricRegex: regex})
 	}
-
-	// OpenMetrics endpoints to monitor.
-	if endpoints := sm.settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
-		for name, url := range endpoints {
-			filters := sm.settings.GetStatsOpenMetricsFilters()
-			headers := sm.settings.GetStatsOpenMetricsHeaders()
-			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
-				sm.addResource(om)
-			}
-		}
+	for regex, labels := range filters.GetMapping().GetValue() {
+		result = append(result, &spb.OpenMetricsFilter{
+			MetricRegex:  regex,
+			LabelRegexes: labels.GetValue(),
+		})
 	}
+	return result
 }
 
 // marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
@@ -315,13 +309,17 @@ func slurmEnvVars() map[string]string {
 // to sample, how often and for whom.
 func (sm *SystemMonitor) subscribeRequest() *spb.SubscribeRequest {
 	request := &spb.SubscribeRequest{
-		IntervalSeconds:  sm.samplingInterval.Seconds(),
-		Pid:              sm.settings.GetStatsPid(),
-		GpuDeviceIds:     sm.settings.GetStatsGpuDeviceIds(),
-		SubscriberId:     string(sm.writerID),
-		TrackProcessTree: sm.settings.GetStatsTrackProcessTree(),
-		DiskPaths:        sm.settings.GetStatsDiskPaths(),
-		DisableCgroup:    sm.settings.GetStatsNoCgroup(),
+		IntervalSeconds:        sm.samplingInterval.Seconds(),
+		Pid:                    sm.settings.GetStatsPid(),
+		GpuDeviceIds:           sm.settings.GetStatsGpuDeviceIds(),
+		SubscriberId:           string(sm.writerID),
+		TrackProcessTree:       sm.settings.GetStatsTrackProcessTree(),
+		DiskPaths:              sm.settings.GetStatsDiskPaths(),
+		DisableCgroup:          sm.settings.GetStatsNoCgroup(),
+		OpenMetricsEndpoints:   sm.settings.GetStatsOpenMetricsEndpoints(),
+		OpenMetricsFilters:     openMetricsFilters(sm.settings.GetStatsOpenMetricsFilters()),
+		OpenMetricsHttpHeaders: sm.settings.GetStatsOpenMetricsHeaders(),
+		DcgmExporter:           sm.settings.GetStatsDcgmExporter(),
 	}
 	if sm.settings.GetStatsSelfUsage() {
 		request.WandbPids = []int32{int32(os.Getpid())}
@@ -332,7 +330,9 @@ func (sm *SystemMonitor) subscribeRequest() *spb.SubscribeRequest {
 // metadataRequest describes what the sidecar's probe should look at.
 func (sm *SystemMonitor) metadataRequest() *spb.GetMetadataRequest {
 	return &spb.GetMetadataRequest{
-		DiskPaths: sm.settings.GetStatsDiskPaths(),
+		DiskPaths:              sm.settings.GetStatsDiskPaths(),
+		DcgmExporter:           sm.settings.GetStatsDcgmExporter(),
+		OpenMetricsHttpHeaders: sm.settings.GetStatsOpenMetricsHeaders(),
 	}
 }
 

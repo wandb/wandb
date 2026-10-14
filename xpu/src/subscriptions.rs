@@ -21,7 +21,7 @@ use crate::metrics::{Sample, Scope};
 use crate::monitors::Collectors;
 use crate::record;
 use crate::wandb_internal::{
-    Record, StatsRecord, SubscribeRequest, SubscribeResponse, record::RecordType,
+    Record, StatsItem, StatsRecord, SubscribeRequest, SubscribeResponse, record::RecordType,
     stats_record::StatsType,
 };
 
@@ -242,15 +242,21 @@ impl Subscriptions {
                 *base = base.min(*value);
                 values.push((key.clone(), value - *base));
             }
-            if let Some(readings) = scoped {
-                values.extend(readings.metrics.iter().cloned());
-            }
-
             let pids = match scoped {
-                Some(readings) => readings.pids.as_slice(),
-                None => std::slice::from_ref(&sub.scope.pid),
+                Some(readings) if !readings.pids.is_empty() => readings.pids.as_slice(),
+                _ => std::slice::from_ref(&sub.scope.pid),
             };
-            let items = record::stats_items(sample, &values, pids, &sub.gpu_device_ids);
+            let mut items = record::stats_items(sample, &values, pids, &sub.gpu_device_ids);
+            // A scope's own readings, such as its host metrics or the GPUs of
+            // a remote DCGM exporter, are not subject to the device filter.
+            for (key, value) in scoped.into_iter().flat_map(|readings| &readings.metrics) {
+                if let Ok(value_json) = serde_json::to_string(value) {
+                    items.push(StatsItem {
+                        key: key.clone(),
+                        value_json,
+                    });
+                }
+            }
             if items.is_empty() {
                 continue;
             }
