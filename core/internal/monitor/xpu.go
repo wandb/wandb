@@ -21,8 +21,9 @@ const (
 	xpuRetryMaxDelay = time.Minute
 )
 
-// XPU streams GPU (Nvidia, AMD, Apple) and Google TPU metrics from the
-// wandb-xpu sidecar binary.
+// XPU streams system metrics from the wandb-xpu sidecar binary: the host's
+// CPU, memory, disk and network metrics, and GPU (Nvidia, AMD, Apple) and
+// Google TPU metrics.
 //
 // The sidecar is started by the first Subscribe or Probe call, not by NewXPU.
 // If it exits or its stream ends while subscribed, it is started again and
