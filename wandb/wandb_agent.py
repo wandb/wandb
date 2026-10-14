@@ -19,7 +19,6 @@ from typing import Any
 
 import wandb
 from wandb import util
-from wandb.apis.public.sweeps import _agent_heartbeat, _register_agent, _sweep_with_runs
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import config_util, ipython
 from wandb.sdk.sweeps import SweepNotFoundError
@@ -458,6 +457,8 @@ class Agent:
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         import yaml
 
+        from wandb.apis.public.sweeps import _register_agent, _sweep_with_runs
+
         sweep_obj = _sweep_with_runs(self._api, self._sweep_id, "{}")
         if sweep_obj:
             sweep_yaml = sweep_obj.get("config")
@@ -529,6 +530,8 @@ class Agent:
         self, agent_id: str, run_status: dict
     ) -> list[dict[str, Any]]:
         """Fetch the next batch of agent commands from the server."""
+        from wandb.apis.public.sweeps import _agent_heartbeat
+
         if self._sweep_not_found:
             # The sweep was deleted; stop heartbeating but let the in-process
             # run finish before we shut the agent down.

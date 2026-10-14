@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from queue import Full, Queue
 from typing import IO, TYPE_CHECKING, Any, Final, TypeAlias
 
-import requests
 from typing_extensions import TypeIs, final
 
 from wandb import env
@@ -140,6 +139,8 @@ def _download_chunk_with_refresh(
         start: Start byte offset (inclusive).
         end: End byte offset (inclusive), or None for end of file.
     """
+    from requests import HTTPError
+
     if ctx.cancel.is_set():
         return
 
@@ -150,7 +151,7 @@ def _download_chunk_with_refresh(
 
     def check_retry_fn(e: Exception) -> bool:
         """Check if we should retry this exception and refresh URL if needed."""
-        if not isinstance(e, requests.HTTPError):
+        if not isinstance(e, HTTPError):
             return False
 
         # Only retry 401 and 403 because they are from expired presigned url.
@@ -182,7 +183,7 @@ def _download_chunk_with_refresh(
         attempt_download,
         num_retries=3,
         check_retry_fn=check_retry_fn,
-        retryable_exceptions=(requests.HTTPError,),
+        retryable_exceptions=(HTTPError,),
         error_prefix="Multipart download chunk url expired",
     )
     retrier(retry_sleep_base=0.5)

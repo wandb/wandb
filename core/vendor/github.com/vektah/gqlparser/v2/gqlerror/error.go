@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,11 @@ type Location struct {
 	Column int `json:"column,omitempty"`
 }
 
+// String writes the location as line:column, the form Error's message uses after the file name.
+func (l Location) String() string {
+	return strconv.Itoa(l.Line) + ":" + strconv.Itoa(l.Column)
+}
+
 // SourceLocation pairs a GraphQL line and column with its source document.
 // Source is nil when the location has no source document.
 type SourceLocation struct {
@@ -62,12 +68,18 @@ type ErrorWithSources struct {
 // NewErrorWithSources pairs an existing GraphQL error with source-aware
 // locations. The location slice is copied so callers cannot change the error's
 // source associations by mutating their input slice.
+//
+// A non-empty locations must describe err's own locations: one per location,
+// in the same order and at the same coordinates. It panics otherwise,
+// including when err has no locations at all, because sources can annotate
+// locations but not invent them. An empty locations pairs err's locations with
+// no sources.
 func NewErrorWithSources(err *Error, locations []SourceLocation) *ErrorWithSources {
 	if err == nil {
 		return nil
 	}
 	legacyLocations := locations == nil
-	if len(locations) > 0 && len(err.Locations) > 0 {
+	if len(locations) > 0 {
 		if len(locations) != len(err.Locations) {
 			panic(fmt.Sprintf(
 				"gqlerror: source location count %d does not match location count %d",
@@ -84,7 +96,7 @@ func NewErrorWithSources(err *Error, locations []SourceLocation) *ErrorWithSourc
 			}
 		}
 	}
-	if len(locations) == 0 && len(err.Locations) > 0 {
+	if len(locations) == 0 {
 		locations = make([]SourceLocation, len(err.Locations))
 		for i, location := range err.Locations {
 			locations[i] = SourceLocation{
@@ -124,25 +136,24 @@ func (err *ErrorWithSources) Error() string {
 			Column: sourceLocation.Column,
 		}
 	}
+	// base only formats the message, so it carries only the fields Error reads. Its extensions
+	// are a copy because the file name is about to be set or removed.
 	base := &Error{
-		Err:        err.Err,
 		Message:    err.Message,
 		Path:       err.Path,
 		Locations:  locations,
-		Extensions: cloneExtensions(err.Extensions),
-		Rule:       err.Rule,
+		Extensions: map[string]any{},
 	}
-	if base.Extensions == nil {
-		base.Extensions = map[string]any{}
-	}
+	maps.Copy(base.Extensions, err.Extensions)
 	filename, _ := base.Extensions["file"].(string)
-	if len(err.Locations) == 1 {
-		if filename == "" {
-			if source := err.Locations[0].Source; source != nil && source.Name != "" {
-				filename = source.Name
-			}
+	switch len(err.Locations) {
+	case 0:
+		// No location to name a file.
+	case 1:
+		if source := err.Locations[0].Source; filename == "" && source != nil {
+			filename = source.Name
 		}
-	} else if len(err.Locations) > 1 {
+	default:
 		if source := err.Locations[0].Source; source != nil {
 			filename = source.Name
 		} else if !err.legacyLocations {
@@ -155,17 +166,6 @@ func (err *ErrorWithSources) Error() string {
 		delete(base.Extensions, "file")
 	}
 	return base.Error()
-}
-
-func cloneExtensions(extensions map[string]any) map[string]any {
-	if extensions == nil {
-		return nil
-	}
-	clone := make(map[string]any, len(extensions))
-	for key, value := range extensions {
-		clone[key] = value
-	}
-	return clone
 }
 
 func (err *ErrorWithSources) Unwrap() error {
@@ -267,7 +267,13 @@ func (err *Error) pathString() string {
 	return err.Path.String()
 }
 
+// Unwrap returns the cause, or nil for a nil *Error. Wrap, WrapPath and WrapPos return a nil
+// *Error for a nil cause, and once that is stored in an error it is not == nil, so errors.Is
+// and errors.As would otherwise dereference it.
 func (err *Error) Unwrap() error {
+	if err == nil {
+		return nil
+	}
 	return err.Err
 }
 

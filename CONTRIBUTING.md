@@ -387,7 +387,7 @@ supported W&B server release. The `local-testcontainer` images for released
 server versions are archived in
 `us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer`,
 because the source registry (`wandb-production`) only retains images for
-recent commits.
+about 30 days.
 
 The archive is updated manually. Whenever you need a release that is not yet archived, run:
 
@@ -405,8 +405,9 @@ GITHUB_ACCESS_TOKEN=$(gh auth token) nox -s local-testcontainer-registry -- serv
 ```
 
 You will need `gcloud` authenticated with an account that can read
-`wandb-production/images/local-testcontainer` and write
-`wandb-client-cicd/images/local-testcontainer`.
+`wandb-production/images/local-testcontainer-gha` and write
+`wandb-client-cicd/images/local-testcontainer`, and a GitHub token that can
+read `wandb/core` and its Actions runs.
 
 ## Troubleshooting
 

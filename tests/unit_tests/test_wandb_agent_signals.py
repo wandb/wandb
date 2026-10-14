@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 from wandb import wandb_agent
+from wandb.apis.public import sweeps
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +17,7 @@ def _sweep_helpers_call_the_mock_api(monkeypatch):
         ("_agent_heartbeat", "agent_heartbeat"),
     ]:
         monkeypatch.setattr(
-            wandb_agent,
+            sweeps,
             helper,
             lambda api, *args, _method=method, **kwargs: getattr(api, _method)(
                 *args, **kwargs

@@ -338,6 +338,11 @@ class AxOptimizer(Optimizer):
         return restore
 
     @override
+    def has_terminator(self) -> bool:
+        """Whether a terminator was supplied with the Ax client."""
+        return self._terminator is not None
+
+    @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
 
@@ -497,7 +502,8 @@ class AxOptimizer(Optimizer):
         try:
             if not self.client.should_stop_trial_early(trial_index=trial_index):
                 return False
-        except Exception:
+        except Exception as e:
+            wandb.termwarn(f"Early stopping failed for trial {trial_index}: {e}")
             return False
         self._finalized.add(trial_index)
         self.client.mark_trial_early_stopped(trial_index=trial_index)
