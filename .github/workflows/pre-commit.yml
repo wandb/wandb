@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Fetch main branch for comparison
+        run: git fetch origin main:main --depth=1
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
@@ -17,8 +21,9 @@ jobs:
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
+
       - name: Setup and run prek hooks
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           uv tool install prek
-          prek run --hook-stage pre-push --all-files --skip go-generate-graphql
+          prek run --stage pre-push --from-ref main --skip go-generate-graphql
