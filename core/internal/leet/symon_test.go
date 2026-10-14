@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
-	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
@@ -138,9 +138,9 @@ func TestSymon_ProcessesSortedByCPUThenMemory(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
 	m, _ = m.Update(leet.SymonSampleMsg{
 		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
-		Processes: []monitor.ProcessStat{
-			{PID: 1, Name: "chrome", CPUPercent: 10, RSS: 8 << 30},
-			{PID: 2, Name: "python", CPUPercent: 300, RSS: 1 << 30},
+		Processes: []*spb.ProcessStats{
+			{Pid: 1, Name: "chrome", CpuPercent: 10, RssBytes: 8 << 30},
+			{Pid: 2, Name: "python", CpuPercent: 300, RssBytes: 1 << 30},
 		},
 	})
 
@@ -162,9 +162,9 @@ func TestSymon_ProcessFilterAndFocus(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
 	m, _ = m.Update(leet.SymonSampleMsg{
 		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
-		Processes: []monitor.ProcessStat{
-			{PID: 1, Name: "chrome", CPUPercent: 10, RSS: 8 << 30},
-			{PID: 2, Name: "python", CPUPercent: 300, RSS: 1 << 30},
+		Processes: []*spb.ProcessStats{
+			{Pid: 1, Name: "chrome", CpuPercent: 10, RssBytes: 8 << 30},
+			{Pid: 2, Name: "python", CpuPercent: 300, RssBytes: 1 << 30},
 		},
 	})
 
