@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -85,10 +86,10 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client = retryablehttp.NewClient()
 		params.Client.Logger = params.Logger
 		params.Client.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-		params.Client.RetryMax = DefaultOpenMetricsRetryMax
-		params.Client.RetryWaitMin = DefaultOpenMetricsRetryWaitMin
-		params.Client.RetryWaitMax = DefaultOpenMetricsRetryWaitMax
-		params.Client.HTTPClient.Timeout = DefaultOpenMetricsTimeout
+		params.Client.RetryMax = 3
+		params.Client.RetryWaitMin = time.Second
+		params.Client.RetryWaitMax = 10 * time.Second
+		params.Client.HTTPClient.Timeout = 5 * time.Second
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
 

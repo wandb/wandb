@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -178,20 +177,14 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"ProcessExited", process.ErrorProcessNotRunning, false},
 		{
-			"ProcessExitedWithOtherError",
-			errors.Join(process.ErrorProcessNotRunning, errors.New("disk read failed")),
+			"JoinedWithOtherError",
+			errors.Join(errors.New("not implemented yet"), errors.New("disk read failed")),
 			true,
 		},
 		{
-			"ProcessExitedWithOtherExpectedError",
-			errors.Join(process.ErrorProcessNotRunning, errors.New("Incorrect function.")),
-			false,
-		},
-		{
-			"NetstatMissing",
-			errors.New(`exec: "netstat": executable file not found in $PATH`),
+			"JoinedExpectedErrors",
+			errors.Join(errors.New("not implemented yet"), errors.New("Incorrect function.")),
 			false,
 		},
 		{
@@ -202,11 +195,6 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			false,
 		},
 		{"WinIncorrectFunction", errors.New("Incorrect function."), false},
-		{
-			"MissingProcDiskstats",
-			errors.New("open /proc/diskstats: no such file or directory"),
-			false,
-		},
 		{"OtherError", errors.New("some other error"), true},
 	}
 	for _, tt := range tests {

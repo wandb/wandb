@@ -23,11 +23,12 @@ const PROCESS_METRICS: &[&str] = &[
 
 /// The stats items for a client monitoring the processes in `pids`.
 ///
-/// `averages` are the sample's averaged readings as this client should see
-/// them. An empty `gpu_device_ids` selects every GPU.
+/// `values` are the readings specific to this client: its averages, its
+/// counters since their baselines and its scope's host metrics. An empty
+/// `gpu_device_ids` selects every GPU.
 pub fn stats_items(
     sample: &Sample,
-    averages: &[(String, f64)],
+    values: &[(String, f64)],
     pids: &[u32],
     gpu_device_ids: &[i32],
 ) -> Vec<StatsItem> {
@@ -70,7 +71,7 @@ pub fn stats_items(
             push(key, value_json);
         }
     }
-    for (key, value) in averages {
+    for (key, value) in values {
         if let Ok(value_json) = serde_json::to_string(value) {
             push(key, value_json);
         }
@@ -82,49 +83,6 @@ pub fn stats_items(
 fn gpu_key(key: &str) -> Option<(u32, &str)> {
     let (index, name) = key.strip_prefix("gpu.")?.split_once('.')?;
     Some((index.parse().ok()?, name))
-}
-
-/// A process and all of its descendants. Only the process itself outside Linux.
-pub fn process_tree(pid: u32) -> Vec<u32> {
-    if pid == 0 {
-        return Vec::new();
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        vec![pid]
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let mut pids = vec![pid];
-        let mut i = 0;
-        while i < pids.len() {
-            for child in children(pids[i]) {
-                if !pids.contains(&child) {
-                    pids.push(child);
-                }
-            }
-            i += 1;
-        }
-        pids
-    }
-}
-
-/// The direct children of a process, forked from any of its threads.
-#[cfg(target_os = "linux")]
-fn children(pid: u32) -> Vec<u32> {
-    let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) else {
-        return Vec::new();
-    };
-    tasks
-        .flatten()
-        .filter_map(|task| std::fs::read_to_string(task.path().join("children")).ok())
-        .flat_map(|children| {
-            children
-                .split_whitespace()
-                .filter_map(|child| child.parse().ok())
-                .collect::<Vec<u32>>()
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -154,6 +112,7 @@ mod tests {
                 ("gpu.1.smActive".to_string(), 51.0),
             ],
             gpu_pids: [(0, vec![42]), (1, vec![42])].into(),
+            ..Default::default()
         };
 
         let items = stats_items(&sample, &sample.averages, &[7, 42], &[0]);

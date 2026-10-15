@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
-	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
@@ -77,7 +76,7 @@ type SystemMonitor struct {
 	// The list of resources to monitor.
 	resources []*monitoredResource
 
-	// xpu streams accelerator metrics from the wandb-xpu sidecar.
+	// xpu streams system metrics from the wandb-xpu sidecar.
 	xpu *XPU
 
 	// extraWork accepts outgoing messages for the run.
@@ -119,7 +118,7 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// XPUResourceManager manages the sidecar for GPU/TPU metrics.
+	// XPUResourceManager manages the wandb-xpu sidecar process.
 	XPUResourceManager *XPUResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
@@ -181,21 +180,8 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
-	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
 
-	if system := NewSystem(
-		SystemParams{
-			Pid:                         pid,
-			TrackProcessTree:            sm.settings.GetStatsTrackProcessTree(),
-			DisableCgroupResourceLimits: sm.settings.GetStatsNoCgroup(),
-			ReportSelfUsage:             sm.settings.GetStatsSelfUsage(),
-			DiskPaths:                   sm.settings.GetStatsDiskPaths(),
-		},
-	); system != nil {
-		sm.addResource(system)
-	}
-
-	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger, pid, gpuDeviceIds)
+	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger)
 
 	if trainium := NewTrainium(
 		sm.logger,
@@ -225,29 +211,23 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			),
 		)
 	}
+}
 
-	// DCGM Exporter.
-	if url := sm.settings.GetStatsDcgmExporter(); url != "" {
-		params := DCGMExporterParams{
-			URL:     url,
-			Headers: sm.settings.GetStatsOpenMetricsHeaders(),
-			Logger:  sm.logger,
-		}
-		if de := NewDCGMExporter(params); de != nil {
-			sm.addResource(de)
-		}
+// openMetricsFilters converts the x_stats_open_metrics_filters setting, a
+// sequence of metric regexes or a mapping from metric regex to the label
+// regexes its samples must match, to the sidecar's filters.
+func openMetricsFilters(filters *spb.OpenMetricsFilters) []*spb.OpenMetricsFilter {
+	var result []*spb.OpenMetricsFilter
+	for _, regex := range filters.GetSequence().GetValue() {
+		result = append(result, &spb.OpenMetricsFilter{MetricRegex: regex})
 	}
-
-	// OpenMetrics endpoints to monitor.
-	if endpoints := sm.settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
-		for name, url := range endpoints {
-			filters := sm.settings.GetStatsOpenMetricsFilters()
-			headers := sm.settings.GetStatsOpenMetricsHeaders()
-			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
-				sm.addResource(om)
-			}
-		}
+	for regex, labels := range filters.GetMapping().GetValue() {
+		result = append(result, &spb.OpenMetricsFilter{
+			MetricRegex:  regex,
+			LabelRegexes: labels.GetValue(),
+		})
 	}
+	return result
 }
 
 // marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
@@ -300,9 +280,60 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
 		Git:           sm.git,
+		Slurm:         slurmEnvVars(),
 
 		WriterId: string(sm.writerID),
 	}}}
+}
+
+// slurmEnvVars returns the SLURM_* environment variables keyed by their
+// lowercased suffix, or nil when there are none.
+func slurmEnvVars() map[string]string {
+	var vars map[string]string
+	for _, envVar := range os.Environ() {
+		key, value, ok := strings.Cut(envVar, "=")
+		if !ok {
+			continue
+		}
+		if suffix, ok := strings.CutPrefix(key, "SLURM_"); ok {
+			if vars == nil {
+				vars = make(map[string]string)
+			}
+			vars[strings.ToLower(suffix)] = value
+		}
+	}
+	return vars
+}
+
+// subscribeRequest describes the run's subscription to the sidecar: what
+// to sample, how often and for whom.
+func (sm *SystemMonitor) subscribeRequest() *spb.SubscribeRequest {
+	request := &spb.SubscribeRequest{
+		IntervalSeconds:        sm.samplingInterval.Seconds(),
+		Pid:                    sm.settings.GetStatsPid(),
+		GpuDeviceIds:           sm.settings.GetStatsGpuDeviceIds(),
+		SubscriberId:           string(sm.writerID),
+		TrackProcessTree:       sm.settings.GetStatsTrackProcessTree(),
+		DiskPaths:              sm.settings.GetStatsDiskPaths(),
+		DisableCgroup:          sm.settings.GetStatsNoCgroup(),
+		OpenMetricsEndpoints:   sm.settings.GetStatsOpenMetricsEndpoints(),
+		OpenMetricsFilters:     openMetricsFilters(sm.settings.GetStatsOpenMetricsFilters()),
+		OpenMetricsHttpHeaders: sm.settings.GetStatsOpenMetricsHeaders(),
+		DcgmExporter:           sm.settings.GetStatsDcgmExporter(),
+	}
+	if sm.settings.GetStatsSelfUsage() {
+		request.WandbPids = []int32{int32(os.Getpid())}
+	}
+	return request
+}
+
+// metadataRequest describes what the sidecar's probe should look at.
+func (sm *SystemMonitor) metadataRequest() *spb.GetMetadataRequest {
+	return &spb.GetMetadataRequest{
+		DiskPaths:              sm.settings.GetStatsDiskPaths(),
+		DcgmExporter:           sm.settings.GetStatsDcgmExporter(),
+		OpenMetricsHttpHeaders: sm.settings.GetStatsOpenMetricsHeaders(),
+	}
 }
 
 // probeResources gathers system information from all resources and merges their metadata.
@@ -314,9 +345,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	g, gctx := errgroup.WithContext(sm.ctx)
 	var mu sync.Mutex
 
-	probe := func(resource interface {
-		Probe(context.Context) *spb.EnvironmentRecord
-	}) {
+	probe := func(probeResource func(context.Context) *spb.EnvironmentRecord) {
 		g.Go(func() error {
 			defer func() {
 				if err := recover(); err != nil {
@@ -331,7 +360,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 				return nil
 			}
 
-			if rec := resource.Probe(gctx); rec != nil {
+			if rec := probeResource(gctx); rec != nil {
 				mu.Lock()
 				proto.Merge(e, rec)
 				mu.Unlock()
@@ -340,10 +369,12 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		})
 	}
 	for _, resource := range sm.resources {
-		probe(resource)
+		probe(resource.Probe)
 	}
 	if sm.xpu != nil {
-		probe(sm.xpu)
+		probe(func(ctx context.Context) *spb.EnvironmentRecord {
+			return sm.xpu.Probe(ctx, sm.metadataRequest())
+		})
 	}
 
 	_ = g.Wait()
@@ -389,7 +420,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		sm.loop()
 	})
 	sm.wake()
-	sm.xpu.Subscribe(sm.samplingInterval, sm.publish)
+	sm.xpu.Subscribe(sm.subscribeRequest(), sm.publish)
 }
 
 // wake forces the system monitor to sample resources immediately.
@@ -445,7 +476,7 @@ func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Debug("monitor: resuming")
 		sm.wake()
-		sm.xpu.Subscribe(sm.samplingInterval, sm.publish)
+		sm.xpu.Subscribe(sm.subscribeRequest(), sm.publish)
 	}
 }
 
@@ -550,11 +581,6 @@ func ShouldCaptureSamplingError(err error) bool {
 		return false
 	}
 
-	// The monitored process may exit before its last sample completes.
-	if errors.Is(err, process.ErrorProcessNotRunning) {
-		return false
-	}
-
 	// The caller went away, e.g. the run finished mid-sample.
 	if errors.Is(err, context.Canceled) {
 		return false
@@ -564,18 +590,6 @@ func ShouldCaptureSamplingError(err error) bool {
 	switch {
 	// Error connecting to a Prometheus server.
 	case strings.Contains(msg, "connection refused"):
-		return false
-
-	// Platforms without netstat (gopsutil may shell out on some OSes).
-	case errors.Is(err, exec.ErrNotFound):
-		return false
-	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
-		return false
-
-	// Container/lean Linux builds without /proc/diskstats.
-	case strings.Contains(msg, "/proc/diskstats") &&
-		(strings.Contains(msg, "no such file") ||
-			strings.Contains(msg, "no such file or directory")):
 		return false
 
 	// Windows sporadic low-level API failure wording.
