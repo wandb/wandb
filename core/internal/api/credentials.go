@@ -284,8 +284,10 @@ type assertionExchange struct {
 	httpClient            RetryableClient
 }
 
+// rotates implements tokenExchange.rotates.
 func (e *assertionExchange) rotates() bool { return false }
 
+// exchange implements tokenExchange.exchange.
 func (e *assertionExchange) exchange(
 	ctx context.Context,
 	_ accessTokenInfo,
@@ -318,17 +320,16 @@ type refreshTokenExchange struct {
 	httpClient RetryableClient
 }
 
+// rotates implements tokenExchange.rotates.
 func (e *refreshTokenExchange) rotates() bool { return true }
 
+// exchange implements tokenExchange.exchange.
 func (e *refreshTokenExchange) exchange(
 	ctx context.Context,
 	current accessTokenInfo,
 ) (accessTokenInfo, error) {
 	if !current.hasUserRefreshToken() {
-		return accessTokenInfo{}, &TokenExchangeError{
-			StatusCode: http.StatusUnauthorized,
-			Body:       "no browser login stored; run `wandb login` again",
-		}
+		return accessTokenInfo{}, noStoredLoginError{}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, refreshExchangeTimeout)
@@ -462,6 +463,17 @@ func (e *TokenExchangeError) Error() string {
 
 // PermanentError returns true: retrying the exchange cannot succeed.
 func (e *TokenExchangeError) PermanentError() bool { return true }
+
+// noStoredLoginError means the credentials file no longer holds a browser
+// login for the base URL, like after the user logs out.
+type noStoredLoginError struct{}
+
+func (noStoredLoginError) Error() string {
+	return "no browser login stored; run `wandb login` again"
+}
+
+// PermanentError returns true: only a new login can fix it.
+func (noStoredLoginError) PermanentError() bool { return true }
 
 // isExchangeRejection reports whether the token endpoint's status is a
 // definitive rejection of the exchange, like an invalid or expired
