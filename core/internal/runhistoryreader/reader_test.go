@@ -79,6 +79,7 @@ func createMockRustArrowWrapper(
 	dataStore := newMockKVDataStore()
 	nextReaderID := uintptr(1000)
 	readerToDataset := make(map[uintptr][]map[string]any)
+	readerNextSteps := make(map[uintptr]int64)
 	// Store allocated pointers so they don't get garbage collected
 	allocatedPointers := make([]*uintptr, 0)
 	assignedDatasets := make(map[uintptr]bool)
@@ -152,10 +153,14 @@ func createMockRustArrowWrapper(
 
 			// Filter data based on step range (exclusive of maxStep)
 			filteredData := []map[string]any{}
+			readerNextSteps[readerID] = -1
 			for _, row := range dataset {
 				step := row["_step"].(int64)
 				if step >= minStep && step < maxStep {
 					filteredData = append(filteredData, row)
+				}
+				if step >= maxStep && (readerNextSteps[readerID] < 0 || step < readerNextSteps[readerID]) {
+					readerNextSteps[readerID] = step
 				}
 			}
 
@@ -169,7 +174,80 @@ func createMockRustArrowWrapper(
 
 			return nil
 		},
+		func(readerPtr unsafe.Pointer) int64 {
+			readerID := *(*uintptr)(readerPtr)
+			if step, ok := readerNextSteps[readerID]; ok {
+				return step
+			}
+			return -1
+		},
 	)
+}
+
+func TestHistoryReader_GetHistoryPageNextStep(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		minLiveStep int64
+		wantNext    int64
+	}{
+		{name: "earliest remaining partition", minLiveStep: math.MaxInt64, wantNext: 5_000_000},
+		{name: "live data before next parquet row", minLiveStep: 2_000_000, wantNext: 2_000_000},
+		{name: "live boundary at window end", minLiveStep: 1000, wantNext: 1000},
+		{name: "window overlaps live range", minLiveStep: 500, wantNext: 1000},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+			mockGQL := gqlmock.NewMockClient()
+			if test.minLiveStep < 1000 {
+				mockGQL.StubMatchOnce(gqlmock.WithOpName("HistoryPage"),
+					`{"project":{"run":{"history":["{\"_step\":750}"]}}}`)
+			}
+			wrapper := createMockRustArrowWrapper(t, nil, map[uintptr][]map[string]any{
+				1: {{"_step": int64(0)}, {"_step": int64(100_000_000)}},
+				2: {{"_step": int64(5_000_000)}},
+			})
+			reader := &HistoryReader{graphqlClient: mockGQL, minLiveStep: test.minLiveStep}
+			for range 2 {
+				partition, err := ffi.CreateRustArrowReader(wrapper, "fixture.parquet", nil)
+				require.NoError(t, err)
+				reader.parquetReaders = append(reader.parquetReaders, partition)
+			}
+			defer reader.Release()
+			rows, nextStep, err := reader.GetHistoryPage(ctx, 0, 1000)
+			require.NoError(t, err)
+			require.NotEmpty(t, rows)
+			assert.Equal(t, int64(0), rows[0].StepValue())
+			if test.minLiveStep < 1000 {
+				require.Len(t, rows, 2)
+				assert.Equal(t, int64(750), rows[1].StepValue())
+			}
+			assert.Equal(t, test.wantNext, nextStep)
+		})
+	}
+}
+
+func TestHistoryReader_GetHistoryPageWithoutExportMetadata(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(gqlmock.WithOpName("HistoryPage"),
+		`{"project":{"run":{"history":[]}}}`)
+	reader := &HistoryReader{graphqlClient: mockGQL, minLiveStep: math.MaxInt64}
+	_, nextStep, err := reader.GetHistoryPage(t.Context(), 0, 1000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1000), nextStep)
+}
+
+func TestHistoryReader_GetHistoryPageAfterLastExportedRow(t *testing.T) {
+	wrapper := createMockRustArrowWrapper(t, nil, map[uintptr][]map[string]any{
+		1: {{"_step": int64(0)}},
+	})
+	partition, err := ffi.CreateRustArrowReader(wrapper, "fixture.parquet", nil)
+	require.NoError(t, err)
+	reader := &HistoryReader{minLiveStep: math.MaxInt64, parquetReaders: []*ffi.RustArrowReader{partition}}
+	defer reader.Release()
+	rows, nextStep, err := reader.GetHistoryPage(t.Context(), 0, 1000)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(math.MaxInt64), nextStep)
 }
 
 // createKVBinaryStream builds a KV binary stream for testing.

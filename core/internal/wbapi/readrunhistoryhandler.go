@@ -200,7 +200,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 	maxStep := request.MaxStep
 
 	getHistoryStepsStart := time.Now()
-	historySteps, err := historyReader.GetHistorySteps(
+	historySteps, nextStep, err := historyReader.GetHistoryPage(
 		ctx,
 		minStep,
 		maxStep,
@@ -253,6 +253,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 				Response: &spb.ReadRunHistoryResponse_RunHistory{
 					RunHistory: &spb.RunHistoryResponse{
 						HistoryRows: historyRows,
+						NextStep:    &nextStep,
 					},
 				},
 			},

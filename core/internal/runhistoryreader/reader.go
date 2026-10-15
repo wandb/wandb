@@ -117,24 +117,47 @@ func (h *HistoryReader) GetHistorySteps(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
+	rows, _, err := h.GetHistoryPage(ctx, minStep, maxStep)
+	return rows, err
+}
+
+// GetHistoryPage reads a step window and returns a safe lower bound for the
+// next window. Parquet readers expose the next row they encountered, so gaps
+// need no further scans. Live ranges remain conservative: the next Parquet row
+// must never cause a scan to skip data that has not been exported.
+func (h *HistoryReader) GetHistoryPage(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, int64, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	results := []parquet.KeyValueList{}
+	nextStep := int64(math.MaxInt64)
 	for _, reader := range h.parquetReaders {
 		resultsForPartition, err := reader.ScanStepRange(ctx, minStep, maxStep)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		results = append(results, resultsForPartition...)
+		if step := reader.NextStep(); step >= maxStep {
+			nextStep = min(nextStep, step)
+		}
 	}
 
 	selectAllColumns := len(h.keys) == 0
 	livehistory, err := h.getLiveData(ctx, minStep, maxStep, selectAllColumns)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	results = append(results, livehistory...)
+	if h.minLiveStep != math.MaxInt64 {
+		nextStep = min(nextStep, max(maxStep, h.minLiveStep))
+	} else if len(h.parquetReaders) == 0 {
+		// Missing export metadata does not prove the live store is empty.
+		nextStep = maxStep
+	}
 
 	steps := make([]int64, len(results))
 	for i, row := range results {
@@ -154,7 +177,7 @@ func (h *HistoryReader) GetHistorySteps(
 		sorted[i] = results[idx]
 	}
 
-	return sorted, nil
+	return sorted, nextStep, nil
 }
 
 // Release calls the Release method on each partition's ParquetDataIterator

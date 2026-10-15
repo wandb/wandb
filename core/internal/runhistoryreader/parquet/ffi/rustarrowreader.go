@@ -54,6 +54,9 @@ type RustArrowWrapper struct {
 		outResult *StepScanResult,
 	) *byte
 
+	// nextStep returns the first step beyond the last scan window, or -1 at EOF.
+	nextStep func(readerPtr unsafe.Pointer) int64
+
 	// freeString is a Rust FFI to free a string allocated by Rust.
 	freeString func(s *byte)
 	// freeBuffer is a Rust FFI to free a byte buffer allocated by Rust.
@@ -109,6 +112,8 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 		outResult *StepScanResult,
 	) *byte
 	purego.RegisterLibFunc(&scanStepRange, rustLib, "reader_scan_step_range")
+	var nextStep func(readerPtr unsafe.Pointer) int64
+	purego.RegisterLibFunc(&nextStep, rustLib, "reader_next_step")
 	var freeReader func(readerPtr unsafe.Pointer)
 	purego.RegisterLibFunc(&freeReader, rustLib, "free_reader")
 
@@ -118,6 +123,7 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 		freeBuffer:    freeBuffer,
 		freeReader:    freeReader,
 		scanStepRange: scanStepRange,
+		nextStep:      nextStep,
 	}, nil
 }
 
@@ -134,14 +140,22 @@ func RustArrowWrapperTester(
 		maxStep int64,
 		outResult *StepScanResult,
 	) *byte,
+	nextStep func(readerPtr unsafe.Pointer) int64,
 ) *RustArrowWrapper {
 	return &RustArrowWrapper{
 		createReader:  createReader,
 		scanStepRange: scanStepRange,
+		nextStep:      nextStep,
 		freeString:    func(s *byte) {},
 		freeBuffer:    func(bufferPtr unsafe.Pointer) {},
 		freeReader:    func(readerPtr unsafe.Pointer) {},
 	}
+}
+
+// NextStep returns the first step beyond the last scan window, or -1 at EOF.
+// Call it after ScanStepRange succeeds and before starting another scan.
+func (r *RustArrowReader) NextStep() int64 {
+	return r.rustArrowWrapper.nextStep(r.reader)
 }
 
 // CreateRustArrowReader creates a new RustArrowReader for a given list of file paths.

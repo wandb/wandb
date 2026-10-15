@@ -126,6 +126,8 @@ class HistoryScan(Iterator[_RowDict]):
             self._convert_history_row_to_dict(row) for row in run_history.history_rows
         ]
         self.page_offset += self.page_size
+        if run_history.HasField("next_step"):
+            self.page_offset = max(self.page_offset, run_history.next_step)
         self.scan_offset = 0
 
     @staticmethod
