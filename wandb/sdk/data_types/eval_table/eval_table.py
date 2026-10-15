@@ -95,9 +95,8 @@ class EvalTable(Table):
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             backend: Optional storage-backend override. Weave is the default. Pass
-                "ces" to write through the Evaluation Service instead. CES is not
-                released yet: it is unsupported, subject to change, and requires a
-                W&B server that advertises support for it.
+                "ces" to write through the CoreWeave Evaluation Service instead, which
+                is not yet released.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag

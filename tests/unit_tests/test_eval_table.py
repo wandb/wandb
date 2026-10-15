@@ -29,7 +29,6 @@ def test_eval_table_rejects_unknown_backend():
 
 def test_to_json_requires_bind(mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
-    # Pin a backend: the default is Weave, whose package is not a test dependency.
     table = wandb.EvalTable(columns=["out"], data=[["x"]], backend="ces")
 
     with pytest.raises(UsageError, match="must be logged with run.log"):
