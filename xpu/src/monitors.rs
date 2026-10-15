@@ -1,48 +1,57 @@
 //! Collectors for each hardware platform and vendor.
 
-use crate::metrics::{self, Sample};
-use crate::wandb_internal::EnvironmentRecord;
+use crate::metrics::{self, Sample, Scope};
+use crate::wandb_internal::{EnvironmentRecord, GetMetadataRequest};
 use log::{debug, warn};
 use std::collections::HashMap;
+use std::sync::Arc;
 
-/// A source of metrics for one kind of hardware.
+/// A source of metrics for one kind of hardware or one kind of endpoint.
 ///
 /// A collector reads every device it knows about; which of them a client
-/// sees is decided when its record is built.
+/// sees is decided when its record is built. Readings that depend on the
+/// subscriber, such as a process's CPU use, go into [`Sample::scoped`] under
+/// the subscriber's [`Scope`].
 #[async_trait::async_trait]
 pub trait Collector: Send + Sync {
-    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>>;
+    /// Reads the hardware once for the subscribers with `scopes`.
+    async fn collect_metrics(&self, scopes: &[Scope])
+    -> Result<Sample, Box<dyn std::error::Error>>;
 
+    /// The static facts about the hardware, gathered once per service.
     async fn collect_metadata(
         &self,
         samples: &HashMap<String, &metrics::MetricValue>,
     ) -> EnvironmentRecord;
+
+    /// Adds the facts that depend on the request, such as the usage of the
+    /// requested disks, to `metadata`. Called on every GetMetadata request.
+    async fn probe(&self, _request: &GetMetadataRequest, _metadata: &mut EnvironmentRecord) {}
 
     fn shutdown(&self) {}
 }
 
 /// Every collector available on this machine.
 pub struct Collectors {
-    collectors: Vec<Box<dyn Collector>>,
+    collectors: Vec<Arc<dyn Collector>>,
 }
 
 impl Collectors {
-    #[allow(unused_variables)] // used only on linux
+    #[allow(unused_variables)] // used only on some platforms
     pub fn new(enable_dcgm_profiling: bool) -> Self {
-        let mut collectors: Vec<Box<dyn Collector>> = Vec::new();
+        let mut collectors: Vec<Arc<dyn Collector>> = vec![Arc::new(crate::host::Host::new())];
 
-        // Add platform-specific collectors
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             if let Some(collector) = AppleGpuMonitor::new() {
-                collectors.push(Box::new(collector));
+                collectors.push(Arc::new(collector));
             }
         }
 
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
             if let Some(collector) = NvidiaGpuMonitor::new() {
-                collectors.push(Box::new(collector));
+                collectors.push(Arc::new(collector));
             }
         }
 
@@ -50,38 +59,59 @@ impl Collectors {
         {
             if enable_dcgm_profiling {
                 if let Some(collector) = DcgmGpuMonitor::new() {
-                    collectors.push(Box::new(collector));
+                    collectors.push(Arc::new(collector));
                 }
             }
 
             if let Some(collector) = AmdGpuMonitor::new() {
-                collectors.push(Box::new(collector));
+                collectors.push(Arc::new(collector));
             }
 
             if let Some(collector) = tpu_libtpu::TpuMonitor::new() {
-                collectors.push(Box::new(collector));
+                collectors.push(Arc::new(collector));
             }
         }
 
         Self { collectors }
     }
 
-    /// One pass over every collector.
-    pub async fn collect_metrics(&self) -> Sample {
-        let mut sample = Sample::default();
+    /// One pass over every collector for the subscribers with `scopes`.
+    ///
+    /// The collectors run concurrently, each in its own task, so a slow or
+    /// panicking one only costs its own readings.
+    pub async fn collect_metrics(&self, scopes: Vec<Scope>) -> Sample {
+        let scopes: Arc<[Scope]> = scopes.into();
+        let tasks: Vec<_> = self
+            .collectors
+            .iter()
+            .map(|collector| {
+                let collector = collector.clone();
+                let scopes = scopes.clone();
+                tokio::spawn(async move {
+                    collector
+                        .collect_metrics(&scopes)
+                        .await
+                        .map_err(|e| e.to_string())
+                })
+            })
+            .collect();
 
-        for collector in &self.collectors {
-            match collector.collect_metrics().await {
-                Ok(part) => {
-                    sample.metrics.extend(part.metrics);
-                    sample.averages.extend(part.averages);
-                    sample.gpu_pids.extend(part.gpu_pids);
-                }
-                Err(e) => warn!("Failed to collect metrics: {}", e),
+        let mut sample = Sample::default();
+        for task in tasks {
+            match task.await {
+                Ok(Ok(part)) => sample.merge(part),
+                Ok(Err(e)) => warn!("Failed to collect metrics: {e}"),
+                Err(e) => warn!("A collector panicked: {e}"),
             }
         }
-
         sample
+    }
+
+    /// Adds the facts that depend on `request` to `metadata`.
+    pub async fn probe(&self, request: &GetMetadataRequest, metadata: &mut EnvironmentRecord) {
+        for collector in &self.collectors {
+            collector.probe(request, metadata).await;
+        }
     }
 
     pub async fn collect_metadata(
@@ -101,7 +131,9 @@ impl Collectors {
             }
             metadata.gpu_nvidia.extend(collector_metadata.gpu_nvidia);
             metadata.gpu_amd.extend(collector_metadata.gpu_amd);
-            metadata.apple = collector_metadata.apple;
+            if collector_metadata.apple.is_some() {
+                metadata.apple = collector_metadata.apple;
+            }
             if collector_metadata.tpu.is_some() {
                 metadata.tpu = collector_metadata.tpu;
             }
@@ -145,7 +177,10 @@ impl AppleGpuMonitor {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[async_trait::async_trait]
 impl Collector for AppleGpuMonitor {
-    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+    async fn collect_metrics(
+        &self,
+        _scopes: &[Scope],
+    ) -> Result<Sample, Box<dyn std::error::Error>> {
         let stats = self.sampler.get_metrics().await?;
         let soc_info = self.sampler.get_soc_info().await?;
         Ok(Sample {
@@ -203,7 +238,10 @@ impl NvidiaGpuMonitor {
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 #[async_trait::async_trait]
 impl Collector for NvidiaGpuMonitor {
-    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+    async fn collect_metrics(
+        &self,
+        _scopes: &[Scope],
+    ) -> Result<Sample, Box<dyn std::error::Error>> {
         Ok(self.gpu.lock().await.get_metrics()?)
     }
 
@@ -254,7 +292,10 @@ impl DcgmGpuMonitor {
 #[async_trait::async_trait]
 impl Collector for DcgmGpuMonitor {
     /// DCGM's profiling fields are averages over its own update interval.
-    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+    async fn collect_metrics(
+        &self,
+        _scopes: &[Scope],
+    ) -> Result<Sample, Box<dyn std::error::Error>> {
         let averages = self
             .client
             .get_metrics()
@@ -313,7 +354,10 @@ impl AmdGpuMonitor {
 #[cfg(target_os = "linux")]
 #[async_trait::async_trait]
 impl Collector for AmdGpuMonitor {
-    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+    async fn collect_metrics(
+        &self,
+        _scopes: &[Scope],
+    ) -> Result<Sample, Box<dyn std::error::Error>> {
         Ok(Sample {
             metrics: self.gpu.lock().await.get_metrics(),
             ..Default::default()
