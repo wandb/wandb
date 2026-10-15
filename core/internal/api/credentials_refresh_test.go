@@ -18,13 +18,14 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayerstest"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func expiredAt() string {
+func expiredTimestamp() string {
 	return time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05")
 }
 
@@ -39,7 +40,7 @@ func writeCredentialsFile(t *testing.T, dir, host, refreshToken string) string {
       "refresh_token": %q
     }
   }
-}`, host, expiredAt(), refreshToken)
+}`, host, expiredTimestamp(), refreshToken)
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
 	return path
 }
@@ -70,6 +71,7 @@ func rotatingAuthServer(t *testing.T) (*apitest.RecordingServer, *atomic.Int64) 
 				"expires_in":    time.Hour.Seconds(),
 			}))
 		}))
+	t.Cleanup(server.Close)
 	return server, &exchanges
 }
 
@@ -82,7 +84,6 @@ func browserLoginSettings(host, credentialsFile string) *wbsettings.Settings {
 
 func TestBrowserLoginRefreshesWithTheStoredToken(t *testing.T) {
 	server, _ := rotatingAuthServer(t)
-	defer server.Close()
 	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
 
 	provider, err := api.NewCredentialProvider(
@@ -107,7 +108,6 @@ func TestBrowserLoginRefreshesWithTheStoredToken(t *testing.T) {
 
 func TestBrowserLoginPersistsTheReplacementRefreshToken(t *testing.T) {
 	server, _ := rotatingAuthServer(t)
-	defer server.Close()
 	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
 
 	provider, err := api.NewCredentialProvider(
@@ -127,7 +127,6 @@ func TestBrowserLoginPersistsTheReplacementRefreshToken(t *testing.T) {
 
 func TestIdentityTokenExchangeTagsTheEntryAsWorkload(t *testing.T) {
 	server, _ := rotatingAuthServer(t)
-	defer server.Close()
 	dir := t.TempDir()
 	credentialsFile := writeCredentialsFile(t, dir, server.URL, "wb_rt_stored")
 	identityTokenFile := filepath.Join(dir, "identity.jwt")
@@ -168,7 +167,7 @@ func writeWorkloadEntry(t *testing.T, path, host, expiresAt string) {
 
 func TestBrowserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
 	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
-	writeWorkloadEntry(t, credentialsFile, "https://api.wandb.ai", expiredAt())
+	writeWorkloadEntry(t, credentialsFile, "https://api.wandb.ai", expiredTimestamp())
 
 	provider, err := api.NewCredentialProvider(
 		browserLoginSettings("https://api.wandb.ai", credentialsFile),
@@ -181,7 +180,6 @@ func TestBrowserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
 
 func TestBrowserLoginDoesNotRefreshAWorkloadEntryWrittenLater(t *testing.T) {
 	server, exchanges := rotatingAuthServer(t)
-	defer server.Close()
 	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
 
 	provider, err := api.NewCredentialProvider(
@@ -189,16 +187,18 @@ func TestBrowserLoginDoesNotRefreshAWorkloadEntryWrittenLater(t *testing.T) {
 		observabilitytest.NewTestLogger(t).Logger,
 	)
 	require.NoError(t, err)
-	writeWorkloadEntry(t, credentialsFile, server.URL, expiredAt())
+	writeWorkloadEntry(t, credentialsFile, server.URL, expiredTimestamp())
 
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 	require.ErrorContains(t, err, "no browser login stored")
+	var permanent clients.PermanentError
+	require.ErrorAs(t, err, &permanent)
+	assert.True(t, permanent.PermanentError())
 	assert.Equal(t, int64(0), exchanges.Load())
 }
 
 func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
 	server, _ := rotatingAuthServer(t)
-	defer server.Close()
 
 	dir := t.TempDir()
 	credentialsFile := filepath.Join(dir, "credentials.json")
@@ -215,7 +215,7 @@ func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
       "refresh_token": "other-refresh-token"
     }
   }
-}`, server.URL, expiredAt())
+}`, server.URL, expiredTimestamp())
 	require.NoError(t, os.WriteFile(credentialsFile, []byte(contents), 0o600))
 
 	provider, err := api.NewCredentialProvider(
@@ -333,7 +333,6 @@ func TestBrowserLoginRejectsAnIncompleteResponse(t *testing.T) {
 
 func TestBrowserLoginOnlyRefreshesOnceAcrossProviders(t *testing.T) {
 	server, exchanges := rotatingAuthServer(t)
-	defer server.Close()
 	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
 
 	var group errgroup.Group
@@ -357,7 +356,6 @@ func TestBrowserLoginOnlyRefreshesOnceAcrossProviders(t *testing.T) {
 
 func TestBrowserLoginIsNotUsedWhenAnAPIKeyIsSet(t *testing.T) {
 	server, exchanges := rotatingAuthServer(t)
-	defer server.Close()
 	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
 
 	provider, err := api.NewCredentialProvider(
