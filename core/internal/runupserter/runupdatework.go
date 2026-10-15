@@ -47,7 +47,6 @@ type RunUpdateWork struct {
 	// RunHandle is used to update the stream's run information.
 	RunHandle RunHandle
 
-	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -94,7 +93,6 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 
 		DebounceDelay: runUpsertDebounceSeconds * time.Second,
 
-		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,
 		Operations:         w.Operations,
 		FeatureProvider:    w.FeatureProvider,

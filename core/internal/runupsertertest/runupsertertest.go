@@ -52,9 +52,6 @@ func NewTestUpserterFromRun(
 ) *runupserter.RunUpserter {
 	t.Helper()
 
-	if params.ClientID == "" {
-		params.ClientID = "test-client-id"
-	}
 	if params.Settings == nil {
 		params.Settings = settings.New()
 	}

@@ -43,12 +43,12 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Logger:             logger,
 		Operations:         wandbOperations,
 		RunHandle:          runHandle,
-		ClientID:           clientID,
 		Settings:           settings2,
 	}
 	runReaderFactory := &RunReaderFactory{
 		Logger:     logger,
 		Operations: wandbOperations,
+		ClientID:   clientID,
 	}
 	stats := provideNoFileStreamStats()
 	fileStreamFactory := &filestream.FileStreamFactory{
