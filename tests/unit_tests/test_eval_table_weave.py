@@ -1104,3 +1104,10 @@ def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
     assert isinstance(output["1"], PILImage.Image)
     assert output["1"].size == (2, 2)
     assert call_kwargs["inputs"] == {"row": 1}
+
+
+def test_default_backend_is_weave(mock_eval_logger, run):
+    et = wandb.EvalTable(columns=["prompt"], data=[["x"]])
+    run.log({"my_eval": et})
+
+    assert mock_eval_logger.created_loggers
