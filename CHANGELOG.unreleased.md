@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- Python 3.15 is now supported (@dmitryduev in https://github.com/wandb/wandb/pull/13167)
 - In W&B LEET TUI, `l` links the console logs to the charts in the single-run view: with the logs pane focused, the charts show a crosshair at the time the selected line was logged as you move through the log, and inspecting a chart with the mouse selects the console line logged nearest to that point. `l` again unlinks (@dmitryduev in https://github.com/wandb/wandb/pull/12737)
 - `wandb leet symon` now shows the utilization of every CPU core and, on Linux, the CPU temperature (@dmitryduev in https://github.com/wandb/wandb/pull/13012)
 - `wandb leet symon` now charts network and disk throughput in bytes per second instead of totals since it started (@dmitryduev in https://github.com/wandb/wandb/pull/13013)
