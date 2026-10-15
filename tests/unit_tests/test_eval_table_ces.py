@@ -862,3 +862,10 @@ def test_ces_backend_requires_server_feature(run, monkeypatch):
 
     with pytest.raises(UsageError, match="does not support CES EvalTable logging"):
         run.log({"my_eval": et})
+
+
+def test_default_backend_is_ces(mock_ces_client, run):
+    et = wandb.EvalTable(columns=["prompt"], data=[["x"]])
+    run.log({"my_eval": et})
+
+    assert mock_ces_client.eval_tables.create.called
