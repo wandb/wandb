@@ -16,8 +16,10 @@ import (
 
 func TestRunHistoryAPIHandler_ScanNextStepSurvivesWireRoundTrip(t *testing.T) {
 	client := gqlmock.NewMockClient()
-	client.StubMatchOnce(gqlmock.WithOpName("RunParquetHistory"),
-		`{"project":{"run":{"parquetHistory":{"parquetUrls":["https://example.com/history.parquet"],"liveData":[]}}}}`)
+	client.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{"project":{"run":{"parquetHistory":{"parquetUrls":["https://example.com/history.parquet"],"liveData":[]}}}}`,
+	)
 	wrapper := ffi.RustArrowWrapperTester(
 		func(*byte, **byte, int, **byte) unsafe.Pointer {
 			return unsafe.Pointer(new(byte))
@@ -28,7 +30,17 @@ func TestRunHistoryAPIHandler_ScanNextStepSurvivesWireRoundTrip(t *testing.T) {
 		},
 		func(unsafe.Pointer) int64 { return 5_000_000 },
 	)
-	reader, err := runhistoryreader.New(t.Context(), "entity", "project", "run-id", client, nil, []string{"_step"}, false, wrapper)
+	reader, err := runhistoryreader.New(
+		t.Context(),
+		"entity",
+		"project",
+		"run-id",
+		client,
+		nil,
+		[]string{"_step"},
+		false,
+		wrapper,
+	)
 	require.NoError(t, err)
 	defer reader.Release()
 	handler := NewRunHistoryAPIHandler(client, nil, observability.NewNoOpLogger())

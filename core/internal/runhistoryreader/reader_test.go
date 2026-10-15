@@ -159,7 +159,8 @@ func createMockRustArrowWrapper(
 				if step >= minStep && step < maxStep {
 					filteredData = append(filteredData, row)
 				}
-				if step >= maxStep && (readerNextSteps[readerID] < 0 || step < readerNextSteps[readerID]) {
+				if step >= maxStep &&
+					(readerNextSteps[readerID] < 0 || step < readerNextSteps[readerID]) {
 					readerNextSteps[readerID] = step
 				}
 			}
@@ -238,12 +239,27 @@ func TestHistoryReader_GetHistoryPagePreservesWindowsWithLiveMetadata(t *testing
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			mockGQL := gqlmock.NewMockClient()
-			mockGQL.StubMatchOnce(gqlmock.WithOpName("RunParquetHistory"),
-				fmt.Sprintf(`{"project":{"run":{"parquetHistory":{"parquetUrls":["https://example.com/history.parquet"],"liveData":[{"_step":%d}]}}}}`, test.liveStep))
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunParquetHistory"),
+				fmt.Sprintf(
+					`{"project":{"run":{"parquetHistory":{"parquetUrls":["https://example.com/history.parquet"],"liveData":[{"_step":%d}]}}}}`,
+					test.liveStep,
+				),
+			)
 			wrapper := createMockRustArrowWrapper(t, nil, map[uintptr][]map[string]any{
 				1: {{"_step": int64(0)}},
 			})
-			reader, err := New(t.Context(), "entity", "project", "run-id", mockGQL, nil, []string{"_step"}, false, wrapper)
+			reader, err := New(
+				t.Context(),
+				"entity",
+				"project",
+				"run-id",
+				mockGQL,
+				nil,
+				[]string{"_step"},
+				false,
+				wrapper,
+			)
 			require.NoError(t, err)
 			defer reader.Release()
 
@@ -271,7 +287,10 @@ func TestHistoryReader_GetHistoryPageAfterLastExportedRow(t *testing.T) {
 	})
 	partition, err := ffi.CreateRustArrowReader(wrapper, "fixture.parquet", nil)
 	require.NoError(t, err)
-	reader := &HistoryReader{minLiveStep: math.MaxInt64, parquetReaders: []*ffi.RustArrowReader{partition}}
+	reader := &HistoryReader{
+		minLiveStep:    math.MaxInt64,
+		parquetReaders: []*ffi.RustArrowReader{partition},
+	}
 	defer reader.Release()
 	rows, nextStep, err := reader.GetHistoryPage(t.Context(), 0, 1000)
 	require.NoError(t, err)
