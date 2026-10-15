@@ -45,7 +45,7 @@ flowchart TB
         FileStream["filestream API"]
         FileTransfer["file transfer manager"]
         GraphQL["GraphQL and API client"]
-        XPU["system and accelerator metrics"]
+        Symon["system metrics"]
     end
 
     PublicAPI --> Setup
@@ -66,7 +66,7 @@ flowchart TB
     Sender --> FileStream
     Sender --> FileTransfer
     Sender --> GraphQL
-    Handler --> XPU
+    Handler --> Symon
 ```
 
 ## Language responsibilities
@@ -80,7 +80,7 @@ flowchart TB
 | History and summary | Serialize user values to proto items | Accumulate partial history, derive summary, stream JSONL | none |
 | Files | Materialize `run.save()` paths into run files dir | Watch, schedule, upload, report progress | none |
 | Artifacts | User object model and API ergonomics | Save/link/download artifact work | none |
-| System metrics | Settings and callbacks | System monitor orchestration | `wandb-xpu` accelerator collectors |
+| System metrics | Settings and callbacks | System monitor orchestration | `wandb-symon` collectors |
 | Public API | Python object model | GraphQL/API network calls | `parquet` (history) data handling |
 
 ## Key code references

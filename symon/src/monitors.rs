@@ -1,4 +1,4 @@
-//! Collectors for each hardware platform and vendor.
+//! Collectors for each metric source.
 
 use crate::metrics::{self, Sample, Scope};
 use crate::wandb_internal::{EnvironmentRecord, GetMetadataRequest};
@@ -14,11 +14,11 @@ use std::sync::Arc;
 /// the subscriber's [`Scope`].
 #[async_trait::async_trait]
 pub trait Collector: Send + Sync {
-    /// Reads the hardware once for the subscribers with `scopes`.
+    /// Reads the source once for the subscribers with `scopes`.
     async fn collect_metrics(&self, scopes: &[Scope])
     -> Result<Sample, Box<dyn std::error::Error>>;
 
-    /// The static facts about the hardware, gathered once per service.
+    /// The static facts about the machine, gathered once per service.
     async fn collect_metadata(
         &self,
         samples: &HashMap<String, &metrics::MetricValue>,

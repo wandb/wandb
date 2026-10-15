@@ -41,14 +41,14 @@ type SymonSamplerParams struct {
 	Logger *observability.CoreLogger
 }
 
-// SymonSampler produces live StatsMsg updates from the wandb-xpu sidecar.
+// SymonSampler produces live StatsMsg updates from the wandb-symon sidecar.
 //
 // The sidecar streams the system metrics and the process table at the
 // sampling interval. Each call to Sample returns the latest of them with
 // the I/O counters replaced by rates.
 type SymonSampler struct {
 	interval time.Duration
-	xpu      *monitor.XPU
+	symon    *monitor.Symon
 
 	// subscription describes what the sampler subscribes to.
 	subscription *spb.SubscribeRequest
@@ -75,9 +75,9 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 
 	return &SymonSampler{
 		interval: interval,
-		xpu: monitor.NewXPU(
+		symon: monitor.NewSymon(
 			context.Background(),
-			monitor.NewXPUResourceManager(false),
+			monitor.NewSymonResourceManager(false),
 			logger,
 		),
 		subscription: &spb.SubscribeRequest{
@@ -100,7 +100,7 @@ func (s *SymonSampler) Interval() time.Duration {
 // The first call starts the sidecar, whose samples arrive from the next
 // call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
-	s.xpu.Subscribe(s.subscription, s.store)
+	s.symon.Subscribe(s.subscription, s.store)
 
 	msg := SymonSampleMsg{StatsMsg: StatsMsg{Metrics: map[string]float64{}}}
 	if latest := s.latest.Load(); latest != nil {
@@ -178,12 +178,12 @@ func ioRateKey(key string) (string, float64, bool) {
 // seconds, so call Probe from a command, not from Update.
 func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
 	metadata := &spb.GetMetadataRequest{DiskPaths: s.subscription.GetDiskPaths()}
-	return SymonProbeMsg{Env: s.xpu.Probe(ctx, metadata)}
+	return SymonProbeMsg{Env: s.symon.Probe(ctx, metadata)}
 }
 
 // Cleanup ends the sidecar subscription and releases the sidecar process.
 func (s *SymonSampler) Cleanup() {
-	s.xpu.Close()
+	s.symon.Close()
 }
 
 // defaultSymonDiskPaths returns the filesystem roots that SYMON should monitor

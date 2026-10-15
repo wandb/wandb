@@ -75,7 +75,7 @@
   <g transform="translate(810 428)">
     <rect class="card" x="0" y="0" width="318" height="170" rx="18"/>
     <text x="24" y="37" class="cardTitle">Native helpers + tests</text>
-    <text x="24" y="67" class="body">Hardware metrics and columnar helpers may</text>
+    <text x="24" y="67" class="body">System metrics and columnar helpers may</text>
     <text x="24" y="85" class="body">cross Rust/native boundaries. Choose tests</text>
     <text x="24" y="103" class="body">at the layer that owns the guarantee.</text>
     <text x="24" y="132" class="code">core/internal/monitor</text>

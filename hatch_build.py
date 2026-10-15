@@ -15,7 +15,7 @@ from typing_extensions import override
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
-from xpu import hatch as hatch_xpu
+from symon import hatch as hatch_symon
 
 # Import arrow-rs-wrapper hatch module dynamically
 _arrow_rs_wrapper_hatch_path = (
@@ -35,6 +35,8 @@ _WANDB_BUILD_COVERAGE = "WANDB_BUILD_COVERAGE"
 _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
+_WANDB_BUILD_SKIP_WANDB_SYMON = "WANDB_BUILD_SKIP_WANDB_SYMON"
+# The name of WANDB_BUILD_SKIP_WANDB_SYMON before wandb-xpu became wandb-symon.
 _WANDB_BUILD_SKIP_WANDB_XPU = "WANDB_BUILD_SKIP_WANDB_XPU"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
@@ -51,8 +53,8 @@ class CustomBuildHook(BuildHookInterface):
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())
         artifacts.extend(self._build_arrow_rs_wrapper())
-        if self._include_wandb_xpu():
-            artifacts.extend(self._build_wandb_xpu())
+        if self._include_wandb_symon():
+            artifacts.extend(self._build_wandb_symon())
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -84,9 +86,12 @@ class CustomBuildHook(BuildHookInterface):
 
         return platform_tag
 
-    def _include_wandb_xpu(self) -> bool:
-        """Returns whether we should produce a wheel with wandb-xpu."""
-        return not _get_env_bool(_WANDB_BUILD_SKIP_WANDB_XPU, default=False)
+    def _include_wandb_symon(self) -> bool:
+        """Returns whether we should produce a wheel with wandb-symon."""
+        return not (
+            _get_env_bool(_WANDB_BUILD_SKIP_WANDB_SYMON, default=False)
+            or _get_env_bool(_WANDB_BUILD_SKIP_WANDB_XPU, default=False)
+        )
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
@@ -107,13 +112,13 @@ class CustomBuildHook(BuildHookInterface):
 
         return pathlib.Path(cargo)
 
-    def _build_wandb_xpu(self) -> list[str]:
-        output = pathlib.Path("wandb", "bin", "wandb-xpu")
+    def _build_wandb_symon(self) -> list[str]:
+        output = pathlib.Path("wandb", "bin", "wandb-symon")
         if self._target_platform().goos == "windows":
             output = output.with_suffix(".exe")
 
-        self.app.display_waiting("Building wandb-xpu Rust binary...")
-        hatch_xpu.build_wandb_xpu(
+        self.app.display_waiting("Building wandb-symon Rust binary...")
+        hatch_symon.build_wandb_symon(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
             target_triple=self._target_platform().rust_target,
