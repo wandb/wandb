@@ -3210,6 +3210,62 @@ pub struct SubscribeRequest {
     /// If not set, metrics for all GPUs will be captured.
     #[prost(int32, repeated, tag = "3")]
     pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
+    /// Identifies the subscriber across streams, such as the run's writer ID.
+    ///
+    /// Metrics that count since the subscription started keep counting when a
+    /// stream with the same ID reopens, as after a pause or a reconnect.
+    #[prost(string, tag = "4")]
+    pub subscriber_id: ::prost::alloc::string::String,
+    /// Whether process metrics cover the descendants of the process as well.
+    #[prost(bool, tag = "5")]
+    pub track_process_tree: bool,
+    /// Processes whose CPU and memory use, with their children's, is reported
+    /// as wandb.cpu and wandb.memory.rssMB.
+    #[prost(int32, repeated, tag = "7")]
+    pub wandb_pids: ::prost::alloc::vec::Vec<i32>,
+    /// Paths whose file systems' usage and device I/O are reported.
+    #[prost(string, repeated, tag = "8")]
+    pub disk_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Whether to ignore the cgroup limits that apply to the process when
+    /// reporting memory and CPU usage.
+    #[prost(bool, tag = "9")]
+    pub disable_cgroup: bool,
+    /// OpenMetrics endpoints to scrape, by name. Their gauges and counters are
+    /// reported as openmetrics.<name>.<metric>.<index>, where <index> numbers
+    /// the distinct label sets of a metric in the order they were first seen.
+    #[prost(map = "string, string", tag = "10")]
+    pub open_metrics_endpoints: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+    /// Keep only the OpenMetrics samples matching one of these filters.
+    /// No filters keeps every sample.
+    #[prost(message, repeated, tag = "11")]
+    pub open_metrics_filters: ::prost::alloc::vec::Vec<OpenMetricsFilter>,
+    /// Headers sent with every OpenMetrics and DCGM exporter request.
+    #[prost(map = "string, string", tag = "12")]
+    pub open_metrics_http_headers: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+    /// Prometheus instant-query URL for DCGM exporter metrics, such as
+    /// <https://gateway:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337"}.>
+    /// Each query parameter is a PromQL query whose samples are reported as
+    /// gpu.<index>.<metric>.
+    #[prost(string, tag = "13")]
+    pub dcgm_exporter: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OpenMetricsFilter {
+    /// Regular expression matched against "<endpoint name>.<metric name>".
+    #[prost(string, tag = "1")]
+    pub metric_regex: ::prost::alloc::string::String,
+    /// Label name -> regular expression the label's value must match. All must match.
+    #[prost(map = "string, string", tag = "2")]
+    pub label_regexes: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubscribeResponse {
@@ -3217,8 +3273,21 @@ pub struct SubscribeResponse {
     #[prost(message, optional, tag = "1")]
     pub record: ::core::option::Option<Record>,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct GetMetadataRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetMetadataRequest {
+    /// Paths whose file systems' size and usage are reported.
+    #[prost(string, repeated, tag = "1")]
+    pub disk_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Prometheus instant-query URL for DCGM exporter metrics, see SubscribeRequest.
+    #[prost(string, tag = "2")]
+    pub dcgm_exporter: ::prost::alloc::string::String,
+    /// Headers sent with the DCGM exporter requests.
+    #[prost(map = "string, string", tag = "3")]
+    pub open_metrics_http_headers: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetMetadataResponse {
     /// Static metadata about the system.

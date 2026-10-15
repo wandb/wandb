@@ -6,10 +6,15 @@
 //! - Nvidia GPUs via NVML and DCGM (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
+//! - Google TPUs via libtpu (Linux only)
+//! - Host CPU, memory, disk and network via sysinfo, plus cgroup v2 limits on Linux
+//! - OpenMetrics and DCGM exporter endpoints over HTTP
 
+mod host;
 mod metrics;
 mod monitors;
 mod record;
+mod scrape;
 mod subscriptions;
 #[allow(dead_code)]
 mod wandb_internal;
@@ -188,7 +193,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         let metadata = self
             .metadata
             .get_or_init(|| async {
-                let sample = self.collectors.collect_metrics().await;
+                let sample = self.collectors.collect_metrics(Vec::new()).await;
                 let samples: HashMap<String, &metrics::MetricValue> = sample
                     .metrics
                     .iter()
@@ -197,9 +202,13 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
                 self.collectors.collect_metadata(&samples).await
             })
             .await;
+        let mut metadata = metadata.clone();
+        self.collectors
+            .probe(&request.into_inner(), &mut metadata)
+            .await;
 
         let record = Record {
-            record_type: Some(RecordType::Environment(metadata.clone())),
+            record_type: Some(RecordType::Environment(metadata)),
             ..Default::default()
         };
 
@@ -395,6 +404,11 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
+
+    // The TLS provider for HTTPS scrapes; ring keeps aws-lc out of the build.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
 
     // Initialize logging — write to a persistent file matching wandb-core's pattern:
     //   {cache_dir}/wandb/logs/xpu-debug-{timestamp}.log

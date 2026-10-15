@@ -125,6 +125,18 @@ type CopyOptions struct {
 	BeforeCopy func(asFunc func(any) bool) error
 }
 
+// DeleteOptions controls options for Delete.
+type DeleteOptions struct {
+	// BeforeDelete is a callback that must be called exactly once before
+	// deleting, and may be used to apply a driver-specific precondition to the
+	// delete (for example a generation/version/ETag match, so the delete is
+	// refused if the object changed since it was observed). It is nil if the
+	// caller passed no hook.
+	// asFunc allows drivers to expose driver-specific types;
+	// see Bucket.As for more details.
+	BeforeDelete func(asFunc func(any) bool) error
+}
+
 // ReaderAttributes contains a subset of attributes about a blob that are
 // accessible from Reader.
 type ReaderAttributes struct {
@@ -325,7 +337,8 @@ type Bucket interface {
 	// Delete deletes the object associated with key. If the specified object does
 	// not exist, Delete must return an error for which ErrorCode returns
 	// gcerrors.NotFound.
-	Delete(ctx context.Context, key string) error
+	// opts is guaranteed to be non-nil.
+	Delete(ctx context.Context, key string, opts *DeleteOptions) error
 
 	// SignedURL returns a URL that can be used to GET the blob for the duration
 	// specified in opts.Expiry. opts is guaranteed to be non-nil.
@@ -426,8 +439,8 @@ func (b *prefixedBucket) Copy(ctx context.Context, dstKey, srcKey string, opts *
 	return b.base.Copy(ctx, b.prefix+dstKey, b.prefix+srcKey, opts)
 }
 
-func (b *prefixedBucket) Delete(ctx context.Context, key string) error {
-	return b.base.Delete(ctx, b.prefix+key)
+func (b *prefixedBucket) Delete(ctx context.Context, key string, opts *DeleteOptions) error {
+	return b.base.Delete(ctx, b.prefix+key, opts)
 }
 
 func (b *prefixedBucket) SignedURL(ctx context.Context, key string, opts *SignedURLOptions) (string, error) {
@@ -454,7 +467,7 @@ func (b *singleKeyBucket) Attributes(ctx context.Context, _ string) (*Attributes
 }
 
 func (b *singleKeyBucket) ListPaged(ctx context.Context, opts *ListOptions) (*ListPage, error) {
-	return nil, errors.New("List not supported for SingleKey buckets")
+	return nil, errors.New("List not supported for SingleKey buckets") // nolint
 }
 
 func (b *singleKeyBucket) NewRangeReader(ctx context.Context, _ string, offset, length int64, opts *ReaderOptions) (Reader, error) {
@@ -469,8 +482,8 @@ func (b *singleKeyBucket) Copy(ctx context.Context, dstKey, _ string, opts *Copy
 	return b.base.Copy(ctx, dstKey, b.key, opts)
 }
 
-func (b *singleKeyBucket) Delete(ctx context.Context, _ string) error {
-	return b.base.Delete(ctx, b.key)
+func (b *singleKeyBucket) Delete(ctx context.Context, _ string, opts *DeleteOptions) error {
+	return b.base.Delete(ctx, b.key, opts)
 }
 
 func (b *singleKeyBucket) SignedURL(ctx context.Context, _ string, opts *SignedURLOptions) (string, error) {

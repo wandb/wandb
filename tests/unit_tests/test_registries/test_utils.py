@@ -236,6 +236,45 @@ def test_versions_uses_basic_filter_fields(
     assert json.loads(gql_vars["artifactFilter"]) == expected_artifact_filter
 
 
+@mark.parametrize(
+    ("arg", "expected"),
+    [
+        ("created_at", "artifact_created_at"),
+        ("artifact_size", "artifact_size"),
+        ("linked_at", "acm_created_at"),
+        ("acm_created_at", "acm_created_at"),
+    ],
+)
+def test_versions_uses_advanced_filter_fields(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    arg: str,
+    expected: str,
+):
+    versions = Versions(
+        service_api,
+        organization="org",
+        artifact_filter={arg: "x"},
+    )
+    assert json.loads(versions.variables["artifactFilter"]) == {expected: "x"}
+
+
+@mark.parametrize(
+    ("field"),
+    [
+        param("updated_at", id="advanced-rejects-basic-only-field"),
+        param("unsupported_field", id="advanced-rejects-unknown-field"),
+    ],
+)
+def test_versions_rejects_invalid_filter_field_for_advanced_search_mode(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    field: str,
+):
+    with raises(ValueError, match="Invalid filter fields"):
+        Versions(service_api, organization="org", artifact_filter={field: "x"})
+
+
 def test_versions_rejects_order_for_basic_search(
     service_api: MagicMock,
     disable_advanced_search: None,

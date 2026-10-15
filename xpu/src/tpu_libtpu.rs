@@ -7,7 +7,7 @@
 //! If the SDK is unavailable or a metric fails, the gRPC fallback
 //! connects to the TPU runtime service on localhost:8431.
 
-use crate::metrics::{MetricValue, Sample};
+use crate::metrics::{MetricValue, Sample, Scope};
 use crate::monitors::Collector;
 use crate::tpu_runtime as proto;
 use crate::wandb_internal::{EnvironmentRecord, TpuInfo};
@@ -147,7 +147,10 @@ impl TpuMonitor {
 
 #[async_trait]
 impl Collector for TpuMonitor {
-    async fn collect_metrics(&self) -> Result<Sample, Box<dyn std::error::Error>> {
+    async fn collect_metrics(
+        &self,
+        _scopes: &[Scope],
+    ) -> Result<Sample, Box<dyn std::error::Error>> {
         Ok(Sample {
             metrics: self.collect_tpu_metrics().await,
             ..Default::default()
