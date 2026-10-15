@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -181,7 +182,6 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
-	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
 
 	if system := NewSystem(
 		SystemParams{
@@ -195,7 +195,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.addResource(system)
 	}
 
-	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger, pid, gpuDeviceIds)
+	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger)
 
 	if trainium := NewTrainium(
 		sm.logger,
@@ -300,9 +300,54 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
 		Git:           sm.git,
+		Slurm:         slurmEnvVars(),
 
 		WriterId: string(sm.writerID),
 	}}}
+}
+
+// slurmEnvVars returns the SLURM_* environment variables keyed by their
+// lowercased suffix, or nil when there are none.
+func slurmEnvVars() map[string]string {
+	var vars map[string]string
+	for _, envVar := range os.Environ() {
+		key, value, ok := strings.Cut(envVar, "=")
+		if !ok {
+			continue
+		}
+		if suffix, ok := strings.CutPrefix(key, "SLURM_"); ok {
+			if vars == nil {
+				vars = make(map[string]string)
+			}
+			vars[strings.ToLower(suffix)] = value
+		}
+	}
+	return vars
+}
+
+// subscribeRequest describes the run's subscription to the sidecar: what
+// to sample, how often and for whom.
+func (sm *SystemMonitor) subscribeRequest() *spb.SubscribeRequest {
+	request := &spb.SubscribeRequest{
+		IntervalSeconds:  sm.samplingInterval.Seconds(),
+		Pid:              sm.settings.GetStatsPid(),
+		GpuDeviceIds:     sm.settings.GetStatsGpuDeviceIds(),
+		SubscriberId:     string(sm.writerID),
+		TrackProcessTree: sm.settings.GetStatsTrackProcessTree(),
+		DiskPaths:        sm.settings.GetStatsDiskPaths(),
+		DisableCgroup:    sm.settings.GetStatsNoCgroup(),
+	}
+	if sm.settings.GetStatsSelfUsage() {
+		request.WandbPids = []int32{int32(os.Getpid())}
+	}
+	return request
+}
+
+// metadataRequest describes what the sidecar's probe should look at.
+func (sm *SystemMonitor) metadataRequest() *spb.GetMetadataRequest {
+	return &spb.GetMetadataRequest{
+		DiskPaths: sm.settings.GetStatsDiskPaths(),
+	}
 }
 
 // probeResources gathers system information from all resources and merges their metadata.
@@ -314,9 +359,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	g, gctx := errgroup.WithContext(sm.ctx)
 	var mu sync.Mutex
 
-	probe := func(resource interface {
-		Probe(context.Context) *spb.EnvironmentRecord
-	}) {
+	probe := func(probeResource func(context.Context) *spb.EnvironmentRecord) {
 		g.Go(func() error {
 			defer func() {
 				if err := recover(); err != nil {
@@ -331,7 +374,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 				return nil
 			}
 
-			if rec := resource.Probe(gctx); rec != nil {
+			if rec := probeResource(gctx); rec != nil {
 				mu.Lock()
 				proto.Merge(e, rec)
 				mu.Unlock()
@@ -340,10 +383,12 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		})
 	}
 	for _, resource := range sm.resources {
-		probe(resource)
+		probe(resource.Probe)
 	}
 	if sm.xpu != nil {
-		probe(sm.xpu)
+		probe(func(ctx context.Context) *spb.EnvironmentRecord {
+			return sm.xpu.Probe(ctx, sm.metadataRequest())
+		})
 	}
 
 	_ = g.Wait()
@@ -389,7 +434,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		sm.loop()
 	})
 	sm.wake()
-	sm.xpu.Subscribe(sm.samplingInterval, sm.publish)
+	sm.xpu.Subscribe(sm.subscribeRequest(), sm.publish)
 }
 
 // wake forces the system monitor to sample resources immediately.
@@ -445,7 +490,7 @@ func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Debug("monitor: resuming")
 		sm.wake()
-		sm.xpu.Subscribe(sm.samplingInterval, sm.publish)
+		sm.xpu.Subscribe(sm.subscribeRequest(), sm.publish)
 	}
 }
 
