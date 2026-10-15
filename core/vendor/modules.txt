@@ -591,9 +591,6 @@ github.com/mattn/go-runewidth
 # github.com/muesli/cancelreader v0.2.2
 ## explicit; go 1.17
 github.com/muesli/cancelreader
-# github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
-## explicit
-github.com/munnerz/goautoneg
 # github.com/pierrec/lz4/v4 v4.1.33
 ## explicit; go 1.22
 github.com/pierrec/lz4/v4
@@ -619,13 +616,6 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20260916203055-22a1a467d9f0
 ## explicit; go 1.14
 github.com/power-devops/perfstat
-# github.com/prometheus/client_model v0.6.3
-## explicit; go 1.23
-github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.72.1
-## explicit; go 1.26.0
-github.com/prometheus/common/expfmt
-github.com/prometheus/common/model
 # github.com/radovskyb/watcher v1.0.7
 ## explicit
 github.com/radovskyb/watcher
@@ -1140,7 +1130,6 @@ google.golang.org/grpc/xds/csds
 google.golang.org/grpc/xds/googledirectpath
 # google.golang.org/protobuf v1.36.12
 ## explicit; go 1.23
-google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
