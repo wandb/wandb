@@ -24,6 +24,7 @@ pub struct ReaderHandle {
     file_path: String,            // The file path of the parquet file
     last_step_returned: i64,      // Track the last step value we returned
     reader_exhausted: bool,       // Track if reader reached end of file
+    next_step: Option<i64>,       // First row beyond the most recent scan window
 }
 
 /// Create a new parquet reader with optional column selection
@@ -167,6 +168,7 @@ fn create_reader_internal(
         column_names: column_names.map(|names| names.to_vec()),
         last_step_returned: -1,
         reader_exhausted: false,
+        next_step: None,
     };
 
     Ok(handle)
@@ -187,6 +189,7 @@ impl ReaderHandle {
         self.reader_exhausted = false;
         self.current_batch = None;
         self.current_batch_row_offset = 0;
+        self.next_step = None;
 
         Ok(())
     }
@@ -248,6 +251,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
             return error_to_c_string(&format!("Failed to recreate reader: {}", e));
         }
     }
+    handle.next_step = None;
 
     // Create a buffer to hold the resulting data
     let mut buffer: Vec<u8> = Vec::new();
@@ -314,6 +318,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
             // Check if we've reached or exceeded the max step
             // This assumes that step values are monotonically increasing.
             if step_value >= max_step {
+                handle.next_step = Some(step_value);
                 should_stop_early = true;
                 handle.current_batch_row_offset = i;
                 break;
@@ -401,6 +406,18 @@ pub unsafe extern "C" fn reader_scan_step_range(
         (*out_result).num_rows_returned = total_rows_returned as u64;
     }
     std::ptr::null()
+}
+
+/// Return the first step beyond the most recent scan window, or -1 at EOF.
+///
+/// # Safety
+/// `reader_ptr` must be a live reader returned by `create_reader`.
+#[no_mangle]
+pub unsafe extern "C" fn reader_next_step(reader_ptr: *const ReaderHandle) -> i64 {
+    if reader_ptr.is_null() {
+        return -1;
+    }
+    unsafe { &*reader_ptr }.next_step.unwrap_or(-1)
 }
 
 /// Free a buffer allocated by Rust.

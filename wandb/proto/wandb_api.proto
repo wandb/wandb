@@ -558,6 +558,9 @@ message ScanRunHistory {
 
 message RunHistoryResponse {
   repeated HistoryRow history_rows = 1;
+  // No history rows can occur between this page's max_step and next_step.
+  // Absent for older service versions that cannot provide this bound.
+  optional int64 next_step = 2;
 }
 
 message HistoryRow {

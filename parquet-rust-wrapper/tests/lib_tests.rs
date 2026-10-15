@@ -735,6 +735,70 @@ fn create_test_parquet_file_with_step_column(path: &str, steps: ArrayRef) -> std
 }
 
 #[test]
+fn test_reader_next_step_skips_sparse_gaps() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("sparse.parquet");
+    let steps: Vec<i64> = vec![0, 983040, 1966080, 2949120, 3932160, 4915200, 5898240, 6881280, 7864320, 100208640];
+    create_test_parquet_file_with_step_column(
+        file_path.to_str().unwrap(),
+        Arc::new(Int64Array::from(steps.clone())),
+    ).unwrap();
+    let path = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error = std::ptr::null_mut();
+    let reader = unsafe { create_reader(path.as_ptr(), std::ptr::null(), 0, &mut out_error) };
+    assert!(!reader.is_null());
+    assert!(out_error.is_null());
+
+    let mut min_step = 0;
+    let mut actual_steps = Vec::new();
+    let mut scans = 0;
+    loop {
+        let mut result = StepScanResult { vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0 };
+        let error = unsafe { reader_scan_step_range(reader, min_step, min_step + 1000, &mut result) };
+        assert!(error.is_null());
+        for row in parse_result(&result) {
+            for (key, value) in row.columns {
+                if key == STEP_COLUMN_NAME {
+                    if let KvValue::Int64(step) = value {
+                        actual_steps.push(step);
+                    }
+                }
+            }
+        }
+        if result.vec_ptr != 0 {
+            unsafe { free_buffer(result.vec_ptr as *mut Vec<u8>); }
+        }
+        scans += 1;
+        let next_step = unsafe { reader_next_step(reader) };
+        if next_step < 0 { break; }
+        assert!(next_step >= min_step + 1000);
+        min_step = next_step;
+        assert!(scans <= steps.len());
+    }
+    assert_eq!(actual_steps, steps);
+    assert_eq!(scans, steps.len());
+
+    // Rewinding after EOF restores both row data and the lookahead step.
+    let mut result = StepScanResult { vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0 };
+    assert!(unsafe { reader_scan_step_range(reader, 0, 1000, &mut result) }.is_null());
+    assert_eq!(result.num_rows_returned, 1);
+    assert_eq!(unsafe { reader_next_step(reader) }, 983040);
+    unsafe { free_buffer(result.vec_ptr as *mut Vec<u8>); }
+
+    // An empty window retains the next row rather than consuming it.
+    assert!(unsafe { reader_scan_step_range(reader, 1000, 2000, &mut result) }.is_null());
+    assert_eq!(result.num_rows_returned, 0);
+    assert_eq!(unsafe { reader_next_step(reader) }, 983040);
+    assert!(unsafe { reader_scan_step_range(reader, 983040, 983041, &mut result) }.is_null());
+    assert_eq!(result.num_rows_returned, 1);
+    assert_eq!(unsafe { reader_next_step(reader) }, 1966080);
+    unsafe {
+        free_buffer(result.vec_ptr as *mut Vec<u8>);
+        free_reader(reader);
+    }
+}
+
+#[test]
 fn test_reader_scan_with_int64_step_column() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test_int64.parquet");

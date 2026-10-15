@@ -18,7 +18,7 @@ import (
 
 // HistoryReader downloads and reads an existing run's logged metrics.
 type HistoryReader struct {
-	// mu serializes calls to GetHistorySteps and Release.
+	// mu serializes reads and Release.
 	// The Rust FFI readers are not safe for concurrent use.
 	mu sync.Mutex
 
@@ -117,24 +117,45 @@ func (h *HistoryReader) GetHistorySteps(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
+	rows, _, err := h.GetHistoryPage(ctx, minStep, maxStep)
+	return rows, err
+}
+
+// GetHistoryPage reads a step window and returns a safe lower bound for the
+// next window. Parquet readers expose the next row they encountered, so fully
+// exported gaps need no further scans. Scans with live data keep their windows.
+func (h *HistoryReader) GetHistoryPage(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, int64, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	results := []parquet.KeyValueList{}
+	nextStep := int64(math.MaxInt64)
 	for _, reader := range h.parquetReaders {
 		resultsForPartition, err := reader.ScanStepRange(ctx, minStep, maxStep)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		results = append(results, resultsForPartition...)
+		if step := reader.NextStep(); step >= maxStep {
+			nextStep = min(nextStep, step)
+		}
 	}
 
 	selectAllColumns := len(h.keys) == 0
 	livehistory, err := h.getLiveData(ctx, minStep, maxStep, selectAllColumns)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	results = append(results, livehistory...)
+	if h.minLiveStep != math.MaxInt64 || len(h.parquetReaders) == 0 {
+		// Live metadata may be sampled or rounded, so its minimum is not a
+		// safe jump target. Missing exports also do not prove a range empty.
+		nextStep = maxStep
+	}
 
 	steps := make([]int64, len(results))
 	for i, row := range results {
@@ -154,7 +175,7 @@ func (h *HistoryReader) GetHistorySteps(
 		sorted[i] = results[idx]
 	}
 
-	return sorted, nil
+	return sorted, nextStep, nil
 }
 
 // Release calls the Release method on each partition's ParquetDataIterator

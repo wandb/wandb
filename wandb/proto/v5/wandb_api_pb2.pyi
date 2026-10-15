@@ -510,10 +510,12 @@ class ScanRunHistory(_message.Message):
     def __init__(self, min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., request_id: _Optional[int] = ...) -> None: ...
 
 class RunHistoryResponse(_message.Message):
-    __slots__ = ("history_rows",)
+    __slots__ = ("history_rows", "next_step")
     HISTORY_ROWS_FIELD_NUMBER: _ClassVar[int]
+    NEXT_STEP_FIELD_NUMBER: _ClassVar[int]
     history_rows: _containers.RepeatedCompositeFieldContainer[HistoryRow]
-    def __init__(self, history_rows: _Optional[_Iterable[_Union[HistoryRow, _Mapping]]] = ...) -> None: ...
+    next_step: int
+    def __init__(self, history_rows: _Optional[_Iterable[_Union[HistoryRow, _Mapping]]] = ..., next_step: _Optional[int] = ...) -> None: ...
 
 class HistoryRow(_message.Message):
     __slots__ = ("history_items",)

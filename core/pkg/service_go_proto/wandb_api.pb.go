@@ -3626,8 +3626,11 @@ func (x *ScanRunHistory) GetRequestId() int32 {
 }
 
 type RunHistoryResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HistoryRows   []*HistoryRow          `protobuf:"bytes,1,rep,name=history_rows,json=historyRows,proto3" json:"history_rows,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	HistoryRows []*HistoryRow          `protobuf:"bytes,1,rep,name=history_rows,json=historyRows,proto3" json:"history_rows,omitempty"`
+	// No history rows can occur between this page's max_step and next_step.
+	// Absent for older service versions that cannot provide this bound.
+	NextStep      *int64 `protobuf:"varint,2,opt,name=next_step,json=nextStep,proto3,oneof" json:"next_step,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3667,6 +3670,13 @@ func (x *RunHistoryResponse) GetHistoryRows() []*HistoryRow {
 		return x.HistoryRows
 	}
 	return nil
+}
+
+func (x *RunHistoryResponse) GetNextStep() int64 {
+	if x != nil && x.NextStep != nil {
+		return *x.NextStep
+	}
+	return 0
 }
 
 type HistoryRow struct {
@@ -4462,9 +4472,12 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\bmin_step\x18\x01 \x01(\x03R\aminStep\x12\x19\n" +
 	"\bmax_step\x18\x02 \x01(\x03R\amaxStep\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x03 \x01(\x05R\trequestId\"S\n" +
+	"request_id\x18\x03 \x01(\x05R\trequestId\"\x83\x01\n" +
 	"\x12RunHistoryResponse\x12=\n" +
-	"\fhistory_rows\x18\x01 \x03(\v2\x1a.wandb_internal.HistoryRowR\vhistoryRows\"U\n" +
+	"\fhistory_rows\x18\x01 \x03(\v2\x1a.wandb_internal.HistoryRowR\vhistoryRows\x12 \n" +
+	"\tnext_step\x18\x02 \x01(\x03H\x00R\bnextStep\x88\x01\x01B\f\n" +
+	"\n" +
+	"_next_step\"U\n" +
 	"\n" +
 	"HistoryRow\x12G\n" +
 	"\rhistory_items\x18\x01 \x03(\v2\".wandb_internal.ParquetHistoryItemR\fhistoryItems\"E\n" +
@@ -4741,6 +4754,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ReadRunHistoryResponse_DownloadRunHistory)(nil),
 		(*ReadRunHistoryResponse_DownloadRunHistoryStatus)(nil),
 	}
+	file_wandb_proto_wandb_api_proto_msgTypes[46].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
