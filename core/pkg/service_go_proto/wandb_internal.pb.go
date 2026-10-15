@@ -10681,6 +10681,7 @@ type CpuInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Count         uint32                 `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
 	CountLogical  uint32                 `protobuf:"varint,2,opt,name=count_logical,json=countLogical,proto3" json:"count_logical,omitempty"`
+	Model         string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10727,6 +10728,13 @@ func (x *CpuInfo) GetCountLogical() uint32 {
 		return x.CountLogical
 	}
 	return 0
+}
+
+func (x *CpuInfo) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
 }
 
 type AppleInfo struct {
@@ -12745,10 +12753,11 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x04used\x18\x02 \x01(\x04R\x04used\"\"\n" +
 	"\n" +
 	"MemoryInfo\x12\x14\n" +
-	"\x05total\x18\x01 \x01(\x04R\x05total\"D\n" +
+	"\x05total\x18\x01 \x01(\x04R\x05total\"Z\n" +
 	"\aCpuInfo\x12\x14\n" +
 	"\x05count\x18\x01 \x01(\rR\x05count\x12#\n" +
-	"\rcount_logical\x18\x02 \x01(\rR\fcountLogical\"\x86\x02\n" +
+	"\rcount_logical\x18\x02 \x01(\rR\fcountLogical\x12\x14\n" +
+	"\x05model\x18\x03 \x01(\tR\x05model\"\x86\x02\n" +
 	"\tAppleInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +

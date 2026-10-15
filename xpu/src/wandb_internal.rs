@@ -2655,12 +2655,14 @@ pub struct MemoryInfo {
     #[prost(uint64, tag = "1")]
     pub total: u64,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CpuInfo {
     #[prost(uint32, tag = "1")]
     pub count: u32,
     #[prost(uint32, tag = "2")]
     pub count_logical: u32,
+    #[prost(string, tag = "3")]
+    pub model: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AppleInfo {
@@ -3258,6 +3260,11 @@ pub struct SubscribeRequest {
     /// Trainium metrics. A default configuration is written when empty.
     #[prost(string, tag = "14")]
     pub neuron_monitor_config_path: ::prost::alloc::string::String,
+    /// Whether to report the host details wandb leet symon shows: the use of
+    /// every CPU core, the load averages, uptime, swap, the CPU temperature
+    /// and the process table.
+    #[prost(bool, tag = "15")]
+    pub host_details: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OpenMetricsFilter {
@@ -3276,6 +3283,21 @@ pub struct SubscribeResponse {
     /// System metrics.
     #[prost(message, optional, tag = "1")]
     pub record: ::core::option::Option<Record>,
+    /// Every process on the host, for subscribers that asked for host_details.
+    #[prost(message, repeated, tag = "2")]
+    pub processes: ::prost::alloc::vec::Vec<ProcessStats>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ProcessStats {
+    #[prost(int32, tag = "1")]
+    pub pid: i32,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    /// CPU use since the previous sample in percent of one core.
+    #[prost(double, tag = "3")]
+    pub cpu_percent: f64,
+    #[prost(uint64, tag = "4")]
+    pub rss_bytes: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetMetadataRequest {

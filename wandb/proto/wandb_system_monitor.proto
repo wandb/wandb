@@ -81,6 +81,11 @@ message SubscribeRequest {
   // Path to the configuration file for neuron-monitor, which reports AWS
   // Trainium metrics. A default configuration is written when empty.
   string neuron_monitor_config_path = 14;
+
+  // Whether to report the host details wandb leet symon shows: the use of
+  // every CPU core, the load averages, uptime, swap, the CPU temperature
+  // and the process table.
+  bool host_details = 15;
 }
 
 message OpenMetricsFilter {
@@ -93,6 +98,17 @@ message OpenMetricsFilter {
 message SubscribeResponse {
   // System metrics.
   Record record = 1;
+
+  // Every process on the host, for subscribers that asked for host_details.
+  repeated ProcessStats processes = 2;
+}
+
+message ProcessStats {
+  int32 pid = 1;
+  string name = 2;
+  // CPU use since the previous sample in percent of one core.
+  double cpu_percent = 3;
+  uint64 rss_bytes = 4;
 }
 
 message GetMetadataRequest {

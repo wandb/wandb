@@ -1,6 +1,8 @@
 //! Host metrics: memory, CPU, disk and network for the machine and a
 //! process tree, read with sysinfo on every platform, plus the cgroup v2
-//! limits and TCP counters that only procfs has (Linux).
+//! limits and TCP counters that only procfs has (Linux). Scopes that ask
+//! for host details also get the use of every core, the load averages,
+//! uptime, swap, the CPU temperature and the process table.
 //!
 //! A reading that is missing skips the keys it feeds and is logged once.
 
@@ -17,7 +19,9 @@ use sysinfo::{
 
 use crate::metrics::{self, Readings, Sample, Scope};
 use crate::monitors::Collector;
-use crate::wandb_internal::{DiskInfo, EnvironmentRecord, GetMetadataRequest, MemoryInfo};
+use crate::wandb_internal::{
+    CpuInfo, DiskInfo, EnvironmentRecord, GetMetadataRequest, MemoryInfo, ProcessStats,
+};
 
 const MIB: f64 = 1024.0 * 1024.0;
 const GIB: f64 = MIB * 1024.0;
@@ -100,7 +104,9 @@ impl Host {
         // Reading /proc/<pid>/stat on demand beats keeping half the fd limit open.
         sysinfo::set_open_files_limit(0);
         let mut system = System::new();
-        system.refresh_cpu_list(CpuRefreshKind::nothing());
+        // Taking the per-core usage baseline here gives the first sweep that
+        // asks for host details a real reading instead of zeros.
+        system.refresh_cpu_list(CpuRefreshKind::nothing().with_cpu_usage());
         let cpus = (
             System::physical_core_count().unwrap_or(0) as u32,
             system.cpus().len() as u32,
@@ -126,15 +132,28 @@ impl Host {
             cpu_stat,
         } = &mut *state;
         let (physical, logical) = self.cpus;
+        let host_details = scopes.iter().any(|scope| scope.host_details);
+        // The Apple collector reports swap on Apple Silicon.
+        let swap = host_details && !cfg!(all(target_os = "macos", target_arch = "aarch64"));
 
-        refresh(system, disks, networks);
+        refresh(system, disks, networks, host_details, swap);
         let total = system.total_memory();
         let available = available_memory().unwrap_or_else(|| system.available_memory());
         let children = children(system);
 
         let mut sample = Sample {
             counters: network_counters(networks),
+            processes: if host_details {
+                processes(system)
+            } else {
+                Vec::new()
+            },
             ..Default::default()
+        };
+        let details = if host_details {
+            host_details_metrics(system, swap)
+        } else {
+            Vec::new()
         };
         let mut next_cgroups = HashMap::new();
         let mut next_cpu_stat = HashMap::new();
@@ -179,6 +198,10 @@ impl Host {
                 &mut readings,
             );
             disk_readings(scope, disks, &mut readings);
+
+            if scope.host_details {
+                readings.metrics.extend(details.iter().cloned());
+            }
 
             sample.scoped.insert(scope.clone(), readings);
         }
@@ -229,11 +252,22 @@ impl Collector for Host {
         Ok(tokio::task::block_in_place(|| self.sweep(scopes)))
     }
 
+    /// The CPU model, such as "Apple M4 Max".
     async fn collect_metadata(
         &self,
         _samples: &HashMap<String, &metrics::MetricValue>,
     ) -> EnvironmentRecord {
-        EnvironmentRecord::default()
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let model = state.system.cpus().first().map(|cpu| cpu.brand().trim());
+        EnvironmentRecord {
+            cpu: model
+                .filter(|model| !model.is_empty())
+                .map(|model| CpuInfo {
+                    model: model.to_string(),
+                    ..Default::default()
+                }),
+            ..Default::default()
+        }
     }
 
     async fn probe(&self, request: &GetMetadataRequest, metadata: &mut EnvironmentRecord) {
@@ -243,10 +277,25 @@ impl Collector for Host {
 
 // ===== One sweep, step by step =====
 
-/// Refreshes what sysinfo caches: memory, every process, the disks and the
-/// network interfaces.
-fn refresh(system: &mut System, disks: &mut Disks, networks: &mut Networks) {
-    system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
+/// Refreshes what sysinfo caches: memory (and swap when asked), every
+/// process, the disks and the network interfaces.
+fn refresh(
+    system: &mut System,
+    disks: &mut Disks,
+    networks: &mut Networks,
+    host_details: bool,
+    swap: bool,
+) {
+    let mut memory = MemoryRefreshKind::nothing().with_ram();
+    if swap {
+        memory = memory.with_swap();
+    }
+    system.refresh_memory_specifics(memory);
+    // Before the processes: their refresh starts sysinfo's 200 ms cool-down
+    // on the CPU totals, which would skip the per-core update.
+    if host_details {
+        system.refresh_cpu_usage();
+    }
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
@@ -423,6 +472,120 @@ fn disk_readings(scope: &Scope, disks: &Disks, readings: &mut Readings) {
         readings.counter(format!("disk.{device}.in"), read as f64 / MIB);
         readings.counter(format!("disk.{device}.out"), written as f64 / MIB);
     }
+}
+
+// ===== Host details =====
+
+/// The host-wide readings wandb leet symon shows: the use of every core
+/// since the previous sweep, the load averages, uptime, swap when `swap`
+/// and, on Linux, the CPU temperature.
+fn host_details_metrics(system: &System, swap: bool) -> Vec<(String, f64)> {
+    let mut details: Vec<(String, f64)> = system
+        .cpus()
+        .iter()
+        .enumerate()
+        .map(|(i, cpu)| (format!("cpu.{i}.cpu_percent"), f64::from(cpu.cpu_usage())))
+        .collect();
+    // sysinfo has no load average on Windows.
+    if !cfg!(target_os = "windows") {
+        let load = System::load_average();
+        details.push(("system.load1".into(), load.one));
+        details.push(("system.load5".into(), load.five));
+        details.push(("system.load15".into(), load.fifteen));
+    }
+    details.push(("system.uptime".into(), System::uptime() as f64));
+    if swap {
+        let (used, total) = (system.used_swap(), system.total_swap());
+        let percent = if total > 0 {
+            used as f64 / total as f64 * 100.0
+        } else {
+            0.0
+        };
+        details.push(("swap.used".into(), used as f64));
+        details.push(("swap.used_percent".into(), percent));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let components = sysinfo::Components::new_with_refreshed_list();
+        let sensors = components
+            .list()
+            .iter()
+            .filter_map(|component| Some((component.label(), component.temperature()?)));
+        if let Some(temp) = cpu_temperature(sensors).or_else(thermal_zone_temperature) {
+            details.push(("cpu.avg_temp".into(), temp));
+        }
+    }
+    details
+}
+
+/// hwmon sensors that read the CPU temperature, by the lowercased label
+/// with spaces as underscores, most representative first: the package or
+/// die, then Tctl, then the individual cores or dies.
+#[cfg(any(target_os = "linux", test))]
+const CPU_SENSORS: [&[&str]; 3] = [
+    &["coretemp_package_id_", "k10temp_tdie", "zenpower_tdie"],
+    &["k10temp_tctl", "zenpower_tctl"],
+    &["coretemp_core_", "k10temp_tccd", "zenpower_tccd"],
+];
+
+/// The mean of the most representative CPU temperature sensors among the
+/// `(label, celsius)` readings. Readings at or below 0 or above 150 are
+/// skipped: hwmon reports such values for absent or broken sensors.
+#[cfg(any(target_os = "linux", test))]
+fn cpu_temperature<'a>(sensors: impl Iterator<Item = (&'a str, f32)>) -> Option<f64> {
+    let sensors: Vec<(String, f64)> = sensors
+        .filter(|(_, temp)| *temp > 0.0 && *temp <= 150.0)
+        .map(|(label, temp)| (label.to_lowercase().replace(' ', "_"), f64::from(temp)))
+        .collect();
+    CPU_SENSORS.iter().find_map(|prefixes| {
+        let temps: Vec<f64> = sensors
+            .iter()
+            .filter(|(label, _)| prefixes.iter().any(|prefix| label.starts_with(prefix)))
+            .map(|(_, temp)| *temp)
+            .collect();
+        (!temps.is_empty()).then(|| temps.iter().sum::<f64>() / temps.len() as f64)
+    })
+}
+
+/// The mean of the SoC thermal zones that read the CPU, for boards without
+/// hwmon CPU sensors.
+#[cfg(target_os = "linux")]
+fn thermal_zone_temperature() -> Option<f64> {
+    const CPU_ZONES: [&str; 4] = ["cpu_thermal", "cpu-thermal", "x86_pkg_temp", "soc_thermal"];
+    let temps: Vec<f64> = fs::read_dir("/sys/class/thermal")
+        .ok()?
+        .flatten()
+        .map(|zone| zone.path())
+        .filter(|zone| {
+            fs::read_to_string(zone.join("type")).is_ok_and(|kind| CPU_ZONES.contains(&kind.trim()))
+        })
+        .filter_map(|zone| {
+            fs::read_to_string(zone.join("temp"))
+                .ok()?
+                .trim()
+                .parse::<f64>()
+                .ok()
+        })
+        .map(|millidegrees| millidegrees / 1000.0)
+        .filter(|temp| *temp > 0.0 && *temp <= 150.0)
+        .collect();
+    (!temps.is_empty()).then(|| temps.iter().sum::<f64>() / temps.len() as f64)
+}
+
+/// Every process whose memory the user can read. A process seen for the
+/// first time has no CPU share yet.
+fn processes(system: &System) -> Vec<ProcessStats> {
+    system
+        .processes()
+        .values()
+        .filter(|process| process.memory() > 0)
+        .map(|process| ProcessStats {
+            pid: process.pid().as_u32() as i32,
+            name: process.name().to_string_lossy().into_owned(),
+            cpu_percent: f64::from(process.cpu_usage()),
+            rss_bytes: process.memory(),
+        })
+        .collect()
 }
 
 /// Logs once that a family of metrics cannot be read.
@@ -881,10 +1044,30 @@ mod tests {
     }
 
     #[test]
+    fn cpu_temperature_prefers_the_package_sensor_and_skips_bad_readings() {
+        let temp = |sensors: &[(&str, f32)]| cpu_temperature(sensors.iter().copied());
+        assert_eq!(
+            temp(&[
+                ("coretemp Package id 0", 60.0),
+                ("coretemp Core 0", 50.0),
+                ("coretemp Core 1", 70.0),
+                ("nvme Composite", 40.0),
+            ]),
+            Some(60.0)
+        );
+        assert_eq!(
+            temp(&[("k10temp Tctl", 0.0), ("k10temp Tccd1", 55.0)]),
+            Some(55.0)
+        );
+        assert_eq!(temp(&[("acpitz temp1", 45.0)]), None);
+    }
+
+    #[test]
     fn the_host_reports_its_own_process() {
         let host = Host::new();
         let scope = Scope {
             pid: std::process::id(),
+            host_details: true,
             ..Default::default()
         };
         let first = host.sweep(std::slice::from_ref(&scope));
@@ -897,5 +1080,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(300));
         let second = host.sweep(std::slice::from_ref(&scope));
         assert!(value(&second.scoped[&scope], "cpu").is_some());
+        assert!(value(&second.scoped[&scope], "cpu.0.cpu_percent").is_some());
+        assert!(!second.processes.is_empty());
     }
 }

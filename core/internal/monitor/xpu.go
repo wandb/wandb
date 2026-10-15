@@ -64,7 +64,7 @@ func NewXPU(
 // subscription ends. Subscribing while subscribed does nothing.
 func (a *XPU) Subscribe(
 	request *spb.SubscribeRequest,
-	publish func(context.Context, *spb.StatsRecord),
+	publish func(context.Context, *spb.SubscribeResponse),
 ) {
 	if a == nil {
 		return
@@ -105,7 +105,7 @@ func (a *XPU) Unsubscribe() {
 func (a *XPU) stream(
 	ctx context.Context,
 	request *spb.SubscribeRequest,
-	publish func(context.Context, *spb.StatsRecord),
+	publish func(context.Context, *spb.SubscribeResponse),
 ) {
 	delay := xpuRetryMinDelay
 	for {
@@ -138,7 +138,7 @@ func (a *XPU) stream(
 func (a *XPU) subscribe(
 	ctx context.Context,
 	request *spb.SubscribeRequest,
-	publish func(context.Context, *spb.StatsRecord),
+	publish func(context.Context, *spb.SubscribeResponse),
 ) error {
 	client, err := a.resourceManager.Client(ctx, a.resourceRef)
 	if err != nil {
@@ -155,7 +155,7 @@ func (a *XPU) subscribe(
 		if err != nil {
 			return fmt.Errorf("monitor: xpu stream ended: %w", err)
 		}
-		publish(ctx, response.GetRecord().GetStats())
+		publish(ctx, response)
 	}
 }
 

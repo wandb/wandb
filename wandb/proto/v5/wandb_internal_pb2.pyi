@@ -1676,12 +1676,14 @@ class MemoryInfo(_message.Message):
     def __init__(self, total: _Optional[int] = ...) -> None: ...
 
 class CpuInfo(_message.Message):
-    __slots__ = ("count", "count_logical")
+    __slots__ = ("count", "count_logical", "model")
     COUNT_FIELD_NUMBER: _ClassVar[int]
     COUNT_LOGICAL_FIELD_NUMBER: _ClassVar[int]
+    MODEL_FIELD_NUMBER: _ClassVar[int]
     count: int
     count_logical: int
-    def __init__(self, count: _Optional[int] = ..., count_logical: _Optional[int] = ...) -> None: ...
+    model: str
+    def __init__(self, count: _Optional[int] = ..., count_logical: _Optional[int] = ..., model: _Optional[str] = ...) -> None: ...
 
 class AppleInfo(_message.Message):
     __slots__ = ("name", "ecpu_cores", "pcpu_cores", "gpu_cores", "memory_gb", "swap_total_bytes", "ram_total_bytes", "mac_model")

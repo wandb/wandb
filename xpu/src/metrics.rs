@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
-use crate::wandb_internal::SubscribeRequest;
+use crate::wandb_internal::{ProcessStats, SubscribeRequest};
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(untagged)] // This makes the enum serialize to just the inner value without the variant name
@@ -41,6 +41,8 @@ pub struct Scope {
     /// Prometheus instant-query URL of a DCGM exporter, or empty.
     pub dcgm_exporter: String,
     pub neuron_monitor_config_path: String,
+    /// Whether the subscriber gets the host details wandb leet symon shows.
+    pub host_details: bool,
 }
 
 impl From<&SubscribeRequest> for Scope {
@@ -79,6 +81,7 @@ impl From<&SubscribeRequest> for Scope {
                 .collect(),
             dcgm_exporter: request.dcgm_exporter.clone(),
             neuron_monitor_config_path: request.neuron_monitor_config_path.clone(),
+            host_details: request.host_details,
         }
     }
 }
@@ -132,6 +135,9 @@ pub struct Sample {
 
     /// PIDs of the processes using each GPU, by device index.
     pub gpu_pids: HashMap<u32, Vec<u32>>,
+
+    /// Every process on the host, read when a scope asks for host details.
+    pub processes: Vec<ProcessStats>,
 }
 
 impl Sample {
@@ -141,6 +147,7 @@ impl Sample {
         self.averages.extend(other.averages);
         self.counters.extend(other.counters);
         self.gpu_pids.extend(other.gpu_pids);
+        self.processes.extend(other.processes);
         for (scope, readings) in other.scoped {
             let mine = self.scoped.entry(scope).or_default();
             mine.metrics.extend(readings.metrics);

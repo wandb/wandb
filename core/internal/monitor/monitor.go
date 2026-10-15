@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -215,31 +214,6 @@ func openMetricsFilters(filters *spb.OpenMetricsFilters) []*spb.OpenMetricsFilte
 		})
 	}
 	return result
-}
-
-// marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
-func marshal(
-	stats map[string]any,
-	timeStamp *timestamppb.Timestamp,
-) *spb.StatsRecord {
-	statsItems := make([]*spb.StatsItem, 0, len(stats))
-	for k, v := range stats {
-		jsonData, err := simplejsonext.Marshal(v)
-		if err != nil {
-			continue
-		}
-		key := k
-		statsItems = append(statsItems, &spb.StatsItem{
-			Key:       key,
-			ValueJson: string(jsonData),
-		})
-	}
-
-	return &spb.StatsRecord{
-		StatsType: spb.StatsRecord_SYSTEM,
-		Timestamp: timeStamp,
-		Item:      statsItems,
-	}
 }
 
 // GetState returns the current state of the SystemMonitor.
@@ -517,15 +491,18 @@ func (sm *SystemMonitor) sample() {
 					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
 				}
 			}
-			sm.publish(sm.ctx, metrics)
+			sm.publish(sm.ctx, &spb.SubscribeResponse{
+				Record: &spb.Record{RecordType: &spb.Record_Stats{Stats: metrics}},
+			})
 		})
 	}
 }
 
-// publish buffers a sample and sends it to the run.
+// publish buffers the sample in response and sends it to the run.
 //
 // It may block until ctx is done.
-func (sm *SystemMonitor) publish(ctx context.Context, metrics *spb.StatsRecord) {
+func (sm *SystemMonitor) publish(ctx context.Context, response *spb.SubscribeResponse) {
+	metrics := response.GetRecord().GetStats()
 	if len(metrics.GetItem()) == 0 {
 		return // nothing to do
 	}

@@ -139,6 +139,9 @@ impl Collectors {
             }
             metadata.gpu_nvidia.extend(collector_metadata.gpu_nvidia);
             metadata.gpu_amd.extend(collector_metadata.gpu_amd);
+            if collector_metadata.cpu.is_some() {
+                metadata.cpu = collector_metadata.cpu;
+            }
             if collector_metadata.apple.is_some() {
                 metadata.apple = collector_metadata.apple;
             }

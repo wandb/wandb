@@ -272,6 +272,11 @@ impl Subscriptions {
             };
             let response = SubscribeResponse {
                 record: Some(record),
+                processes: if sub.scope.host_details {
+                    sample.processes.clone()
+                } else {
+                    Vec::new()
+                },
             };
             if sub.tx.try_send(Ok(response)).is_err() {
                 debug!("Subscriber is not reading its samples; dropping one");
