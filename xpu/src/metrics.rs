@@ -1,5 +1,8 @@
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::time::Duration;
+
+use crate::wandb_internal::SubscribeRequest;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(untagged)] // This makes the enum serialize to just the inner value without the variant name
@@ -7,6 +10,104 @@ pub enum MetricValue {
     Int(i64),
     Float(f64),
     String(String),
+}
+
+/// One of the filters selecting the OpenMetrics samples a subscriber
+/// receives.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Filter {
+    /// Matched against `<endpoint name>.<metric name>`.
+    pub metric_regex: String,
+    /// Label name to the regex its value must match. All must match.
+    pub label_regexes: BTreeMap<String, String>,
+}
+
+/// The parts of a subscription that select what the host and scraping
+/// collectors read for it. Subscribers with equal scopes share one set of
+/// readings.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+pub struct Scope {
+    /// The subscriber's sampling interval.
+    pub interval: Duration,
+    pub pid: u32,
+    pub track_process_tree: bool,
+    pub disable_cgroup: bool,
+    pub wandb_pids: Vec<u32>,
+    pub disk_paths: Vec<String>,
+    /// OpenMetrics endpoint URLs by name.
+    pub open_metrics_endpoints: BTreeMap<String, String>,
+    pub open_metrics_filters: Vec<Filter>,
+    pub open_metrics_http_headers: BTreeMap<String, String>,
+    /// Prometheus instant-query URL of a DCGM exporter, or empty.
+    pub dcgm_exporter: String,
+}
+
+impl From<&SubscribeRequest> for Scope {
+    fn from(request: &SubscribeRequest) -> Self {
+        let mut wandb_pids: Vec<u32> = request
+            .wandb_pids
+            .iter()
+            .filter(|pid| **pid > 0)
+            .map(|pid| *pid as u32)
+            .collect();
+        wandb_pids.sort_unstable();
+        wandb_pids.dedup();
+        let mut open_metrics_filters: Vec<Filter> = request
+            .open_metrics_filters
+            .iter()
+            .map(|filter| Filter {
+                metric_regex: filter.metric_regex.clone(),
+                label_regexes: filter.label_regexes.clone().into_iter().collect(),
+            })
+            .collect();
+        open_metrics_filters.sort();
+        open_metrics_filters.dedup();
+        Self {
+            interval: Duration::from_millis((request.interval_seconds.max(0.0) * 1000.0) as u64),
+            pid: request.pid.max(0) as u32,
+            track_process_tree: request.track_process_tree,
+            disable_cgroup: request.disable_cgroup,
+            wandb_pids,
+            disk_paths: request.disk_paths.clone(),
+            open_metrics_endpoints: request.open_metrics_endpoints.clone().into_iter().collect(),
+            open_metrics_filters,
+            open_metrics_http_headers: request
+                .open_metrics_http_headers
+                .clone()
+                .into_iter()
+                .collect(),
+            dcgm_exporter: request.dcgm_exporter.clone(),
+        }
+    }
+}
+
+/// The host readings for one scope, in their reported units.
+#[derive(Debug, Default)]
+pub struct Readings {
+    /// Point-in-time readings keyed by metric name.
+    pub metrics: Vec<(String, f64)>,
+    /// Readings that describe the time since the previous sample.
+    pub averages: Vec<(String, f64)>,
+    /// Counters that only grow. A subscriber receives their increase since
+    /// its first sample.
+    pub counters: Vec<(String, f64)>,
+    /// The monitored process and its descendants, whose use of a GPU is
+    /// reported under `gpu.process.<i>.*`.
+    pub pids: Vec<u32>,
+}
+
+impl Readings {
+    pub fn metric(&mut self, key: impl Into<String>, value: f64) {
+        self.metrics.push((key.into(), value));
+    }
+
+    pub fn average(&mut self, key: impl Into<String>, value: f64) {
+        self.averages.push((key.into(), value));
+    }
+
+    pub fn counter(&mut self, key: impl Into<String>, value: f64) {
+        self.counters.push((key.into(), value));
+    }
 }
 
 /// One pass over every collector.
@@ -20,6 +121,30 @@ pub struct Sample {
     /// GPM utilization. A subscriber receives their mean over its interval.
     pub averages: Vec<(String, f64)>,
 
+    /// Host-wide counters that only grow, such as bytes sent over the
+    /// network. A subscriber receives their increase since its first sample.
+    pub counters: Vec<(String, f64)>,
+
+    /// The host readings that depend on the subscriber, by scope.
+    pub scoped: HashMap<Scope, Readings>,
+
     /// PIDs of the processes using each GPU, by device index.
     pub gpu_pids: HashMap<u32, Vec<u32>>,
+}
+
+impl Sample {
+    /// Adds another collector's readings to this sample.
+    pub fn merge(&mut self, other: Sample) {
+        self.metrics.extend(other.metrics);
+        self.averages.extend(other.averages);
+        self.counters.extend(other.counters);
+        self.gpu_pids.extend(other.gpu_pids);
+        for (scope, readings) in other.scoped {
+            let mine = self.scoped.entry(scope).or_default();
+            mine.metrics.extend(readings.metrics);
+            mine.averages.extend(readings.averages);
+            mine.counters.extend(readings.counters);
+            mine.pids.extend(readings.pids);
+        }
+    }
 }

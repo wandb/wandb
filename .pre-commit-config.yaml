@@ -76,7 +76,7 @@ repos:
     rev: v8.0.1
     hooks:
       - id: complexipy
-        args: ["--diff=main", "--max-complexity-allowed=15"]
+        args: ["--diff=HEAD~", "--max-complexity-allowed=15"]
 
   - repo: local
     hooks:

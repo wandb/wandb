@@ -852,7 +852,7 @@ def test_ces_eval_table_rejects_mixed_type_mode():
 
 
 def test_ces_backend_requires_server_feature(run, monkeypatch):
-    """CES still refuses to log against a server that does not advertise it."""
+    """CES refuses to log against a server that does not advertise it."""
     monkeypatch.setattr(
         "wandb.apis.public.service_api.ServiceApi.feature_enabled",
         lambda self, feature: False,

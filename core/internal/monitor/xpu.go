@@ -21,8 +21,9 @@ const (
 	xpuRetryMaxDelay = time.Minute
 )
 
-// XPU streams GPU (Nvidia, AMD, Apple) and Google TPU metrics from the
-// wandb-xpu sidecar binary.
+// XPU streams system metrics from the wandb-xpu sidecar binary: the host's
+// CPU, memory, disk and network metrics, and GPU (Nvidia, AMD, Apple) and
+// Google TPU metrics.
 //
 // The sidecar is started by the first Subscribe or Probe call, not by NewXPU.
 // If it exits or its stream ends while subscribed, it is started again and
@@ -32,9 +33,6 @@ type XPU struct {
 	resourceManager *XPUResourceManager
 	resourceRef     XPUResourceManagerRef
 	logger          *observability.CoreLogger
-
-	pid          int32
-	gpuDeviceIds []int32
 
 	errorReported atomic.Bool
 
@@ -50,26 +48,22 @@ func NewXPU(
 	ctx context.Context,
 	resourceManager *XPUResourceManager,
 	logger *observability.CoreLogger,
-	pid int32,
-	gpuDeviceIds []int32,
 ) *XPU {
 	return &XPU{
 		ctx:             ctx,
 		resourceManager: resourceManager,
 		resourceRef:     resourceManager.Acquire(),
 		logger:          logger,
-		pid:             pid,
-		gpuDeviceIds:    gpuDeviceIds,
 	}
 }
 
-// Subscribe passes metrics sampled every interval to publish until
+// Subscribe passes the samples described by request to publish until
 // Unsubscribe or Close is called or the resource's context ends.
 //
 // publish may block until its context is done, which happens when the
 // subscription ends. Subscribing while subscribed does nothing.
 func (a *XPU) Subscribe(
-	interval time.Duration,
+	request *spb.SubscribeRequest,
 	publish func(context.Context, *spb.StatsRecord),
 ) {
 	if a == nil {
@@ -83,7 +77,7 @@ func (a *XPU) Subscribe(
 
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.unsubscribe = cancel
-	go a.stream(ctx, interval, publish)
+	go a.stream(ctx, request, publish)
 }
 
 // Unsubscribe ends the subscription, if any. A publish in flight returns
@@ -110,13 +104,13 @@ func (a *XPU) Unsubscribe() {
 // captured; later ones are debug-logged.
 func (a *XPU) stream(
 	ctx context.Context,
-	interval time.Duration,
+	request *spb.SubscribeRequest,
 	publish func(context.Context, *spb.StatsRecord),
 ) {
 	delay := xpuRetryMinDelay
 	for {
 		started := time.Now()
-		err := a.subscribe(ctx, interval, publish)
+		err := a.subscribe(ctx, request, publish)
 		if ctx.Err() != nil {
 			return
 		}
@@ -143,7 +137,7 @@ func (a *XPU) stream(
 // stream ends.
 func (a *XPU) subscribe(
 	ctx context.Context,
-	interval time.Duration,
+	request *spb.SubscribeRequest,
 	publish func(context.Context, *spb.StatsRecord),
 ) error {
 	client, err := a.resourceManager.Client(ctx, a.resourceRef)
@@ -151,11 +145,7 @@ func (a *XPU) subscribe(
 		return err
 	}
 
-	stream, err := client.Subscribe(ctx, &spb.SubscribeRequest{
-		IntervalSeconds: interval.Seconds(),
-		Pid:             a.pid,
-		GpuDeviceIds:    a.gpuDeviceIds,
-	})
+	stream, err := client.Subscribe(ctx, request)
 	if err != nil {
 		return fmt.Errorf("monitor: xpu subscribe failed: %w", err)
 	}
@@ -169,7 +159,12 @@ func (a *XPU) subscribe(
 	}
 }
 
-func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
+// Probe returns the sidecar's static facts about the machine described
+// by request, or nil if the sidecar cannot be reached.
+func (a *XPU) Probe(
+	ctx context.Context,
+	request *spb.GetMetadataRequest,
+) *spb.EnvironmentRecord {
 	if a == nil {
 		return nil
 	}
@@ -178,7 +173,7 @@ func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 		return nil
 	}
 
-	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{})
+	e, err := client.GetMetadata(ctx, request)
 	if err != nil {
 		return nil
 	}
