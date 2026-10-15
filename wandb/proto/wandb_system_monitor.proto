@@ -77,6 +77,10 @@ message SubscribeRequest {
   // Each query parameter is a PromQL query whose samples are reported as
   // gpu.<index>.<metric>.
   string dcgm_exporter = 13;
+
+  // Path to the configuration file for neuron-monitor, which reports AWS
+  // Trainium metrics. A default configuration is written when empty.
+  string neuron_monitor_config_path = 14;
 }
 
 message OpenMetricsFilter {

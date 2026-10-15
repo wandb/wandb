@@ -177,20 +177,7 @@ func (sm *SystemMonitor) addResource(r Resource) {
 
 // initializeResources sets up the resources to be monitored based on the provided settings.
 func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
-	pid := sm.settings.GetStatsPid()
-	samplingInterval := sm.settings.GetStatsSamplingInterval()
-	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
-
 	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, sm.logger)
-
-	if trainium := NewTrainium(
-		sm.logger,
-		pid,
-		samplingInterval,
-		neuronMonitorConfigPath,
-	); trainium != nil {
-		sm.addResource(trainium)
-	}
 
 	// CoreWeave compute environment metadata.
 	if cwm, err := NewCoreWeaveMetadata(
@@ -309,17 +296,18 @@ func slurmEnvVars() map[string]string {
 // to sample, how often and for whom.
 func (sm *SystemMonitor) subscribeRequest() *spb.SubscribeRequest {
 	request := &spb.SubscribeRequest{
-		IntervalSeconds:        sm.samplingInterval.Seconds(),
-		Pid:                    sm.settings.GetStatsPid(),
-		GpuDeviceIds:           sm.settings.GetStatsGpuDeviceIds(),
-		SubscriberId:           string(sm.writerID),
-		TrackProcessTree:       sm.settings.GetStatsTrackProcessTree(),
-		DiskPaths:              sm.settings.GetStatsDiskPaths(),
-		DisableCgroup:          sm.settings.GetStatsNoCgroup(),
-		OpenMetricsEndpoints:   sm.settings.GetStatsOpenMetricsEndpoints(),
-		OpenMetricsFilters:     openMetricsFilters(sm.settings.GetStatsOpenMetricsFilters()),
-		OpenMetricsHttpHeaders: sm.settings.GetStatsOpenMetricsHeaders(),
-		DcgmExporter:           sm.settings.GetStatsDcgmExporter(),
+		IntervalSeconds:         sm.samplingInterval.Seconds(),
+		Pid:                     sm.settings.GetStatsPid(),
+		GpuDeviceIds:            sm.settings.GetStatsGpuDeviceIds(),
+		SubscriberId:            string(sm.writerID),
+		TrackProcessTree:        sm.settings.GetStatsTrackProcessTree(),
+		DiskPaths:               sm.settings.GetStatsDiskPaths(),
+		DisableCgroup:           sm.settings.GetStatsNoCgroup(),
+		OpenMetricsEndpoints:    sm.settings.GetStatsOpenMetricsEndpoints(),
+		OpenMetricsFilters:      openMetricsFilters(sm.settings.GetStatsOpenMetricsFilters()),
+		OpenMetricsHttpHeaders:  sm.settings.GetStatsOpenMetricsHeaders(),
+		DcgmExporter:            sm.settings.GetStatsDcgmExporter(),
+		NeuronMonitorConfigPath: sm.settings.GetStatsNeuronMonitorConfigPath(),
 	}
 	if sm.settings.GetStatsSelfUsage() {
 		request.WandbPids = []int32{int32(os.Getpid())}

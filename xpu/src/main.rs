@@ -7,6 +7,7 @@
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
 //! - Google TPUs via libtpu (Linux only)
+//! - AWS Trainium via neuron-monitor (Linux only)
 //! - Host CPU, memory, disk and network via sysinfo, plus cgroup v2 limits on Linux
 //! - OpenMetrics and DCGM exporter endpoints over HTTP
 
@@ -37,6 +38,8 @@ mod tpu_libtpu;
 #[allow(dead_code)]
 #[path = "tpu.monitoring.runtime.rs"]
 mod tpu_runtime;
+#[cfg(target_os = "linux")]
+mod trainium;
 
 use clap::Parser;
 use env_logger::Builder;

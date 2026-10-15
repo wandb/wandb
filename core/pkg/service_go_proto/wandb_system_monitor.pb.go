@@ -66,9 +66,12 @@ type SubscribeRequest struct {
 	// https://gateway:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337"}.
 	// Each query parameter is a PromQL query whose samples are reported as
 	// gpu.<index>.<metric>.
-	DcgmExporter  string `protobuf:"bytes,13,opt,name=dcgm_exporter,json=dcgmExporter,proto3" json:"dcgm_exporter,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DcgmExporter string `protobuf:"bytes,13,opt,name=dcgm_exporter,json=dcgmExporter,proto3" json:"dcgm_exporter,omitempty"`
+	// Path to the configuration file for neuron-monitor, which reports AWS
+	// Trainium metrics. A default configuration is written when empty.
+	NeuronMonitorConfigPath string `protobuf:"bytes,14,opt,name=neuron_monitor_config_path,json=neuronMonitorConfigPath,proto3" json:"neuron_monitor_config_path,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *SubscribeRequest) Reset() {
@@ -181,6 +184,13 @@ func (x *SubscribeRequest) GetOpenMetricsHttpHeaders() map[string]string {
 func (x *SubscribeRequest) GetDcgmExporter() string {
 	if x != nil {
 		return x.DcgmExporter
+	}
+	return ""
+}
+
+func (x *SubscribeRequest) GetNeuronMonitorConfigPath() string {
+	if x != nil {
+		return x.NeuronMonitorConfigPath
 	}
 	return ""
 }
@@ -468,7 +478,7 @@ var File_wandb_proto_wandb_system_monitor_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\n" +
-	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\xa6\x06\n" +
+	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\xe3\x06\n" +
 	"\x10SubscribeRequest\x12)\n" +
 	"\x10interval_seconds\x18\x01 \x01(\x01R\x0fintervalSeconds\x12\x10\n" +
 	"\x03pid\x18\x02 \x01(\x05R\x03pid\x12$\n" +
@@ -484,7 +494,8 @@ const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	" \x03(\v2:.wandb_internal.SubscribeRequest.OpenMetricsEndpointsEntryR\x14openMetricsEndpoints\x12S\n" +
 	"\x14open_metrics_filters\x18\v \x03(\v2!.wandb_internal.OpenMetricsFilterR\x12openMetricsFilters\x12w\n" +
 	"\x19open_metrics_http_headers\x18\f \x03(\v2<.wandb_internal.SubscribeRequest.OpenMetricsHttpHeadersEntryR\x16openMetricsHttpHeaders\x12#\n" +
-	"\rdcgm_exporter\x18\r \x01(\tR\fdcgmExporter\x1aG\n" +
+	"\rdcgm_exporter\x18\r \x01(\tR\fdcgmExporter\x12;\n" +
+	"\x1aneuron_monitor_config_path\x18\x0e \x01(\tR\x17neuronMonitorConfigPath\x1aG\n" +
 	"\x19OpenMetricsEndpointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aI\n" +

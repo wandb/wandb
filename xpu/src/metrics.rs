@@ -40,6 +40,7 @@ pub struct Scope {
     pub open_metrics_http_headers: BTreeMap<String, String>,
     /// Prometheus instant-query URL of a DCGM exporter, or empty.
     pub dcgm_exporter: String,
+    pub neuron_monitor_config_path: String,
 }
 
 impl From<&SubscribeRequest> for Scope {
@@ -77,6 +78,7 @@ impl From<&SubscribeRequest> for Scope {
                 .into_iter()
                 .collect(),
             dcgm_exporter: request.dcgm_exporter.clone(),
+            neuron_monitor_config_path: request.neuron_monitor_config_path.clone(),
         }
     }
 }

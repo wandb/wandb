@@ -70,6 +70,10 @@ impl Collectors {
             if let Some(collector) = tpu_libtpu::TpuMonitor::new() {
                 collectors.push(Arc::new(collector));
             }
+
+            if let Some(collector) = crate::trainium::Trainium::new() {
+                collectors.push(Arc::new(collector));
+            }
         }
 
         if let Some(collector) = crate::scrape::Scraper::new() {
@@ -140,6 +144,9 @@ impl Collectors {
             }
             if collector_metadata.tpu.is_some() {
                 metadata.tpu = collector_metadata.tpu;
+            }
+            if collector_metadata.trainium.is_some() {
+                metadata.trainium = collector_metadata.trainium;
             }
         }
 
