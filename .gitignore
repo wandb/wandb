@@ -38,8 +38,8 @@ coverage.xml
 coverage.txt
 cover-results/
 
-# Build output in xpu.
-xpu/target/
+# Build output in symon.
+symon/target/
 
 # Outputs of tools/local_wandb_server.py.
 tools/local_wandb_server.state.lock

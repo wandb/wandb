@@ -49,6 +49,7 @@
 //   - ReaderOptions.BeforeRead: *s3.GetObjectInput or *[]func(*s3.Options)
 //   - Attributes: s3.HeadObjectOutput
 //   - CopyOptions.BeforeCopy: s3.CopyObjectInput
+//   - DeleteOptions.BeforeDelete: *s3.DeleteObjectInput
 //   - WriterOptions.BeforeWrite: *transfermanager.UploadObjectInput, *transfermanager.Client
 //   - SignedURLOptions.BeforeSign: *s3.GetObjectInput, when Options.Method == http.MethodGet, or
 //       *s3.PutObjectInput, when Options.Method == http.MethodPut
@@ -68,6 +69,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -171,7 +173,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 		var err error
 		accelerate, err = strconv.ParseBool(accelerateParam)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value for %q: %v", accelerateParamKey, err)
+			return nil, fmt.Errorf("invalid value for %q: %w", accelerateParamKey, err)
 		}
 	}
 
@@ -184,7 +186,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 		q.Del(disableHTTPSParamKey)
 		value, err := strconv.ParseBool(disableHTTPSParam)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value for %q: %v", disableHTTPSParamKey, err)
+			return nil, fmt.Errorf("invalid value for %q: %w", disableHTTPSParamKey, err)
 		}
 		opts = append(opts, func(o *s3.Options) {
 			o.EndpointOptions.DisableHTTPS = value
@@ -195,7 +197,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 			q.Del(key)
 			value, err := strconv.ParseBool(usePathStyleParam)
 			if err != nil {
-				return nil, fmt.Errorf("invalid value for %q: %v", key, err)
+				return nil, fmt.Errorf("invalid value for %q: %w", key, err)
 			}
 			opts = append(opts, func(o *s3.Options) {
 				o.UsePathStyle = value
@@ -205,7 +207,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 
 	cfg, err := gcaws.V2ConfigFromURLParams(ctx, q)
 	if err != nil {
-		return nil, fmt.Errorf("open bucket %v: %v", u, err)
+		return nil, fmt.Errorf("open bucket %v: %w", u, err)
 	}
 	client := s3.NewFromConfig(cfg, opts...)
 
@@ -371,10 +373,14 @@ func (w *writer) open(r io.Reader, closePipeOnError bool) {
 // Close completes the writer and closes it. Any error occurring during write
 // will be returned. If a writer is closed before any Write is called, Close
 // will create an empty file at the given key.
-func (w *writer) Close() error {
+func (w *writer) Close() (err error) {
 	if !w.upload {
 		if w.pr != nil {
-			defer w.pr.Close()
+			defer func() {
+				if e := w.pr.Close(); e != nil && err == nil {
+					err = e
+				}
+			}()
 		}
 		if w.pw == nil {
 			// We never got any bytes written. We'll write an http.NoBody.
@@ -405,14 +411,16 @@ func (b *bucket) Close() error {
 func (b *bucket) ErrorCode(err error) gcerrors.ErrorCode {
 	var code string
 	var ae smithy.APIError
-	var oe *smithy.OperationError
-	if errors.As(err, &oe) && strings.Contains(oe.Error(), "301") {
-		// AWS returns an OperationError with a missing redirect for invalid buckets.
-		code = "NoSuchBucket"
-	} else if errors.As(err, &ae) {
+	var re *awshttp.ResponseError
+	if errors.As(err, &ae) {
 		code = ae.ErrorCode()
-	} else {
-		return gcerrors.Unknown
+	} else if errors.As(err, &re) {
+		c := re.HTTPStatusCode()
+		if c == http.StatusNotFound || c == http.StatusMovedPermanently {
+			return gcerrors.NotFound
+		} else if c == http.StatusUnauthorized || c == http.StatusForbidden {
+			return gcerrors.PermissionDenied
+		}
 	}
 	switch {
 	case code == "NoSuchBucket" || code == "NoSuchKey" || code == "NotFound" || code == "ObjectNotInActiveTierError":
@@ -739,6 +747,12 @@ func unescapeKey(key string) string {
 func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, opts *driver.WriterOptions) (driver.Writer, error) {
 	key = escapeKey(key)
 	tm := transfermanager.New(b.client, func(o *transfermanager.Options) {
+		// The transfer manager's own RequestChecksumCalculation takes precedence
+		// over the client's, so thread the bucket's setting through. Under
+		// when_required this leaves the upload checksum algorithm empty, and the
+		// request carries x-amz-content-sha256: UNSIGNED-PAYLOAD with no
+		// x-amz-checksum-* header — what third-party S3-compatible stores expect.
+		o.RequestChecksumCalculation = b.requestChecksumCalculation
 		if opts.BufferSize != 0 {
 			o.PartSizeBytes = int64(opts.BufferSize)
 		}
@@ -762,7 +776,6 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		Key:         aws.String(key),
 		Metadata:    md,
 	}
-
 	if opts.IfNotExist {
 		// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html
 		req.IfNoneMatch = aws.String("*")
@@ -853,7 +866,11 @@ func (b *bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *driver.C
 }
 
 // Delete implements driver.Delete.
-func (b *bucket) Delete(ctx context.Context, key string) error {
+func (b *bucket) Delete(ctx context.Context, key string, opts *driver.DeleteOptions) error {
+	// S3 DeleteObject succeeds even if the key doesn't exist, so we check
+	// existence first to return NotFound. This happens before BeforeDelete,
+	// so it always checks the current object, even if the callback sets a
+	// VersionId on the DeleteObjectInput.
 	if _, err := b.Attributes(ctx, key); err != nil {
 		return err
 	}
@@ -861,6 +878,18 @@ func (b *bucket) Delete(ctx context.Context, key string) error {
 	input := &s3.DeleteObjectInput{
 		Bucket: aws.String(b.name),
 		Key:    aws.String(key),
+	}
+	if opts.BeforeDelete != nil {
+		asFunc := func(i any) bool {
+			if p, ok := i.(**s3.DeleteObjectInput); ok {
+				*p = input
+				return true
+			}
+			return false
+		}
+		if err := opts.BeforeDelete(asFunc); err != nil {
+			return err
+		}
 	}
 	_, err := b.client.DeleteObject(ctx, input)
 	return err

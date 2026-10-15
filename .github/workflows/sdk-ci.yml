@@ -115,13 +115,13 @@ jobs:
         with:
           workspaces: |
             parquet-rust-wrapper
-            xpu
+            symon
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Test parquet-rust-wrapper
         working-directory: parquet-rust-wrapper
         run: cargo test --verbose
-      - name: Test wandb-xpu
-        working-directory: xpu
+      - name: Test wandb-symon
+        working-directory: symon
         run: |
           cargo test --verbose
           cargo check --features build-proto --bin build_proto
@@ -138,7 +138,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.12.11"
@@ -154,7 +154,7 @@ jobs:
         with:
           workspaces: |
             parquet-rust-wrapper
-            xpu
+            symon
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check generated files
         run: |
@@ -188,7 +188,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.13"]
+        python: ["3.10", "3.14"]
         server: [current, minimum]
         group: [1, 2, 3, 4, 5, 6, 7, 8]
         exclude:
@@ -225,9 +225,9 @@ jobs:
       matrix:
         include:
           - { name: Notebook tests, session: notebook_tests, python: "3.10", coverage: system }
-          - { name: Notebook tests, session: notebook_tests, python: "3.13", coverage: system }
-          - { name: Functional tests, session: functional_tests, python: "3.13", coverage: func }
-          - { name: Experimental client tests, session: experimental_tests, python: "3.13", coverage: func }
+          - { name: Notebook tests, session: notebook_tests, python: "3.14", coverage: system }
+          - { name: Functional tests, session: functional_tests, python: "3.14", coverage: func }
+          - { name: Experimental client tests, session: experimental_tests, python: "3.14", coverage: func }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

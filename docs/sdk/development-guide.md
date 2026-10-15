@@ -8,7 +8,7 @@ The SDK spans Python, Go, and Rust:
 
 - Python: public SDK and API, user process behavior, integrations, tests.
 - Go: `wandb-core`, sync, filestream, file transfer, run processing, Public API routing.
-- Rust: accelerator monitoring (`wandb-xpu`) and parquet support.
+- Rust: system metrics (`wandb-symon`) and parquet support.
 
 Recommended baseline from `CONTRIBUTING.md`:
 
@@ -35,7 +35,7 @@ Start with the layer where the guarantee lives.
 | File uploads | `core/internal/runfiles` or `core/internal/filetransfer` tests | Use test helpers; avoid real storage when possible. |
 | Public API routing through core | Python API tests plus `core/internal/wbapi` tests | Cover exception surface in Python. |
 | Proto schema changes | Proto generation plus Python/Go compile tests | Update generated code in all language targets. |
-| System metrics | `tests/system_tests/test_system_metrics`, `xpu/src`, and `core/internal/monitor` | Hardware-dependent tests need care. |
+| System metrics | `tests/system_tests/test_system_metrics`, `symon/src`, and `core/internal/monitor` | Hardware-dependent tests need care. |
 
 ## Common commands
 
@@ -61,7 +61,7 @@ go test ./internal/stream ./pkg/server
 Rust tests:
 
 ```shell
-cd xpu
+cd symon
 cargo test --verbose
 ```
 
@@ -158,7 +158,7 @@ Use this as the first "where do I look?" table:
 | Offline sync issue | `wandb/cli/beta_sync.py` | `ServiceConnection.init_sync`, `core/internal/runsync` |
 | Public API error changed | `wandb/apis/public/service_api.py` | `ServiceConnection.api_request`, `core/internal/wbapi` |
 | Core service lifetime | `service_connection.py` | `service_process.py`, `core/pkg/server` |
-| System metric issue | `core/internal/monitor` | `xpu`, `SystemMonitor`, `XPUResourceManager` |
+| System metric issue | `core/internal/monitor` | `symon`, `SystemMonitor`, `SymonResourceManager` |
 
 ## Review habits
 

@@ -2,35 +2,29 @@ package leet
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // SymonProbeMsg carries the host facts that do not change while symon runs.
 type SymonProbeMsg struct {
-	Env      *spb.EnvironmentRecord
-	CPUModel string
+	Env *spb.EnvironmentRecord
 }
 
 // SymonSampleMsg is one sampling pass: the system metrics and the processes.
 type SymonSampleMsg struct {
 	StatsMsg
-	Processes []monitor.ProcessStat
+	Processes []*spb.ProcessStats
 }
 
 // DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
@@ -43,29 +37,27 @@ type SymonSamplerParams struct {
 	// less than or equal to zero use DefaultSymonSamplingInterval.
 	Interval time.Duration
 
-	// Logger receives benign debug messages and noteworthy sampling errors.
+	// Logger receives the sidecar's debug messages and errors.
 	Logger *observability.CoreLogger
 }
 
-// SymonSampler produces live StatsMsg updates using the shared monitor
-// resources.
+// SymonSampler produces live StatsMsg updates from the wandb-symon sidecar.
 //
-// Each call to Sample reads the system resources and merges in the latest
-// accelerator metrics streamed by the wandb-xpu sidecar. The resulting
-// metrics are aligned to a single wall-clock timestamp before they are merged
-// into one StatsMsg for the UI.
+// The sidecar streams the system metrics and the process table at the
+// sampling interval. Each call to Sample returns the latest of them with
+// the I/O counters replaced by rates.
 type SymonSampler struct {
-	interval  time.Duration
-	resources []monitor.Resource
-	processes *monitor.Processes
-	xpu       *monitor.XPU
-	logger    *observability.CoreLogger
+	interval time.Duration
+	symon    *monitor.Symon
 
-	// accelerators is the sidecar's latest sample.
-	accelerators atomic.Pointer[spb.StatsRecord]
+	// subscription describes what the sampler subscribes to.
+	subscription *spb.SubscribeRequest
 
-	// prev and prevAt are the previous sample's metrics and time, from
-	// which the next sample's I/O rates are derived.
+	// latest is the sidecar's most recent sample.
+	latest atomic.Pointer[SymonSampleMsg]
+
+	// prev and prevAt are the previous sidecar sample's metrics and time,
+	// from which the next sample's I/O rates are derived.
 	prev   map[string]float64
 	prevAt time.Time
 }
@@ -81,31 +73,21 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		interval = DefaultSymonSamplingInterval
 	}
 
-	sampler := &SymonSampler{
-		interval:  interval,
-		processes: monitor.NewProcesses(),
-		logger:    logger,
+	return &SymonSampler{
+		interval: interval,
+		symon: monitor.NewSymon(
+			context.Background(),
+			monitor.NewSymonResourceManager(false),
+			logger,
+		),
+		subscription: &spb.SubscribeRequest{
+			IntervalSeconds: interval.Seconds(),
+			SubscriberId:    string(sharedmode.RandomClientID()),
+			DiskPaths:       defaultSymonDiskPaths(),
+			DisableCgroup:   true,
+			HostDetails:     true,
+		},
 	}
-
-	sampler.resources = append(sampler.resources,
-		monitor.NewSystem(monitor.SystemParams{
-			Pid:                         0,
-			TrackProcessTree:            false,
-			DiskPaths:                   defaultSymonDiskPaths(),
-			DisableCgroupResourceLimits: true,
-		}),
-		monitor.NewCPU(),
-		monitor.NewHost(),
-	)
-	sampler.xpu = monitor.NewXPU(
-		context.Background(),
-		monitor.NewXPUResourceManager(false),
-		logger,
-		0,
-		nil,
-	)
-
-	return sampler
 }
 
 // Interval reports the configured delay between sampling passes.
@@ -113,99 +95,42 @@ func (s *SymonSampler) Interval() time.Duration {
 	return s.interval
 }
 
-// Sample gathers one aligned snapshot across all resources and the
-// process table.
+// Sample returns the sidecar's latest sample stamped with the current time.
 //
-// The first call starts the sidecar, whose metrics arrive from the next
+// The first call starts the sidecar, whose samples arrive from the next
 // call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
-	s.xpu.Subscribe(s.interval, func(_ context.Context, record *spb.StatsRecord) {
-		s.accelerators.Store(record)
-	})
+	s.symon.Subscribe(s.subscription, s.store)
 
-	now := time.Now()
-	out := SymonSampleMsg{StatsMsg: StatsMsg{
-		Timestamp: now.Unix(),
-		Metrics:   make(map[string]float64),
-	}}
-
-	var mu sync.Mutex
-	var g errgroup.Group
-
-	g.Go(func() error {
-		defer s.recoverSamplingPanic()
-
-		procs, err := s.processes.Sample()
-		if err != nil {
-			s.logSamplingError(err)
-			return nil
-		}
-		out.Processes = procs
-		return nil
-	})
-
-	for _, resource := range s.resources {
-		g.Go(func() error {
-			defer s.recoverSamplingPanic()
-
-			record, err := resource.Sample()
-			if err != nil {
-				s.logSamplingError(err)
-			}
-			if record == nil {
-				return nil
-			}
-
-			// Align all metrics from one sampling pass to the same wall-clock tick.
-			record.Timestamp = timestamppb.New(now)
-
-			msg, ok := ParseStats("", record).(StatsMsg)
-			if !ok || len(msg.Metrics) == 0 {
-				return nil
-			}
-
-			mu.Lock()
-			maps.Copy(out.Metrics, msg.Metrics)
-			mu.Unlock()
-			return nil
-		})
+	msg := SymonSampleMsg{StatsMsg: StatsMsg{Metrics: map[string]float64{}}}
+	if latest := s.latest.Load(); latest != nil {
+		msg = *latest
 	}
+	msg.Timestamp = time.Now().Unix()
+	return msg
+}
 
-	_ = g.Wait()
-
-	if record := s.accelerators.Load(); record != nil {
-		record.Timestamp = timestamppb.New(now)
-		if msg, ok := ParseStats("", record).(StatsMsg); ok {
-			maps.Copy(out.Metrics, msg.Metrics)
-		}
+// store keeps a sidecar sample for the next Sample call, with its I/O
+// rates derived from the sample before it.
+func (s *SymonSampler) store(_ context.Context, response *spb.SubscribeResponse) {
+	record := response.GetRecord().GetStats()
+	msg, ok := ParseStats("", record).(StatsMsg)
+	if !ok {
+		return
 	}
-
-	metrics := out.Metrics
-	counters := maps.Clone(metrics)
-	deriveRates(s.prev, metrics, now.Sub(s.prevAt))
-	s.prev, s.prevAt = counters, now
+	at := record.GetTimestamp().AsTime()
+	counters := maps.Clone(msg.Metrics)
+	deriveRates(s.prev, msg.Metrics, at.Sub(s.prevAt))
+	s.prev, s.prevAt = counters, at
 
 	// Disk usage is charted as a percentage and memory as used, so the
 	// flat used-bytes and available-memory lines only take up cells.
-	for key := range metrics {
+	for key := range msg.Metrics {
 		if strings.HasSuffix(key, ".usageGB") || key == "proc.memory.availableMB" {
-			delete(metrics, key)
+			delete(msg.Metrics, key)
 		}
 	}
-	return out
-}
-
-// recoverSamplingPanic logs a panic in a sampling goroutine. Hardware
-// sampling paths are known to panic (see SystemMonitor), and a panic here
-// would crash the whole TUI: bubbletea's panic recovery does not cover
-// goroutines spawned by commands.
-func (s *SymonSampler) recoverSamplingPanic() {
-	if r := recover(); r != nil {
-		s.logger.CaptureError(
-			"leet",
-			fmt.Errorf("symon: panic sampling resource: %v", r),
-		)
-	}
+	s.latest.Store(&SymonSampleMsg{StatsMsg: msg, Processes: response.GetProcesses()})
 }
 
 // deriveRates replaces the cumulative network and disk I/O counters in cur
@@ -228,7 +153,7 @@ func deriveRates(prev, cur map[string]float64, elapsed time.Duration) {
 }
 
 // ioRateKey maps a cumulative I/O counter to its rate key and the factor
-// that converts the counter's unit to bytes: monitor.System reports the
+// that converts the counter's unit to bytes: the sidecar reports the
 // network counters in bytes and the disk counters in MiB.
 func ioRateKey(key string) (string, float64, bool) {
 	switch key {
@@ -249,45 +174,16 @@ func ioRateKey(key string) (string, float64, bool) {
 	return "", 0, false
 }
 
-// Probe gathers the host facts from every resource. Starting the wandb-xpu
-// sidecar can take seconds, so call it from a command, not from Update.
+// Probe gathers the host facts from the sidecar. Starting it can take
+// seconds, so call Probe from a command, not from Update.
 func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
-	defer s.recoverSamplingPanic()
-
-	msg := SymonProbeMsg{Env: &spb.EnvironmentRecord{}, CPUModel: monitor.CPUModel()}
-	for _, resource := range s.resources {
-		if rec := resource.Probe(ctx); rec != nil {
-			proto.Merge(msg.Env, rec)
-		}
-	}
-	if rec := s.xpu.Probe(ctx); rec != nil {
-		proto.Merge(msg.Env, rec)
-	}
-	return msg
+	metadata := &spb.GetMetadataRequest{DiskPaths: s.subscription.GetDiskPaths()}
+	return SymonProbeMsg{Env: s.symon.Probe(ctx, metadata)}
 }
 
-// Cleanup ends the sidecar subscription and releases any resources that
-// need explicit shutdown, such as the wandb-xpu sidecar process.
+// Cleanup ends the sidecar subscription and releases the sidecar process.
 func (s *SymonSampler) Cleanup() {
-	for _, resource := range s.resources {
-		if closer, ok := resource.(interface{ Close() }); ok {
-			closer.Close()
-		}
-	}
-	s.xpu.Close()
-}
-
-// logSamplingError captures unexpected sampling failures and debug-logs
-// expected ones.
-func (s *SymonSampler) logSamplingError(err error) {
-	if monitor.ShouldCaptureSamplingError(err) {
-		s.logger.CaptureError(
-			"leet",
-			fmt.Errorf("symon: sampling error: %v", err),
-		)
-		return
-	}
-	s.logger.Debug(fmt.Sprintf("symon: benign sampling error: %v", err))
+	s.symon.Close()
 }
 
 // defaultSymonDiskPaths returns the filesystem roots that SYMON should monitor

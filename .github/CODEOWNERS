@@ -35,8 +35,8 @@
 /core/ @wandb/sdk-team
 /wandb/ @wandb/sdk-team
 
-# Hardware accelerator metrics
-/xpu/ @wandb/sdk-team
+# System metrics sidecar
+/symon/ @wandb/sdk-team
 
 # GitHub configuration
 /.github @wandb/sdk-team
