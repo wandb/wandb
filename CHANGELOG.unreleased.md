@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- Python 3.15 is now supported (@dmitryduev in https://github.com/wandb/wandb/pull/13167)
 - In W&B LEET TUI, `l` links the console logs to the charts in the single-run view: with the logs pane focused, the charts show a crosshair at the time the selected line was logged as you move through the log, and inspecting a chart with the mouse selects the console line logged nearest to that point. `l` again unlinks (@dmitryduev in https://github.com/wandb/wandb/pull/12737)
 - `wandb leet symon` now shows the utilization of every CPU core and, on Linux, the CPU temperature (@dmitryduev in https://github.com/wandb/wandb/pull/13012)
 - `wandb leet symon` now charts network and disk throughput in bytes per second instead of totals since it started (@dmitryduev in https://github.com/wandb/wandb/pull/13013)
@@ -79,5 +80,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
 - The Docker image ID recorded for runs inside Kubernetes no longer loses the start of the image name and the end of the digest when the `docker-pullable://` prefix is removed (@David-Wu1119 in https://github.com/wandb/wandb/pull/13035)
 - `wandb.Api(overrides={"base_url": ...})` no longer changes the W&B server URL used by `wandb.init()` and other W&B calls later in the same process (@dmitryduev in https://github.com/wandb/wandb/pull/13125)
+- Passing a run's `config` to `wandb.init(config=...)` or `run.config.update()` now copies its keys. Previously each pass nested the config one level deeper under an `_items` key. Passing `wandb.config` before `wandb.init()` adds no keys (@asg0451 in https://github.com/wandb/wandb/pull/13134)
 - `wandb verify` no longer hangs on its final sweep check against W&B Server instances that deduplicate sweep run configs (Dedicated Cloud and Self-Managed 0.8x with sweep dedup enabled) (@rsong9527 in https://github.com/wandb/wandb/pull/13136)
+- The `x_stats_gpu_device_ids` setting now limits which GPUs are reported for every vendor, including AMD and Apple GPUs, as documented. It applied only to NVIDIA GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/13079)
+- NVIDIA GPM system metrics such as `gpu.N.smActive` are now averaged over each run's own sampling interval. When several runs shared one process, each run's value covered only the time since any run's previous sample, and the cost of sampling system metrics grew with the number of runs (@dmitryduev in https://github.com/wandb/wandb/pull/13080)
+- GPU, TPU and Apple accelerator system metrics resume when the helper process that collects them exits or fails to start; they used to stop for the rest of the run (@dmitryduev in https://github.com/wandb/wandb/pull/13098)
 - `linked_at` is now accepted as a filter field in `api.registries().collections().versions(filter={"linked_at": ...})`, matching the existing `linked_at` order field (@ibindlish in https://github.com/wandb/wandb/pull/13161)

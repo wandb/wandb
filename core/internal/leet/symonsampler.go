@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -49,14 +50,19 @@ type SymonSamplerParams struct {
 // SymonSampler produces live StatsMsg updates using the shared monitor
 // resources.
 //
-// Each call to Sample collects one point-in-time snapshot across the available
-// system and accelerator resources. The resulting metrics are aligned to a single
-// wall-clock timestamp before they are merged into one StatsMsg for the UI.
+// Each call to Sample reads the system resources and merges in the latest
+// accelerator metrics streamed by the wandb-xpu sidecar. The resulting
+// metrics are aligned to a single wall-clock timestamp before they are merged
+// into one StatsMsg for the UI.
 type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
 	processes *monitor.Processes
+	xpu       *monitor.XPU
 	logger    *observability.CoreLogger
+
+	// accelerators is the sidecar's latest sample.
+	accelerators atomic.Pointer[spb.StatsRecord]
 
 	// prev and prevAt are the previous sample's metrics and time, from
 	// which the next sample's I/O rates are derived.
@@ -90,7 +96,13 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		}),
 		monitor.NewCPU(),
 		monitor.NewHost(),
-		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
+	)
+	sampler.xpu = monitor.NewXPU(
+		context.Background(),
+		monitor.NewXPUResourceManager(false),
+		logger,
+		0,
+		nil,
 	)
 
 	return sampler
@@ -103,7 +115,14 @@ func (s *SymonSampler) Interval() time.Duration {
 
 // Sample gathers one aligned snapshot across all resources and the
 // process table.
+//
+// The first call starts the sidecar, whose metrics arrive from the next
+// call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
+	s.xpu.Subscribe(s.interval, func(_ context.Context, record *spb.StatsRecord) {
+		s.accelerators.Store(record)
+	})
+
 	now := time.Now()
 	out := SymonSampleMsg{StatsMsg: StatsMsg{
 		Timestamp: now.Unix(),
@@ -153,6 +172,13 @@ func (s *SymonSampler) Sample() SymonSampleMsg {
 	}
 
 	_ = g.Wait()
+
+	if record := s.accelerators.Load(); record != nil {
+		record.Timestamp = timestamppb.New(now)
+		if msg, ok := ParseStats("", record).(StatsMsg); ok {
+			maps.Copy(out.Metrics, msg.Metrics)
+		}
+	}
 
 	metrics := out.Metrics
 	counters := maps.Clone(metrics)
@@ -234,17 +260,21 @@ func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
 			proto.Merge(msg.Env, rec)
 		}
 	}
+	if rec := s.xpu.Probe(ctx); rec != nil {
+		proto.Merge(msg.Env, rec)
+	}
 	return msg
 }
 
-// Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu
-// sidecar process managed by the monitor package.
+// Cleanup ends the sidecar subscription and releases any resources that
+// need explicit shutdown, such as the wandb-xpu sidecar process.
 func (s *SymonSampler) Cleanup() {
 	for _, resource := range s.resources {
 		if closer, ok := resource.(interface{ Close() }); ok {
 			closer.Close()
 		}
 	}
+	s.xpu.Close()
 }
 
 // logSamplingError captures unexpected sampling failures and debug-logs

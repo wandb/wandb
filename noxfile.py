@@ -16,7 +16,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 
 # Protobuf Python bindings.
 #
@@ -472,7 +472,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
-@nox.session(python="3.13", name="codegen-check")
+@nox.session(python="3.14", name="codegen-check")
 def codegen_check(session: nox.Session) -> None:
     """Generate code and ensure nothing changed."""
     install_timed(
