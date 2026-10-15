@@ -130,7 +130,7 @@ def test_scan_history_hint_cannot_repeat_a_window(hint):
     assert service_api.scan_ranges == [(0, 2), (2, 4)]
 
 
-def test_scan_history_jump_preserves_live_tail_and_exclusive_bound():
+def test_scan_history_jump_from_empty_page_preserves_exclusive_bound():
     service_api = FakeServiceApi(
         pages=[[], [history_row(_step=10)], [history_row(_step=12)]],
         next_steps=[10, 12, 14],

@@ -1373,7 +1373,7 @@ class Run(Attrs):
                 or omit this argument. If no keys are provided, all metrics are
                 returned.
             page_size: The number of steps covered by each request. Empty step
-                ranges in exported history are skipped automatically.
+                ranges in fully exported history are skipped automatically.
             min_step: The minimum step to start reading history from (inclusive).
             max_step: The maximum step to read history up to (exclusive).
             use_cache: When set to True, checks the WANDB_CACHE_DIR for a run history.

@@ -18,7 +18,7 @@ import (
 
 // HistoryReader downloads and reads an existing run's logged metrics.
 type HistoryReader struct {
-	// mu serializes calls to GetHistorySteps and Release.
+	// mu serializes reads and Release.
 	// The Rust FFI readers are not safe for concurrent use.
 	mu sync.Mutex
 
@@ -122,9 +122,8 @@ func (h *HistoryReader) GetHistorySteps(
 }
 
 // GetHistoryPage reads a step window and returns a safe lower bound for the
-// next window. Parquet readers expose the next row they encountered, so gaps
-// need no further scans. Live ranges remain conservative: the next Parquet row
-// must never cause a scan to skip data that has not been exported.
+// next window. Parquet readers expose the next row they encountered, so fully
+// exported gaps need no further scans. Scans with live data keep their windows.
 func (h *HistoryReader) GetHistoryPage(
 	ctx context.Context,
 	minStep int64,
@@ -152,10 +151,9 @@ func (h *HistoryReader) GetHistoryPage(
 		return nil, 0, err
 	}
 	results = append(results, livehistory...)
-	if h.minLiveStep != math.MaxInt64 {
-		nextStep = min(nextStep, max(maxStep, h.minLiveStep))
-	} else if len(h.parquetReaders) == 0 {
-		// Missing export metadata does not prove the live store is empty.
+	if h.minLiveStep != math.MaxInt64 || len(h.parquetReaders) == 0 {
+		// Live metadata may be sampled or rounded, so its minimum is not a
+		// safe jump target. Missing exports also do not prove a range empty.
 		nextStep = maxStep
 	}
 
