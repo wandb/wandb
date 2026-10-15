@@ -6,9 +6,16 @@
 //! - Nvidia GPUs via NVML and DCGM (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
+//! - Google TPUs via libtpu (Linux only)
+//! - Host CPU, memory, disk and network via sysinfo, plus cgroup v2 limits on Linux
+//! - OpenMetrics and DCGM exporter endpoints over HTTP
 
+mod host;
 mod metrics;
 mod monitors;
+mod record;
+mod scrape;
+mod subscriptions;
 #[allow(dead_code)]
 mod wandb_internal;
 
@@ -24,7 +31,7 @@ mod gpu_nvidia;
 #[cfg(target_os = "linux")]
 mod gpu_nvidia_dcgm;
 #[cfg(target_os = "linux")]
-#[allow(dead_code)] // items used via dyn GpuMonitor dispatch; rustc can't trace through async_trait
+#[allow(dead_code)] // items used via dyn Collector dispatch; rustc can't trace through async_trait
 mod tpu_libtpu;
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
@@ -38,35 +45,26 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
-use tokio_stream::wrappers::TcpListenerStream;
+use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 use tonic::{Request, Response, Status, transport::Server};
 
-use chrono::Utc;
-use prost_types::Timestamp;
 use wandb_internal::{
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Record, StatsItem,
-    StatsRecord, TearDownRequest, TearDownResponse,
+    EnvironmentRecord, GetMetadataRequest, GetMetadataResponse, Record, SubscribeRequest,
+    SubscribeResponse, TearDownRequest, TearDownResponse,
     record::RecordType,
-    stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
 };
 
-use monitors::GpuMonitors;
+use monitors::Collectors;
+use subscriptions::Subscriptions;
 
 // Unix-specific imports
 #[cfg(not(target_os = "windows"))]
 use tokio::net::UnixListener;
 #[cfg(not(target_os = "windows"))]
 use tokio_stream::wrappers::UnixListenerStream;
-
-fn current_timestamp() -> Timestamp {
-    let now = Utc::now();
-    Timestamp {
-        seconds: now.timestamp(),
-        nanos: now.timestamp_subsec_nanos() as i32,
-    }
-}
 
 /// Command-line arguments for the system metrics service.
 #[derive(Parser, Debug)]
@@ -112,8 +110,12 @@ pub struct SystemMonitorServiceImpl {
     shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// Handle to the task that monitors the parent process.
     parent_monitor_handle: Option<JoinHandle<()>>,
-    /// GPU monitoring components
-    gpu_monitors: GpuMonitors,
+    /// The hardware metric sources available on this machine.
+    collectors: Arc<Collectors>,
+    /// The clients receiving metrics and the clock that serves them.
+    subscriptions: Arc<Subscriptions>,
+    /// Static facts about the hardware, gathered on the first request.
+    metadata: OnceCell<EnvironmentRecord>,
 }
 
 impl SystemMonitorServiceImpl {
@@ -122,12 +124,19 @@ impl SystemMonitorServiceImpl {
         enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
-        let gpu_monitors = GpuMonitors::new(enable_dcgm_profiling);
+        let collectors = Arc::new(Collectors::new(enable_dcgm_profiling));
+        let subscriptions = Arc::new(Subscriptions::new());
+        tokio::spawn(subscriptions::run(
+            subscriptions.clone(),
+            collectors.clone(),
+        ));
 
         let mut system_monitor = SystemMonitorServiceImpl {
             shutdown_sender: shutdown_sender.clone(),
             parent_monitor_handle: None,
-            gpu_monitors,
+            collectors,
+            subscriptions,
+            metadata: OnceCell::new(),
         };
 
         // An async task that monitors the parent process id, if provided.
@@ -151,31 +160,6 @@ impl SystemMonitorServiceImpl {
 
         system_monitor
     }
-
-    /// Collect system metrics.
-    async fn sample(
-        &self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
-    ) -> Vec<(String, metrics::MetricValue)> {
-        let mut all_metrics = Vec::new();
-
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs_f64();
-
-        all_metrics.push((
-            "_timestamp".to_string(),
-            metrics::MetricValue::Float(timestamp),
-        ));
-
-        // Collect metrics from all available GPU monitors
-        let gpu_metrics = self.gpu_monitors.collect_metrics(pid, gpu_device_ids).await;
-        all_metrics.extend(gpu_metrics);
-
-        all_metrics
-    }
 }
 
 /// The gRPC service implementation for the system monitor.
@@ -188,8 +172,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<TearDownResponse>, Status> {
         debug!("Received a request to ShutdownShutdown: {:?}", request);
 
-        // Shutdown GPU monitors
-        self.gpu_monitors.shutdown();
+        self.collectors.shutdown();
 
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
@@ -207,13 +190,22 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<GetMetadataResponse>, Status> {
         debug!("Received a GetMetadata request: {:?}", request);
 
-        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
-        let samples: HashMap<String, &metrics::MetricValue> = all_metrics
-            .iter()
-            .map(|(name, value)| (name.to_string(), value))
-            .collect();
-
-        let metadata = self.gpu_monitors.collect_metadata(&samples).await;
+        let metadata = self
+            .metadata
+            .get_or_init(|| async {
+                let sample = self.collectors.collect_metrics(Vec::new()).await;
+                let samples: HashMap<String, &metrics::MetricValue> = sample
+                    .metrics
+                    .iter()
+                    .map(|(name, value)| (name.to_string(), value))
+                    .collect();
+                self.collectors.collect_metadata(&samples).await
+            })
+            .await;
+        let mut metadata = metadata.clone();
+        self.collectors
+            .probe(&request.into_inner(), &mut metadata)
+            .await;
 
         let record = Record {
             record_type: Some(RecordType::Environment(metadata)),
@@ -227,49 +219,17 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         Ok(Response::new(response))
     }
 
-    /// Get system metrics.
-    async fn get_stats(
+    type SubscribeStream = ReceiverStream<Result<SubscribeResponse, Status>>;
+
+    /// Stream system metrics at the subscriber's interval.
+    async fn subscribe(
         &self,
-        request: Request<GetStatsRequest>,
-    ) -> Result<Response<GetStatsResponse>, Status> {
-        debug!("Received a request to get stats: {:?}", request);
+        request: Request<SubscribeRequest>,
+    ) -> Result<Response<Self::SubscribeStream>, Status> {
+        debug!("Received a Subscribe request: {:?}", request);
 
-        let request = request.into_inner();
-        let pid = request.pid;
-        let gpu_device_ids = if request.gpu_device_ids.is_empty() {
-            None
-        } else {
-            Some(request.gpu_device_ids)
-        };
-
-        let all_metrics = self.sample(pid, gpu_device_ids).await;
-
-        let stats_items: Vec<StatsItem> = all_metrics
-            .iter()
-            .filter(|(name, _)| !name.starts_with('_')) // Skip internal metrics
-            .filter_map(|(name, value)| {
-                serde_json::to_string(value).ok().map(|json_str| StatsItem {
-                    key: name.to_string(),
-                    value_json: json_str,
-                })
-            })
-            .collect();
-
-        let record = Record {
-            record_type: Some(RecordType::Stats(StatsRecord {
-                timestamp: Some(current_timestamp()),
-                stats_type: StatsType::System as i32,
-                item: stats_items,
-                ..Default::default()
-            })),
-            ..Default::default()
-        };
-
-        let response = GetStatsResponse {
-            record: Some(record),
-        };
-
-        Ok(Response::new(response))
+        let rx = self.subscriptions.add(&request.into_inner())?;
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
 
@@ -444,6 +404,11 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
+
+    // The TLS provider for HTTPS scrapes; ring keeps aws-lc out of the build.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
 
     // Initialize logging — write to a persistent file matching wandb-core's pattern:
     //   {cache_dir}/wandb/logs/xpu-debug-{timestamp}.log

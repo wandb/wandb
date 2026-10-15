@@ -2,34 +2,44 @@ package monitor
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-var errXPUClosed = errors.New("monitor: xpu resource is closed")
+const (
+	// xpuRetryMinDelay is the delay before the first attempt to reopen
+	// a subscription whose stream ended or failed to start.
+	xpuRetryMinDelay = time.Second
 
-// XPU monitors GPUs (Nvidia, AMD, Apple) and Google TPUs via the
-// wandb-xpu sidecar binary.
+	// xpuRetryMaxDelay caps the delay between attempts, which doubles
+	// after each consecutive failure.
+	xpuRetryMaxDelay = time.Minute
+)
+
+// XPU streams system metrics from the wandb-xpu sidecar binary: the host's
+// CPU, memory, disk and network metrics, and GPU (Nvidia, AMD, Apple) and
+// Google TPU metrics.
 //
-// The sidecar is started by the first Sample or Probe call, not by NewXPU.
+// The sidecar is started by the first Subscribe or Probe call, not by NewXPU.
+// If it exits or its stream ends while subscribed, it is started again and
+// the subscription is reopened.
 type XPU struct {
 	ctx             context.Context
 	resourceManager *XPUResourceManager
+	resourceRef     XPUResourceManagerRef
+	logger          *observability.CoreLogger
 
-	pid          int32
-	gpuDeviceIds []int32
+	errorReported atomic.Bool
 
-	startOnce        sync.Once
-	startErrReported atomic.Bool
+	mu sync.Mutex
 
-	mu          sync.Mutex
-	closed      bool
-	client      spb.SystemMonitorServiceClient
-	resourceRef XPUResourceManagerRef
-	startErr    error
+	// unsubscribe ends the running Subscribe stream, if any.
+	unsubscribe context.CancelFunc
 }
 
 // NewXPU returns an XPU resource whose sidecar start and requests are
@@ -37,102 +47,144 @@ type XPU struct {
 func NewXPU(
 	ctx context.Context,
 	resourceManager *XPUResourceManager,
-	pid int32,
-	gpuDeviceIds []int32,
+	logger *observability.CoreLogger,
 ) *XPU {
 	return &XPU{
 		ctx:             ctx,
 		resourceManager: resourceManager,
-		pid:             pid,
-		gpuDeviceIds:    gpuDeviceIds,
+		resourceRef:     resourceManager.Acquire(),
+		logger:          logger,
 	}
 }
 
-// Sample collects hardware metrics.
+// Subscribe passes the samples described by request to publish until
+// Unsubscribe or Close is called or the resource's context ends.
 //
-// A sidecar start failure is returned once; later samples return nothing.
-func (a *XPU) Sample() (*spb.StatsRecord, error) {
-	ctx, cancel := context.WithTimeout(a.ctx, defaultSamplingInterval)
-	defer cancel()
-
-	client, err := a.getClient(ctx)
-	if err != nil {
-		if errors.Is(err, errXPUClosed) || a.startErrReported.Swap(true) {
-			return nil, nil
-		}
-		return nil, err
+// publish may block until its context is done, which happens when the
+// subscription ends. Subscribing while subscribed does nothing.
+func (a *XPU) Subscribe(
+	request *spb.SubscribeRequest,
+	publish func(context.Context, *spb.StatsRecord),
+) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.unsubscribe != nil {
+		return
 	}
 
-	stats, err := client.GetStats(
-		ctx,
-		&spb.GetStatsRequest{Pid: a.pid, GpuDeviceIds: a.gpuDeviceIds},
-	)
-	if err != nil {
-		return nil, err
-	}
-	metrics := stats.GetRecord().GetStats()
-	if len(metrics.Item) == 0 {
-		return nil, nil
-	}
-	return metrics, nil
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.unsubscribe = cancel
+	go a.stream(ctx, request, publish)
 }
 
-func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
-	client, err := a.getClient(ctx)
+// Unsubscribe ends the subscription, if any. A publish in flight returns
+// once its context is done.
+func (a *XPU) Unsubscribe() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	cancel := a.unsubscribe
+	a.unsubscribe = nil
+	a.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// stream passes the sidecar's samples to publish until ctx ends.
+//
+// A stream that ends or fails to start for any other reason is reopened
+// after a delay that doubles with each consecutive failure and starts over
+// after a stream that outlived the longest delay. The first failure is
+// captured; later ones are debug-logged.
+func (a *XPU) stream(
+	ctx context.Context,
+	request *spb.SubscribeRequest,
+	publish func(context.Context, *spb.StatsRecord),
+) {
+	delay := xpuRetryMinDelay
+	for {
+		started := time.Now()
+		err := a.subscribe(ctx, request, publish)
+		if ctx.Err() != nil {
+			return
+		}
+		if time.Since(started) > xpuRetryMaxDelay {
+			delay = xpuRetryMinDelay
+		}
+
+		if a.errorReported.Swap(true) {
+			a.logger.Debug(err.Error())
+		} else {
+			a.logger.CaptureError("monitor", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		delay = min(2*delay, xpuRetryMaxDelay)
+	}
+}
+
+// subscribe opens a stream and passes its samples to publish until the
+// stream ends.
+func (a *XPU) subscribe(
+	ctx context.Context,
+	request *spb.SubscribeRequest,
+	publish func(context.Context, *spb.StatsRecord),
+) error {
+	client, err := a.resourceManager.Client(ctx, a.resourceRef)
+	if err != nil {
+		return err
+	}
+
+	stream, err := client.Subscribe(ctx, request)
+	if err != nil {
+		return fmt.Errorf("monitor: xpu subscribe failed: %w", err)
+	}
+
+	for {
+		response, err := stream.Recv()
+		if err != nil {
+			return fmt.Errorf("monitor: xpu stream ended: %w", err)
+		}
+		publish(ctx, response.GetRecord().GetStats())
+	}
+}
+
+// Probe returns the sidecar's static facts about the machine described
+// by request, or nil if the sidecar cannot be reached.
+func (a *XPU) Probe(
+	ctx context.Context,
+	request *spb.GetMetadataRequest,
+) *spb.EnvironmentRecord {
+	if a == nil {
+		return nil
+	}
+	client, err := a.resourceManager.Client(ctx, a.resourceRef)
 	if err != nil {
 		return nil
 	}
 
-	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{})
+	e, err := client.GetMetadata(ctx, request)
 	if err != nil {
 		return nil
 	}
 	return e.GetRecord().GetEnvironment()
 }
 
-// Close releases the sidecar reference if one was acquired.
-//
-// Close does not wait for a start that is still in progress; getClient
-// hands the reference back when that start completes.
+// Close ends the subscription and releases the sidecar reference.
 func (a *XPU) Close() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.closed {
+	if a == nil {
 		return
 	}
-	a.closed = true
-
-	if a.client != nil {
-		a.resourceManager.Release(a.resourceRef)
-	}
-}
-
-// getClient returns the sidecar client, starting the sidecar on first use.
-//
-// The outcome of the first start, success or failure, is kept for the
-// lifetime of the resource.
-func (a *XPU) getClient(ctx context.Context) (spb.SystemMonitorServiceClient, error) {
-	a.startOnce.Do(func() {
-		client, ref, err := a.resourceManager.Acquire(ctx)
-
-		a.mu.Lock()
-		defer a.mu.Unlock()
-
-		if a.closed {
-			if err == nil {
-				a.resourceManager.Release(ref)
-			}
-			return
-		}
-		a.client, a.resourceRef, a.startErr = client, ref, err
-	})
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.closed {
-		return nil, errXPUClosed
-	}
-	return a.client, a.startErr
+	a.Unsubscribe()
+	a.resourceManager.Release(a.resourceRef)
 }

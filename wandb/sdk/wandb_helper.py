@@ -23,6 +23,15 @@ def _to_dict(params):
     if isinstance(params, dict):
         return params
 
+    from .lib.preinit import PreInitObject
+    from .wandb_config import Config
+
+    # vars() would return the Config's internal attributes, not its items.
+    if isinstance(params, Config):
+        return dict(params)
+    if isinstance(params, PreInitObject):
+        return {}
+
     # Handle some cases where params is not a dictionary
     # by trying to convert it into a dictionary
     meta = inspect.getmodule(params)

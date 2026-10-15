@@ -4,10 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
@@ -180,26 +177,16 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"ProcessExited", process.ErrorProcessNotRunning, false},
 		{
-			"ProcessExitedWithOtherError",
-			errors.Join(process.ErrorProcessNotRunning, errors.New("disk read failed")),
+			"JoinedWithOtherError",
+			errors.Join(errors.New("not implemented yet"), errors.New("disk read failed")),
 			true,
 		},
 		{
-			"ProcessExitedWithOtherExpectedError",
-			errors.Join(
-				process.ErrorProcessNotRunning,
-				status.Error(codes.Unavailable, "disconnected"),
-			),
+			"JoinedExpectedErrors",
+			errors.Join(errors.New("not implemented yet"), errors.New("Incorrect function.")),
 			false,
 		},
-		{
-			"NetstatMissing",
-			errors.New(`exec: "netstat": executable file not found in $PATH`),
-			false,
-		},
-		{"GrpcUnavailable", status.Error(codes.Unavailable, "connection error"), false},
 		{
 			"ConnRefused",
 			errors.New(
@@ -208,11 +195,6 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 			false,
 		},
 		{"WinIncorrectFunction", errors.New("Incorrect function."), false},
-		{
-			"MissingProcDiskstats",
-			errors.New("open /proc/diskstats: no such file or directory"),
-			false,
-		},
 		{"OtherError", errors.New("some other error"), true},
 	}
 	for _, tt := range tests {

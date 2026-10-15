@@ -3,6 +3,7 @@ package monitor
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -25,9 +26,9 @@ func NewPortfile() *portfile {
 	return &portfile{Path: file.Name()}
 }
 
-// Read reads the target URI from the portfile, polling until it appears
-// or ctx is canceled.
-func (p *portfile) Read(ctx context.Context) (string, error) {
+// Read reads the target URI from the portfile, polling until it appears,
+// ctx is canceled or exited is closed.
+func (p *portfile) Read(ctx context.Context, exited <-chan struct{}) (string, error) {
 	for {
 		target, err := p.ReadFile()
 		if err == nil {
@@ -37,6 +38,8 @@ func (p *portfile) Read(ctx context.Context) (string, error) {
 		select {
 		case <-ctx.Done():
 			return "", fmt.Errorf("reading portfile %s: %w", p.Path, ctx.Err())
+		case <-exited:
+			return "", errors.New("wandb-xpu exited before writing its portfile")
 		case <-time.After(20 * time.Millisecond):
 		}
 	}

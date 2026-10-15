@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -49,17 +51,26 @@ type SymonSamplerParams struct {
 // SymonSampler produces live StatsMsg updates using the shared monitor
 // resources.
 //
-// Each call to Sample collects one point-in-time snapshot across the available
-// system and accelerator resources. The resulting metrics are aligned to a single
-// wall-clock timestamp before they are merged into one StatsMsg for the UI.
+// Each call to Sample reads the system resources and merges in the latest
+// metrics streamed by the wandb-xpu sidecar. The resulting metrics are
+// aligned to a single wall-clock timestamp before they are merged into one
+// StatsMsg for the UI.
 type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
 	processes *monitor.Processes
-	logger    *observability.CoreLogger
+	xpu       *monitor.XPU
 
-	// prev and prevAt are the previous sample's metrics and time, from
-	// which the next sample's I/O rates are derived.
+	// subscription describes what the sampler subscribes to.
+	subscription *spb.SubscribeRequest
+	logger       *observability.CoreLogger
+
+	// sidecar is the sidecar's latest sample with its I/O counters
+	// replaced by rates.
+	sidecar atomic.Pointer[map[string]float64]
+
+	// prev and prevAt are the previous sidecar sample's metrics and time,
+	// from which the next sample's I/O rates are derived.
 	prev   map[string]float64
 	prevAt time.Time
 }
@@ -81,17 +92,18 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 		logger:    logger,
 	}
 
-	sampler.resources = append(sampler.resources,
-		monitor.NewSystem(monitor.SystemParams{
-			Pid:                         0,
-			TrackProcessTree:            false,
-			DiskPaths:                   defaultSymonDiskPaths(),
-			DisableCgroupResourceLimits: true,
-		}),
-		monitor.NewCPU(),
-		monitor.NewHost(),
-		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
+	sampler.resources = append(sampler.resources, monitor.NewCPU(), monitor.NewHost())
+	sampler.xpu = monitor.NewXPU(
+		context.Background(),
+		monitor.NewXPUResourceManager(false),
+		logger,
 	)
+	sampler.subscription = &spb.SubscribeRequest{
+		IntervalSeconds: interval.Seconds(),
+		SubscriberId:    string(sharedmode.RandomClientID()),
+		DiskPaths:       defaultSymonDiskPaths(),
+		DisableCgroup:   true,
+	}
 
 	return sampler
 }
@@ -103,7 +115,12 @@ func (s *SymonSampler) Interval() time.Duration {
 
 // Sample gathers one aligned snapshot across all resources and the
 // process table.
+//
+// The first call starts the sidecar, whose metrics arrive from the next
+// call on.
 func (s *SymonSampler) Sample() SymonSampleMsg {
+	s.xpu.Subscribe(s.subscription, s.storeSidecar)
+
 	now := time.Now()
 	out := SymonSampleMsg{StatsMsg: StatsMsg{
 		Timestamp: now.Unix(),
@@ -155,9 +172,9 @@ func (s *SymonSampler) Sample() SymonSampleMsg {
 	_ = g.Wait()
 
 	metrics := out.Metrics
-	counters := maps.Clone(metrics)
-	deriveRates(s.prev, metrics, now.Sub(s.prevAt))
-	s.prev, s.prevAt = counters, now
+	if sidecar := s.sidecar.Load(); sidecar != nil {
+		maps.Copy(metrics, *sidecar)
+	}
 
 	// Disk usage is charted as a percentage and memory as used, so the
 	// flat used-bytes and available-memory lines only take up cells.
@@ -182,6 +199,20 @@ func (s *SymonSampler) recoverSamplingPanic() {
 	}
 }
 
+// storeSidecar keeps a sidecar sample for the next Sample call, with its
+// I/O rates derived from the sample before it.
+func (s *SymonSampler) storeSidecar(_ context.Context, record *spb.StatsRecord) {
+	msg, ok := ParseStats("", record).(StatsMsg)
+	if !ok {
+		return
+	}
+	at := record.GetTimestamp().AsTime()
+	counters := maps.Clone(msg.Metrics)
+	deriveRates(s.prev, msg.Metrics, at.Sub(s.prevAt))
+	s.prev, s.prevAt = counters, at
+	s.sidecar.Store(&msg.Metrics)
+}
+
 // deriveRates replaces the cumulative network and disk I/O counters in cur
 // with bytes-per-second rates over the elapsed time since prev. The
 // counters are dropped even when prev lacks them, so the grid never charts
@@ -202,7 +233,7 @@ func deriveRates(prev, cur map[string]float64, elapsed time.Duration) {
 }
 
 // ioRateKey maps a cumulative I/O counter to its rate key and the factor
-// that converts the counter's unit to bytes: monitor.System reports the
+// that converts the counter's unit to bytes: the sidecar reports the
 // network counters in bytes and the disk counters in MiB.
 func ioRateKey(key string) (string, float64, bool) {
 	switch key {
@@ -234,17 +265,22 @@ func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
 			proto.Merge(msg.Env, rec)
 		}
 	}
+	metadata := &spb.GetMetadataRequest{DiskPaths: s.subscription.GetDiskPaths()}
+	if rec := s.xpu.Probe(ctx, metadata); rec != nil {
+		proto.Merge(msg.Env, rec)
+	}
 	return msg
 }
 
-// Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu
-// sidecar process managed by the monitor package.
+// Cleanup ends the sidecar subscription and releases any resources that
+// need explicit shutdown, such as the wandb-xpu sidecar process.
 func (s *SymonSampler) Cleanup() {
 	for _, resource := range s.resources {
 		if closer, ok := resource.(interface{ Close() }); ok {
 			closer.Close()
 		}
 	}
+	s.xpu.Close()
 }
 
 // logSamplingError captures unexpected sampling failures and debug-logs
