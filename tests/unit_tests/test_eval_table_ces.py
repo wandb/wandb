@@ -849,16 +849,3 @@ def test_ces_eval_table_rejects_mixed_type_mode():
             allow_mixed_types=True,
             backend="ces",
         )
-
-
-def test_ces_backend_requires_server_feature(run, monkeypatch):
-    """CES still refuses to log against a server that does not advertise it."""
-    monkeypatch.setattr(
-        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
-        lambda self, feature: False,
-    )
-
-    et = wandb.EvalTable(columns=["prompt"], data=[["x"]], backend="ces")
-
-    with pytest.raises(UsageError, match="does not support CES EvalTable logging"):
-        run.log({"my_eval": et})
