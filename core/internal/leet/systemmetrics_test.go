@@ -48,7 +48,8 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 func TestMatchMetricDef_ByteRatesAndSizesAreUnscaled(t *testing.T) {
 	// symon reports these in bytes (per second); the chart must not rescale them.
 	require.Equal(t, "7.67GB/s", leet.MatchMetricDef("gpu.0.nvlinkRxBytes").Unit.Format(7.67e9))
-	require.Equal(t, "582MiB", leet.MatchMetricDef("trn.host_total_memory_usage").Unit.Format(610705408))
+	trn := leet.MatchMetricDef("trn.host_total_memory_usage")
+	require.Equal(t, "582MiB", trn.Unit.Format(610705408))
 }
 
 func TestExtractBaseKey(t *testing.T) {
