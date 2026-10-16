@@ -148,8 +148,7 @@ ensure_configured = _deprecated_api.ensure_configured
 
 
 def __getattr__(name: str):
-    # The public API is imported on first use: it is a large package that
-    # training scripts and the CLI rarely need.
+    # The public API is imported on first use.
     if name == "Api":
         from wandb.apis.public import Api
 
