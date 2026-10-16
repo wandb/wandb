@@ -144,6 +144,8 @@ class ImageMask(Media):
             The readable name or id for this mask type (e.g. predictions, ground_truth)
         """
         super().__init__()
+        # None for path-backed masks, which carry no labels of their own.
+        self._class_labels: dict[int | str, str] | None = None
 
         if "path" in val:
             self._set_file(val["path"])
@@ -163,6 +165,7 @@ class ImageMask(Media):
 
             self.validate(val)
             self._val = val
+            self._class_labels = val["class_labels"]
             self._key = key
 
             ext = "." + self.type_name() + ".png"
@@ -188,13 +191,11 @@ class ImageMask(Media):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
-        if hasattr(self, "_val") and "class_labels" in self._val:
-            class_labels = self._val["class_labels"]
-
+        if self._class_labels is not None:
             run._add_singleton(
                 "mask/class_labels",
                 str(key) + "_wandb_delimeter_" + self._key,
-                class_labels,
+                self._class_labels,
             )
 
     @classmethod

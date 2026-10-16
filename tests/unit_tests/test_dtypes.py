@@ -374,7 +374,7 @@ def test_image_type(assets_path):
             # TODO: `mask_ground_truth` / `mask_ground_truth_2` should also
             # have per-mask labels here — the caller passed `class_labels` for
             # both — but `ImageMask.__init__`'s path branch silently drops
-            # them (only the `mask_data` branch stores them on `_val`), so
+            # them (only the `mask_data` branch sets `_class_labels`), so
             # `from_obj` has nothing to put in `mask_class_maps`. Fix by
             # preserving `class_labels` on the path branch too.
         },
