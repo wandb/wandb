@@ -7,7 +7,11 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactMembershipFragment
+from .fragments import (
+    ArtifactAliasFragment,
+    ArtifactMembershipFragment,
+    PageInfoFragment,
+)
 
 
 class ArtifactMembershipByName(GQLResult):
@@ -15,10 +19,41 @@ class ArtifactMembershipByName(GQLResult):
 
 
 class ArtifactMembershipByNameProject(GQLResult):
-    artifact_collection_membership: ArtifactMembershipFragment | None = Field(
-        alias="artifactCollectionMembership"
-    )
+    artifact_collection_membership: (
+        ArtifactMembershipByNameProjectArtifactCollectionMembership | None
+    ) = Field(alias="artifactCollectionMembership")
+
+
+class ArtifactMembershipByNameProjectArtifactCollectionMembership(
+    ArtifactMembershipFragment
+):
+    # Optional + defaulted: on servers where ARTIFACT_ALIASES_PAGINATION is
+    # disabled, this field is stripped from the request via `omit_fields`
+    # (it's non-nullable in the schema, so an old server can't resolve it),
+    # and the response JSON omits the key entirely.
+    aliases_connection: (
+        ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnection
+        | None
+    ) = Field(alias="aliasesConnection", default=None)
+
+
+class ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnection(
+    GQLResult
+):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: list[
+        ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnectionEdges
+    ]
+
+
+class ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnectionEdges(
+    GQLResult
+):
+    node: ArtifactAliasFragment | None
 
 
 ArtifactMembershipByName.model_rebuild()
 ArtifactMembershipByNameProject.model_rebuild()
+ArtifactMembershipByNameProjectArtifactCollectionMembership.model_rebuild()
+ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnection.model_rebuild()
+ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnectionEdges.model_rebuild()

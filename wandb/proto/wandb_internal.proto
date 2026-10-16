@@ -1726,4 +1726,8 @@ enum ServerFeature {
 
   // Indicates that the server supports CoreWeave Evaluation Service.
   EVAL_TABLES_CES = 38;
+
+  // Indicates that the server supports paginating Artifact and
+  // ArtifactCollectionMembership alias fields via `aliasesConnection`.
+  ARTIFACT_ALIASES_PAGINATION = 39;
 }

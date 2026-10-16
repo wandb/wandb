@@ -9,6 +9,7 @@ __all__ = [
     "ArtifactByID",
     "ArtifactCollectionAliases",
     "ArtifactCreatedBy",
+    "ArtifactMembershipAliases",
     "ArtifactMembershipByName",
     "ArtifactMembershipFiles",
     "ArtifactType",
@@ -87,6 +88,7 @@ __all__ = [
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
+    "ARTIFACT_MEMBERSHIP_ALIASES_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
@@ -156,6 +158,7 @@ if TYPE_CHECKING:
     from .artifact_by_id import ArtifactByID
     from .artifact_collection_aliases import ArtifactCollectionAliases
     from .artifact_created_by import ArtifactCreatedBy
+    from .artifact_membership_aliases import ArtifactMembershipAliases
     from .artifact_membership_by_name import ArtifactMembershipByName
     from .artifact_membership_files import ArtifactMembershipFiles
     from .artifact_type import ArtifactType
@@ -241,6 +244,7 @@ if TYPE_CHECKING:
         ARTIFACT_BY_ID_GQL,
         ARTIFACT_COLLECTION_ALIASES_GQL,
         ARTIFACT_CREATED_BY_GQL,
+        ARTIFACT_MEMBERSHIP_ALIASES_GQL,
         ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
         ARTIFACT_MEMBERSHIP_FILES_GQL,
         ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
@@ -310,6 +314,7 @@ _LAZY_IMPORTS = {
     "ArtifactByID": ".artifact_by_id",
     "ArtifactCollectionAliases": ".artifact_collection_aliases",
     "ArtifactCreatedBy": ".artifact_created_by",
+    "ArtifactMembershipAliases": ".artifact_membership_aliases",
     "ArtifactMembershipByName": ".artifact_membership_by_name",
     "ArtifactMembershipFiles": ".artifact_membership_files",
     "ArtifactType": ".artifact_type",
@@ -388,6 +393,7 @@ _LAZY_IMPORTS = {
     "ARTIFACT_BY_ID_GQL": ".operations",
     "ARTIFACT_COLLECTION_ALIASES_GQL": ".operations",
     "ARTIFACT_CREATED_BY_GQL": ".operations",
+    "ARTIFACT_MEMBERSHIP_ALIASES_GQL": ".operations",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL": ".operations",
     "ARTIFACT_MEMBERSHIP_FILES_GQL": ".operations",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL": ".operations",
