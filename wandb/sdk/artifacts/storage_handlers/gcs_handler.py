@@ -163,8 +163,14 @@ class GCSHandler(StorageHandler):
                 ArtifactManifestEntry(path=name or gcs_path.key, ref=path, digest=path)
             ]
 
+        from google.api_core.exceptions import Forbidden
+
         bucket = client.bucket(gcs_path.bucket)
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        try:
+            obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        except Forbidden:
+            # The credentials can list objects but not get them.
+            obj = self._get_blob_via_list(bucket, gcs_path.key, gcs_path.version)
         if (obj is None) and (gcs_path.version is not None):
             raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
@@ -194,6 +200,26 @@ class GCSHandler(StorageHandler):
             )
 
         return entries
+
+    def _get_blob_via_list(
+        self, bucket: storage.Bucket, key: str, version: str | None
+    ) -> storage.Blob | None:
+        """Find `key` with `list_blobs`, like `get_blob` but needing only list access.
+
+        The exact key sorts first under its own prefix and its generations are
+        contiguous, so the scan stops at the first other name.
+        """
+        generation = int(version) if version is not None else None
+        for blob in bucket.list_blobs(
+            prefix=key,
+            versions=generation is not None,
+            max_results=1 if generation is None else None,
+        ):
+            if blob.name != key:
+                break
+            if generation is None or blob.generation == generation:
+                return blob
+        return None
 
     def _entry_from_obj(
         self,
