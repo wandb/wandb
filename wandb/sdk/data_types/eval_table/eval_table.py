@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
-EVAL_TABLE_ROW_INDEX_KEY = "row"
 UnsupportedMediaMode = Literal["stub", "raise"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
 
@@ -86,8 +85,8 @@ class EvalTable(Table):
                 - "MUTABLE" and "INCREMENTAL": not currently supported for EvalTable.
             input_columns: Names of the input columns.
                 If set, designates these columns as inputs. Eval comparisons will match
-                rows based on matching values from input columns. If unset, we will
-                inject a "row" index input column so comparisons can match against that.
+                rows based on matching values from input columns. If unset,
+                comparisons will match rows by their 1-indexed row position.
             output_columns: Names of the output columns.
                 These represents the values to be compared. Any columns not designated
                 as input, output, or score will default to being output columns.
@@ -131,9 +130,8 @@ class EvalTable(Table):
                 data=[[pil_image, "4", 0.5]],
             )
             run.log({"my_eval_3": et3})
-            # If you don't assign any input columns, we will auto-inject a numeric
-            # "row" index as the input column, and comparisons will match by row
-            # index. All columns will be treated as outputs.
+            # If you don't assign any input columns, comparisons will match by row
+            # position. All columns will be treated as outputs.
         """
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
@@ -341,21 +339,14 @@ class EvalTable(Table):
             col for col in str_columns if col not in assigned
         ]
 
-        # When no input columns are designated, inject a synthetic 1-indexed `row`
-        # input so each row has a distinct digest for comparison. We avoid
-        # injecting when input columns exist so row-index matching doesn't
-        # leak into the input-equality criteria.
-        inject_row_index = not self._input_columns
-
+        # Without input columns, every row's inputs are empty, and each writer
+        # identifies rows by position instead.
         rows: list[WriteRow] = []
-        for row_idx, row in enumerate(self.data, start=1):
+        for row in self.data:
             values = dict(zip(str_columns, row, strict=True))
-            if inject_row_index:
-                inputs: dict[ColumnKey, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
-            else:
-                inputs = {
-                    columns_by_name[col]: values[col] for col in self._input_columns
-                }
+            inputs: dict[ColumnKey, Any] = {
+                columns_by_name[col]: values[col] for col in self._input_columns
+            }
 
             # Always use a dict so backends see a stable column-keyed shape;
             # single-output is no exception.

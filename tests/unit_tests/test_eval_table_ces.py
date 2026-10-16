@@ -154,6 +154,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
                 "scores": {"correct": False},
             },
         ],
+        extra_body={"row_key_from": ["input"]},
         idempotency_key=ANY,
     )
     api.versions.create.assert_called_once_with(
@@ -185,6 +186,55 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     assert "evaluate_call_id" not in history_value
     assert et._immutable_write_result is not None
     assert et._immutable_write_result.logged_id == "evaluation-version-1"
+
+
+def test_ces_eval_table_without_inputs_keys_rows_by_position(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
+    et = wandb.EvalTable(
+        columns=["answer", "correct"],
+        data=[["4", True], ["5", False], ["6", True]],
+        score_columns=["correct"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    api = mock_ces_client.eval_tables
+    assert api.columns.create.call_args.kwargs["dataset_fields"] == [
+        {"source": "output", "name": "answer", "value_type": "string"},
+    ]
+    assert [call.kwargs["rows"] for call in api.rows.add.call_args_list] == [
+        [
+            {
+                "input": None,
+                "output": {"answer": "4"},
+                "scores": {"correct": True},
+                "row_key": "1",
+            },
+            {
+                "input": None,
+                "output": {"answer": "5"},
+                "scores": {"correct": False},
+                "row_key": "2",
+            },
+        ],
+        [
+            {
+                "input": None,
+                "output": {"answer": "6"},
+                "scores": {"correct": True},
+                "row_key": "3",
+            },
+        ],
+    ]
+    assert [call.kwargs["extra_body"] for call in api.rows.add.call_args_list] == [
+        None,
+        None,
+    ]
 
 
 def test_ces_eval_table_stubs_media_until_native_support_exists(
@@ -251,6 +301,7 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
         dataset_fields=[],
         scorers=[],
         row_batches=[],
+        row_key_from=None,
         media_cells_examined=1,
         oversized_media_cells=oversized_media_cells,
         oversized_locations=(),
@@ -336,10 +387,13 @@ def test_ces_eval_table_batch_size_counts_row_separators(
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
     row_size = len(ces._encode_json(row))
-    target_size = ces._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    target_size = (
+        ces._row_batch_envelope_bytes(["input"]) + 2 * row_size + separator_bytes
+    )
     batches = list(
         ces._iter_row_batches(
             [row, row, row],
+            row_key_from=["input"],
             max_request_body_bytes=16 << 20,
             target_batch_body_bytes=target_size,
             max_rows_per_batch=10_000,
@@ -383,9 +437,10 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
 ):
     value = "large" * 100
     row = {
-        "input": {"row": 0},
+        "input": None,
         "output": {"value": value},
         "scores": {},
+        "row_key": "1",
     }
     body_size = len(ces._encode_json({"rows": [row]}))
     monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
@@ -463,7 +518,6 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
         "dataset_fields"
     ]
     assert fields == [
-        {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "python_int", "value_type": "integer"},
         {"source": "output", "name": "numpy_int", "value_type": "integer"},
         {"source": "output", "name": "numeric", "value_type": "number"},
@@ -486,7 +540,6 @@ def test_ces_eval_table_classifies_integer_valued_floats_as_numbers(
     assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
-        {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "value", "value_type": "number"},
     ]
 
@@ -504,7 +557,6 @@ def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
     assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
-        {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "value", "value_type": "number"},
     ]
     assert mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0][
