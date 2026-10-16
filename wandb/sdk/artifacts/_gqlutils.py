@@ -204,6 +204,27 @@ def omit_artifact_fields(service_api: ServiceApi) -> set[str]:
     return omit_fields
 
 
+def link_artifact_gql_options(
+    service_api: ServiceApi, gql_vars: dict[str, Any]
+) -> tuple[set[str], set[str] | None]:
+    """Return `(omit_fields, omit_variables)` for a LinkArtifact request.
+
+    Mutates `gql_vars` in place to skip the `includeAliases`-gated nested
+    alias selection when the response already includes `artifactMembership`,
+    since `Artifact._assign_attrs` only reads the fetched artifact's aliases
+    when no membership is passed in.
+    """
+    omit_fields = omit_artifact_fields(service_api)
+    if service_api.feature_enabled(
+        ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+    ):
+        gql_vars["includeAliases"] = False
+        return omit_fields, None
+
+    omit_fields.add("artifactMembership")
+    return omit_fields, {"includeAliases"}
+
+
 def record_artifact_use(
     service_api: ServiceApi,
     *,

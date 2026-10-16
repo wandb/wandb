@@ -70,6 +70,7 @@ from wandb.util import (
 from ._factories import make_storage_policy
 from ._generated.enums import ArtifactDigestAlgorithm
 from ._gqlutils import (
+    link_artifact_gql_options,
     omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
@@ -2577,20 +2578,7 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        omit_fields = omit_artifact_fields(service_api)
-        omit_variables = None
-        if not service_api.feature_enabled(
-            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
-        ):
-            omit_variables = {"includeAliases"}
-            omit_fields.add("artifactMembership")
-        else:
-            # The response includes `artifactMembership`, which `_assign_attrs`
-            # prefers over `aliases` on the fetched artifact, so the nested
-            # `aliases { artifactCollection { project { entity } } ... }`
-            # selection gated by this variable is never read. Skip fetching it
-            # to avoid the server-side N+1 over the collection's aliases.
-            gql_vars["includeAliases"] = False
+        omit_fields, omit_variables = link_artifact_gql_options(service_api, gql_vars)
 
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,
