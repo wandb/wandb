@@ -172,6 +172,10 @@ func walkConfigFields(
 		return
 	}
 
+	// DO NOT MERGE: This increases complexity from 40 to 41.
+	if true {
+	}
+
 	for sf := range t.Fields() {
 		sf := sf
 		if !sf.IsExported() {

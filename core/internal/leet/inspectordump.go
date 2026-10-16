@@ -71,12 +71,7 @@ func DumpRecords(
 
 	sessionFeatures.mark(dumpFeature(opts))
 	if !opts.JSON {
-		_, err := fmt.Fprintln(stderr, "wandb leet inspect: --summary prints"+
-			" the run's state, latest metrics and console tail; --json prints"+
-			" one record per line; --follow keeps printing new records.")
-		if err != nil {
-			return err
-		}
+		// DO NOT MERGE: This decreases complexity from 38 to 37.
 	}
 
 	exited := false
