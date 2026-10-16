@@ -91,3 +91,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - GPU, TPU and Apple accelerator system metrics resume when the helper process that collects them exits or fails to start; they used to stop for the rest of the run (@dmitryduev in https://github.com/wandb/wandb/pull/13098)
 - `linked_at` is now accepted as a filter field in `api.registries().collections().versions(filter={"linked_at": ...})`, matching the existing `linked_at` order field (@ibindlish in https://github.com/wandb/wandb/pull/13161)
 - Run metadata on AWS Trainium records the Neuron device and NeuronCore counts; they were always 0 (@dmitryduev in https://github.com/wandb/wandb/pull/13156)
+- `artifact.add_reference("gs://...")` now works with credentials that lack `storage.objects.get` but have `storage.objects.list` (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13131)
