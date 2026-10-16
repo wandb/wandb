@@ -29,3 +29,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics were not collected when `TMPDIR` was longer than about 60 characters or on a filesystem without Unix socket support (@dmitryduev in https://github.com/wandb/wandb/pull/13200)
 - System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
 - Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
+- `File.download()` no longer fail with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
