@@ -2583,7 +2583,7 @@ class Artifact:
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,
             variables=gql_vars,
-            omit_variables=omit_variables,
+            omit_variables=omit_variables or None,
             omit_fields=omit_fields,
             parse=LinkArtifact.model_validate_json,
         )
