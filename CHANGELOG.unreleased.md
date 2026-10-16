@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `File.download()` no longer fail with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)

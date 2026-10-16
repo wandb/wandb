@@ -92,6 +92,16 @@ class ParquetHTTPServer:
 
         ParquetFileHandler.parquet_files[path] = buffer.read()
 
+    def serve_file(self, path: str, content: bytes):
+        """Serves the given bytes at the given path.
+
+        Args:
+            path: The raw URL path to serve the file at, without decoding
+                percent-escapes (e.g., "files/50%25.txt").
+            content: The file's content.
+        """
+        ParquetFileHandler.parquet_files[path] = content
+
     def start(self):
         """Starts the HTTP server in a background thread."""
         self.server = socketserver.TCPServer(

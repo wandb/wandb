@@ -132,6 +132,82 @@ func TestDefaultFileTransfer_DownloadHTTPError(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr))
 }
 
+func TestDefaultFileTransfer_DownloadRepairsInvalidURL(t *testing.T) {
+	testCases := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"contains percent", "/100%_chance.txt", "/100%25_chance.txt"},
+		{"trailing percent", "/a%", "/a%25"},
+		{"one hex digit", "/a%4", "/a%254"},
+		{"non-hex digits", "/a%z.txt", "/a%25z.txt"},
+		{
+			"encodes invalid escapes",
+			"/a%2fb%/c",
+			"/a%252fb%25/c",
+		},
+		{
+			"contains non-ASCII",
+			"/progress50%/filé.mp4",
+			"/progress50%25/fil%C3%A9.mp4",
+		},
+		{
+			"Valid query escaped is unmodified",
+			"/progress50%?k=a%2F&q=%e2",
+			"/progress50%25?k=a%2F&q=%e2",
+		},
+		{
+			"Invalid query is escaped",
+			"/progress50%?x=50%",
+			"/progress50%25?x=50%25",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "test-file.txt")
+			var gotRequestURI string
+			testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
+				gotRequestURI = r.RequestURI
+				_, err := w.Write([]byte("content"))
+				assert.NoError(t, err)
+			})
+
+			task := &filetransfer.DefaultDownloadTask{
+				Path: path,
+				Url:  testURL + tc.path,
+			}
+			err := newFileTransfer(t).Download(task)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, gotRequestURI)
+		})
+	}
+}
+
+func TestDefaultFileTransfer_DownloadKeepsValidURL(t *testing.T) {
+	// A valid URL, such as a pre-signed one, must reach the server byte for
+	// byte, or its signature no longer matches.
+	path := filepath.Join(t.TempDir(), "test-file.txt")
+	requestURI := "/50%25progress?q=a%2f"
+	var gotRequestURI string
+	testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotRequestURI = r.RequestURI
+		_, err := w.Write([]byte("content"))
+		assert.NoError(t, err)
+	})
+
+	task := &filetransfer.DefaultDownloadTask{
+		Path: path,
+		Url:  testURL + requestURI,
+	}
+	err := newFileTransfer(t).Download(task)
+
+	require.NoError(t, err)
+	assert.Equal(t, requestURI, gotRequestURI)
+}
+
 func TestDefaultFileTransfer_Upload(t *testing.T) {
 	expectedContent := []byte("test content for upload")
 	path := writeTempFile(t, expectedContent)
