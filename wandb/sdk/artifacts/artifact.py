@@ -2584,6 +2584,13 @@ class Artifact:
         ):
             omit_variables = {"includeAliases"}
             omit_fields.add("artifactMembership")
+        else:
+            # The response includes `artifactMembership`, which `_assign_attrs`
+            # prefers over `aliases` on the fetched artifact, so the nested
+            # `aliases { artifactCollection { project { entity } } ... }`
+            # selection gated by this variable is never read. Skip fetching it
+            # to avoid the server-side N+1 over the collection's aliases.
+            gql_vars["includeAliases"] = False
 
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,
