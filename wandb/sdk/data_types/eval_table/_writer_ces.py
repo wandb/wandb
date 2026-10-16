@@ -114,7 +114,6 @@ class _CESWritePayloads:
     dataset_fields: list[_CESDatasetField]
     scorers: list[_CESScorer]
     row_batches: list[list[_CESRow]]
-    row_key_from: list[str] | None
     media_cells_examined: int
     oversized_media_cells: int
     oversized_locations: tuple[str, ...]
@@ -138,34 +137,47 @@ def _ces_base_url(wandb_base_url: str) -> str:
     return f"{wandb_base_url}/evaluations"
 
 
-def _row_add_extra_body(row_key_from: list[str] | None) -> dict[str, Any] | None:
-    """Build the row-add body fields that cwevals does not type yet."""
-    if row_key_from is None:
-        return None
-    return {"row_key_from": row_key_from}
+# Rows with inputs derive their row keys from the whole input, so comparisons
+# match rows with equal inputs. A row's own row_key takes precedence.
+# TODO: Pass row_key_from directly once cwevals types it.
+_ROW_ADD_EXTRA_BODY: dict[str, Any] = {"row_key_from": ["input"]}
+# Bytes in a row-add body other than encoded rows and their separating commas.
+_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": [], **_ROW_ADD_EXTRA_BODY}))
 
 
-def _row_batch_envelope_bytes(row_key_from: list[str] | None) -> int:
-    """Count a row-add body's bytes other than encoded rows and their commas."""
-    return len(_encode_json({"rows": [], **(_row_add_extra_body(row_key_from) or {})}))
+def _ces_row(
+    *,
+    row_index: int,
+    inputs: dict[str, Any],
+    output: dict[str, Any] | None,
+    scores: dict[str, Any],
+) -> _CESRow:
+    """Build a row-add row from normalized values."""
+    if inputs:
+        return {"input": inputs, "output": output, "scores": scores}
+    # Without inputs, the row's 1-indexed position matches it in comparisons.
+    return {
+        "input": None,
+        "output": output,
+        "scores": scores,
+        "row_key": str(row_index + 1),
+    }
 
 
 def _iter_row_batches(
     rows: Sequence[_CESRow],
     *,
-    row_key_from: list[str] | None,
     max_request_body_bytes: int,
     target_batch_body_bytes: int,
     max_rows_per_batch: int,
 ) -> Iterator[list[_CESRow]]:
     """Yield ordered row batches within encoded-byte and row-count limits."""
-    envelope_bytes = _row_batch_envelope_bytes(row_key_from)
     batch: list[_CESRow] = []
-    batch_size = envelope_bytes
+    batch_size = _ROW_BATCH_ENVELOPE_BYTES
 
     for row_index, row in enumerate(rows):
         row_size = len(_encode_json(row))
-        if envelope_bytes + row_size >= max_request_body_bytes:
+        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_request_body_bytes:
             raise UsageError(
                 "CES EvalTable rows payload contains a row at index "
                 f"{row_index} whose encoded request must be smaller than "
@@ -179,7 +191,7 @@ def _iter_row_batches(
             or batch_size + 1 + row_size > target_batch_body_bytes
         ):
             yield batch
-            batch, batch_size = [], envelope_bytes
+            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
 
         batch_size += row_size + (1 if batch else 0)
         batch.append(row)
@@ -289,7 +301,7 @@ class CESWriter:
                     namespace=_WANDB_SCOPE_NAMESPACE,
                     scope_id=scope.scope_id,
                     rows=row_batch,
-                    extra_body=_row_add_extra_body(write_payloads.row_key_from),
+                    extra_body=_ROW_ADD_EXTRA_BODY,
                     idempotency_key=self._idempotency_key(
                         bound_run, f"rows-{batch_index}"
                     ),
@@ -396,16 +408,14 @@ class CESWriter:
                 types=scorer_types,
                 order=scorer_order,
             )
-            normalized_row: _CESRow = {
-                "input": inputs or None,
-                "output": output,
-                "scores": scores,
-            }
-            if not inputs:
-                # Without inputs, the row's 1-indexed position matches it in
-                # comparisons.
-                normalized_row["row_key"] = str(row_index + 1)
-            normalized_rows.append(normalized_row)
+            normalized_rows.append(
+                _ces_row(
+                    row_index=row_index,
+                    inputs=inputs,
+                    output=output,
+                    scores=scores,
+                )
+            )
 
         missing_fields = [
             column_name
@@ -445,14 +455,10 @@ class CESWriter:
         self._validate_body_size(
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
-        # Rows with inputs derive their row keys from the whole input, so
-        # comparisons match rows with equal inputs.
-        row_key_from = ["input"] if any(row.inputs for row in rows) else None
         # Materialize batches so every size error precedes config updates and requests.
         row_batches = list(
             _iter_row_batches(
                 normalized_rows,
-                row_key_from=row_key_from,
                 max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
                 target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
                 max_rows_per_batch=_MAX_ROWS_PER_BATCH,
@@ -463,7 +469,6 @@ class CESWriter:
             dataset_fields=dataset_fields,
             scorers=scorers,
             row_batches=row_batches,
-            row_key_from=row_key_from,
             media_cells_examined=media_cells_examined,
             oversized_media_cells=oversized_media_cells,
             oversized_locations=tuple(oversized_locations),

@@ -232,8 +232,8 @@ def test_ces_eval_table_without_inputs_keys_rows_by_position(
         ],
     ]
     assert [call.kwargs["extra_body"] for call in api.rows.add.call_args_list] == [
-        None,
-        None,
+        {"row_key_from": ["input"]},
+        {"row_key_from": ["input"]},
     ]
 
 
@@ -301,7 +301,6 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
         dataset_fields=[],
         scorers=[],
         row_batches=[],
-        row_key_from=None,
         media_cells_examined=1,
         oversized_media_cells=oversized_media_cells,
         oversized_locations=(),
@@ -387,13 +386,10 @@ def test_ces_eval_table_batch_size_counts_row_separators(
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
     row_size = len(ces._encode_json(row))
-    target_size = (
-        ces._row_batch_envelope_bytes(["input"]) + 2 * row_size + separator_bytes
-    )
+    target_size = ces._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
     batches = list(
         ces._iter_row_batches(
             [row, row, row],
-            row_key_from=["input"],
             max_request_body_bytes=16 << 20,
             target_batch_body_bytes=target_size,
             max_rows_per_batch=10_000,
@@ -442,7 +438,7 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         "scores": {},
         "row_key": "1",
     }
-    body_size = len(ces._encode_json({"rows": [row]}))
+    body_size = len(ces._encode_json({"rows": [row], **ces._ROW_ADD_EXTRA_BODY}))
     monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
     et = wandb.EvalTable(
         columns=["value"],
