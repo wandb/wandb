@@ -16,8 +16,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import pathlib
-import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypeVar
@@ -31,7 +29,6 @@ from wandb.sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
 from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.data_types.image import Image
 from wandb.sdk.data_types.video import Video
-from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -351,11 +348,8 @@ def _ensure_eval_table_run_file(
             f"Cannot log {type(media).__name__} in an EvalTable without a file."
         )
 
-    assert media._path is not None
     assert media._sha256 is not None
-    extension = media._extension
-    if extension is None:
-        _, extension = os.path.splitext(os.path.basename(media._path))
+    extension = media._file_extension()
 
     relative_subdir = os.path.relpath(media.get_media_subdir(), "media")
     safe_eval_table_key = util.make_file_path_upload_safe(str(eval_table_key))
@@ -372,35 +366,18 @@ def _ensure_eval_table_run_file(
     return _run_file_uri(run, logical_path)
 
 
-# Mirrors the file placement in `Media.bind_to_run`, which only supports its own
-# key/step/id naming, so EvalTables can keep content-addressed paths for dedupe.
+# `Media.bind_to_run` only supports its own key/step/id naming, so EvalTables
+# place files at content-addressed paths for dedupe.
 def _place_media_file_in_run(media: Media, run: Run, logical_path: str) -> None:
-    assert media._path is not None
     new_path = os.path.join(run.dir, logical_path)
     # Media repeated across rows shares one content-addressed file, so copy and
     # publish it once.
     if not media._is_tmp and os.path.exists(new_path):
         media._path = new_path
-        media._run = run
-        return
-
-    filesystem.mkdir_exists_ok(os.path.dirname(new_path))
-
-    if media._is_tmp:
-        shutil.move(media._path, new_path)
-        media._is_tmp = False
-    elif run._settings.allow_media_symlink:
-        filesystem.link_or_copy(
-            run._settings,
-            pathlib.Path(media._path).resolve(),
-            pathlib.Path(new_path),
-        )
     else:
-        shutil.copy(media._path, new_path)
-
-    media._path = new_path
+        media._place_file(run, logical_path)
+    # Bind after placement so a failed move or copy leaves the media unbound.
     media._run = run
-    run._publish_file(logical_path)
 
 
 def _logical_run_file_path(media: Media, run: Run) -> LogicalPath:
