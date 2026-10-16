@@ -2,7 +2,9 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -267,4 +270,180 @@ func TestSave_MissingMD5File(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newSaveManagerWithPrinter(
+	t *testing.T,
+	mockGQL *gqlmock.MockClient,
+	transfers filetransfer.FileTransferManager,
+) (*ArtifactSaveManager, *observability.Printer) {
+	t.Helper()
+	printer := observability.NewPrinter(100)
+	manager := NewArtifactSaveManager(
+		observabilitytest.NewTestLogger(t), printer, mockGQL, transfers,
+		func() bool { return true }, func() bool { return false },
+	)
+	manager.fileCache = NewFileCache(t.TempDir())
+	return manager, printer
+}
+
+func emptyArtifact(name string) *spb.ArtifactRecord {
+	return &spb.ArtifactRecord{
+		Name:     name,
+		Type:     "dataset",
+		Manifest: &spb.ArtifactManifest{Version: 1},
+	}
+}
+
+// failingTransferManager fails every upload task, cancelling a context
+// first if cancel is set.
+type failingTransferManager struct {
+	*filetransfertest.FakeFileTransferManager
+	cancel context.CancelFunc
+	err    error
+}
+
+func (m *failingTransferManager) AddTask(task filetransfer.Task) {
+	if m.cancel != nil {
+		m.cancel()
+	}
+	task.SetError(m.err)
+	task.Complete(nil)
+}
+
+func TestSave_FailurePrintsWarning(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("CreateArtifact"),
+		errors.New("forced artifact failure"),
+	)
+	manager, printer := newSaveManagerWithPrinter(
+		t, mockGQL, filetransfertest.NewFakeFileTransferManager(),
+	)
+
+	for _, name := range []string{"first-artifact", "second-artifact"} {
+		result := <-manager.Save(context.Background(), emptyArtifact(name), 0, "")
+		require.Error(t, result.Err)
+	}
+
+	messages := printer.Read()
+	require.Len(t, messages, 2)
+	assert.Equal(t, observability.Warning, messages[0].Severity)
+	assert.Contains(t, messages[0].Content,
+		`Failed to save artifact "first-artifact" (type "dataset")`)
+	assert.Contains(t, messages[0].Content, "forced artifact failure")
+	assert.Contains(t, messages[1].Content, `"second-artifact"`)
+}
+
+func TestSave_SuccessPrintsNoWarning(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("CreateArtifact"),
+		`{"createArtifact":{"artifact":{"id":"artifact-id","state":"COMMITTED"}}}`,
+	)
+	manager, printer := newSaveManagerWithPrinter(
+		t, mockGQL, filetransfertest.NewFakeFileTransferManager(),
+	)
+
+	result := <-manager.Save(context.Background(), emptyArtifact("ok-artifact"), 0, "")
+
+	require.NoError(t, result.Err)
+	for _, msg := range printer.Read() {
+		assert.NotContains(t, msg.Content, "Failed to save artifact")
+	}
+}
+
+func TestSave_CancelledContextPrintsNoWarning(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(gqlmock.WithOpName("CreateArtifact"), context.Canceled)
+	manager, printer := newSaveManagerWithPrinter(
+		t, mockGQL, filetransfertest.NewFakeFileTransferManager(),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := <-manager.Save(ctx, emptyArtifact("aborted-artifact"), 0, "")
+
+	require.Error(t, result.Err)
+	assert.Empty(t, printer.Read())
+}
+
+// When uploads fail, the saver's error no longer wraps context.Canceled, so
+// the warning check must look at the context rather than the error.
+func TestSave_CancelledMidSavePrintsNoWarning(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("CreateArtifact"),
+		`{"createArtifact":{"artifact":{"id":"artifact-id","state":"PENDING"}}}`,
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("CreateArtifactManifest"),
+		`{"createArtifactManifest":{"artifactManifest":{"id":"manifest-id","file":{"uploadUrl":"https://example.invalid/manifest"}}}}`,
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("CreateArtifactFiles"),
+		`{"createArtifactFiles":{"files":{"edges":[{"node":{"artifact":{"id":"artifact-id"},"uploadUrl":"https://example.invalid/data"}}]}}}`,
+	)
+	transfers := &failingTransferManager{
+		FakeFileTransferManager: filetransfertest.NewFakeFileTransferManager(),
+		cancel:                  cancel,
+		err:                     errors.New("forced failure"),
+	}
+	manager, printer := newSaveManagerWithPrinter(t, mockGQL, transfers)
+	input := filepath.Join(t.TempDir(), "file.txt")
+	require.NoError(t, os.WriteFile(input, []byte("hello"), 0o600))
+	artifact := emptyArtifact("aborted-artifact")
+	artifact.Manifest.Contents = []*spb.ArtifactManifestEntry{{
+		Path:      "file.txt",
+		Digest:    "XUFAKrxLKna5cZ2REBfFkg==",
+		Size:      5,
+		LocalPath: input,
+		SkipCache: true,
+	}}
+
+	result := <-manager.Save(ctx, artifact, 0, "")
+
+	require.ErrorContains(t, result.Err, "most remaining uploads")
+	assert.Empty(t, printer.Read())
+}
+
+func TestSave_FailureWarningRedactsSignedURL(t *testing.T) {
+	const signedURL = "https://storage.example.invalid/bucket/manifest.json" +
+		"?X-Amz-Credential=CREDENTIAL_SENTINEL&X-Amz-Signature=SIGNATURE_SENTINEL"
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("CreateArtifact"),
+		`{"createArtifact":{"artifact":{"id":"artifact-id","state":"PENDING"}}}`,
+	)
+	// Save creates the manifest once up front and once more to get its upload URL.
+	for range 2 {
+		mockGQL.StubMatchOnce(
+			gqlmock.WithOpName("CreateArtifactManifest"),
+			`{"createArtifactManifest":{"artifactManifest":{"id":"manifest-id","file":{"uploadUrl":"`+signedURL+`"}}}}`,
+		)
+	}
+	transfers := &failingTransferManager{
+		FakeFileTransferManager: filetransfertest.NewFakeFileTransferManager(),
+		err: &url.Error{
+			Op:  "Put",
+			URL: signedURL,
+			Err: errors.New("connection reset by peer"),
+		},
+	}
+	manager, printer := newSaveManagerWithPrinter(t, mockGQL, transfers)
+
+	result := <-manager.Save(
+		context.Background(), emptyArtifact("signed-artifact"), 0, t.TempDir(),
+	)
+
+	require.ErrorContains(t, result.Err, "uploadManifest")
+	messages := printer.Read()
+	require.Len(t, messages, 1)
+	assert.NotContains(t, messages[0].Content, "SIGNATURE_SENTINEL")
+	assert.NotContains(t, messages[0].Content, "CREDENTIAL_SENTINEL")
+	assert.Contains(t, messages[0].Content,
+		"manifest.json?X-Amz-Credential=REDACTED&X-Amz-Signature=REDACTED")
+	assert.Contains(t, messages[0].Content, "connection reset by peer")
 }
