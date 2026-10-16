@@ -42,6 +42,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 - `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/13173)
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12900)
+- Run metadata now records the CPU model (@dmitryduev in https://github.com/wandb/wandb/pull/13157)
 
 ### Changed
 
@@ -54,6 +55,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `import wandb` and the `wandb` CLI start about twice as fast. On Linux with Python 3.13, `import wandb` takes about 290 ms instead of 650 ms and `wandb --version` about 310 ms instead of 660 ms: the generated GraphQL models, the OpenTelemetry SDK, `requests`, the public API and the launch and sweeps modules are now imported when they are first used (@dmitryduev in https://github.com/wandb/wandb/pull/13144, https://github.com/wandb/wandb/pull/13145, https://github.com/wandb/wandb/pull/13146, https://github.com/wandb/wandb/pull/13147, https://github.com/wandb/wandb/pull/13148)
 - The `cpu` system metric reports the monitored process's CPU utilization over the sampling interval instead of its average since the process started, and sampling system metrics no longer costs more with the number of runs in a process (@dmitryduev in https://github.com/wandb/wandb/pull/13101)
 - OpenMetrics and DCGM exporter endpoints are scraped by the system metrics service once per sampling interval for all runs on the machine instead of once per run, and all runs use the same `openmetrics.<endpoint>.<metric>.<index>` index for the same metric labels (@dmitryduev in https://github.com/wandb/wandb/pull/13103)
+- The helper process that collects system metrics is now `wandb-symon` instead of `wandb-xpu`, matching `wandb leet symon`. The `WANDB_BUILD_SKIP_WANDB_XPU` build variable still works and is also accepted as `WANDB_BUILD_SKIP_WANDB_SYMON` (@dmitryduev in https://github.com/wandb/wandb/pull/13165)
 
 ### Removed
 
@@ -89,3 +91,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - NVIDIA GPM system metrics such as `gpu.N.smActive` are now averaged over each run's own sampling interval. When several runs shared one process, each run's value covered only the time since any run's previous sample, and the cost of sampling system metrics grew with the number of runs (@dmitryduev in https://github.com/wandb/wandb/pull/13080)
 - GPU, TPU and Apple accelerator system metrics resume when the helper process that collects them exits or fails to start; they used to stop for the rest of the run (@dmitryduev in https://github.com/wandb/wandb/pull/13098)
 - `linked_at` is now accepted as a filter field in `api.registries().collections().versions(filter={"linked_at": ...})`, matching the existing `linked_at` order field (@ibindlish in https://github.com/wandb/wandb/pull/13161)
+- Run metadata on AWS Trainium records the Neuron device and NeuronCore counts; they were always 0 (@dmitryduev in https://github.com/wandb/wandb/pull/13156)

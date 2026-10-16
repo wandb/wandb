@@ -24,7 +24,7 @@ on:
 
 env:
   # Pinned for reproducible release artifacts. Keep at or above the largest
-  # rust-version in the locked Cargo graphs (xpu/Cargo.lock requires 1.88).
+  # rust-version in the locked Cargo graphs (symon/Cargo.lock requires 1.88).
   RUST_TOOLCHAIN: "1.88.0"
 
 jobs:

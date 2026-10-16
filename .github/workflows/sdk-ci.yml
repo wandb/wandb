@@ -115,13 +115,13 @@ jobs:
         with:
           workspaces: |
             parquet-rust-wrapper
-            xpu
+            symon
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Test parquet-rust-wrapper
         working-directory: parquet-rust-wrapper
         run: cargo test --verbose
-      - name: Test wandb-xpu
-        working-directory: xpu
+      - name: Test wandb-symon
+        working-directory: symon
         run: |
           cargo test --verbose
           cargo check --features build-proto --bin build_proto
@@ -154,7 +154,7 @@ jobs:
         with:
           workspaces: |
             parquet-rust-wrapper
-            xpu
+            symon
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check generated files
         run: |

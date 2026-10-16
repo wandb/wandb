@@ -1403,6 +1403,7 @@ message MemoryInfo {
 message CpuInfo {
   uint32 count = 1;
   uint32 count_logical = 2;
+  string model = 3;
 }
 
 message AppleInfo {
