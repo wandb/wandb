@@ -137,10 +137,10 @@ def _ces_base_url(wandb_base_url: str) -> str:
     return f"{wandb_base_url}/evaluations"
 
 
-# Rows with inputs derive their row keys from the whole input, so comparisons
-# match rows with equal inputs. A row's own row_key takes precedence.
-# TODO: Pass row_key_from directly once cwevals types it.
-_ROW_ADD_EXTRA_BODY: dict[str, list[str]] = {"row_key_from": ["input"]}
+# Rows with inputs derive their row keys from a hash of the whole input, so
+# comparisons match rows with equal inputs. A row's own row_key takes precedence.
+# TODO: Pass row_key_hash_from directly once cwevals types it.
+_ROW_ADD_EXTRA_BODY: dict[str, list[str]] = {"row_key_hash_from": ["input"]}
 # Bytes in a row-add body other than encoded rows and their separating commas.
 _ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": [], **_ROW_ADD_EXTRA_BODY}))
 

@@ -154,7 +154,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
                 "scores": {"correct": False},
             },
         ],
-        extra_body={"row_key_from": ["input"]},
+        extra_body={"row_key_hash_from": ["input"]},
         idempotency_key=ANY,
     )
     api.versions.create.assert_called_once_with(
