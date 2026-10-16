@@ -631,6 +631,14 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleScrollFocusedChartRows(msg tea.KeyPressMsg) tea.Cmd {
+	if r.focus.Type == FocusSystemChart && r.rightSidebar != nil &&
+		r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.scrollFocusedChartRows(chartRowScrollDelta(msg))
+	}
+	return nil
+}
+
 func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 	guides := nextChartGuides(r.config.ChartGuides())
 	if err := r.config.SetChartGuides(guides); err != nil {

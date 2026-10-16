@@ -1026,6 +1026,13 @@ func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleScrollFocusedChartRows(msg tea.KeyPressMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil && w.focus.Type == FocusSystemChart {
+		g.scrollFocusedChartRows(chartRowScrollDelta(msg))
+	}
+	return nil
+}
+
 func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 	guides := nextChartGuides(w.config.ChartGuides())
 	if err := w.config.SetChartGuides(guides); err != nil {

@@ -546,6 +546,15 @@ func (g *SystemMetricsGrid) toggleFocusedChartHeatmapMode() bool {
 	return true
 }
 
+func (g *SystemMetricsGrid) scrollFocusedChartRows(delta int) bool {
+	chart := g.focusedChart()
+	if chart == nil || !chart.ScrollRows(delta) {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
+}
+
 func (g *SystemMetricsGrid) cycleFocusedChartMode() bool {
 	chart := g.focusedChart()
 	if chart == nil {

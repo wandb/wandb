@@ -128,6 +128,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
+					Keys:        []string{"shift+up", "shift+down"},
+					Description: "Scroll the rows of a heatmap chart with more series than fit",
+					Handler:     (*Run).handleScrollFocusedChartRows,
+				},
+				{
 					Keys:        []string{"g"},
 					Description: "Cycle chart guides (off / dots / horizontal)",
 					Handler:     (*Run).handleCycleChartGuides,
@@ -360,6 +365,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleCycleFocusedChartMode,
 				},
 				{
+					Keys:        []string{"shift+up", "shift+down"},
+					Description: "Scroll the rows of a heatmap chart with more series than fit",
+					Handler:     (*Workspace).handleScrollFocusedChartRows,
+				},
+				{
 					Keys:        []string{"g"},
 					Description: "Cycle chart guides (off / dots / horizontal)",
 					Handler:     (*Workspace).handleCycleChartGuides,
@@ -582,6 +592,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Handler:     (*Symon).handleToggleFocusedChartLogY,
 				},
 				{
+					Keys:        []string{"shift+up", "shift+down"},
+					Description: "Scroll the rows of a heatmap chart with more series than fit",
+					Handler:     (*Symon).handleScrollFocusedChartRows,
+				},
+				{
 					Keys:        []string{"g"},
 					Description: "Cycle chart guides (off / dots / horizontal)",
 					Handler:     (*Symon).handleCycleChartGuides,
@@ -731,6 +746,14 @@ func normalizeKey(key string) string {
 		return "esc"
 	}
 	return key
+}
+
+// chartRowScrollDelta maps the heatmap row-scroll keys to a row delta.
+func chartRowScrollDelta(msg tea.KeyPressMsg) int {
+	if msg.String() == "shift+up" {
+		return -1
+	}
+	return 1
 }
 
 func mouseCategory[T any]() BindingCategory[T] {
