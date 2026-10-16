@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- A failed artifact save now prints a terminal warning naming the artifact and the error, instead of surfacing only when `Artifact.wait()` is called (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13140)
