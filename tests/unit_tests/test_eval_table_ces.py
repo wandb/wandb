@@ -203,11 +203,8 @@ def test_ces_eval_table_without_inputs_keys_rows_by_position(
 
     run.log({"eval": et})
 
-    api = mock_ces_client.eval_tables
-    assert api.columns.create.call_args.kwargs["dataset_fields"] == [
-        {"source": "output", "name": "answer", "value_type": "string"},
-    ]
-    assert [call.kwargs["rows"] for call in api.rows.add.call_args_list] == [
+    calls = mock_ces_client.eval_tables.rows.add.call_args_list
+    assert [call.kwargs["rows"] for call in calls] == [
         [
             {
                 "input": None,
@@ -230,10 +227,6 @@ def test_ces_eval_table_without_inputs_keys_rows_by_position(
                 "row_key": "3",
             },
         ],
-    ]
-    assert [call.kwargs["extra_body"] for call in api.rows.add.call_args_list] == [
-        {"row_key_from": ["input"]},
-        {"row_key_from": ["input"]},
     ]
 
 

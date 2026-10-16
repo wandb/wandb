@@ -140,7 +140,7 @@ def _ces_base_url(wandb_base_url: str) -> str:
 # Rows with inputs derive their row keys from the whole input, so comparisons
 # match rows with equal inputs. A row's own row_key takes precedence.
 # TODO: Pass row_key_from directly once cwevals types it.
-_ROW_ADD_EXTRA_BODY: dict[str, Any] = {"row_key_from": ["input"]}
+_ROW_ADD_EXTRA_BODY: dict[str, list[str]] = {"row_key_from": ["input"]}
 # Bytes in a row-add body other than encoded rows and their separating commas.
 _ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": [], **_ROW_ADD_EXTRA_BODY}))
 
@@ -152,10 +152,9 @@ def _ces_row(
     output: dict[str, Any] | None,
     scores: dict[str, Any],
 ) -> _CESRow:
-    """Build a row-add row from normalized values."""
+    """Build a row-add row, keying a row without inputs by position."""
     if inputs:
         return {"input": inputs, "output": output, "scores": scores}
-    # Without inputs, the row's 1-indexed position matches it in comparisons.
     return {
         "input": None,
         "output": output,
@@ -787,5 +786,9 @@ class CESWriter:
         return client
 
     def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
-        """Derive an operation-specific retry key from the bound log location."""
+        """Derive an operation-specific retry key from the bound log location.
+
+        Bump the version when a request body changes for the same table, since
+        CES rejects a reused key whose request body differs.
+        """
         return f"wandb-eval-table-v2-{bound_run.idempotency_scope}-{operation}"
