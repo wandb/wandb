@@ -97,6 +97,7 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 ### Security
 
+- `wandb-core` is built with Go 1.27.2, which fixes [CVE-2026-56857](https://pkg.go.dev/vuln/GO-2026-6604), [CVE-2026-56866](https://pkg.go.dev/vuln/GO-2026-6605), [CVE-2026-78659](https://pkg.go.dev/vuln/GO-2026-6603), [CVE-2026-78660](https://pkg.go.dev/vuln/GO-2026-6610), [CVE-2026-78663](https://pkg.go.dev/vuln/GO-2026-6612), [CVE-2026-78667](https://pkg.go.dev/vuln/GO-2026-6609), [CVE-2026-78669](https://pkg.go.dev/vuln/GO-2026-6611), [CVE-2026-94439](https://pkg.go.dev/vuln/GO-2026-6613), [CVE-2026-94440](https://pkg.go.dev/vuln/GO-2026-6608), [CVE-2026-94448](https://pkg.go.dev/vuln/GO-2026-6599), [CVE-2026-97030](https://pkg.go.dev/vuln/GO-2026-6600), [CVE-2026-97031](https://pkg.go.dev/vuln/GO-2026-6607) and [CVE-2026-97032](https://pkg.go.dev/vuln/GO-2026-6617) (https://github.com/wandb/wandb/pull/13127)
 - The `wandb/launch-agent` Docker image is built on an updated base image that fixes the CVEs reported against the 0.30.0 image (@nicholaspun-wandb and @w-mclaughlin in https://github.com/wandb/wandb/pull/12771, https://github.com/wandb/wandb/pull/13114)
 
 ## [0.30.0] - 2026-09-09
