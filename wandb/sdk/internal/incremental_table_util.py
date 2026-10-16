@@ -42,7 +42,6 @@ def get_entry_name(incr_table: Table, key: str) -> str:
     """Generate a unique entry name for a table increment.
 
     Args:
-        run: The wandb run associated with this table
         incr_table: The incremental table being updated
         key: String key for the table entry
 
