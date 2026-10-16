@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
-_ROW_INDEX_KEY = "row"
 
 _MIN_WEAVE_VERSION = "0.52.41"
 
@@ -181,12 +180,9 @@ class WeaveWriter:
         # Import after bind initializes Weave for the intended run project.
         ev = self._create_weave_eval_logger(name)
 
-        for row_index, row in enumerate(rows, start=1):
-            # Weave matches rows by input digest, so a row without inputs gets
-            # its 1-indexed position as the input.
-            inputs: Mapping[ColumnKey, Any] = row.inputs or {_ROW_INDEX_KEY: row_index}
+        for row in rows:
             ev.log_example(
-                inputs=self._normalize_mapping(inputs),
+                inputs=self._normalize_mapping(row.inputs),
                 output=(
                     self._normalize_mapping(row.output)
                     if row.output is not None

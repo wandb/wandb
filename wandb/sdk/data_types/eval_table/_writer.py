@@ -57,9 +57,5 @@ class EvalTableWriter(Protocol):
         The backend converts those keys to its wire format while retaining the
         originals for validation errors. `ncols` is the total Table column count,
         including columns that may not appear in a particular role mapping.
-
-        When the Table has no input columns, every row's `inputs` is empty, and
-        the backend identifies each row by its 1-indexed position in `rows`
-        so comparisons can match rows across evaluations.
         """
         ...
