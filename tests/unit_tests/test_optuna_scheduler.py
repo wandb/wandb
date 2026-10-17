@@ -436,6 +436,93 @@ class TestIntermediateReporting:
         with pytest.raises(ValueError, match="_step"):
             optimizer.tell_run(suggestion.run_id, run)
 
+    def test_nan_history_value_is_reported_and_pruned(self, sweep: SweepInfo) -> None:
+        study = optuna.create_study(
+            direction="minimize",
+            pruner=optuna.pruners.ThresholdPruner(upper=10.0),
+        )
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = make_run(
+            suggestion,
+            state=RunState.RUNNING,
+            summary={},
+            history=[{"_step": 0, "loss": float("nan")}],
+        )
+
+        optimizer.tell_run(suggestion.run_id, run)
+        is_pruned = optimizer.prune_run(suggestion.run_id, run)
+
+        assert is_pruned
+        assert study.trials[-1].state == optuna.trial.TrialState.PRUNED
+
+
+UNUSABLE_LOSSES = pytest.mark.parametrize(
+    ("loss", "problem"),
+    [
+        (float("nan"), "NaN"),
+        ({"min": 0.1}, "a dict"),
+        ("abc", "a string, not a number"),
+        ("0.5", "a string, not a number"),
+    ],
+    ids=["nan", "dict", "string", "numeric-string"],
+)
+
+
+class TestUnusableObjectiveValue:
+    """A finished run whose objective isn't a number fails its trial."""
+
+    @UNUSABLE_LOSSES
+    def test_fails_the_trial_and_warns(
+        self, sweep: SweepInfo, loss: Any, problem: str, mock_wandb_log
+    ) -> None:
+        study = optuna.create_study(direction="minimize")
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(
+                suggestion,
+                state=RunState.FINISHED,
+                summary={"loss": loss},
+                history=[{"_step": 0, "loss": loss}],
+            ),
+        )
+
+        assert study.trials[-1].state == optuna.trial.TrialState.FAIL
+        mock_wandb_log.assert_warned(
+            f"Run wandb-run-id finished with metric 'loss' = {loss!r},"
+            f" which is {problem}"
+        )
+
+    @UNUSABLE_LOSSES
+    def test_declarative_warm_start_records_a_failed_trial(
+        self, sweep: SweepInfo, loss: Any, problem: str, mock_wandb_log
+    ) -> None:
+        study = optuna.create_study(direction="minimize")
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        optimizer = OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+        optimizer.tell_existing_finished_run(
+            RunWithMetrics(
+                config=RunConfig.from_values({"x": 0.3}),
+                state=RunState.FINISHED,
+                wandb_run_id="wandb-run-id",
+                summary_metrics={"loss": loss},
+                history_metrics=[],
+            )
+        )
+
+        assert [trial.state for trial in study.trials] == [optuna.trial.TrialState.FAIL]
+        assert study.trials[0].params == {"x": 0.3}
+        mock_wandb_log.assert_warned(
+            f"Run wandb-run-id finished with metric 'loss' = {loss!r},"
+            f" which is {problem}"
+        )
+
 
 class TestRouteLibraryLogs:
     """Optuna's records reach the handler the scheduler routes them to."""
