@@ -125,6 +125,57 @@ _FILE_EXECUTOR_WORKERS = 32
 _MP_EXECUTOR_WORKERS = 32
 
 
+def _resolve_aliases(
+    src_art: ArtifactFragment,
+    *,
+    membership: ArtifactMembershipFragment | None,
+    membership_aliases: list[str] | None,
+    entity: str,
+    project: str,
+    collection: str,
+) -> list[str]:
+    """Return the artifact's aliases, preferring the most specific source available."""
+    if membership_aliases is not None:
+        return membership_aliases
+    if membership:
+        return [a.alias for a in membership.aliases]
+    if not src_art.aliases:
+        return []
+    return [
+        a.alias
+        for a in src_art.aliases
+        if (
+            (alias_coll := a.artifact_collection)
+            and (alias_proj := alias_coll.project)
+            and alias_proj.entity.name == entity
+            and alias_proj.name == project
+            and alias_coll.name == collection
+        )
+    ]
+
+
+def _resolve_version(
+    version_aliases: list[str],
+    *,
+    membership: ArtifactMembershipFragment | None,
+    src_art: ArtifactFragment,
+) -> str:
+    """Return the artifact's version string, e.g. "v3"."""
+    try:
+        return one(
+            version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
+        )
+    except TooFewItemsError:
+        # default to the membership version if passed to this method,
+        # otherwise fallback to the source version
+        if membership and (m_version_index := membership.version_index) is not None:
+            return f"v{m_version_index}"
+        return f"v{src_art.version_index}"
+    except TooManyItemsError:
+        msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
+        raise ValueError(msg) from None
+
+
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
 
@@ -330,11 +381,23 @@ class Artifact:
             ArtifactMembershipByName,
         )
 
+        # Newer server versions support fetching a membership's aliases as a
+        # paginated connection, instead of the unbounded flat `aliases` field.
+        # This avoids multi-second responses for memberships with many aliases.
+        paginate_aliases = service_api.feature_enabled(pb.ARTIFACT_ALIASES_PAGINATION)
+
+        omit_fields = omit_artifact_fields(service_api)
+        omit_variables = None
+        if not paginate_aliases:
+            omit_variables = {"perPage"}
+            omit_fields.add("aliasesConnection")
+
         result = service_api.execute_graphql(
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             {"entity": path.prefix, "project": path.project, "name": path.name},
             parse=ArtifactMembershipByName.model_validate_json,
-            omit_fields=omit_artifact_fields(service_api),
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
         )
 
         if not (project := result.project):
@@ -346,7 +409,28 @@ class Artifact:
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_membership(membership, target=path, service_api=service_api)
+        membership_aliases = None
+        if paginate_aliases:
+            from ._alias_paginator import collect_membership_aliases
+
+            if (first_page := membership.aliases_connection) is None:
+                msg = f"Expected 'aliasesConnection' in response for {path.to_str()!r}"
+                raise ValueError(msg)
+
+            membership_aliases = collect_membership_aliases(
+                first_page,
+                service_api,
+                entity=path.prefix,
+                project=path.project,
+                name=path.name,
+            )
+
+        return cls._from_membership(
+            membership,
+            target=path,
+            service_api=service_api,
+            membership_aliases=membership_aliases,
+        )
 
     @classmethod
     def _from_membership(
@@ -354,6 +438,8 @@ class Artifact:
         membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
         service_api: ServiceApi,
+        *,
+        membership_aliases: list[str] | None = None,
     ) -> Artifact:
         from ._validators import is_artifact_registry_project
 
@@ -386,6 +472,7 @@ class Artifact:
             artifact,
             service_api,
             membership=membership,
+            membership_aliases=membership_aliases,
         )
 
     @classmethod
@@ -397,6 +484,7 @@ class Artifact:
         *,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
+        membership_aliases: list[str] | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -405,7 +493,9 @@ class Artifact:
         artifact._project = path.project
         artifact._name = path.name
 
-        artifact._assign_attrs(src_art, membership=membership)
+        artifact._assign_attrs(
+            src_art, membership=membership, membership_aliases=membership_aliases
+        )
 
         artifact.finalize()
 
@@ -422,6 +512,8 @@ class Artifact:
         *,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
+        # Overrides `membership.aliases` with a paginated alias list, if given
+        membership_aliases: list[str] | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
@@ -457,43 +549,21 @@ class Artifact:
 
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
-        if membership:
-            aliases = [a.alias for a in membership.aliases]
-        elif src_art.aliases:
-            entity = self._entity
-            project = self._project
-            collection = self._name.split(":")[0]
-            aliases = [
-                a.alias
-                for a in src_art.aliases
-                if (
-                    (alias_coll := a.artifact_collection)
-                    and (alias_proj := alias_coll.project)
-                    and alias_proj.entity.name == entity
-                    and alias_proj.name == project
-                    and alias_coll.name == collection
-                )
-            ]
-        else:
-            aliases = []
+        aliases = _resolve_aliases(
+            src_art,
+            membership=membership,
+            membership_aliases=membership_aliases,
+            entity=self._entity,
+            project=self._project,
+            collection=self._name.split(":")[0],
+        )
 
         version_aliases = list(filter(alias_is_version_index, aliases))
         other_aliases = list(filterfalse(alias_is_version_index, aliases))
 
-        try:
-            version = one(
-                version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
-            )
-        except TooFewItemsError:
-            # default to the membership version if passed to this method,
-            # otherwise fallback to the source version
-            if membership and (m_version_index := membership.version_index) is not None:
-                version = f"v{m_version_index}"
-            else:
-                version = f"v{src_art.version_index}"
-        except TooManyItemsError:
-            msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
-            raise ValueError(msg) from None
+        version = _resolve_version(
+            version_aliases, membership=membership, src_art=src_art
+        )
 
         self._version = version
         self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
