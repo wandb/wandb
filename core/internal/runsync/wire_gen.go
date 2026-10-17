@@ -96,8 +96,9 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
-		Logger:   logger,
-		Settings: settings2,
+		Logger:    logger,
+		RunHandle: runHandle,
+		Settings:  settings2,
 	}
 	runSyncerFactory := &RunSyncerFactory{
 		Logger:              logger,
