@@ -29,11 +29,17 @@ if TYPE_CHECKING:
     from coreweave_evaluations.types.eval_tables.column_create_params import (
         Scorer as _CESScorer,
     )
-    from coreweave_evaluations.types.eval_tables.row_add_params import Row as _CESRow
+    from coreweave_evaluations.types.eval_tables.row_add_params import (
+        Row as _CESClientRow,
+    )
 
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
+
+    # TODO: Use the client's Row once cwevals types row_key.
+    class _CESRow(_CESClientRow, total=False):
+        row_key: str
 
 
 _logger = logging.getLogger(__name__)
@@ -52,9 +58,8 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
 # Server request-body limit.
 _MAX_REQUEST_BODY_BYTES = 16 << 20
 _MAX_REQUEST_BODY_SIZE = "16 MiB"
-# These two shape each `rows-{i}` body. If either changes, bump the idempotency-key
-# version so retries of partially uploaded tables cannot reuse keys across layouts.
-# The byte target leaves headroom below the hard request limit.
+# The byte target leaves headroom below the hard request limit. See
+# `_idempotency_key` for when a change here requires a key-version bump.
 _TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
 _MAX_ROWS_PER_BATCH = 10_000
 # Evaluations request-schema limits.
@@ -108,6 +113,7 @@ class _CESWritePayloads:
     dataset_fields: list[_CESDatasetField]
     scorers: list[_CESScorer]
     row_batches: list[list[_CESRow]]
+    row_add_extra_body: dict[str, list[str]] | None
     media_cells_examined: int
     oversized_media_cells: int
     oversized_locations: tuple[str, ...]
@@ -131,24 +137,59 @@ def _ces_base_url(wandb_base_url: str) -> str:
     return f"{wandb_base_url}/evaluations"
 
 
-# Bytes in a row-add body other than encoded rows and their separating commas.
-_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
+# Rows with inputs derive their row keys from a hash of the whole input, so
+# comparisons match rows with equal inputs.
+# TODO: Pass row_key_hash_from directly once cwevals types it.
+_ROW_KEY_HASH_FROM_INPUT: dict[str, list[str]] = {"row_key_hash_from": ["input"]}
+
+
+def _ces_row(
+    *,
+    row_index: int,
+    inputs: dict[str, Any],
+    output: dict[str, Any] | None,
+    scores: dict[str, Any],
+) -> _CESRow:
+    """Build a row-add row, keying a row without inputs by position."""
+    if inputs:
+        return {"input": inputs, "output": output, "scores": scores}
+    return {
+        "input": None,
+        "output": output,
+        "scores": scores,
+        "row_key": str(row_index + 1),
+    }
+
+
+def _row_add_extra_body(rows: Sequence[_CESRow]) -> dict[str, list[str]] | None:
+    """Return the row-add fields that derive the rows' keys, if they need any.
+
+    A table's rows all have inputs or all lack them, so rows that `_ces_row`
+    keyed by position send no derivation.
+    """
+    return None if "row_key" in rows[0] else _ROW_KEY_HASH_FROM_INPUT
 
 
 def _iter_row_batches(
     rows: Sequence[_CESRow],
     *,
+    extra_body: dict[str, list[str]] | None,
     max_request_body_bytes: int,
     target_batch_body_bytes: int,
     max_rows_per_batch: int,
 ) -> Iterator[list[_CESRow]]:
-    """Yield ordered row batches within encoded-byte and row-count limits."""
+    """Yield ordered row batches within encoded-byte and row-count limits.
+
+    `extra_body` holds the row-add body's fields other than `rows`.
+    """
+    # Bytes in a row-add body other than encoded rows and their separating commas.
+    envelope_bytes = len(_encode_json({"rows": [], **(extra_body or {})}))
     batch: list[_CESRow] = []
-    batch_size = _ROW_BATCH_ENVELOPE_BYTES
+    batch_size = envelope_bytes
 
     for row_index, row in enumerate(rows):
         row_size = len(_encode_json(row))
-        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_request_body_bytes:
+        if envelope_bytes + row_size >= max_request_body_bytes:
             raise UsageError(
                 "CES EvalTable rows payload contains a row at index "
                 f"{row_index} whose encoded request must be smaller than "
@@ -162,7 +203,7 @@ def _iter_row_batches(
             or batch_size + 1 + row_size > target_batch_body_bytes
         ):
             yield batch
-            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
+            batch, batch_size = [], envelope_bytes
 
         batch_size += row_size + (1 if batch else 0)
         batch.append(row)
@@ -272,6 +313,7 @@ class CESWriter:
                     namespace=_WANDB_SCOPE_NAMESPACE,
                     scope_id=scope.scope_id,
                     rows=row_batch,
+                    extra_body=write_payloads.row_add_extra_body,
                     idempotency_key=self._idempotency_key(
                         bound_run, f"rows-{batch_index}"
                     ),
@@ -379,7 +421,12 @@ class CESWriter:
                 order=scorer_order,
             )
             normalized_rows.append(
-                {"input": inputs, "output": output, "scores": scores}
+                _ces_row(
+                    row_index=row_index,
+                    inputs=inputs,
+                    output=output,
+                    scores=scores,
+                )
             )
 
         missing_fields = [
@@ -420,10 +467,12 @@ class CESWriter:
         self._validate_body_size(
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
+        row_add_extra_body = _row_add_extra_body(normalized_rows)
         # Materialize batches so every size error precedes config updates and requests.
         row_batches = list(
             _iter_row_batches(
                 normalized_rows,
+                extra_body=row_add_extra_body,
                 max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
                 target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
                 max_rows_per_batch=_MAX_ROWS_PER_BATCH,
@@ -434,6 +483,7 @@ class CESWriter:
             dataset_fields=dataset_fields,
             scorers=scorers,
             row_batches=row_batches,
+            row_add_extra_body=row_add_extra_body,
             media_cells_examined=media_cells_examined,
             oversized_media_cells=oversized_media_cells,
             oversized_locations=tuple(oversized_locations),
@@ -752,5 +802,9 @@ class CESWriter:
         return client
 
     def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
-        """Derive an operation-specific retry key from the bound log location."""
-        return f"wandb-eval-table-v1-{bound_run.idempotency_scope}-{operation}"
+        """Derive an operation-specific retry key from the bound log location.
+
+        Bump the version when a request body changes for the same table, since
+        CES rejects a reused key whose request body differs.
+        """
+        return f"wandb-eval-table-v2-{bound_run.idempotency_scope}-{operation}"
