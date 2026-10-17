@@ -17,3 +17,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - `wandb leet symon` scaled the GPU PCIe and NVLink throughput charts and the Trainium memory charts by 1024³ on top of the bytes that the monitor reports, so their y-axis labels read like `7.67e+09GB/s` instead of `7.67GB/s` (@dmitryduev in https://github.com/wandb/wandb/pull/13191)
+- `wandb.plot.roc_curve` and `wandb.plot.pr_curve` (and the `wandb.sklearn` plots that use them) no longer score a class with another class's column of `y_probas` when `y_true` is missing some classes (@David-Wu1119 in https://github.com/wandb/wandb/pull/13097)
