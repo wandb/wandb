@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `wandb.Molecule` no longer drops the parent directory of a `pathlib.Path` input, which previously raised `FileNotFoundError` for files outside the working directory (@pujitha24)
