@@ -17,11 +17,12 @@ from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
     _experiment,
-    _experiment_objectives,
     build_ax_optimizer,
     create_default_client,
+    experiment_objectives,
     sweep_parameter_to_parameter,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import Objective
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
@@ -102,14 +103,14 @@ class TestAskNRuns:
         error: Exception,
         expected: list[Any] | None,
     ) -> None:
-        optimizer = AxOptimizer(client, sweep)
+        optimizer = AxOptimizer(client, sweep, objectives=experiment_objectives(client))
         with patch.object(client, "get_next_trials", side_effect=error):
             assert optimizer.ask_n_runs(2) == expected
 
     def test_propagates_unexpected_errors(
         self, client: Client, sweep: SweepInfo
     ) -> None:
-        optimizer = AxOptimizer(client, sweep)
+        optimizer = AxOptimizer(client, sweep, objectives=experiment_objectives(client))
         with (
             patch.object(client, "get_next_trials", side_effect=RuntimeError("boom")),
             pytest.raises(RuntimeError, match="boom"),
@@ -139,7 +140,7 @@ class TestForgetRun:
     def test_fails_the_forgotten_trial_once(
         self, client: Client, sweep: SweepInfo
     ) -> None:
-        optimizer = AxOptimizer(client, sweep)
+        optimizer = AxOptimizer(client, sweep, objectives=experiment_objectives(client))
         with patch.object(client, "mark_trial_failed") as mark_failed:
             optimizer.forget_run("7")
             optimizer.forget_run("7")
@@ -152,7 +153,7 @@ class TestCompleteTrial:
         self, client: Client, sweep: SweepInfo
     ) -> None:
         """Early stopping drops, and warns about, data with no step."""
-        optimizer = AxOptimizer(client, sweep)
+        optimizer = AxOptimizer(client, sweep, objectives=experiment_objectives(client))
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
         optimizer.tell_run(
@@ -174,7 +175,7 @@ class TestPruneRun:
     def test_a_client_without_an_early_stopping_strategy_never_prunes(
         self, client: Client, sweep: SweepInfo
     ) -> None:
-        optimizer = AxOptimizer(client, sweep)
+        optimizer = AxOptimizer(client, sweep, objectives=experiment_objectives(client))
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         run = make_run(suggestion, state=RunState.RUNNING, summary={})
         with patch.object(client, "should_stop_trial_early") as should_stop:
@@ -273,6 +274,38 @@ class TestBuildAxSchedulerOptimizer:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         assert set(suggestion.config.config) == {"x"}
 
+    def test_builds_from_a_client_factory_without_a_sweep_metric(
+        self, tmp_path
+    ) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "from ax.api.client import Client\n"
+            "from ax import RangeParameterConfig\n"
+            "\n"
+            "def make_client(sweep):\n"
+            "    client = Client()\n"
+            "    client.configure_experiment(parameters=[\n"
+            "        RangeParameterConfig(\n"
+            "            name='x', bounds=(0.0, 1.0), parameter_type='float'\n"
+            "        )\n"
+            "    ])\n"
+            "    client.configure_optimization(objective='accuracy')\n"
+            "    return client\n",
+            encoding="utf-8",
+        )
+        config = {
+            "scheduler": {
+                "engine": "ax",
+                "source": str(source),
+                "optimizer": "make_client",
+            },
+        }
+
+        optimizer = build_ax_optimizer(make_scheduler_grid_sweep(config=config))
+
+        assert optimizer.metric_names() == ["accuracy"]
+        assert optimizer.metric_goals() == ["maximize"]
+
 
 class TestUnparseableMetricName:
     def test_hyphenated_metric_completes_its_trial(self) -> None:
@@ -281,8 +314,11 @@ class TestUnparseableMetricName:
             "metric": {"name": "val-loss", "goal": "minimize"},
             "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
         }
+        client = create_default_client(config)
         optimizer = AxOptimizer(
-            create_default_client(config), make_scheduler_grid_sweep(config=config)
+            client,
+            make_scheduler_grid_sweep(config=config),
+            objectives=experiment_objectives(client),
         )
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
@@ -310,9 +346,11 @@ class TestMultiObjective:
 
     @pytest.fixture
     def optimizer(self) -> AxOptimizer:
+        client = create_default_client(MULTI_OBJECTIVE_CONFIG)
         return AxOptimizer(
-            create_default_client(MULTI_OBJECTIVE_CONFIG),
+            client,
             make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_CONFIG),
+            objectives=experiment_objectives(client),
         )
 
     def test_creates_an_objective_per_declared_metric(
@@ -321,9 +359,9 @@ class TestMultiObjective:
         objective = _experiment(optimizer.client).optimization_config.objective
 
         assert objective.is_multi_objective
-        assert _experiment_objectives(optimizer.client) == [
-            ("loss", True),
-            ("accuracy", False),
+        assert experiment_objectives(optimizer.client) == [
+            Objective("loss", "minimize"),
+            Objective("accuracy", "maximize"),
         ]
 
     def test_intermediate_values_attach_every_objective(
@@ -345,13 +383,6 @@ class TestMultiObjective:
         attached = _experiment(optimizer.client).lookup_data().df
         assert sorted(attached["metric_name"].unique()) == ["accuracy", "loss"]
 
-    def test_a_mismatched_objective_count_is_rejected(self, client: Client) -> None:
-        """A single-objective Ax client cannot serve a two-metric sweep."""
-        sweep = make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_CONFIG)
-
-        with pytest.raises(ValueError, match="disagree on the objectives"):
-            AxOptimizer(client, sweep)
-
 
 class TestRouteLibraryLogs:
     """Ax's records reach the handler the scheduler routes them to."""
@@ -363,7 +394,7 @@ class TestRouteLibraryLogs:
         caplog: pytest.LogCaptureFixture,
         request: pytest.FixtureRequest,
     ) -> None:
-        optimizer = AxOptimizer(client, sweep)
+        optimizer = AxOptimizer(client, sweep, objectives=experiment_objectives(client))
 
         request.addfinalizer(optimizer.route_library_logs(caplog.handler))
         optimizer.ask_n_runs(1)
