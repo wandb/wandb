@@ -58,9 +58,8 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
 # Server request-body limit.
 _MAX_REQUEST_BODY_BYTES = 16 << 20
 _MAX_REQUEST_BODY_SIZE = "16 MiB"
-# These two shape each `rows-{i}` body. If either changes, bump the idempotency-key
-# version so retries of partially uploaded tables cannot reuse keys across layouts.
-# The byte target leaves headroom below the hard request limit.
+# The byte target leaves headroom below the hard request limit. See
+# `_idempotency_key` for when a change here requires a key-version bump.
 _TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
 _MAX_ROWS_PER_BATCH = 10_000
 # Evaluations request-schema limits.

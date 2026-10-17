@@ -345,7 +345,9 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "output": {"answer": "yes"},
         "scores": {},
     }
-    single_row_body_size = len(ces._encode_json({"rows": [row]}))
+    single_row_body_size = len(
+        ces._encode_json({"rows": [row], **ces._ROW_ADD_EXTRA_BODY})
+    )
     monkeypatch.setattr(
         ces,
         "_TARGET_ROW_BATCH_BODY_BYTES",
