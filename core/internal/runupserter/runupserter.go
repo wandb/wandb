@@ -22,7 +22,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -64,11 +63,11 @@ type RunUpserter struct {
 	// the Runtime field can be dropped from the RunRecord.
 	startRuntime time.Duration
 
-	params      *runbranch.RunParams
-	config      *runconfig.RunConfig
-	telemetry   *spb.TelemetryRecord
-	metrics     *runmetric.MetricHandler
-	environment *runenvironment.RunEnvironment
+	params        *runbranch.RunParams
+	config        *runconfig.RunConfig
+	telemetry     *spb.TelemetryRecord
+	configMetrics []map[string]any // the "m" field of the run config
+	environment   *runenvironment.RunEnvironment
 }
 
 type RunUpserterParams struct {
@@ -175,7 +174,6 @@ func InitRun(
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
-		metrics:     runmetric.New(),
 		environment: environment,
 	}
 
@@ -292,7 +290,7 @@ func (upserter *RunUpserter) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 
 	upserter.config.AddInternalData(
 		upserter.telemetry,
-		upserter.metrics.ToRunConfigData(),
+		upserter.configMetrics,
 		upserter.environment.ToRunConfigData(),
 	)
 
@@ -309,7 +307,7 @@ func (upserter *RunUpserter) UpdateEnvironment(metadata *spb.EnvironmentRecord) 
 
 	upserter.config.AddInternalData(
 		upserter.telemetry,
-		upserter.metrics.ToRunConfigData(),
+		upserter.configMetrics,
 		upserter.environment.ToRunConfigData(),
 	)
 
@@ -318,27 +316,15 @@ func (upserter *RunUpserter) UpdateEnvironment(metadata *spb.EnvironmentRecord) 
 }
 
 // UpdateMetrics schedules an update to the run's metrics in the config.
-func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
+func (upserter *RunUpserter) UpdateMetrics(configMetrics []map[string]any) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 
-	// Skip uploading expanded metrics if the server expands them itself.
-	if metric.GetExpandedFromGlob() {
-		return
-	}
-
-	err := upserter.metrics.ProcessRecord(metric)
-	if err != nil {
-		upserter.logger.CaptureError(
-			"runupserter",
-			fmt.Errorf("runupserter: failed to process metric: %v", err),
-		)
-		return
-	}
+	upserter.configMetrics = configMetrics
 
 	upserter.config.AddInternalData(
 		upserter.telemetry,
-		upserter.metrics.ToRunConfigData(),
+		upserter.configMetrics,
 		upserter.environment.ToRunConfigData(),
 	)
 
