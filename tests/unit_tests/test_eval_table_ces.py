@@ -204,6 +204,7 @@ def test_ces_eval_table_without_inputs_keys_rows_by_position(
     run.log({"eval": et})
 
     calls = mock_ces_client.eval_tables.rows.add.call_args_list
+    assert all(call.kwargs["extra_body"] is None for call in calls)
     assert [call.kwargs["rows"] for call in calls] == [
         [
             {
@@ -294,6 +295,7 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
         dataset_fields=[],
         scorers=[],
         row_batches=[],
+        row_add_extra_body=None,
         media_cells_examined=1,
         oversized_media_cells=oversized_media_cells,
         oversized_locations=(),
@@ -346,7 +348,7 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "scores": {},
     }
     single_row_body_size = len(
-        ces._encode_json({"rows": [row], **ces._ROW_ADD_EXTRA_BODY})
+        ces._encode_json({"rows": [row], **ces._ROW_KEY_HASH_FROM_INPUT})
     )
     monkeypatch.setattr(
         ces,
@@ -381,10 +383,12 @@ def test_ces_eval_table_batch_size_counts_row_separators(
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
     row_size = len(ces._encode_json(row))
-    target_size = ces._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    envelope_size = len(ces._encode_json({"rows": [], **ces._ROW_KEY_HASH_FROM_INPUT}))
+    target_size = envelope_size + 2 * row_size + separator_bytes
     batches = list(
         ces._iter_row_batches(
             [row, row, row],
+            extra_body=ces._ROW_KEY_HASH_FROM_INPUT,
             max_request_body_bytes=16 << 20,
             target_batch_body_bytes=target_size,
             max_rows_per_batch=10_000,
@@ -433,7 +437,7 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         "scores": {},
         "row_key": "1",
     }
-    body_size = len(ces._encode_json({"rows": [row], **ces._ROW_ADD_EXTRA_BODY}))
+    body_size = len(ces._encode_json({"rows": [row]}))
     monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
     et = wandb.EvalTable(
         columns=["value"],
