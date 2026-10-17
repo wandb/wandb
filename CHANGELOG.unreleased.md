@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- Fixed corrupted videos and GIF encoding errors when logging single-channel grayscale arrays or tensors with `wandb.Video` (@mottopanikeiku in https://github.com/wandb/wandb/pull/13123)
