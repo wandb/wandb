@@ -13,3 +13,5 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+### Added
+- `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/13173)
