@@ -1038,6 +1038,15 @@ func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleCycleSmoothing(tea.KeyPressMsg) tea.Cmd {
+	weight := nextSmoothing(w.config.Smoothing())
+	if err := w.config.SetSmoothing(weight); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save smoothing: %v", err))
+	}
+	w.metricsGrid.SetSmoothing(weight)
+	return nil
+}
+
 func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	if w.focusMgr.Current() == FocusTargetConsoleLogs {
 		w.consoleLogsPane.EnterFilterMode()

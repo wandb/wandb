@@ -321,6 +321,11 @@ func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
 	return c.xMin, c.xMax, c.yMin, c.yMax
 }
 
+// TestPlotY exposes the plotted (possibly smoothed) Y values of a series.
+func (c *EpochLineChart) TestPlotY(key string) []float64 {
+	return c.data[key].plotY(c.smoothing)
+}
+
 // TestIsLogY reports whether the chart is using logarithmic Y scaling.
 func (c *EpochLineChart) TestIsLogY() bool {
 	return c.IsLogY()

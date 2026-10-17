@@ -181,6 +181,19 @@ func TestConfig_SetChartGuides_Persists(t *testing.T) {
 	require.Equal(t, leet.ChartGuidesHorizontal, cfg2.ChartGuides())
 }
 
+func TestConfig_SetSmoothing_Persists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.Equal(t, 0.0, cfg.Smoothing())
+	require.NoError(t, cfg.SetSmoothing(0.9))
+	require.Error(t, cfg.SetSmoothing(1))
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, 0.9, cfg2.Smoothing())
+}
+
 // Regression: a config file where one unrelated field fails to decode used to
 // skip normalization entirely, letting out-of-range override fractions
 // through unclamped.

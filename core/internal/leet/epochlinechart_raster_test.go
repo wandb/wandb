@@ -116,7 +116,7 @@ func TestRasterizeSeriesMatchesReference(t *testing.T) {
 				ub := len(s.X)
 
 				got := newBrailleGridFor(c)
-				c.rasterizeSeries(got, s, lb, ub)
+				c.rasterizeSeries(got, s.X, s.Y, lb, ub)
 
 				want := newBrailleGridFor(c)
 				rasterizeSeriesReference(c, want, s, lb, ub)
