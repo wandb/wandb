@@ -21,6 +21,7 @@ def coreweave_evaluations_module(monkeypatch):
     client_module = ModuleType("coreweave_evaluations")
     client_module.__path__ = []
     client_module.Client = MagicMock
+    client_module.omit = object()
 
     types_module = ModuleType("coreweave_evaluations.types")
     types_module.__path__ = []

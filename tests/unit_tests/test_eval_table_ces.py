@@ -32,6 +32,7 @@ def coreweave_evaluations_module(monkeypatch):
     client_module = ModuleType("coreweave_evaluations")
     client_module.__path__ = []
     client_module.Client = MagicMock
+    client_module.omit = object()
 
     types_module = ModuleType("coreweave_evaluations.types")
     types_module.__path__ = []
@@ -154,6 +155,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
                 "scores": {"correct": False},
             },
         ],
+        row_key_hash_from=["input"],
         idempotency_key=ANY,
     )
     api.versions.create.assert_called_once_with(
@@ -185,6 +187,53 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     assert "evaluate_call_id" not in history_value
     assert et._immutable_write_result is not None
     assert et._immutable_write_result.logged_id == "evaluation-version-1"
+
+
+def test_ces_eval_table_without_inputs_keys_rows_by_position(
+    coreweave_evaluations_module,
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
+    et = wandb.EvalTable(
+        columns=["answer", "correct"],
+        data=[["4", True], ["5", False], ["6", True]],
+        score_columns=["correct"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    calls = mock_ces_client.eval_tables.rows.add.call_args_list
+    assert all(
+        call.kwargs["row_key_hash_from"] is coreweave_evaluations_module.omit
+        for call in calls
+    )
+    assert [call.kwargs["rows"] for call in calls] == [
+        [
+            {
+                "input": None,
+                "output": {"answer": "4"},
+                "scores": {"correct": True},
+                "row_key": "1",
+            },
+            {
+                "input": None,
+                "output": {"answer": "5"},
+                "scores": {"correct": False},
+                "row_key": "2",
+            },
+        ],
+        [
+            {
+                "input": None,
+                "output": {"answer": "6"},
+                "scores": {"correct": True},
+                "row_key": "3",
+            },
+        ],
+    ]
 
 
 def test_ces_eval_table_stubs_media_until_native_support_exists(
@@ -251,6 +300,7 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
         dataset_fields=[],
         scorers=[],
         row_batches=[],
+        row_key_hash_from=None,
         media_cells_examined=1,
         oversized_media_cells=oversized_media_cells,
         oversized_locations=(),
@@ -302,7 +352,11 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "output": {"answer": "yes"},
         "scores": {},
     }
-    single_row_body_size = len(ces._encode_json({"rows": [row]}))
+    single_row_body_size = len(
+        ces._encode_json(
+            {"rows": [row], "row_key_hash_from": ces._ROW_KEY_HASH_FROM_INPUT}
+        )
+    )
     monkeypatch.setattr(
         ces,
         "_TARGET_ROW_BATCH_BODY_BYTES",
@@ -336,10 +390,16 @@ def test_ces_eval_table_batch_size_counts_row_separators(
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
     row_size = len(ces._encode_json(row))
-    target_size = ces._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    envelope_size = len(
+        ces._encode_json(
+            {"rows": [], "row_key_hash_from": ces._ROW_KEY_HASH_FROM_INPUT}
+        )
+    )
+    target_size = envelope_size + 2 * row_size + separator_bytes
     batches = list(
         ces._iter_row_batches(
             [row, row, row],
+            row_key_hash_from=ces._ROW_KEY_HASH_FROM_INPUT,
             max_request_body_bytes=16 << 20,
             target_batch_body_bytes=target_size,
             max_rows_per_batch=10_000,
@@ -383,9 +443,10 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
 ):
     value = "large" * 100
     row = {
-        "input": {"row": 0},
+        "input": None,
         "output": {"value": value},
         "scores": {},
+        "row_key": "1",
     }
     body_size = len(ces._encode_json({"rows": [row]}))
     monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
@@ -463,7 +524,6 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
         "dataset_fields"
     ]
     assert fields == [
-        {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "python_int", "value_type": "integer"},
         {"source": "output", "name": "numpy_int", "value_type": "integer"},
         {"source": "output", "name": "numeric", "value_type": "number"},
@@ -486,7 +546,6 @@ def test_ces_eval_table_classifies_integer_valued_floats_as_numbers(
     assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
-        {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "value", "value_type": "number"},
     ]
 
@@ -504,7 +563,6 @@ def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
     assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
-        {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "value", "value_type": "number"},
     ]
     assert mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0][
