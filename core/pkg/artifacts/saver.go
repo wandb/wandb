@@ -80,6 +80,18 @@ func NewArtifactSaveManager(
 			workerPool,
 			func(saver *ArtifactSaver) {
 				artifactID, err := saver.Save()
+
+				// Warn even if the caller never waits for the result.
+				// Check the context because save errors may hide cancellation.
+				if err != nil && saver.ctx.Err() == nil {
+					saver.printer.Warnf(
+						"Failed to save artifact %q (type %q). "+
+							"See the run's debug-internal.log for details.",
+						saver.artifact.Name,
+						saver.artifact.Type,
+					)
+				}
+
 				saver.resultChan <- ArtifactSaveResult{
 					ArtifactID: artifactID,
 					Err:        err,
