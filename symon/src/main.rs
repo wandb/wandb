@@ -256,21 +256,30 @@ enum ListenerType {
     Unix(UnixListenerStream),
 }
 
+/// A bound listener and the address token published in the portfile.
+struct BoundListener {
+    stream: ListenerType,
+    token: String,
+    /// Why the Unix socket was not used, if it was attempted.
+    unix_error: Option<Box<dyn std::error::Error>>,
+}
+
 /// Bind the listener and publish its address in the portfile.
 ///
 /// A Unix socket in the temp directory is preferred. If it cannot be bound
 /// or connected to, as when the path is too long for `sun_path` or the
 /// filesystem does not support sockets, a localhost TCP socket is used.
-async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error::Error>> {
+///
+/// This runs before the logger is set up, so it does not log.
+async fn create_listener(args: &Args) -> Result<BoundListener, Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "windows"))]
-    if !args.listen_on_localhost {
+    let unix_error = if args.listen_on_localhost {
+        None
+    } else {
         match bind_unix_socket(args.parent_pid) {
             Ok((listener, socket_path)) => {
-                std::fs::write(&args.portfile, format!("unix={}", socket_path.display()))?;
-                debug!(
-                    "System metrics service listening on {}",
-                    socket_path.display()
-                );
+                let token = format!("unix={}", socket_path.display());
+                std::fs::write(&args.portfile, &token)?;
 
                 // `UnixListener` does not unlink its socket file on drop;
                 // a Drop guard parked in a tokio task cleans it up when the
@@ -287,17 +296,26 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                     tokio::signal::ctrl_c().await.ok();
                 });
 
-                return Ok(ListenerType::Unix(UnixListenerStream::new(listener)));
+                return Ok(BoundListener {
+                    stream: ListenerType::Unix(UnixListenerStream::new(listener)),
+                    token,
+                    unix_error: None,
+                });
             }
-            Err(e) => log::warn!("Unix socket unavailable, listening on localhost: {e}"),
+            Err(e) => Some(e),
         }
-    }
+    };
+    #[cfg(target_os = "windows")]
+    let unix_error = None;
 
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
-    let local_addr = listener.local_addr()?;
-    std::fs::write(&args.portfile, format!("sock={}", local_addr.port()))?;
-    debug!("System metrics service listening on {}", local_addr);
-    Ok(ListenerType::Tcp(TcpListenerStream::new(listener)))
+    let token = format!("sock={}", listener.local_addr()?.port());
+    std::fs::write(&args.portfile, &token)?;
+    Ok(BoundListener {
+        stream: ListenerType::Tcp(TcpListenerStream::new(listener)),
+        token,
+        unix_error,
+    })
 }
 
 /// Bind a Unix socket in the temp directory and check that it accepts
@@ -406,6 +424,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
 
+    // Publish the address before anything that may be slow, such as opening
+    // the debug log on a network home directory or initializing drivers.
+    let listener = create_listener(&args).await?;
+
     // The TLS provider for HTTPS scrapes; ring keeps aws-lc out of the build.
     rustls::crypto::ring::default_provider()
         .install_default()
@@ -422,15 +444,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         LevelFilter::Info
     };
     let _log_guard = init_file_logger(logging_level);
-    debug!("Starting system metrics service");
+    debug!("Starting system metrics service on {}", listener.token);
+    if let Some(e) = &listener.unix_error {
+        log::warn!("Unix socket unavailable, listening on localhost: {e}");
+    }
 
     // Create the channel for service shutdown signals.
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
-
-    // Bind the socket and publish the portfile before initializing the
-    // collectors, so wandb-core does not wait on driver initialization.
-    let listener = create_listener(&args).await?;
 
     let system_monitor_service = SystemMonitorServiceImpl::new(
         args.parent_pid,
@@ -446,7 +467,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!("Server is shutting down...");
     };
 
-    match listener {
+    match listener.stream {
         ListenerType::Tcp(stream) => {
             server_builder
                 .serve_with_incoming_shutdown(stream, shutdown_signal)
