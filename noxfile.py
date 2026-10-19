@@ -130,6 +130,9 @@ def run_pytest(
         "PATH": session.env.get("PATH") or os.environ.get("PATH"),
         "USERNAME": os.environ.get("USERNAME"),
         "USERPROFILE": os.environ.get("USERPROFILE"),
+        # platform.machine() on Windows reads this before Python 3.12, and
+        # polars refuses to import when it comes back empty.
+        "PROCESSOR_ARCHITECTURE": os.environ.get("PROCESSOR_ARCHITECTURE"),
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),

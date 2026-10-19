@@ -48,10 +48,8 @@ var UnitBytes UnitFormatter = unitBytes{factorToBytes: 1}
 var UnitMiB UnitFormatter = unitBytes{factorToBytes: 1024 * 1024}
 var UnitGiB UnitFormatter = unitBytes{factorToBytes: 1024 * 1024 * 1024}
 
-// Byte rates: values provided in B/s, MiB/s, GiB/s; title wants "B/s".
-var UnitBps UnitFormatter = unitBytesPerSecond{factorToBps: 1}
-var UnitMiBps UnitFormatter = unitBytesPerSecond{factorToBps: 1024 * 1024}
-var UnitGiBps UnitFormatter = unitBytesPerSecond{factorToBps: 1024 * 1024 * 1024}
+// Byte rates in bytes per second.
+var UnitBps UnitFormatter = unitBytesPerSecond{}
 
 type unitNone struct{}
 
@@ -146,14 +144,14 @@ func (u unitBytes) Format(v float64) string {
 	return formatBytesBinary(v * u.factorToBytes)
 }
 
-type unitBytesPerSecond struct{ factorToBps float64 }
+type unitBytesPerSecond struct{}
 
 func (unitBytesPerSecond) Name() string { return "B/s" }
-func (u unitBytesPerSecond) Format(v float64) string {
+func (unitBytesPerSecond) Format(v float64) string {
 	if v == 0 {
 		return "0"
 	}
-	return formatRateDecimal(v * u.factorToBps)
+	return formatRateDecimal(v)
 }
 
 // Binary prefixes: B, KiB, MiB, GiB, TiB.
