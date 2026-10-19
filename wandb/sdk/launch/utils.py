@@ -601,19 +601,36 @@ def inject_restricted_security_context(manifest: Any) -> None:
                     )
 
 
-def validate_launch_resource_args(resource_args: dict[str, Any]) -> None:
+def validate_launch_resource_args(
+    resource_args: dict[str, Any], *, secure_mode: bool = False
+) -> None:
+    """Validate resource arguments, rejecting unvalidated runners in secure mode.
+
+    Cloud runner arguments have no secure-mode policy yet. Reject their entire
+    subtree, including aliases and empty values, rather than allowing provider
+    identity and execution settings through without validation. Queue defaults
+    and submitter overrides arrive here merged, so neither can be trusted based
+    on the runner name alone.
+    """
     if not resource_args:
         return
     if not isinstance(resource_args, dict):
         raise LaunchError("resource_args must be a dictionary")
 
-    local_container_args = resource_args.get("local-container")
-    if local_container_args is not None:
-        validate_local_container_resource_args(local_container_args)
-
-    kubernetes_args = resource_args.get("kubernetes")
-    if kubernetes_args is not None:
-        validate_kubernetes_resource_args(kubernetes_args)
+    validators = {
+        "local-container": validate_local_container_resource_args,
+        "kubernetes": validate_kubernetes_resource_args,
+    }
+    for runner, args in resource_args.items():
+        validator = validators.get(runner)
+        if validator is None:
+            if secure_mode:
+                raise LaunchError(
+                    f"Unsupported resource_args runner '{runner}' in secure mode: "
+                    "no secure-mode resource argument policy is defined"
+                )
+        elif args is not None:
+            validator(args)
 
 
 def parse_wandb_uri(uri: str) -> tuple[str, str, str]:

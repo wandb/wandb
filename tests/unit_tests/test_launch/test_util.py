@@ -14,10 +14,51 @@ from wandb.sdk.launch.utils import (
     recursive_macro_sub,
     sanitize_identifiers_for_k8s,
     validate_kubernetes_resource_args,
+    validate_launch_resource_args,
     validate_launch_spec_source,
     validate_local_container_resource_args,
     yield_containers,
 )
+
+
+@pytest.mark.parametrize(
+    "runner", ["sagemaker", "vertex", "gcp-vertex", "future-runner"]
+)
+@pytest.mark.parametrize("args", [{}, None, {"unvalidated": True}])
+def test_validate_launch_resource_args_secure_mode_rejects_unvalidated_runners(
+    runner, args
+):
+    with pytest.raises(
+        LaunchError, match=f"Unsupported resource_args runner '{runner}'"
+    ):
+        validate_launch_resource_args({runner: args}, secure_mode=True)
+
+
+@pytest.mark.parametrize("runner", ["sagemaker", "vertex", "gcp-vertex"])
+def test_validate_launch_resource_args_cloud_args_without_secure_mode(runner):
+    validate_launch_resource_args({runner: {"provider_setting": "value"}})
+
+
+@pytest.mark.parametrize(
+    "resource_args",
+    [
+        {},
+        {"local-container": {"cpus": 2}},
+        {"kubernetes": {"metadata": {"name": "job"}}},
+    ],
+)
+def test_validate_launch_resource_args_secure_mode_allows_validated_runners(
+    resource_args,
+):
+    validate_launch_resource_args(resource_args, secure_mode=True)
+
+
+@pytest.mark.parametrize("secure_mode", [False, True])
+def test_validate_launch_resource_args_retains_kubernetes_negative_control(secure_mode):
+    with pytest.raises(LaunchError, match="'hostPID'"):
+        validate_launch_resource_args(
+            {"kubernetes": {"hostPID": True}}, secure_mode=secure_mode
+        )
 
 
 @pytest.mark.parametrize(
