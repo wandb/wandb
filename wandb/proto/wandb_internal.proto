@@ -1474,6 +1474,16 @@ message CoreWeaveInfo {
   string region = 3;
 }
 
+// GoogleCloudInfo stores information about a Google Cloud compute environment.
+message GoogleCloudInfo {
+  string project_id = 1;
+  // The VM's zone, such as "us-central1-b".
+  string zone = 2;
+  string instance_id = 3;
+  // The GKE cluster, when in one.
+  string cluster_name = 4;
+}
+
 // EnvironmentRecord stores a snapshot of the system, hardware, software,
 // and execution parameters captured at a run writer initialization.
 //
@@ -1550,6 +1560,8 @@ message EnvironmentRecord {
   TPUInfo tpu = 29;
   // Information about CoreWeave cloud environment.
   CoreWeaveInfo coreweave = 30;
+  // Information about the Google Cloud environment.
+  GoogleCloudInfo google_cloud = 31;
 
   // A unique identifier for this writer session.
   //

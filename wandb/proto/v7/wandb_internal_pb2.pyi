@@ -1798,8 +1798,20 @@ class CoreWeaveInfo(_message.Message):
     region: str
     def __init__(self, cluster_name: _Optional[str] = ..., org_id: _Optional[str] = ..., region: _Optional[str] = ...) -> None: ...
 
+class GoogleCloudInfo(_message.Message):
+    __slots__ = ("project_id", "zone", "instance_id", "cluster_name")
+    PROJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    ZONE_FIELD_NUMBER: _ClassVar[int]
+    INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
+    CLUSTER_NAME_FIELD_NUMBER: _ClassVar[int]
+    project_id: str
+    zone: str
+    instance_id: str
+    cluster_name: str
+    def __init__(self, project_id: _Optional[str] = ..., zone: _Optional[str] = ..., instance_id: _Optional[str] = ..., cluster_name: _Optional[str] = ...) -> None: ...
+
 class EnvironmentRecord(_message.Message):
-    __slots__ = ("os", "python", "started_at", "docker", "args", "program", "code_path", "code_path_local", "git", "email", "root", "host", "username", "executable", "colab", "cpu_count", "cpu_count_logical", "gpu_type", "gpu_count", "disk", "memory", "cpu", "apple", "gpu_nvidia", "cuda_version", "gpu_amd", "slurm", "trainium", "tpu", "coreweave", "writer_id", "_info")
+    __slots__ = ("os", "python", "started_at", "docker", "args", "program", "code_path", "code_path_local", "git", "email", "root", "host", "username", "executable", "colab", "cpu_count", "cpu_count_logical", "gpu_type", "gpu_count", "disk", "memory", "cpu", "apple", "gpu_nvidia", "cuda_version", "gpu_amd", "slurm", "trainium", "tpu", "coreweave", "google_cloud", "writer_id", "_info")
     class DiskEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1844,6 +1856,7 @@ class EnvironmentRecord(_message.Message):
     TRAINIUM_FIELD_NUMBER: _ClassVar[int]
     TPU_FIELD_NUMBER: _ClassVar[int]
     COREWEAVE_FIELD_NUMBER: _ClassVar[int]
+    GOOGLE_CLOUD_FIELD_NUMBER: _ClassVar[int]
     WRITER_ID_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     os: str
@@ -1876,9 +1889,10 @@ class EnvironmentRecord(_message.Message):
     trainium: TrainiumInfo
     tpu: TPUInfo
     coreweave: CoreWeaveInfo
+    google_cloud: GoogleCloudInfo
     writer_id: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, os: _Optional[str] = ..., python: _Optional[str] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., docker: _Optional[str] = ..., args: _Optional[_Iterable[str]] = ..., program: _Optional[str] = ..., code_path: _Optional[str] = ..., code_path_local: _Optional[str] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., email: _Optional[str] = ..., root: _Optional[str] = ..., host: _Optional[str] = ..., username: _Optional[str] = ..., executable: _Optional[str] = ..., colab: _Optional[str] = ..., cpu_count: _Optional[int] = ..., cpu_count_logical: _Optional[int] = ..., gpu_type: _Optional[str] = ..., gpu_count: _Optional[int] = ..., disk: _Optional[_Mapping[str, DiskInfo]] = ..., memory: _Optional[_Union[MemoryInfo, _Mapping]] = ..., cpu: _Optional[_Union[CpuInfo, _Mapping]] = ..., apple: _Optional[_Union[AppleInfo, _Mapping]] = ..., gpu_nvidia: _Optional[_Iterable[_Union[GpuNvidiaInfo, _Mapping]]] = ..., cuda_version: _Optional[str] = ..., gpu_amd: _Optional[_Iterable[_Union[GpuAmdInfo, _Mapping]]] = ..., slurm: _Optional[_Mapping[str, str]] = ..., trainium: _Optional[_Union[TrainiumInfo, _Mapping]] = ..., tpu: _Optional[_Union[TPUInfo, _Mapping]] = ..., coreweave: _Optional[_Union[CoreWeaveInfo, _Mapping]] = ..., writer_id: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, os: _Optional[str] = ..., python: _Optional[str] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., docker: _Optional[str] = ..., args: _Optional[_Iterable[str]] = ..., program: _Optional[str] = ..., code_path: _Optional[str] = ..., code_path_local: _Optional[str] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., email: _Optional[str] = ..., root: _Optional[str] = ..., host: _Optional[str] = ..., username: _Optional[str] = ..., executable: _Optional[str] = ..., colab: _Optional[str] = ..., cpu_count: _Optional[int] = ..., cpu_count_logical: _Optional[int] = ..., gpu_type: _Optional[str] = ..., gpu_count: _Optional[int] = ..., disk: _Optional[_Mapping[str, DiskInfo]] = ..., memory: _Optional[_Union[MemoryInfo, _Mapping]] = ..., cpu: _Optional[_Union[CpuInfo, _Mapping]] = ..., apple: _Optional[_Union[AppleInfo, _Mapping]] = ..., gpu_nvidia: _Optional[_Iterable[_Union[GpuNvidiaInfo, _Mapping]]] = ..., cuda_version: _Optional[str] = ..., gpu_amd: _Optional[_Iterable[_Union[GpuAmdInfo, _Mapping]]] = ..., slurm: _Optional[_Mapping[str, str]] = ..., trainium: _Optional[_Union[TrainiumInfo, _Mapping]] = ..., tpu: _Optional[_Union[TPUInfo, _Mapping]] = ..., coreweave: _Optional[_Union[CoreWeaveInfo, _Mapping]] = ..., google_cloud: _Optional[_Union[GoogleCloudInfo, _Mapping]] = ..., writer_id: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class PythonPackagesRequest(_message.Message):
     __slots__ = ("package",)
