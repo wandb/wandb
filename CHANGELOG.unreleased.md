@@ -16,4 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- A failed artifact save now prints a terminal warning naming the artifact and the error, instead of surfacing only when `Artifact.wait()` is called (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13140)
+- A failed artifact save now prints a terminal warning naming the artifact and pointing to the debug log, instead of surfacing only when `Artifact.wait()` is called (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13140)

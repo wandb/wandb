@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -312,27 +311,33 @@ func (m *failingTransferManager) AddTask(task filetransfer.Task) {
 }
 
 func TestSave_FailurePrintsWarning(t *testing.T) {
+	saveErr := errors.New("forced artifact failure")
 	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchWithError(
-		gqlmock.WithOpName("CreateArtifact"),
-		errors.New("forced artifact failure"),
-	)
 	manager, printer := newSaveManagerWithPrinter(
 		t, mockGQL, filetransfertest.NewFakeFileTransferManager(),
 	)
 
-	for _, name := range []string{"first-artifact", "second-artifact"} {
+	names := []string{"first-artifact", "second-artifact"}
+	for _, name := range names {
+		mockGQL.StubMatchWithError(
+			gqlmock.WithOpName("CreateArtifact"),
+			saveErr,
+		)
 		result := <-manager.Save(context.Background(), emptyArtifact(name), 0, "")
-		require.Error(t, result.Err)
+		require.ErrorIs(t, result.Err, saveErr)
 	}
 
 	messages := printer.Read()
 	require.Len(t, messages, 2)
-	assert.Equal(t, observability.Warning, messages[0].Severity)
-	assert.Contains(t, messages[0].Content,
-		`Failed to save artifact "first-artifact" (type "dataset")`)
-	assert.Contains(t, messages[0].Content, "forced artifact failure")
-	assert.Contains(t, messages[1].Content, `"second-artifact"`)
+	for i, message := range messages {
+		assert.Equal(t, observability.Warning, message.Severity)
+		want := fmt.Sprintf(
+			"Failed to save artifact %q (type %q). "+
+				"See the run's debug-internal.log for details.",
+			names[i], "dataset",
+		)
+		assert.Equal(t, want, message.Content)
+	}
 }
 
 func TestSave_SuccessPrintsNoWarning(t *testing.T) {
@@ -407,43 +412,4 @@ func TestSave_CancelledMidSavePrintsNoWarning(t *testing.T) {
 
 	require.ErrorContains(t, result.Err, "most remaining uploads")
 	assert.Empty(t, printer.Read())
-}
-
-func TestSave_FailureWarningRedactsSignedURL(t *testing.T) {
-	const signedURL = "https://storage.example.invalid/bucket/manifest.json" +
-		"?X-Amz-Credential=CREDENTIAL_SENTINEL&X-Amz-Signature=SIGNATURE_SENTINEL"
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("CreateArtifact"),
-		`{"createArtifact":{"artifact":{"id":"artifact-id","state":"PENDING"}}}`,
-	)
-	// Save creates the manifest once up front and once more to get its upload URL.
-	for range 2 {
-		mockGQL.StubMatchOnce(
-			gqlmock.WithOpName("CreateArtifactManifest"),
-			`{"createArtifactManifest":{"artifactManifest":{"id":"manifest-id","file":{"uploadUrl":"`+signedURL+`"}}}}`,
-		)
-	}
-	transfers := &failingTransferManager{
-		FakeFileTransferManager: filetransfertest.NewFakeFileTransferManager(),
-		err: &url.Error{
-			Op:  "Put",
-			URL: signedURL,
-			Err: errors.New("connection reset by peer"),
-		},
-	}
-	manager, printer := newSaveManagerWithPrinter(t, mockGQL, transfers)
-
-	result := <-manager.Save(
-		context.Background(), emptyArtifact("signed-artifact"), 0, t.TempDir(),
-	)
-
-	require.ErrorContains(t, result.Err, "uploadManifest")
-	messages := printer.Read()
-	require.Len(t, messages, 1)
-	assert.NotContains(t, messages[0].Content, "SIGNATURE_SENTINEL")
-	assert.NotContains(t, messages[0].Content, "CREDENTIAL_SENTINEL")
-	assert.Contains(t, messages[0].Content,
-		"manifest.json?X-Amz-Credential=REDACTED&X-Amz-Signature=REDACTED")
-	assert.Contains(t, messages[0].Content, "connection reset by peer")
 }

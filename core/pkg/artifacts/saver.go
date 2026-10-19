@@ -87,10 +87,10 @@ func NewArtifactSaveManager(
 				// the cancellation cause from some errors.
 				if err != nil && saver.ctx.Err() == nil {
 					saver.printer.Warnf(
-						"Failed to save artifact %q (type %q): %s",
+						"Failed to save artifact %q (type %q). "+
+							"See the run's debug-internal.log for details.",
 						saver.artifact.Name,
 						saver.artifact.Type,
-						redactURLs(err.Error()),
 					)
 				}
 
