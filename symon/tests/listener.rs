@@ -1,36 +1,27 @@
-//! Starts the wandb-symon binary and checks the address it publishes.
+//! Starts the wandb-symon binary and checks the address it prints.
 
 #![cfg(not(target_os = "windows"))]
 
+use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
-/// Runs the binary with the given TMPDIR and returns the portfile token.
-fn portfile_token(tmpdir: &std::path::Path) -> String {
-    let portfile = tempfile::NamedTempFile::new().unwrap();
+/// Runs the binary with the given TMPDIR and returns its address line.
+fn address_line(tmpdir: &std::path::Path) -> String {
     let mut child = Command::new(env!("CARGO_BIN_EXE_wandb-symon"))
-        .arg("--portfile")
-        .arg(portfile.path())
         .env("TMPDIR", tmpdir)
         .env("WANDB_CACHE_DIR", tmpdir)
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
 
-    let deadline = Instant::now() + Duration::from_secs(10);
-    let token = loop {
-        let token = std::fs::read_to_string(portfile.path()).unwrap();
-        if !token.is_empty() {
-            break token;
-        }
-        assert!(Instant::now() < deadline, "wandb-symon wrote no portfile");
-        assert!(child.try_wait().unwrap().is_none(), "wandb-symon exited");
-        std::thread::sleep(Duration::from_millis(20));
-    };
+    let mut line = String::new();
+    BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut line)
+        .unwrap();
     let _ = child.kill();
     let _ = child.wait();
-    token
+    line
 }
 
 #[test]
@@ -38,5 +29,5 @@ fn falls_back_to_tcp_when_the_socket_path_is_too_long() {
     let dir = tempfile::tempdir().unwrap();
     let long = dir.path().join("x".repeat(120));
     std::fs::create_dir(&long).unwrap();
-    assert!(portfile_token(&long).starts_with("sock="));
+    assert!(address_line(&long).starts_with("sock="));
 }
