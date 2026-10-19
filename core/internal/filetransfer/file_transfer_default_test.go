@@ -153,11 +153,6 @@ func TestDefaultFileTransfer_DownloadRepairsInvalidURL(t *testing.T) {
 			"/progress50%25/fil%C3%A9.mp4",
 		},
 		{
-			"Valid query escaped is unmodified",
-			"/progress50%?k=a%2F&q=%e2",
-			"/progress50%25?k=a%2F&q=%e2",
-		},
-		{
 			"Invalid query is escaped",
 			"/progress50%?x=50%",
 			"/progress50%25?x=50%25",

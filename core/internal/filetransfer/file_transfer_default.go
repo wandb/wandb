@@ -18,11 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
-const (
-	pathExtraChars  = "/:@"
-	queryExtraChars = "/:@?"
-)
-
 // DefaultFileTransfer uploads or downloads files to/from the server
 type DefaultFileTransfer struct {
 	// client is the HTTP client for the file transfer
@@ -138,7 +133,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodGet, escapeURL(task.Url), nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, ensureSafeURL(task.Url), nil)
 	if err != nil {
 		return err
 	}
@@ -290,101 +285,13 @@ func getUploadRequestBody(
 	return requestBody, nil
 }
 
-// escapeURL escapes a url.
+// ensureSafeURL returns a download URL that is safe to use.
 //
-// The rawURL provided to this function may contain characters in the file path
-// which have not been properly escaped (e.g. "%"), and would lead the server to
-// return an error.
-//
-// A URL that is already parsed is returned unchanged.
-func escapeURL(rawURL string) string {
-	// If a URL is already escaped properly return as is.
+// A URL that net/url already accepts is returned unchanged. Otherwise the
+// URL is repaired by percent-encoding every '%' as "%25".
+func ensureSafeURL(rawURL string) string {
 	if _, err := url.Parse(rawURL); err == nil {
 		return rawURL
 	}
-
-	rest, fragment, hasFragment := strings.Cut(rawURL, "#")
-	rest, query, hasQuery := strings.Cut(rest, "?")
-
-	// Find the host name, and file path
-	prefix, path := "", rest
-	if i := strings.Index(rest, "://"); i >= 0 {
-		authorityStart := i + len("://")
-		if j := strings.IndexByte(rest[authorityStart:], '/'); j >= 0 {
-			prefix, path = rest[:authorityStart+j], rest[authorityStart+j:]
-		} else {
-			prefix, path = rest, ""
-		}
-	}
-
-	var b strings.Builder
-	b.WriteString(prefix)
-
-	// Percent-encode characters that aren't allowed in each component, such as
-	// a stray '%', spaces, control bytes and non-ASCII bytes.
-	b.WriteString(encodeInvalidChars(path, pathExtraChars))
-	if hasQuery {
-		b.WriteByte('?')
-		b.WriteString(encodeInvalidChars(query, queryExtraChars))
-	}
-	if hasFragment {
-		b.WriteByte('#')
-		b.WriteString(encodeInvalidChars(fragment, queryExtraChars))
-	}
-	return b.String()
-}
-
-// encodeInvalidChars percent-encodes bytes not allowed in a URL component.
-//
-// This matches urllib3's _encode_invalid_chars.
-// If every '%' in the component starts a valid escape,
-// the component is treated as already encoded and its escapes are kept.
-// Otherwise, every '%' is encoded as "%25".
-func encodeInvalidChars(component, allowedChars string) string {
-	isEncoded := countValidEscapes(component) == strings.Count(component, "%")
-
-	var b strings.Builder
-	for i := 0; i < len(component); i++ {
-		c := component[i]
-		switch {
-		case c == '%' && isEncoded,
-			isUnreservedOrSubDelim(c),
-			strings.IndexByte(allowedChars, c) >= 0:
-			b.WriteByte(c)
-		default:
-			fmt.Fprintf(&b, "%%%02X", c)
-		}
-	}
-	return b.String()
-}
-
-// countValidEscapes returns the number of "%XX" escapes in s, where XX are
-// hex digits.
-func countValidEscapes(s string) int {
-	count := 0
-	for i := 0; i+2 < len(s); i++ {
-		if s[i] == '%' && isHexDigit(s[i+1]) && isHexDigit(s[i+2]) {
-			count++
-			i += 2
-		}
-	}
-	return count
-}
-
-// isUnreservedOrSubDelim reports whether c is an RFC 3986 unreserved character.
-//
-// Unreseserved characters include letters, digits, "-._~", or sub-delimiters
-// ("!$&'()*+,;="), which are bytes allowed in paths, queries, and fragments
-// of a url without encoding.
-func isUnreservedOrSubDelim(c byte) bool {
-	return ('a' <= c && c <= 'z') ||
-		('A' <= c && c <= 'Z') ||
-		('0' <= c && c <= '9') ||
-		strings.IndexByte("-._~!$&'()*+,;=", c) >= 0
-}
-
-func isHexDigit(c byte) bool {
-	return ('0' <= c && c <= '9') ||
-		('a' <= c && c <= 'f') ||
-		('A' <= c && c <= 'F')
+	return strings.ReplaceAll(rawURL, "%", "%25")
 }
