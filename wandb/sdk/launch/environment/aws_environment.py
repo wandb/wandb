@@ -315,7 +315,7 @@ class AwsEnvironment(AbstractEnvironment):
             if e.response["Error"]["Code"] == "403":
                 raise LaunchError(
                     f"Could not verify AWS storage uri {uri}. "
-                    "Bucket {bucket} is not accessible. Please check that this "
+                    f"Bucket {bucket} is not accessible. Please check that this "
                     "client is authenticated with permission to access the bucket."
                 )
             raise LaunchError(
