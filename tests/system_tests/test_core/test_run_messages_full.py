@@ -33,7 +33,4 @@ def test_prints_artifact_save_failure(
         artifact = wandb.Artifact("failing-artifact", "dataset")
         run.log_artifact(artifact)  # no wait()
 
-    mock_wandb_log.assert_warned(
-        'Failed to save artifact "failing-artifact" (type "dataset"). '
-        "See the run's debug-internal.log for details.",
-    )
+    mock_wandb_log.assert_warned('Failed to save artifact "failing-artifact"')

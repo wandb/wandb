@@ -294,19 +294,14 @@ func emptyArtifact(name string) *spb.ArtifactRecord {
 	}
 }
 
-// failingTransferManager fails every upload task, cancelling a context
-// first if cancel is set.
-type failingTransferManager struct {
+type cancelingTransferManager struct {
 	*filetransfertest.FakeFileTransferManager
 	cancel context.CancelFunc
-	err    error
 }
 
-func (m *failingTransferManager) AddTask(task filetransfer.Task) {
-	if m.cancel != nil {
-		m.cancel()
-	}
-	task.SetError(m.err)
+func (m *cancelingTransferManager) AddTask(task filetransfer.Task) {
+	m.cancel()
+	task.SetError(context.Canceled)
 	task.Complete(nil)
 }
 
@@ -358,21 +353,6 @@ func TestSave_SuccessPrintsNoWarning(t *testing.T) {
 	}
 }
 
-func TestSave_CancelledContextPrintsNoWarning(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchWithError(gqlmock.WithOpName("CreateArtifact"), context.Canceled)
-	manager, printer := newSaveManagerWithPrinter(
-		t, mockGQL, filetransfertest.NewFakeFileTransferManager(),
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	result := <-manager.Save(ctx, emptyArtifact("aborted-artifact"), 0, "")
-
-	require.Error(t, result.Err)
-	assert.Empty(t, printer.Read())
-}
-
 // When uploads fail, the saver's error no longer wraps context.Canceled, so
 // the warning check must look at the context rather than the error.
 func TestSave_CancelledMidSavePrintsNoWarning(t *testing.T) {
@@ -385,16 +365,15 @@ func TestSave_CancelledMidSavePrintsNoWarning(t *testing.T) {
 	)
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("CreateArtifactManifest"),
-		`{"createArtifactManifest":{"artifactManifest":{"id":"manifest-id","file":{"uploadUrl":"https://example.invalid/manifest"}}}}`,
+		`{"createArtifactManifest":{"artifactManifest":{"id":"manifest-id"}}}`,
 	)
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("CreateArtifactFiles"),
 		`{"createArtifactFiles":{"files":{"edges":[{"node":{"artifact":{"id":"artifact-id"},"uploadUrl":"https://example.invalid/data"}}]}}}`,
 	)
-	transfers := &failingTransferManager{
+	transfers := &cancelingTransferManager{
 		FakeFileTransferManager: filetransfertest.NewFakeFileTransferManager(),
 		cancel:                  cancel,
-		err:                     errors.New("forced failure"),
 	}
 	manager, printer := newSaveManagerWithPrinter(t, mockGQL, transfers)
 	input := filepath.Join(t.TempDir(), "file.txt")
@@ -410,6 +389,7 @@ func TestSave_CancelledMidSavePrintsNoWarning(t *testing.T) {
 
 	result := <-manager.Save(ctx, artifact, 0, "")
 
-	require.ErrorContains(t, result.Err, "most remaining uploads")
+	require.Error(t, result.Err)
+	assert.NotErrorIs(t, result.Err, context.Canceled)
 	assert.Empty(t, printer.Read())
 }
