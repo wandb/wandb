@@ -64,6 +64,7 @@ def leet() -> None:
     Examples:
         wandb leet                    View the latest run
         wandb leet ./wandb            Browse runs in a wandb directory
+        wandb leet <project-url>      Browse a remote W&B project
         wandb leet <run-url>          View a remote W&B run
         wandb leet symon              View live local system metrics
         wandb leet inspect [PATH]     Browse the raw records in a .wandb log
@@ -86,7 +87,7 @@ def run(path: str | None = None, pprof: str = "") -> None:
     LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
 
     PATH can include a .wandb file, a run directory containing a .wandb file,
-    or a W&B run URL.
+    or a W&B project/run URL.
     If PATH is not provided, the command will look for the latest run.
     """
     launch(path, pprof)
@@ -192,11 +193,11 @@ class LocalLaunchConfig(LaunchConfig):
 
 @dataclasses.dataclass(frozen=True)
 class RemoteLaunchConfig(LaunchConfig):
-    """Configuration for launching LEET against a remote run.
+    """Configuration for launching LEET against a remote project or run.
 
     The URL is the single source of truth: it is parsed here for early
     validation and host canonicalization, and again by wandb-core to
-    derive the entity, project, and run ID.
+    derive the entity, project, and optional run ID.
     """
 
     remote_url: str
@@ -372,7 +373,7 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 
 
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
-    """Create a LEET launch configuration for a remote run."""
+    """Create a LEET launch configuration for a remote project or run."""
     base_url, remote_url = _parse_remote_url(path)
 
     auth = wbauth.authenticate_session(
@@ -388,16 +389,17 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
 
 
 def _parse_remote_url(path: str) -> tuple[str, str]:
-    """Validate a W&B run URL and return (base_url, canonical_url).
+    """Validate a W&B project or run URL and return (base_url, canonical_url).
 
-    Canonicalization maps W&B app URLs to their API base URLs and drops
-    any query string or fragment.
+    Canonicalization maps W&B app URLs to their API base URLs and keeps only
+    the entity, the project and, for a run page, the run ID.
     """
     parsed_url = urllib.parse.urlparse(path)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
         _fatal(
             f"Invalid remote URL: {path!r}."
-            " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
+            " Expected format: https://<host>/<entity>/<project>"
+            " or https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -412,12 +414,14 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
                 break
 
     parts = run_path.strip("/").split("/")
-    if len(parts) == 4 and parts[2] == "runs":
-        parts = [parts[0], parts[1], parts[3]]
-    if len(parts) != 3 or not all(parts):
+    if len(parts) < 2 or not all(parts[:2]):
         _fatal(
             f"Invalid remote URL: {path!r}."
-            " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
+            " Expected format: https://<host>/<entity>/<project>"
+            " or https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
-    return base_url, f"{base_url}/{parts[0]}/{parts[1]}/runs/{parts[2]}"
+    remote_url = f"{base_url}/{parts[0]}/{parts[1]}"
+    if len(parts) >= 4 and parts[2] == "runs" and parts[3]:
+        remote_url += f"/runs/{parts[3]}"
+    return base_url, remote_url
