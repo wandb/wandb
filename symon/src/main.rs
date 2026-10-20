@@ -73,13 +73,6 @@ use tokio_stream::wrappers::UnixListenerStream;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about=None)]
 struct Args {
-    /// File to write the gRPC server token to.
-    ///
-    /// Used to establish communication between the parent process (wandb-core) and the service.
-    /// Supports Unix and TCP sockets.
-    #[arg(long)]
-    portfile: String,
-
     /// Parent process ID.
     ///
     /// If provided, the program will exit if the parent process is no longer alive.
@@ -256,56 +249,29 @@ enum ListenerType {
     Unix(UnixListenerStream),
 }
 
-/// Create and configure the appropriate listener based on platform and settings.
-async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error::Error>> {
-    // On Windows, always use TCP; on other platforms, respect the flag
-    #[cfg(target_os = "windows")]
-    let use_tcp = true;
+/// A bound listener and the address line printed for wandb-core.
+struct BoundListener {
+    stream: ListenerType,
+    token: String,
+    /// Why the Unix socket was not used, if it was attempted.
+    unix_error: Option<Box<dyn std::error::Error>>,
+}
+
+/// Bind the listener.
+///
+/// A Unix socket in the temp directory is preferred. If it cannot be bound
+/// or connected to, as when the path is too long for `sun_path` or the
+/// filesystem does not support sockets, a localhost TCP socket is used.
+///
+/// This runs before the logger is set up, so it does not log.
+async fn create_listener(args: &Args) -> Result<BoundListener, Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "windows"))]
-    let use_tcp = args.listen_on_localhost;
-
-    if use_tcp {
-        // TCP listener
-        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
-        let local_addr = listener.local_addr()?;
-        let stream = TcpListenerStream::new(listener);
-
-        // Write the server port to the portfile
-        let token = format!("sock={}", local_addr.port());
-        std::fs::write(&args.portfile, token)?;
-        debug!("System metrics service listening on {}", local_addr);
-
-        Ok(ListenerType::Tcp(stream))
+    let unix_error = if args.listen_on_localhost {
+        None
     } else {
-        // Unix Domain Socket listener (only available on non-Windows platforms)
-        #[cfg(not(target_os = "windows"))]
-        {
-            let mut socket_path = std::env::temp_dir();
-            let pid = std::process::id();
-            let time_stamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("time should go forward")
-                .as_millis();
-
-            let socket_filename = format!(
-                "wandb_symon-{}-{}-{}.sock",
-                args.parent_pid, pid, time_stamp
-            );
-            socket_path.push(socket_filename);
-
-            // Ensure the socket is removed if it already exists
-            if socket_path.exists() {
-                let _ = std::fs::remove_file(&socket_path);
-            }
-
-            let listener = UnixListener::bind(&socket_path)?;
-            let stream = UnixListenerStream::new(listener);
-
-            // Use `to_str()` for a clean string representation without quotes
-            if let Some(path_str) = socket_path.to_str() {
-                let token = format!("unix={}", path_str);
-                std::fs::write(&args.portfile, token)?;
-                debug!("System metrics service listening on {}", path_str);
+        match bind_unix_socket(args.parent_pid) {
+            Ok((listener, socket_path)) => {
+                let token = format!("unix={}", socket_path.display());
 
                 // `UnixListener` does not unlink its socket file on drop;
                 // a Drop guard parked in a tokio task cleans it up when the
@@ -316,22 +282,61 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                         let _ = std::fs::remove_file(&self.0);
                     }
                 }
-                let cleanup = SocketCleanup(socket_path.clone());
+                let cleanup = SocketCleanup(socket_path);
                 tokio::spawn(async move {
                     let _cleanup = cleanup;
                     tokio::signal::ctrl_c().await.ok();
                 });
-            } else {
-                return Err("Invalid UTF-8 sequence in socket path".into());
-            }
 
-            Ok(ListenerType::Unix(stream))
+                return Ok(BoundListener {
+                    stream: ListenerType::Unix(UnixListenerStream::new(listener)),
+                    token,
+                    unix_error: None,
+                });
+            }
+            Err(e) => Some(e),
         }
-        #[cfg(target_os = "windows")]
-        {
-            unreachable!("Unix sockets are not available on Windows")
-        }
+    };
+    #[cfg(target_os = "windows")]
+    let unix_error = None;
+
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+    let token = format!("sock={}", listener.local_addr()?.port());
+    Ok(BoundListener {
+        stream: ListenerType::Tcp(TcpListenerStream::new(listener)),
+        token,
+        unix_error,
+    })
+}
+
+/// Bind a Unix socket in the temp directory and check that it accepts
+/// connections.
+#[cfg(not(target_os = "windows"))]
+fn bind_unix_socket(
+    parent_pid: i32,
+) -> Result<(UnixListener, std::path::PathBuf), Box<dyn std::error::Error>> {
+    let time_stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time should go forward")
+        .as_millis();
+    let socket_path = std::env::temp_dir().join(format!(
+        "wandb_symon-{}-{}-{}.sock",
+        parent_pid,
+        std::process::id(),
+        time_stamp
+    ));
+    if socket_path.to_str().is_none() {
+        return Err("Invalid UTF-8 sequence in socket path".into());
     }
+
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = std::os::unix::net::UnixListener::bind(&socket_path)?;
+    if let Err(e) = std::os::unix::net::UnixStream::connect(&socket_path) {
+        let _ = std::fs::remove_file(&socket_path);
+        return Err(e.into());
+    }
+    listener.set_nonblocking(true)?;
+    Ok((UnixListener::from_std(listener)?, socket_path))
 }
 
 /// Initialize logger that writes to a file in the wandb cache directory.
@@ -410,6 +415,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
 
+    // Publish the address on stdout before anything that may be slow, such as
+    // opening the debug log on a network home directory or initializing drivers.
+    let listener = create_listener(&args).await?;
+    writeln!(std::io::stdout(), "{}", listener.token)?;
+    std::io::stdout().flush()?;
+
     // The TLS provider for HTTPS scrapes; ring keeps aws-lc out of the build.
     rustls::crypto::ring::default_provider()
         .install_default()
@@ -426,15 +437,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         LevelFilter::Info
     };
     let _log_guard = init_file_logger(logging_level);
-    debug!("Starting system metrics service");
+    debug!("Starting system metrics service on {}", listener.token);
+    if let Some(e) = &listener.unix_error {
+        log::warn!("Unix socket unavailable, listening on localhost: {e}");
+    }
 
     // Create the channel for service shutdown signals.
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
-
-    // Bind the socket and publish the portfile before initializing the
-    // collectors, so wandb-core does not wait on driver initialization.
-    let listener = create_listener(&args).await?;
 
     let system_monitor_service = SystemMonitorServiceImpl::new(
         args.parent_pid,
@@ -450,7 +460,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!("Server is shutting down...");
     };
 
-    match listener {
+    match listener.stream {
         ListenerType::Tcp(stream) => {
             server_builder
                 .serve_with_incoming_shutdown(stream, shutdown_signal)
