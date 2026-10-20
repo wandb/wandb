@@ -18,10 +18,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - In W&B LEET TUI, `wandb leet <project-url>` browses the runs of a W&B project, Esc on a run opened by its URL goes to its project, and remote runs that are still running update every 15 seconds (@jacobromero, @dmitryduev in https://github.com/wandb/wandb/pull/12942)
 
-### Changed
-
-- The CES EvalTable client is now optional. Install `cwevals==0.0.1b1` separately to log tables with `backend="ces"`.
-
 ### Fixed
 
 - `wandb leet symon` scaled the GPU PCIe and NVLink throughput charts and the Trainium memory charts by 1024³ on top of the bytes that the monitor reports, so their y-axis labels read like `7.67e+09GB/s` instead of `7.67GB/s` (@dmitryduev in https://github.com/wandb/wandb/pull/13191)
