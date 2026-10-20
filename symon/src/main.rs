@@ -256,56 +256,21 @@ enum ListenerType {
     Unix(UnixListenerStream),
 }
 
-/// Create and configure the appropriate listener based on platform and settings.
+/// Bind the listener and publish its address in the portfile.
+///
+/// A Unix socket in the temp directory is preferred. If it cannot be bound
+/// or connected to, as when the path is too long for `sun_path` or the
+/// filesystem does not support sockets, a localhost TCP socket is used.
 async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error::Error>> {
-    // On Windows, always use TCP; on other platforms, respect the flag
-    #[cfg(target_os = "windows")]
-    let use_tcp = true;
     #[cfg(not(target_os = "windows"))]
-    let use_tcp = args.listen_on_localhost;
-
-    if use_tcp {
-        // TCP listener
-        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
-        let local_addr = listener.local_addr()?;
-        let stream = TcpListenerStream::new(listener);
-
-        // Write the server port to the portfile
-        let token = format!("sock={}", local_addr.port());
-        std::fs::write(&args.portfile, token)?;
-        debug!("System metrics service listening on {}", local_addr);
-
-        Ok(ListenerType::Tcp(stream))
-    } else {
-        // Unix Domain Socket listener (only available on non-Windows platforms)
-        #[cfg(not(target_os = "windows"))]
-        {
-            let mut socket_path = std::env::temp_dir();
-            let pid = std::process::id();
-            let time_stamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("time should go forward")
-                .as_millis();
-
-            let socket_filename = format!(
-                "wandb_symon-{}-{}-{}.sock",
-                args.parent_pid, pid, time_stamp
-            );
-            socket_path.push(socket_filename);
-
-            // Ensure the socket is removed if it already exists
-            if socket_path.exists() {
-                let _ = std::fs::remove_file(&socket_path);
-            }
-
-            let listener = UnixListener::bind(&socket_path)?;
-            let stream = UnixListenerStream::new(listener);
-
-            // Use `to_str()` for a clean string representation without quotes
-            if let Some(path_str) = socket_path.to_str() {
-                let token = format!("unix={}", path_str);
-                std::fs::write(&args.portfile, token)?;
-                debug!("System metrics service listening on {}", path_str);
+    if !args.listen_on_localhost {
+        match bind_unix_socket(args.parent_pid) {
+            Ok((listener, socket_path)) => {
+                std::fs::write(&args.portfile, format!("unix={}", socket_path.display()))?;
+                debug!(
+                    "System metrics service listening on {}",
+                    socket_path.display()
+                );
 
                 // `UnixListener` does not unlink its socket file on drop;
                 // a Drop guard parked in a tokio task cleans it up when the
@@ -316,22 +281,53 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                         let _ = std::fs::remove_file(&self.0);
                     }
                 }
-                let cleanup = SocketCleanup(socket_path.clone());
+                let cleanup = SocketCleanup(socket_path);
                 tokio::spawn(async move {
                     let _cleanup = cleanup;
                     tokio::signal::ctrl_c().await.ok();
                 });
-            } else {
-                return Err("Invalid UTF-8 sequence in socket path".into());
-            }
 
-            Ok(ListenerType::Unix(stream))
-        }
-        #[cfg(target_os = "windows")]
-        {
-            unreachable!("Unix sockets are not available on Windows")
+                return Ok(ListenerType::Unix(UnixListenerStream::new(listener)));
+            }
+            Err(e) => log::warn!("Unix socket unavailable, listening on localhost: {e}"),
         }
     }
+
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+    let local_addr = listener.local_addr()?;
+    std::fs::write(&args.portfile, format!("sock={}", local_addr.port()))?;
+    debug!("System metrics service listening on {}", local_addr);
+    Ok(ListenerType::Tcp(TcpListenerStream::new(listener)))
+}
+
+/// Bind a Unix socket in the temp directory and check that it accepts
+/// connections.
+#[cfg(not(target_os = "windows"))]
+fn bind_unix_socket(
+    parent_pid: i32,
+) -> Result<(UnixListener, std::path::PathBuf), Box<dyn std::error::Error>> {
+    let time_stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time should go forward")
+        .as_millis();
+    let socket_path = std::env::temp_dir().join(format!(
+        "wandb_symon-{}-{}-{}.sock",
+        parent_pid,
+        std::process::id(),
+        time_stamp
+    ));
+    if socket_path.to_str().is_none() {
+        return Err("Invalid UTF-8 sequence in socket path".into());
+    }
+
+    let _ = std::fs::remove_file(&socket_path);
+    let listener = std::os::unix::net::UnixListener::bind(&socket_path)?;
+    if let Err(e) = std::os::unix::net::UnixStream::connect(&socket_path) {
+        let _ = std::fs::remove_file(&socket_path);
+        return Err(e.into());
+    }
+    listener.set_nonblocking(true)?;
+    Ok((UnixListener::from_std(listener)?, socket_path))
 }
 
 /// Initialize logger that writes to a file in the wandb cache directory.
