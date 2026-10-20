@@ -210,7 +210,7 @@ type outChunk struct {
 }
 
 func (r *concurrentReader) read(p []byte) (int, error) {
-	if cap(p) == 0 {
+	if len(p) == 0 {
 		return 0, nil
 	}
 
@@ -230,7 +230,7 @@ func (r *concurrentReader) partRead(p []byte) (int, error) {
 			return written, r.getErr()
 		}
 
-		if written >= cap(p) {
+		if written >= len(p) {
 			// don't return yet, parts already dispatched up to capacity may
 			// still be downloading or sitting in r.ch, and the received loop
 			// below is what drains them
@@ -292,7 +292,7 @@ func (r *concurrentReader) partRead(p []byte) (int, error) {
 		r.receiveCount++
 
 		// only directly feed into p if this is the next neighbor part
-		if oc.index == r.consecutiveIndex && written < cap(p) {
+		if oc.index == r.consecutiveIndex && written < len(p) {
 			if oc.rangeStart >= 0 {
 				if es, as := int64(written), oc.rangeStart-r.written; es != as {
 					r.setErr(fmt.Errorf("range mismatch between computed start position %d and actual start position %d for part %d in p", es, as, oc.index+1))
@@ -360,7 +360,7 @@ func (r *concurrentReader) rangeRead(p []byte) (int, error) {
 
 	partSize := r.partSize
 	minIndex := int32(r.written / partSize)
-	maxIndex := min(int32((r.written+int64(cap(p))-1)/partSize), atomic.LoadInt32(&r.capacity)-1)
+	maxIndex := min(int32((r.written+int64(len(p))-1)/partSize), atomic.LoadInt32(&r.capacity)-1)
 	for i := minIndex; i <= maxIndex; i++ {
 		if e := r.getErr(); e != nil && e != io.EOF {
 			r.clean()
@@ -407,7 +407,7 @@ func (r *concurrentReader) rangeRead(p []byte) (int, error) {
 
 		index := r.partSize*int64(oc.index) - r.written
 
-		if index < int64(cap(p)) {
+		if index < int64(len(p)) {
 			n, err := oc.body.Read(p[index:])
 			oc.cur += int64(n)
 			written += n
