@@ -63,7 +63,7 @@ def outlier_candidates(regressor=None, X=None, y=None):  # noqa: N803
     Please note this function fits the model on the training set when called.
 
     Args:
-        model: (regressor) Takes in a fitted regressor.
+        regressor: (regressor) Takes in a fitted regressor.
         X: (arr) Training set features.
         y: (arr) Training set labels.
 
