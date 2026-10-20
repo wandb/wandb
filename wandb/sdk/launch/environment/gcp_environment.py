@@ -113,7 +113,7 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(
                 "Could not create GcpEnvironment from user's gcloud configuration. "
                 "Please set the default region with `gcloud config set compute/region` "
-                "or set the environment variable {GCP_REGION_ENV_VAR}. "
+                f"or set the environment variable {GCP_REGION_ENV_VAR}. "
                 "Alternatively, you may specify the region explicitly in your "
                 "wandb launch configuration at `$HOME/.config/wandb/launch-config.yaml`. "
                 "See https://docs.wandb.ai/platform/launch/run-agent#environments for more information."
