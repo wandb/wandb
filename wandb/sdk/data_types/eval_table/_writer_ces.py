@@ -231,13 +231,12 @@ class CESWriter:
         bound_run = self._require_bound()
         base_url = _ces_base_url(bound_run.service_api.base_url)
 
-        # Import lazily because only CES tables require this optional client.
+        # Import lazily so the CES client only loads when a CES EvalTable is written.
         try:
             from coreweave_evaluations import Client
         except ImportError as exc:
             raise UsageError(
-                "CES EvalTable logging requires the cwevals package. "
-                "Install it with: pip install 'cwevals==0.0.1b1'"
+                "CES EvalTable logging requires the coreweave_evaluations package."
             ) from exc
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)

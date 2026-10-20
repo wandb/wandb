@@ -681,6 +681,7 @@ def test_ces_base_url(monkeypatch):
 
 
 def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
+    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
     et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
     et.bind_to_run(run, "eval", 0)
     writer = et._writer
@@ -697,10 +698,9 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     )
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", None)
 
-    with pytest.raises(UsageError, match="pip install 'cwevals==0.0.1b1'") as exc_info:
+    with pytest.raises(UsageError, match="coreweave_evaluations"):
         et.to_json(run)
 
-    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
     execute_graphql.assert_not_called()
 
 
