@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +28,10 @@ const (
 	// collectorShutdownTimeout bounds how long Release waits for the
 	// sidecar process to exit after asking it to tear down.
 	collectorShutdownTimeout = 5 * time.Second
+
+	// stderrTailSize is how much of the sidecar's stderr is kept for the
+	// error reported when it fails to start.
+	stderrTailSize = 1024
 )
 
 type SymonResourceManagerRef int
@@ -163,6 +168,10 @@ func (m *SymonResourceManager) startCollector(ctx context.Context) error {
 		cmd.Args = append(cmd.Args, "--listen-on-localhost")
 	}
 
+	stderr := &stderrTail{}
+	cmd.Stderr = stderr
+	cmd.WaitDelay = time.Second
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("monitor: could not start wandb-symon binary: %v", err)
 	}
@@ -178,7 +187,12 @@ func (m *SymonResourceManager) startCollector(ctx context.Context) error {
 	if err != nil {
 		_ = cmd.Process.Kill()
 		<-exited
-		return fmt.Errorf("monitor: wandb-symon binary failed to start: %w", err)
+		return fmt.Errorf(
+			"monitor: wandb-symon binary failed to start: %w (%v, stderr: %q)",
+			err,
+			cmd.ProcessState,
+			strings.TrimSpace(string(stderr.buf)),
+		)
 	}
 
 	conn, err := grpc.NewClient(
@@ -234,4 +248,15 @@ func supportsUDS() bool {
 		return false
 	}
 	return listener.Close() == nil
+}
+
+// stderrTail keeps the last stderrTailSize bytes written to it.
+type stderrTail struct{ buf []byte }
+
+func (t *stderrTail) Write(p []byte) (int, error) {
+	t.buf = append(t.buf, p...)
+	if n := len(t.buf) - stderrTailSize; n > 0 {
+		t.buf = t.buf[n:]
+	}
+	return len(p), nil
 }
