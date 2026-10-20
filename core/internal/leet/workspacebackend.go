@@ -6,47 +6,30 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// WorkspaceBackend encapsulates operations that differ between
-// local (filesystem-based) and remote (GraphQL/parquet-based) workspaces.
-//
-// The Workspace struct handles all shared UI, rendering, state management,
-// and message routing. It delegates backend-specific operations to this
-// interface, avoiding duplication of the ~1800 lines of shared workspace logic.
+// WorkspaceBackend is where a workspace finds its runs: a local wandb
+// directory or a remote W&B project.
 type WorkspaceBackend interface {
-	// DiscoverRunsCmd returns a command to discover available runs.
-	// For local: polls the filesystem. For remote: queries GraphQL.
-	// The returned command should produce a WorkspaceRunDiscoveryMsg.
+	// DiscoverRunsCmd lists the runs after delay, producing a
+	// WorkspaceRunDiscoveryMsg.
 	DiscoverRunsCmd(delay time.Duration) tea.Cmd
 
-	// NextDiscoveryCmd returns a command to schedule the next discovery.
-	// Returns nil if no discovery is needed.
+	// NextDiscoveryCmd schedules the discovery that follows the last one.
 	NextDiscoveryCmd() tea.Cmd
 
-	// InitReaderCmd returns a command that creates a HistorySource
-	// for the given run key. Produces a WorkspaceRunInitMsg on success
-	// or a WorkspaceInitErrMsg on failure.
+	// InitReaderCmd opens the run's history, producing a WorkspaceRunInitMsg
+	// or a WorkspaceInitErrMsg. Returns nil if the run cannot be opened.
 	InitReaderCmd(runKey string) tea.Cmd
 
-	// PreloadOverviewCmd returns a command to preload run overview
-	// metadata for an unselected run.
+	// PreloadOverviewCmd reads the metadata of a run that discovery listed
+	// without it, producing a WorkspaceRunOverviewPreloadedMsg.
 	PreloadOverviewCmd(runKey string) tea.Cmd
 
-	// RunParams returns RunParams for entering single-run view.
+	// RunParams returns the parameters for opening the run in single-run view.
 	RunParams(runKey string) *RunParams
 
-	// SeriesKey returns the identifier used for this run's series
-	// in the metrics grid (for color mapping, pinning, removal).
+	// SeriesKey identifies the run's series in the metrics grid.
 	SeriesKey(runKey string) string
 
-	// DisplayLabel returns the label shown in the status bar.
+	// DisplayLabel names the runs being browsed in the status bar.
 	DisplayLabel() string
-
-	// InitLiveUpdatesCmd initializes backend-specific live update handling.
-	InitLiveUpdatesCmd(workspace *Workspace) tea.Cmd
-
-	// LiveUpdatesCmd starts backend-specific live updates for a run.
-	LiveUpdatesCmd(workspace *Workspace, run *WorkspaceRun) tea.Cmd
-
-	// RunState returns the state to display for a workspace run.
-	RunState(workspace *Workspace, runKey string) RunState
 }

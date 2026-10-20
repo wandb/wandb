@@ -5,9 +5,22 @@ query QueryRunInfo(
 ) {
     project(name: $project, entityName: $entity) {
         run(name: $run) {
-            displayName
-            state
+            ...LeetRun
+            # @genqlient(pointer: false)
             summaryMetrics
         }
     }
+}
+
+fragment LeetRun on Run {
+    name
+    # @genqlient(pointer: false)
+    displayName
+    # @genqlient(pointer: false)
+    state
+    # @genqlient(pointer: false)
+    notes
+    tags
+    # @genqlient(pointer: false)
+    config
 }

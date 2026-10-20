@@ -253,63 +253,27 @@ func TestWorkspace_View_ConsoleLogsPaneShowsNoDataWithoutLogs(t *testing.T) {
 		"bottom bar should show 'No data.' when no console logs exist")
 }
 
-func TestWorkspace_EmptyMetricsStateReflectsSelectedRunLiveness(t *testing.T) {
-	for _, tc := range []struct {
-		name           string
-		state          leet.RunState
-		want           string
-		doesNotContain string
-	}{
-		{
-			name:           "live run waits for data",
-			state:          leet.RunStateRunning,
-			want:           "Waiting for data...",
-			doesNotContain: "No scalar metrics logged.",
-		},
-		{
-			name:           "finished run has no metrics",
-			state:          leet.RunStateFinished,
-			want:           "No scalar metrics logged.",
-			doesNotContain: "Waiting for data...",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			logger := observability.NewNoOpLogger()
-			cfg := leet.NewConfigManager(
-				filepath.Join(t.TempDir(), "config.json"),
-				logger,
-			)
-			w := leet.NewWorkspace(
-				leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
-				cfg,
-				logger,
-			)
-			_ = w.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+func TestWorkspace_EmptyMetricsWaitForDataWhileRunIsLive(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	run := leet.TestNewWorkspaceRun("run-key")
+	w.TestAttachRun(run, true)
 
-			run := leet.TestNewWorkspaceRun("run-key")
-			w.TestAttachRun(run, true)
-			state := tc.state
-			w.TestHandleWorkspaceRecord(run, leet.RunMsg{
-				ID:    "abc123",
-				State: &state,
-			})
+	w.TestHandleWorkspaceRecord(run, leet.RunMsg{ID: "abc123"})
+	require.Contains(t, stripANSI(w.View().Content), "Waiting for data...")
 
-			view := stripANSI(w.View().Content)
-			require.Contains(t, view, tc.want)
-			require.NotContains(t, view, tc.doesNotContain)
-		})
-	}
+	finished := leet.RunStateFinished
+	w.TestHandleWorkspaceRecord(run, leet.RunMsg{ID: "abc123", State: &finished})
+	require.Contains(t, stripANSI(w.View().Content), "No scalar metrics logged.")
 }
 
 func TestWorkspace_NarrowTerminalKeepsMainColumnUsable(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetWorkspaceOverviewVisible(true)
-	w := leet.NewWorkspace(
-		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
-		cfg,
-		logger,
-	)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 
 	w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 

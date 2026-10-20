@@ -1075,10 +1075,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 		}
 	}
 
-	if cmd := r.historySource.NextLiveReadCmd(
-		r.ReadLiveBatchCmd(r.historySource),
-		false,
-	); cmd != nil {
+	if cmd := r.nextLiveReadCmd(false); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -1089,15 +1086,18 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, false)
-
-	if cmd := r.historySource.NextLiveReadCmd(
-		r.ReadLiveBatchCmd(r.historySource),
-		msg.HasMore,
-	); cmd != nil {
+	if cmd := r.nextLiveReadCmd(msg.HasMore); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-
 	return cmds
+}
+
+// nextLiveReadCmd schedules the read that follows a batch, if any.
+func (r *Run) nextLiveReadCmd(hasMore bool) tea.Cmd {
+	if r.historySource == nil {
+		return nil
+	}
+	return r.historySource.NextLiveReadCmd(r.ReadLiveBatchCmd(r.historySource), hasMore)
 }
 
 // handleHeartbeat triggers a live read and re-arms the heartbeat.

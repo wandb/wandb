@@ -8,11 +8,9 @@ import (
 
 // ParseRemoteURL parses a W&B project or run URL into RemoteRunParams.
 //
-// Accepted shapes:
-//
-//	https://<host>/<entity>/<project>
-//	https://<host>/<entity>/<project>/<run-id>
-//	https://<host>/<entity>/<project>/runs/<run-id>
+// A URL whose path is <entity>/<project>/runs/<run-id>, optionally followed
+// by more segments, names a run. Any other path under <entity>/<project>,
+// such as the project's /workspace page, names the project.
 //
 // The host is used as-is; canonicalization (e.g. wandb.ai -> api.wandb.ai)
 // is the launcher's responsibility.
@@ -29,10 +27,7 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	}
 
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) == 4 && parts[2] == "runs" {
-		parts = []string{parts[0], parts[1], parts[3]}
-	}
-	if len(parts) != 2 && len(parts) != 3 {
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return nil, fmt.Errorf(
 			"remote URL must be https://<host>/<entity>/<project> or "+
 				"https://<host>/<entity>/<project>/runs/<run-id>, got %q",
@@ -40,23 +35,13 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 		)
 	}
 
-	if parts[0] == "" || parts[1] == "" || (len(parts) == 3 && parts[2] == "") {
-		return nil, fmt.Errorf(
-			"remote URL must be https://<host>/<entity>/<project> or "+
-				"https://<host>/<entity>/<project>/runs/<run-id>, got %q",
-			s,
-		)
-	}
-
-	var runID string
-	if len(parts) == 3 {
-		runID = parts[2]
-	}
-
-	return &RemoteRunParams{
+	params := &RemoteRunParams{
 		BaseURL: u.Scheme + "://" + u.Host,
 		Entity:  parts[0],
 		Project: parts[1],
-		RunID:   runID,
-	}, nil
+	}
+	if len(parts) >= 4 && parts[2] == "runs" {
+		params.RunID = parts[3]
+	}
+	return params, nil
 }

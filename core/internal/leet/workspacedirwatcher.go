@@ -156,10 +156,11 @@ func parseRunDirTimestamp(name string) time.Time {
 func (w *Workspace) handleWorkspaceRunDiscovery(msg WorkspaceRunDiscoveryMsg) tea.Cmd {
 	nextDiscoveryCmd := w.backend.NextDiscoveryCmd()
 
+	w.discoveryErr = msg.Err
 	if msg.Err != nil {
-		// The run discovery loop retries and re-reports on every tick,
-		// so keep this out of error telemetry.
-		w.logger.Error(fmt.Sprintf("workspace: wandb run discovery: %v", msg.Err))
+		// The discovery loop retries and re-reports on every tick, so keep
+		// this out of error telemetry.
+		w.logger.Error(fmt.Sprintf("workspace: run discovery: %v", msg.Err))
 		return nextDiscoveryCmd
 	}
 
@@ -168,13 +169,29 @@ func (w *Workspace) handleWorkspaceRunDiscovery(msg WorkspaceRunDiscoveryMsg) te
 		w.applyRunKeys(msg.RunKeys)
 		w.restoreRunsOnLoad.Do(func() { restoreCmd = w.restoreRuns(msg.RunKeys) })
 	}
+	w.applyListedRuns(msg.Runs)
 	// Enqueue missing run overviews (even if the run list is unchanged).
 	// This makes new run overviews eventually consistent even if the .wandb file
 	// wasn't readable on the first scan.
 	w.enqueueMissingRunOverviews(msg.RunKeys)
 
 	startCmd := w.startRunOverviewPreloadsCmd()
-	return batchCmds(nextDiscoveryCmd, startCmd, restoreCmd)
+	return batchCmds(nextDiscoveryCmd, startCmd, restoreCmd, w.ensureLivePulseCmd())
+}
+
+// applyListedRuns records the metadata that came with a project listing.
+// Selected runs keep the metadata they stream.
+func (w *Workspace) applyListedRuns(runs map[string]RunMsg) {
+	for key := range runs {
+		if _, streaming := w.runsByKey[key]; streaming {
+			continue
+		}
+		w.getOrCreateRunOverview(key).ProcessRunMsg(runs[key])
+		w.indexRunFilterData(key, runs[key])
+	}
+	if len(runs) > 0 && w.filter.Query() != "" {
+		w.applyRunFilter()
+	}
 }
 
 // restoreRuns selects the runs remembered for the directory that still
@@ -269,7 +286,8 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
-		ro.SetRunState(msg.State)
+		// We don't know the final state of this run after a pre-load.
+		ro.SetRunState(RunStateUnknown)
 
 	case msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err):
 		// Truncated or partially written .wandb files fail here on every
@@ -279,7 +297,7 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 	}
 
 	// Keep draining the queue.
-	return batchCmds(w.startRunOverviewPreloadsCmd(), w.ensureLivePulseCmd())
+	return w.startRunOverviewPreloadsCmd()
 }
 
 func (w *Workspace) runKeysEqual(runKeys []string) bool {

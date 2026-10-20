@@ -214,9 +214,18 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
 @pytest.mark.parametrize(
     ("url", "path"),
     [
-        ("https://wandb.ai/entity/project/runs/id?workspace=user", "/entity/project/runs/id"),
-        ("https://forge.coreweave.com/wandb/entity/project/runs/id", "/entity/project/runs/id"),
-        ("https://forge.coreweave.com/api/wandb/entity/project/runs/id", "/entity/project/runs/id"),
+        (
+            "https://wandb.ai/entity/project/runs/id?workspace=user",
+            "/entity/project/runs/id",
+        ),
+        (
+            "https://forge.coreweave.com/wandb/entity/project/runs/id",
+            "/entity/project/runs/id",
+        ),
+        (
+            "https://forge.coreweave.com/api/wandb/entity/project/runs/id",
+            "/entity/project/runs/id",
+        ),
         ("https://wandb.ai/entity/project/workspace?nw=abc", "/entity/project"),
         ("https://forge.coreweave.com/wandb/entity/project", "/entity/project"),
     ],

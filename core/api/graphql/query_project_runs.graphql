@@ -9,11 +9,7 @@ query QueryProjectRuns(
         runs(first: $first, order: $order, after: $cursor) {
             edges {
                 node {
-                    name
-                    displayName
-                    state
-                    createdAt
-                    summaryMetrics
+                    ...LeetRun
                 }
             }
             pageInfo {

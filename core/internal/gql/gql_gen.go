@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -1221,6 +1220,34 @@ type HistoryPageResponse struct {
 // GetProject returns HistoryPageResponse.Project, and is useful for accessing the field via an interface.
 func (v *HistoryPageResponse) GetProject() *HistoryPageProject { return v.Project }
 
+// LeetRun includes the GraphQL fields of Run requested by the fragment LeetRun.
+type LeetRun struct {
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName"`
+	State       string   `json:"state"`
+	Notes       string   `json:"notes"`
+	Tags        []string `json:"tags"`
+	Config      string   `json:"config"`
+}
+
+// GetName returns LeetRun.Name, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetName() string { return v.Name }
+
+// GetDisplayName returns LeetRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetDisplayName() string { return v.DisplayName }
+
+// GetState returns LeetRun.State, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetState() string { return v.State }
+
+// GetNotes returns LeetRun.Notes, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetNotes() string { return v.Notes }
+
+// GetTags returns LeetRun.Tags, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetTags() []string { return v.Tags }
+
+// GetConfig returns LeetRun.Config, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetConfig() string { return v.Config }
+
 // LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
 type LinkArtifactLinkArtifactLinkArtifactPayload struct {
 	VersionIndex *int `json:"versionIndex"`
@@ -1377,34 +1404,96 @@ func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge) GetNode() QueryPr
 
 // QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun includes the requested fields of the GraphQL type Run.
 type QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun struct {
-	Name           string    `json:"name"`
-	DisplayName    *string   `json:"displayName"`
-	State          *string   `json:"state"`
-	CreatedAt      time.Time `json:"createdAt"`
-	SummaryMetrics *string   `json:"summaryMetrics"`
+	LeetRun `json:"-"`
 }
 
 // GetName returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Name, and is useful for accessing the field via an interface.
-func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetName() string { return v.Name }
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetName() string {
+	return v.LeetRun.Name
+}
 
 // GetDisplayName returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.DisplayName, and is useful for accessing the field via an interface.
-func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetDisplayName() *string {
-	return v.DisplayName
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetDisplayName() string {
+	return v.LeetRun.DisplayName
 }
 
 // GetState returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.State, and is useful for accessing the field via an interface.
-func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetState() *string {
-	return v.State
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetState() string {
+	return v.LeetRun.State
 }
 
-// GetCreatedAt returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.CreatedAt, and is useful for accessing the field via an interface.
-func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetCreatedAt() time.Time {
-	return v.CreatedAt
+// GetNotes returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Notes, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetNotes() string {
+	return v.LeetRun.Notes
 }
 
-// GetSummaryMetrics returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.SummaryMetrics, and is useful for accessing the field via an interface.
-func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetSummaryMetrics() *string {
-	return v.SummaryMetrics
+// GetTags returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Tags, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetTags() []string {
+	return v.LeetRun.Tags
+}
+
+// GetConfig returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Config, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetConfig() string {
+	return v.LeetRun.Config
+}
+
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.LeetRun)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun struct {
+	Name string `json:"name"`
+
+	DisplayName string `json:"displayName"`
+
+	State string `json:"state"`
+
+	Notes string `json:"notes"`
+
+	Tags []string `json:"tags"`
+
+	Config string `json:"config"`
+}
+
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) __premarshalJSON() (*__premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun, error) {
+	var retval __premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun
+
+	retval.Name = v.LeetRun.Name
+	retval.DisplayName = v.LeetRun.DisplayName
+	retval.State = v.LeetRun.State
+	retval.Notes = v.LeetRun.Notes
+	retval.Tags = v.LeetRun.Tags
+	retval.Config = v.LeetRun.Config
+	return &retval, nil
 }
 
 // QueryProjectRunsProjectRunsRunConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
@@ -1439,19 +1528,92 @@ func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
 
 // QueryRunInfoProjectRun includes the requested fields of the GraphQL type Run.
 type QueryRunInfoProjectRun struct {
-	DisplayName    *string `json:"displayName"`
-	State          *string `json:"state"`
-	SummaryMetrics *string `json:"summaryMetrics"`
+	LeetRun        `json:"-"`
+	SummaryMetrics string `json:"summaryMetrics"`
 }
 
+// GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSummaryMetrics() string { return v.SummaryMetrics }
+
+// GetName returns QueryRunInfoProjectRun.Name, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetName() string { return v.LeetRun.Name }
+
 // GetDisplayName returns QueryRunInfoProjectRun.DisplayName, and is useful for accessing the field via an interface.
-func (v *QueryRunInfoProjectRun) GetDisplayName() *string { return v.DisplayName }
+func (v *QueryRunInfoProjectRun) GetDisplayName() string { return v.LeetRun.DisplayName }
 
 // GetState returns QueryRunInfoProjectRun.State, and is useful for accessing the field via an interface.
-func (v *QueryRunInfoProjectRun) GetState() *string { return v.State }
+func (v *QueryRunInfoProjectRun) GetState() string { return v.LeetRun.State }
 
-// GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
-func (v *QueryRunInfoProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+// GetNotes returns QueryRunInfoProjectRun.Notes, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetNotes() string { return v.LeetRun.Notes }
+
+// GetTags returns QueryRunInfoProjectRun.Tags, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetTags() []string { return v.LeetRun.Tags }
+
+// GetConfig returns QueryRunInfoProjectRun.Config, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetConfig() string { return v.LeetRun.Config }
+
+func (v *QueryRunInfoProjectRun) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*QueryRunInfoProjectRun
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.QueryRunInfoProjectRun = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.LeetRun)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalQueryRunInfoProjectRun struct {
+	SummaryMetrics string `json:"summaryMetrics"`
+
+	Name string `json:"name"`
+
+	DisplayName string `json:"displayName"`
+
+	State string `json:"state"`
+
+	Notes string `json:"notes"`
+
+	Tags []string `json:"tags"`
+
+	Config string `json:"config"`
+}
+
+func (v *QueryRunInfoProjectRun) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *QueryRunInfoProjectRun) __premarshalJSON() (*__premarshalQueryRunInfoProjectRun, error) {
+	var retval __premarshalQueryRunInfoProjectRun
+
+	retval.SummaryMetrics = v.SummaryMetrics
+	retval.Name = v.LeetRun.Name
+	retval.DisplayName = v.LeetRun.DisplayName
+	retval.State = v.LeetRun.State
+	retval.Notes = v.LeetRun.Notes
+	retval.Tags = v.LeetRun.Tags
+	retval.Config = v.LeetRun.Config
+	return &retval, nil
+}
 
 // QueryRunInfoResponse is returned by QueryRunInfo on success.
 type QueryRunInfoResponse struct {
@@ -4620,11 +4782,7 @@ query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order
 		runs(first: $first, order: $order, after: $cursor) {
 			edges {
 				node {
-					name
-					displayName
-					state
-					createdAt
-					summaryMetrics
+					... LeetRun
 				}
 			}
 			pageInfo {
@@ -4633,6 +4791,14 @@ query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order
 			}
 		}
 	}
+}
+fragment LeetRun on Run {
+	name
+	displayName
+	state
+	notes
+	tags
+	config
 }
 `
 
@@ -4674,11 +4840,18 @@ const QueryRunInfo_Operation = `
 query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
 	project(name: $project, entityName: $entity) {
 		run(name: $run) {
-			displayName
-			state
+			... LeetRun
 			summaryMetrics
 		}
 	}
+}
+fragment LeetRun on Run {
+	name
+	displayName
+	state
+	notes
+	tags
+	config
 }
 `
 

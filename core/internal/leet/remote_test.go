@@ -35,13 +35,12 @@ func TestParseRemoteURL(t *testing.T) {
 			},
 		},
 		{
-			name: "run URL without runs segment",
-			url:  "https://api.wandb.ai/my-entity/my-project/abc123",
+			name: "project page URL",
+			url:  "https://api.wandb.ai/my-entity/my-project/workspace?nw=abc",
 			want: &leet.RemoteRunParams{
 				BaseURL: "https://api.wandb.ai",
 				Entity:  "my-entity",
 				Project: "my-project",
-				RunID:   "abc123",
 			},
 		},
 		{
@@ -55,8 +54,8 @@ func TestParseRemoteURL(t *testing.T) {
 			},
 		},
 		{
-			name: "trailing slash",
-			url:  "http://localhost:8080/my-entity/my-project/runs/abc123/",
+			name: "run page URL",
+			url:  "http://localhost:8080/my-entity/my-project/runs/abc123/logs",
 			want: &leet.RemoteRunParams{
 				BaseURL: "http://localhost:8080",
 				Entity:  "my-entity",
@@ -79,8 +78,7 @@ func TestParseRemoteURL_Errors(t *testing.T) {
 		"ftp://wandb.ai/entity/project/runs/abc123",
 		"wandb.ai/entity/project/runs/abc123",
 		"https:///entity/project/runs/abc123",
-		"https://wandb.ai/entity/project/sweeps/abc123",
-		"https://wandb.ai/entity/project/runs/abc123/extra",
+		"https://wandb.ai/entity",
 		"https://wandb.ai",
 	}
 	for _, url := range urls {
