@@ -54,6 +54,7 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ARTIFACT_DIGEST_ALGORITHM: _ClassVar[ServerFeature]
     AUTOMATION_ACTION_ARIA: _ClassVar[ServerFeature]
     EVAL_TABLES_CES: _ClassVar[ServerFeature]
+    ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -92,6 +93,7 @@ SWEEPS_LOCAL_SCHEDULER: ServerFeature
 ARTIFACT_DIGEST_ALGORITHM: ServerFeature
 AUTOMATION_ACTION_ARIA: ServerFeature
 EVAL_TABLES_CES: ServerFeature
+ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD: ServerFeature
 
 class Record(_message.Message):
     __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")

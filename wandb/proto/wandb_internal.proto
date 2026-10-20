@@ -1726,4 +1726,8 @@ enum ServerFeature {
 
   // Indicates that the server supports CoreWeave Evaluation Service.
   EVAL_TABLES_CES = 38;
+
+  // Indicates that the server supports returning artifactMembership on the
+  // createArtifact, updateArtifact, and commitArtifact mutation payloads.
+  ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD = 39;
 }

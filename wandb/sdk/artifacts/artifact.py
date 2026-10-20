@@ -1355,16 +1355,25 @@ class Artifact:
                     {"tagName": t} for t in validate_tags(old_tags - new_tags)
                 ],
             )
+            # Newer server versions can return `artifactMembership` directly in
+            # the response, letting version/alias resolution use the single
+            # membership instead of fanning out across every collection this
+            # artifact belongs to (see Artifact.aliases vs
+            # ArtifactCollectionMembership.aliases).
+            omit_fields = omit_artifact_fields(client)
+            if not client.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD):
+                omit_fields.add("artifactMembership")
+
             data = client.execute_graphql(
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
-                omit_fields=omit_artifact_fields(client),
+                omit_fields=omit_fields,
             )
 
             if not ((result := data.result) and (artifact := result.artifact)):
                 raise ValueError("Unable to parse updateArtifact response")
-            self._assign_attrs(artifact)
+            self._assign_attrs(artifact, membership=result.artifact_membership)
 
             self._ttl_changed = False  # Reset after updating artifact
         else:
