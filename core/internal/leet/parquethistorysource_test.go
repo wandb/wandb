@@ -262,6 +262,63 @@ func TestParquetHistorySource_Read_SystemMetrics(t *testing.T) {
 	})))
 }
 
+// A live run's poll fetches the system metrics logged since the last
+// sample, which the inclusive bound returns again and the source drops.
+func TestParquetHistorySource_LiveRun_SystemMetrics(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":100,"_timestampLast":100,"system/cpuAvg":1},
+			{"_timestampAvg":110.5,"_timestampLast":111,"system/cpuAvg":2}
+		]]}}}`,
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		`{"project":{"run":{"name":"run-id","state":"running",
+			"summaryMetrics":"{\"_step\":0}","systemMetrics":"{\"system.cpu\":3}"}}}`,
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":111,"_timestampLast":111,"system/cpuAvg":2},
+			{"_timestampAvg":120,"_timestampLast":120,"system/cpuAvg":3}
+		]]}}}`,
+	)
+	runInfo := testRunInfo(map[string]any{"_step": int64(0)})
+	runInfo.runState = RunStateRunning
+	runInfo.systemMetrics = map[string]any{"system.cpu": 1.0}
+	source := newParquetHistorySource(
+		t.Context(),
+		runInfo,
+		&fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}},
+		&fakeStepReader{},
+		observability.NewNoOpLogger(),
+		mockGQL,
+	)
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch := msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 5)
+	assert.Equal(t, int64(110), batch.Msgs[4].(StatsMsg).Timestamp)
+
+	msg, err = source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch = msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 3)
+	assert.Equal(t, StatsMsg{
+		RunPath:   "entity/project/run-id",
+		Timestamp: 120,
+		Metrics:   map[string]float64{"cpu": 3},
+	}, batch.Msgs[2])
+
+	requests := mockGQL.AllRequests()
+	gqlmock.AssertVariables(t, requests[len(requests)-1], gqlmock.GQLVar("specs", gomock.Eq([]any{
+		`{"bins":500,"keys":["system/cpu"],"minX":111,"xAxis":"_timestamp"}`,
+	})))
+}
+
 func TestParquetHistorySource_Close(t *testing.T) {
 	reader := &fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}}
 	source := newParquetHistorySource(
