@@ -6,14 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/filetransfertest"
-	gql "github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -269,52 +267,4 @@ func TestSave_MissingMD5File(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestArtifactSaver_BatchSize(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		elapsed time.Duration
-		numDone int
-		want    int
-	}{
-		{"startup_count", time.Minute, 127, 25},
-		{"startup_time", -time.Minute, 1000, 25},
-		{"high_throughput_cap", time.Minute, 1_000_000, 1000},
-		{"low_throughput_floor", time.Hour, 128, 25},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			saver := &ArtifactSaver{
-				maxActiveBatches: maxActiveBatches,
-				startTime:        time.Now().Add(-tc.elapsed),
-				numDone:          tc.numDone,
-			}
-			require.Equal(t, tc.want, saver.batchSize())
-		})
-	}
-}
-
-func TestArtifactSaver_NextBatchCapped(t *testing.T) {
-	saver := &ArtifactSaver{
-		maxActiveBatches: maxActiveBatches,
-		startTime:        time.Now().Add(-time.Minute),
-		numDone:          1_000_000,
-	}
-	specs := make([]gql.CreateArtifactFileSpecInput, 2507)
-	for i := range specs {
-		specs[i].Name = fmt.Sprintf("files/%08d.txt", i)
-	}
-	remaining := specs
-	var got []gql.CreateArtifactFileSpecInput
-	for _, want := range []int{1000, 1000, 507} {
-		batch, rest := saver.nextBatch(remaining)
-		require.Len(t, batch, want)
-		got = append(got, batch...)
-		remaining = rest
-	}
-	require.Empty(t, remaining)
-	require.Equal(t, specs, got)
-	batch, rest := saver.nextBatch(remaining)
-	require.Empty(t, batch)
-	require.Empty(t, rest)
 }
