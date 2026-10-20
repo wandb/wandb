@@ -13,15 +13,19 @@ _PATH = FullArtifactPath(
 )
 
 
-def _membership_data(*, flat_aliases=(), aliases_connection=None):
+def _membership_data(*, flat_aliases=None, aliases_connection=None):
     data = {
         "id": "PLACEHOLDER",
         "versionIndex": 1,
         "createdAt": "PLACEHOLDER",
-        "aliases": [{"id": "PLACEHOLDER", "alias": a} for a in flat_aliases],
         "artifactCollection": None,
         "artifact": None,
     }
+    # Omit the key entirely (rather than an empty list) when flat_aliases isn't
+    # given, mirroring a real server response when `aliases` is stripped from
+    # the request via `omit_fields`.
+    if flat_aliases is not None:
+        data["aliases"] = [{"id": "PLACEHOLDER", "alias": a} for a in flat_aliases]
     if aliases_connection is not None:
         data["aliasesConnection"] = aliases_connection
     return data
@@ -50,6 +54,7 @@ def test_from_name_feature_disabled_uses_flat_aliases(mocker):
     _, kwargs = service_api.execute_graphql.call_args
     assert kwargs["omit_variables"] == {"perPage"}
     assert "aliasesConnection" in kwargs["omit_fields"]
+    assert "aliases" not in kwargs["omit_fields"]
 
     _, from_membership_kwargs = from_membership.call_args
     assert from_membership_kwargs["membership_aliases"] is None
@@ -58,8 +63,9 @@ def test_from_name_feature_disabled_uses_flat_aliases(mocker):
 def test_from_name_feature_enabled_single_page(mocker):
     service_api = Mock()
     service_api.feature_enabled.side_effect = _feature_enabled(True)
+    # No `flat_aliases`: a real server omits the unbounded `aliases` field
+    # from the response entirely once we stop requesting it.
     service_api.execute_graphql.return_value = _membership_by_name_response(
-        flat_aliases=["ignored-flat-alias"],
         aliases_connection={
             "pageInfo": {"hasNextPage": False, "endCursor": None},
             "edges": [{"node": {"id": "PLACEHOLDER", "alias": "v0"}}],
@@ -70,8 +76,11 @@ def test_from_name_feature_enabled_single_page(mocker):
     Artifact._from_name(path=_PATH, service_api=service_api)
 
     _, kwargs = service_api.execute_graphql.call_args
-    assert kwargs["omit_variables"] is None
+    assert kwargs["omit_variables"] == {"includeAliases"}
     assert "aliasesConnection" not in kwargs["omit_fields"]
+    # The whole point of pagination: never request the unbounded flat field
+    # once the paginated connection is available.
+    assert "aliases" in kwargs["omit_fields"]
 
     service_api.execute_graphql.assert_called_once()
     _, from_membership_kwargs = from_membership.call_args
@@ -106,5 +115,8 @@ def test_from_name_feature_enabled_paginates_remaining_aliases(mocker):
     Artifact._from_name(path=_PATH, service_api=service_api)
 
     assert service_api.execute_graphql.call_count == 2
+    first_call_kwargs = service_api.execute_graphql.call_args_list[0].kwargs
+    assert "aliases" in first_call_kwargs["omit_fields"]
+
     _, from_membership_kwargs = from_membership.call_args
     assert from_membership_kwargs["membership_aliases"] == ["v0", "best"]

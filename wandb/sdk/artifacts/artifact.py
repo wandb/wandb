@@ -138,7 +138,7 @@ def _resolve_aliases(
     if membership_aliases is not None:
         return membership_aliases
     if membership:
-        return [a.alias for a in membership.aliases]
+        return [a.alias for a in (membership.aliases or [])]
     if not src_art.aliases:
         return []
     return [
@@ -387,8 +387,14 @@ class Artifact:
         paginate_aliases = service_api.feature_enabled(pb.ARTIFACT_ALIASES_PAGINATION)
 
         omit_fields = omit_artifact_fields(service_api)
-        omit_variables = None
-        if not paginate_aliases:
+        if paginate_aliases:
+            # Don't also fetch the unbounded flat `aliases` field now that we
+            # have a paginated alternative -- that would defeat the purpose.
+            # `includeAliases` only guards that field, so it'd otherwise be
+            # left declared but unused once the field is stripped.
+            omit_fields.add("aliases")
+            omit_variables = {"includeAliases"}
+        else:
             omit_variables = {"perPage"}
             omit_fields.add("aliasesConnection")
 
