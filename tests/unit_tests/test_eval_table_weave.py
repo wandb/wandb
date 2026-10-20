@@ -297,6 +297,23 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
     )
 
 
+def test_default_backend_logs_without_ces_client(monkeypatch, mock_eval_logger, run):
+    monkeypatch.setitem(sys.modules, "coreweave_evaluations", None)
+    et = wandb.EvalTable(columns=["value"], data=[[1]])
+
+    run.log({"eval": et})
+
+    mock_eval_logger._create_with_meta.assert_called_once_with(
+        {"wandb_eval_table": True},
+        name="eval",
+    )
+    mock_eval_logger.created_loggers[0].log_example.assert_called_once_with(
+        inputs={"row": 1},
+        output={"value": 1},
+        scores={},
+    )
+
+
 def test_eval_table_records_telemetry(mock_eval_logger, run):
     """Logging an EvalTable marks the run-level eval_table telemetry feature."""
     assert not run._telemetry_obj.feature.eval_table
