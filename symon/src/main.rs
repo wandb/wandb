@@ -73,13 +73,6 @@ use tokio_stream::wrappers::UnixListenerStream;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about=None)]
 struct Args {
-    /// File to write the gRPC server token to.
-    ///
-    /// Used to establish communication between the parent process (wandb-core) and the service.
-    /// Supports Unix and TCP sockets.
-    #[arg(long)]
-    portfile: String,
-
     /// Parent process ID.
     ///
     /// If provided, the program will exit if the parent process is no longer alive.
@@ -256,7 +249,7 @@ enum ListenerType {
     Unix(UnixListenerStream),
 }
 
-/// A bound listener and the address token published in the portfile.
+/// A bound listener and the address line printed for wandb-core.
 struct BoundListener {
     stream: ListenerType,
     token: String,
@@ -264,7 +257,7 @@ struct BoundListener {
     unix_error: Option<Box<dyn std::error::Error>>,
 }
 
-/// Bind the listener and publish its address in the portfile.
+/// Bind the listener.
 ///
 /// A Unix socket in the temp directory is preferred. If it cannot be bound
 /// or connected to, as when the path is too long for `sun_path` or the
@@ -279,7 +272,6 @@ async fn create_listener(args: &Args) -> Result<BoundListener, Box<dyn std::erro
         match bind_unix_socket(args.parent_pid) {
             Ok((listener, socket_path)) => {
                 let token = format!("unix={}", socket_path.display());
-                std::fs::write(&args.portfile, &token)?;
 
                 // `UnixListener` does not unlink its socket file on drop;
                 // a Drop guard parked in a tokio task cleans it up when the
@@ -310,7 +302,6 @@ async fn create_listener(args: &Args) -> Result<BoundListener, Box<dyn std::erro
 
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
     let token = format!("sock={}", listener.local_addr()?.port());
-    std::fs::write(&args.portfile, &token)?;
     Ok(BoundListener {
         stream: ListenerType::Tcp(TcpListenerStream::new(listener)),
         token,
@@ -424,9 +415,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
 
-    // Publish the address before anything that may be slow, such as opening
-    // the debug log on a network home directory or initializing drivers.
+    // Publish the address on stdout before anything that may be slow, such as
+    // opening the debug log on a network home directory or initializing drivers.
     let listener = create_listener(&args).await?;
+    writeln!(std::io::stdout(), "{}", listener.token)?;
+    std::io::stdout().flush()?;
 
     // The TLS provider for HTTPS scrapes; ring keeps aws-lc out of the build.
     rustls::crypto::ring::default_provider()

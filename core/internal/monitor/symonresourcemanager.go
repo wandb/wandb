@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +23,7 @@ import (
 
 const (
 	// collectorStartupTimeout bounds how long Client waits for the
-	// sidecar process to write its portfile.
+	// sidecar process to print its address.
 	collectorStartupTimeout = 5 * time.Second
 
 	// collectorShutdownTimeout bounds how long Release waits for the
@@ -145,22 +146,12 @@ func (m *SymonResourceManager) startCollector(ctx context.Context) error {
 		return err
 	}
 
-	pf := NewPortfile()
-	if pf == nil {
-		return errors.New("monitor: could not create portfile")
-	}
-	defer func() { _ = pf.Delete() }()
-
 	cmdPath, err := symonPath()
 	if err != nil {
 		return fmt.Errorf("monitor: wandb-symon binary not found: %v", err)
 	}
 
-	cmd := exec.Command(
-		cmdPath,
-		"--portfile", pf.Path,
-		"--parent-pid", strconv.Itoa(os.Getpid()),
-	)
+	cmd := exec.Command(cmdPath, "--parent-pid", strconv.Itoa(os.Getpid()))
 	if m.enableDCGMProfiling {
 		cmd.Args = append(cmd.Args, "--enable-dcgm-profiling")
 	}
@@ -168,6 +159,8 @@ func (m *SymonResourceManager) startCollector(ctx context.Context) error {
 		cmd.Args = append(cmd.Args, "--listen-on-localhost")
 	}
 
+	address := &addressLine{received: make(chan struct{})}
+	cmd.Stdout = address
 	stderr := &stderrTail{}
 	cmd.Stderr = stderr
 	cmd.WaitDelay = time.Second
@@ -183,7 +176,15 @@ func (m *SymonResourceManager) startCollector(ctx context.Context) error {
 
 	ctx, cancel := context.WithTimeout(ctx, collectorStartupTimeout)
 	defer cancel()
-	targetURI, err := pf.Read(ctx, exited)
+	var targetURI string
+	select {
+	case <-address.received:
+		targetURI, err = parseAddress(address.line())
+	case <-exited:
+		err = errors.New("wandb-symon exited before printing its address")
+	case <-ctx.Done():
+		err = fmt.Errorf("waiting for the wandb-symon address: %w", ctx.Err())
+	}
 	if err != nil {
 		_ = cmd.Process.Kill()
 		<-exited
@@ -248,6 +249,45 @@ func supportsUDS() bool {
 		return false
 	}
 	return listener.Close() == nil
+}
+
+// parseAddress converts the sidecar's address line, "unix=<path>" or
+// "sock=<port>", to a gRPC target.
+func parseAddress(line string) (string, error) {
+	if path, found := strings.CutPrefix(line, "unix="); found {
+		return "unix:" + path, nil
+	}
+	if portStr, found := strings.CutPrefix(line, "sock="); found {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid wandb-symon address %q: %v", line, err)
+		}
+		return fmt.Sprintf("127.0.0.1:%d", port), nil
+	}
+	return "", fmt.Errorf("unknown wandb-symon address %q", line)
+}
+
+// addressLine captures the first line written to it and closes received.
+type addressLine struct {
+	buf      []byte
+	received chan struct{}
+}
+
+func (l *addressLine) Write(p []byte) (int, error) {
+	select {
+	case <-l.received:
+	default:
+		l.buf = append(l.buf, p...)
+		if bytes.IndexByte(l.buf, '\n') >= 0 {
+			close(l.received)
+		}
+	}
+	return len(p), nil
+}
+
+func (l *addressLine) line() string {
+	line, _, _ := strings.Cut(string(l.buf), "\n")
+	return line
 }
 
 // stderrTail keeps the last stderrTailSize bytes written to it.
