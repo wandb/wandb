@@ -162,6 +162,11 @@ type ParquetHistorySource struct {
 	cancel context.CancelFunc
 	close  sync.Once
 
+	// started is set by the first Read, which describes the run before
+	// reading its history. A run that has not logged history yet keeps
+	// currentStep at zero, so currentStep cannot tell the first Read apart.
+	started bool
+
 	// readerDone is a flag to indicate if the reader is done.
 	readerDone bool
 
@@ -358,7 +363,8 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	var msgs []tea.Msg
-	if s.currentStep == 0 {
+	if !s.started {
+		s.started = true
 		msgs = append(msgs, s.runInfo.runMsg(), s.summaryMsg())
 	} else if !s.continuing {
 		refreshed, err := s.refreshRunInfo()

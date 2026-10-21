@@ -184,6 +184,41 @@ func TestParquetHistorySource_LiveRun(t *testing.T) {
 	require.Nil(t, source.NextLiveReadCmd(readCmd, false))
 }
 
+// A live run opened before it logged any history keeps polling the backend
+// for its state.
+func TestParquetHistorySource_LiveRunWithoutHistoryRefreshes(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		runInfoResponse("crashed", `{}`),
+	)
+	runInfo := testRunInfo(map[string]any{})
+	runInfo.runState = RunStateRunning
+	source := newParquetHistorySource(
+		t.Context(),
+		runInfo,
+		&fakeStepReader{},
+		&fakeStepReader{},
+		observability.NewNoOpLogger(),
+		mockGQL,
+	)
+	readCmd := func() tea.Msg { return nil }
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch := msg.(ChunkedBatchMsg)
+	require.False(t, batch.HasMore)
+	require.Len(t, batch.Msgs, 2)
+	require.NotNil(t, source.NextLiveReadCmd(readCmd, false))
+
+	msg, err = source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch = msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 2)
+	assert.Equal(t, RunStateCrashed, *batch.Msgs[0].(RunMsg).State)
+	require.Nil(t, source.NextLiveReadCmd(readCmd, false))
+}
+
 // A live run that logs sparse steps must not stall on an empty window
 // below the step its summary reports.
 func TestParquetHistorySource_LiveRunSkipsStepGaps(t *testing.T) {
