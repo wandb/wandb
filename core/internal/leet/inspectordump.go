@@ -142,9 +142,8 @@ var errCorruptSkipped = errors.New("skipped corrupt data")
 
 // readRecord reads the next record.
 //
-// An error wrapping errCorruptSkipped means corrupt data was skipped and
-// reading can go on. Any other error besides EOF would repeat on every
-// call, as for a file that is not a transaction log.
+// An error that wraps errCorruptSkipped means the reader advanced past corrupt
+// data. Other errors require the caller to stop or wait for more data.
 func readRecord(reader *transactionlog.Reader) (*spb.Record, error) {
 	before := reader.NextRecordOffset()
 	record, err := reader.Read()
@@ -152,7 +151,7 @@ func readRecord(reader *transactionlog.Reader) (*spb.Record, error) {
 		!errors.Is(err, io.EOF) &&
 		!errors.Is(err, io.ErrUnexpectedEOF) &&
 		reader.NextRecordOffset() > before {
-		return nil, fmt.Errorf("%w: %v", errCorruptSkipped, err)
+		return nil, fmt.Errorf("%w: %w", errCorruptSkipped, err)
 	}
 	return record, err
 }
