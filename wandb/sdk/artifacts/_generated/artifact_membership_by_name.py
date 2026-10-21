@@ -27,8 +27,8 @@ class ArtifactMembershipByNameProject(GQLResult):
 class ArtifactMembershipByNameProjectArtifactCollectionMembership(
     ArtifactMembershipFragment
 ):
-    # Optional + defaulted: on servers where ARTIFACT_ALIASES_PAGINATION is
-    # disabled, this field is stripped from the request via `omit_fields`
+    # Optional + defaulted: on servers where ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+    # is disabled, this field is stripped from the request via `omit_fields`
     # (it's non-nullable in the schema, so an old server can't resolve it),
     # and the response JSON omits the key entirely.
     aliases_connection: (

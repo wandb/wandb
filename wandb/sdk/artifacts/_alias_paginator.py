@@ -25,7 +25,7 @@ class _MembershipAliasesVars(PaginatorVars):
     entity: str
     project: str
     name: str
-    per_page: int = 1_000
+    per_page: int = 100
 
 
 class MembershipAliasesPaginator(RelayPaginator["ArtifactAliasFragment", str]):
@@ -41,7 +41,7 @@ class MembershipAliasesPaginator(RelayPaginator["ArtifactAliasFragment", str]):
         entity: str,
         project: str,
         name: str,
-        per_page: int = 1_000,
+        per_page: int = 100,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -89,7 +89,7 @@ def split_membership_aliases(
     entity: str,
     project: str,
     name: str,
-    per_page: int = 1_000,
+    per_page: int = 100,
 ) -> tuple[list[str], MembershipAliasesPaginator | None]:
     """Split a membership's aliases into what's already fetched and what isn't.
 

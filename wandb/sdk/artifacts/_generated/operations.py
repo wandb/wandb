@@ -1020,7 +1020,7 @@ fragment TagFragment on Tag {
 """
 
 ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
-query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = false, $perPage: Int = 1000) {
+query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = false, $perPage: Int = 100) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
       ...ArtifactMembershipFragment
@@ -1133,7 +1133,7 @@ fragment TagFragment on Tag {
 """
 
 ARTIFACT_MEMBERSHIP_ALIASES_GQL = """
-query ArtifactMembershipAliases($entity: String!, $project: String!, $name: String!, $cursor: String, $perPage: Int = 1000) {
+query ArtifactMembershipAliases($entity: String!, $project: String!, $name: String!, $cursor: String, $perPage: Int = 100) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
       aliasesConnection(after: $cursor, first: $perPage) {
