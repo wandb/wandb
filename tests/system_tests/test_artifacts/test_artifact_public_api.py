@@ -774,12 +774,15 @@ def test_fetch_artifact_paginates_membership_aliases(
     project_internal_gql_id,
     pagination_enabled,
 ):
-    """`Artifact._from_name()` should paginate membership aliases when the server supports it.
+    """`Artifact._from_name()` should request only the first page of membership aliases.
 
     Regression coverage for the `ArtifactMembershipByName` query fetching a
     membership's complete, unbounded `aliases` list even when only the first
     page is needed -- the root cause of multi-second responses for artifacts
-    with many aliases.
+    with many aliases. Any further pages are fetched lazily, only once
+    something actually reads `Artifact.aliases` (covered separately in
+    `tests/unit_tests/test_artifacts/test_artifact_from_name.py`); merely
+    fetching the artifact must never request them.
     """
     from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
@@ -894,12 +897,10 @@ def test_fetch_artifact_paginates_membership_aliases(
     api.artifact("test-entity/test-project/test-collection:v0")
 
     assert membership_by_name_responder.total_calls == 1
-    if pagination_enabled:
-        # The membership's second alias page was fetched via the dedicated
-        # continuation query instead of relying on the unbounded flat field.
-        assert membership_aliases_responder.total_calls == 1
-    else:
-        assert membership_aliases_responder.total_calls == 0
+    # Fetching the artifact never requests the continuation page on its own,
+    # whether or not pagination is enabled -- that's deferred until something
+    # reads `.aliases`, which this test never does.
+    assert membership_aliases_responder.total_calls == 0
 
 
 def test_log_artifact_ignores_wandb_project_env_var(

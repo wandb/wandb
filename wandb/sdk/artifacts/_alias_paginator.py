@@ -82,7 +82,7 @@ class MembershipAliasesPaginator(RelayPaginator["ArtifactAliasFragment", str]):
         return node.alias
 
 
-def collect_membership_aliases(
+def split_membership_aliases(
     first_page: ArtifactMembershipByNameProjectArtifactCollectionMembershipAliasesConnection,
     service_api: ServiceApi,
     *,
@@ -90,12 +90,19 @@ def collect_membership_aliases(
     project: str,
     name: str,
     per_page: int = 1_000,
-) -> list[str]:
-    """Return all membership alias names, continuing past `first_page` if needed."""
+) -> tuple[list[str], MembershipAliasesPaginator | None]:
+    """Split a membership's aliases into what's already fetched and what isn't.
+
+    Returns `first_page`'s alias names, plus -- only if there's more --
+    a paginator that lazily continues fetching the rest from its cursor.
+    The caller decides whether/when it's worth paying for those extra
+    requests, instead of always fetching every page up front.
+    """
     aliases = [edge.node.alias for edge in first_page.edges if edge.node]
 
+    remaining = None
     if first_page.page_info.has_next_page:
-        paginator = MembershipAliasesPaginator(
+        remaining = MembershipAliasesPaginator(
             service_api,
             entity=entity,
             project=project,
@@ -103,6 +110,5 @@ def collect_membership_aliases(
             per_page=per_page,
             start=first_page.page_info.end_cursor,
         )
-        aliases.extend(paginator)
 
-    return aliases
+    return aliases, remaining

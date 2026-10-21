@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
+    ArtifactFragment,
     ArtifactMembershipAliases,
     ArtifactMembershipByName,
 )
@@ -60,6 +61,7 @@ def test_from_name_feature_disabled_uses_flat_aliases(mocker):
 
     _, from_membership_kwargs = from_membership.call_args
     assert from_membership_kwargs["membership_aliases"] is None
+    assert from_membership_kwargs["aliases_paginator"] is None
 
 
 def test_from_name_feature_enabled_single_page(mocker):
@@ -87,9 +89,15 @@ def test_from_name_feature_enabled_single_page(mocker):
     service_api.execute_graphql.assert_called_once()
     _, from_membership_kwargs = from_membership.call_args
     assert from_membership_kwargs["membership_aliases"] == ["v0"]
+    assert from_membership_kwargs["aliases_paginator"] is None
 
 
-def test_from_name_feature_enabled_paginates_remaining_aliases(mocker):
+def test_from_name_feature_enabled_defers_remaining_pages(mocker):
+    """`_from_name` should not fetch past the first page on its own.
+
+    Remaining pages are only worth fetching if something actually reads
+    `.aliases`; `_from_name` itself must not pay for that eagerly.
+    """
     service_api = Mock()
     service_api.feature_enabled.side_effect = _feature_enabled(True)
 
@@ -98,6 +106,87 @@ def test_from_name_feature_enabled_paginates_remaining_aliases(mocker):
             "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
             "edges": [{"node": {"id": "PLACEHOLDER", "alias": "v0"}}],
         },
+    )
+    service_api.execute_graphql.return_value = first_response
+    from_membership = mocker.patch.object(Artifact, "_from_membership")
+
+    Artifact._from_name(path=_PATH, service_api=service_api)
+
+    # Exactly one request: the continuation page is never fetched here.
+    service_api.execute_graphql.assert_called_once()
+    _, from_membership_kwargs = from_membership.call_args
+    assert from_membership_kwargs["membership_aliases"] == ["v0"]
+    assert from_membership_kwargs["aliases_paginator"] is not None
+
+
+def _full_membership_data(*, aliases_connection):
+    """A membership payload with enough real data to skip `_from_membership`."""
+    artifact_fragment = ArtifactFragment(
+        name="test-collection",
+        version_index=0,
+        artifact_type={"name": "dataset"},
+        artifact_sequence={
+            "name": "test-collection",
+            "project": {
+                "id": "UHJvamVjdDox",
+                "internalId": "UHJvamVjdEludGVybmFsSWQ6MQ==",
+                "name": "test-project",
+                "entity": {"name": "test-entity"},
+            },
+        },
+        id="PLACEHOLDER",
+        description=None,
+        tags=[],
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
+        metadata="{}",
+        state="COMMITTED",
+        size=0,
+        digest="FAKE_DIGEST",
+        file_count=0,
+        commit_hash="PLACEHOLDER",
+        created_at="PLACEHOLDER",
+        updated_at=None,
+        history_step=None,
+    ).model_dump()
+
+    data = _membership_data(aliases_connection=aliases_connection)
+    data["artifact"] = artifact_fragment
+    data["artifactCollection"] = {
+        "__typename": "ArtifactPortfolio",
+        "name": "test-collection",
+        "project": {
+            "id": "UHJvamVjdDox",
+            "internalId": "UHJvamVjdEludGVybmFsSWQ6MQ==",
+            "name": "test-project",
+            "entity": {"name": "test-entity"},
+        },
+    }
+    return data
+
+
+def test_aliases_property_lazily_fetches_remaining_pages():
+    """Fetching the artifact shouldn't pay for pages nothing asked for.
+
+    Only touching `.aliases` should trigger the continuation request; the
+    fetch that constructs the `Artifact` must not do it on its own.
+    """
+    service_api = Mock()
+    service_api.feature_enabled.side_effect = _feature_enabled(True)
+
+    first_response = ArtifactMembershipByName.model_validate(
+        {
+            "project": {
+                "artifactCollectionMembership": _full_membership_data(
+                    aliases_connection={
+                        "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
+                        "edges": [
+                            {"node": {"id": "PLACEHOLDER", "alias": "first-page"}}
+                        ],
+                    }
+                )
+            }
+        }
     )
     second_response = ArtifactMembershipAliases.model_validate(
         {
@@ -112,13 +201,18 @@ def test_from_name_feature_enabled_paginates_remaining_aliases(mocker):
         }
     )
     service_api.execute_graphql.side_effect = [first_response, second_response]
-    from_membership = mocker.patch.object(Artifact, "_from_membership")
 
-    Artifact._from_name(path=_PATH, service_api=service_api)
+    artifact = Artifact._from_name(path=_PATH, service_api=service_api)
 
+    # Constructing the artifact only cost the first page.
+    service_api.execute_graphql.assert_called_once()
+
+    aliases = artifact.aliases
+
+    # Reading `.aliases` is what triggers the continuation request.
     assert service_api.execute_graphql.call_count == 2
-    first_call_kwargs = service_api.execute_graphql.call_args_list[0].kwargs
-    assert "aliases" in first_call_kwargs["omit_fields"]
+    assert set(aliases) == {"first-page", "best"}
 
-    _, from_membership_kwargs = from_membership.call_args
-    assert from_membership_kwargs["membership_aliases"] == ["v0", "best"]
+    # A second read doesn't re-fetch anything.
+    assert artifact.aliases == aliases
+    assert service_api.execute_graphql.call_count == 2

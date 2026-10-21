@@ -113,6 +113,7 @@ if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
     from wandb.apis.public.service_api import ServiceApi
 
+    from ._alias_paginator import MembershipAliasesPaginator
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
@@ -283,6 +284,11 @@ class Artifact:
         self._ttl_changed: bool = False
         self._aliases: list[str] = []
         self._saved_aliases: list[str] = []
+        # Set when `._aliases` only reflects the first page of a paginated
+        # membership fetch. Resolved (and cleared) on first access to
+        # `.aliases`, so the remaining pages are only fetched if something
+        # actually reads them.
+        self._aliases_paginator: MembershipAliasesPaginator | None = None
         self._tags: list[str] = []
         self._saved_tags: list[str] = []
         self._distributed_id: str | None = None
@@ -418,14 +424,18 @@ class Artifact:
             raise ValueError(msg)
 
         membership_aliases = None
+        aliases_paginator = None
         if paginate_aliases:
-            from ._alias_paginator import collect_membership_aliases
+            from ._alias_paginator import split_membership_aliases
 
             if (first_page := membership.aliases_connection) is None:
                 msg = f"Expected 'aliasesConnection' in response for {path.to_str()!r}"
                 raise ValueError(msg)
 
-            membership_aliases = collect_membership_aliases(
+            # Only the first page is fetched now. Any remaining pages are
+            # fetched lazily, the first time something actually reads
+            # `.aliases` -- not every time an artifact is looked up.
+            membership_aliases, aliases_paginator = split_membership_aliases(
                 first_page,
                 service_api,
                 entity=path.prefix,
@@ -438,6 +448,7 @@ class Artifact:
             target=path,
             service_api=service_api,
             membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
         )
 
     @classmethod
@@ -448,6 +459,7 @@ class Artifact:
         service_api: ServiceApi,
         *,
         membership_aliases: list[str] | None = None,
+        aliases_paginator: MembershipAliasesPaginator | None = None,
     ) -> Artifact:
         from ._validators import is_artifact_registry_project
 
@@ -481,6 +493,7 @@ class Artifact:
             service_api,
             membership=membership,
             membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
         )
 
     @classmethod
@@ -493,6 +506,7 @@ class Artifact:
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
         membership_aliases: list[str] | None = None,
+        aliases_paginator: MembershipAliasesPaginator | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -502,7 +516,10 @@ class Artifact:
         artifact._name = path.name
 
         artifact._assign_attrs(
-            src_art, membership=membership, membership_aliases=membership_aliases
+            src_art,
+            membership=membership,
+            membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
         )
 
         artifact.finalize()
@@ -522,6 +539,9 @@ class Artifact:
         membership: ArtifactMembershipFragment | None = None,
         # Overrides `membership.aliases` with a paginated alias list, if given
         membership_aliases: list[str] | None = None,
+        # Remaining, not-yet-fetched alias pages, if `membership_aliases` is
+        # only the first page. Resolved lazily -- see `_resolve_pending_aliases`.
+        aliases_paginator: MembershipAliasesPaginator | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
@@ -578,6 +598,7 @@ class Artifact:
 
         self._aliases = copy(other_aliases)
         self._saved_aliases = copy(other_aliases)
+        self._aliases_paginator = aliases_paginator
 
         self._tags = [tag.name for tag in src_art.tags]
         self._saved_tags = copy(self._tags)
@@ -1061,6 +1082,7 @@ class Artifact:
         See [Create new artifact versions](https://docs.wandb.ai/models/artifacts/create-a-new-artifact-version)
         for more information.
         """
+        self._resolve_pending_aliases()
         return self._aliases
 
     @aliases.setter
@@ -1069,7 +1091,25 @@ class Artifact:
         """Set the aliases associated with this artifact."""
         from ._validators import validate_aliases
 
+        # Resolve the existing (server-side) aliases first: otherwise
+        # overwriting `_aliases` here would silently lose whatever was only
+        # on a later, not-yet-fetched page, and `_update()` couldn't tell
+        # the server to remove it.
+        self._resolve_pending_aliases()
         self._aliases = validate_aliases(aliases)
+
+    def _resolve_pending_aliases(self) -> None:
+        """Fetch any alias pages not yet fetched, merging them in.
+
+        A no-op once there's nothing left to fetch, including for artifacts
+        that were never paginated in the first place.
+        """
+        if (paginator := self._aliases_paginator) is None:
+            return
+        self._aliases_paginator = None
+        more = [alias for alias in paginator if not alias_is_version_index(alias)]
+        self._aliases = self._aliases + more
+        self._saved_aliases = copy(self._aliases)
 
     @property
     @ensure_logged
@@ -1411,6 +1451,10 @@ class Artifact:
 
         entity, project, collection = self.entity, self.project, self.name.split(":")[0]
 
+        # Resolve any unfetched alias pages before diffing: otherwise a
+        # stale, first-page-only `_saved_aliases` could miss an alias that
+        # needs deleting, or re-add one that's already there.
+        self._resolve_pending_aliases()
         old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
         target = FullArtifactPath(prefix=entity, project=project, name=collection)
         self._add_aliases(new_aliases - old_aliases, target=target)

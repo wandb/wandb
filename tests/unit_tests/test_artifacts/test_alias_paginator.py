@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 from wandb.sdk.artifacts._alias_paginator import (
     MembershipAliasesPaginator,
-    collect_membership_aliases,
+    split_membership_aliases,
 )
 from wandb.sdk.artifacts._generated import ArtifactMembershipAliases
 from wandb.sdk.artifacts._generated.artifact_membership_by_name import (
@@ -19,11 +19,11 @@ def _connection(aliases: list[str], *, has_next_page: bool, end_cursor: str | No
     )
 
 
-def test_collect_membership_aliases_single_page():
+def test_split_membership_aliases_single_page():
     service_api = Mock()
     first_page = _connection(["v0", "best"], has_next_page=False, end_cursor=None)
 
-    aliases = collect_membership_aliases(
+    aliases, remaining = split_membership_aliases(
         first_page,
         service_api,
         entity="test-entity",
@@ -32,15 +32,36 @@ def test_collect_membership_aliases_single_page():
     )
 
     assert aliases == ["v0", "best"]
+    assert remaining is None
     service_api.execute_graphql.assert_not_called()
 
 
-def test_collect_membership_aliases_multiple_pages():
+def test_split_membership_aliases_multiple_pages():
+    """With more pages available, the caller gets an unconsumed paginator.
+
+    `split_membership_aliases` itself must not fetch anything beyond the
+    first page -- that's the caller's call to make.
+    """
     service_api = Mock()
     first_page = _connection(
         ["v0", "alias-1"], has_next_page=True, end_cursor="cursor-1"
     )
 
+    aliases, remaining = split_membership_aliases(
+        first_page,
+        service_api,
+        entity="test-entity",
+        project="test-project",
+        name="test-collection:v0",
+        per_page=2,
+    )
+
+    assert aliases == ["v0", "alias-1"]
+    assert remaining is not None
+    service_api.execute_graphql.assert_not_called()
+
+    # The returned paginator resumes from the first page's cursor on its
+    # first fetch, once the caller actually iterates it.
     second_page_response = ArtifactMembershipAliases.model_validate(
         {
             "project": {
@@ -55,16 +76,7 @@ def test_collect_membership_aliases_multiple_pages():
     )
     service_api.execute_graphql.return_value = second_page_response
 
-    aliases = collect_membership_aliases(
-        first_page,
-        service_api,
-        entity="test-entity",
-        project="test-project",
-        name="test-collection:v0",
-        per_page=2,
-    )
-
-    assert aliases == ["v0", "alias-1", "alias-2"]
+    assert list(remaining) == ["alias-2"]
     service_api.execute_graphql.assert_called_once()
     _, kwargs = service_api.execute_graphql.call_args
     assert kwargs["variables"]["cursor"] == "cursor-1"
