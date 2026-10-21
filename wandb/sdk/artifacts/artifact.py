@@ -384,7 +384,9 @@ class Artifact:
         # Newer server versions support fetching a membership's aliases as a
         # paginated connection, instead of the unbounded flat `aliases` field.
         # This avoids multi-second responses for memberships with many aliases.
-        paginate_aliases = service_api.feature_enabled(pb.ARTIFACT_ALIASES_PAGINATION)
+        paginate_aliases = service_api.feature_enabled(
+            pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+        )
 
         omit_fields = omit_artifact_fields(service_api)
         if paginate_aliases:

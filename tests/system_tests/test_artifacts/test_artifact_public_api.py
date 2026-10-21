@@ -786,14 +786,15 @@ def test_fetch_artifact_paginates_membership_aliases(
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
     # The first (and, for old servers, only) `ServerFeaturesQuery` response
-    # answers the `ARTIFACT_ALIASES_PAGINATION` check in `Artifact._from_name`.
+    # answers the `ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION` check in
+    # `Artifact._from_name`.
     server_features_responder = Constant(
         content={
             "data": {
                 "serverInfo": {
                     "features": [
                         {
-                            "name": "ARTIFACT_ALIASES_PAGINATION",
+                            "name": "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
                             "isEnabled": pagination_enabled,
                         }
                     ]

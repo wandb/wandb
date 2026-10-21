@@ -38,7 +38,10 @@ def _membership_by_name_response(**kwargs):
 
 
 def _feature_enabled(enabled: bool):
-    return lambda feature, **_: feature == pb.ARTIFACT_ALIASES_PAGINATION and enabled
+    return (
+        lambda feature, **_: feature == pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+        and enabled
+    )
 
 
 def test_from_name_feature_disabled_uses_flat_aliases(mocker):
