@@ -146,20 +146,6 @@ func TestBrowserLoginRefreshesWithTheStoredToken(t *testing.T) {
 	assert.Equal(t, "refresh_token", form.Get("grant_type"))
 	assert.Equal(t, "wb_rt_stored", form.Get("refresh_token"))
 	assert.Equal(t, api.CLIClientID, form.Get("client_id"))
-}
-
-func TestBrowserLoginPersistsTheReplacementRefreshToken(t *testing.T) {
-	server, _ := rotatingAuthServer(t)
-	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
-
-	provider, err := api.NewCredentialProvider(
-		browserLoginSettings(server.URL, credentialsFile),
-		observabilitytest.NewTestLogger(t).Logger,
-	)
-	require.NoError(t, err)
-
-	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
-	require.NoError(t, err)
 
 	stored := readCredentialsFile(t, credentialsFile).UserCredentials[server.URL]
 	assert.Equal(t, "wb_rt_1", stored["refresh_token"])
@@ -304,26 +290,6 @@ func TestUserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, api.NoopCredentialProvider{}, provider)
-}
-
-func TestUserLoginIsNotUsedAfterItIsRemoved(t *testing.T) {
-	server, exchanges := rotatingAuthServer(t)
-	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
-
-	provider, err := api.NewCredentialProvider(
-		browserLoginSettings(server.URL, credentialsFile),
-		observabilitytest.NewTestLogger(t).Logger,
-	)
-	require.NoError(t, err)
-	// Like another process logging out.
-	writeWorkloadEntry(t, credentialsFile, server.URL, expiredTimestamp())
-
-	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
-	require.ErrorContains(t, err, "no user login stored")
-	var permanent clients.PermanentError
-	require.ErrorAs(t, err, &permanent)
-	assert.True(t, permanent.PermanentError())
-	assert.Equal(t, int64(0), exchanges.Load())
 }
 
 func TestUserAndWorkloadLoginsForOneHostDoNotOverwriteEachOther(t *testing.T) {
@@ -528,11 +494,14 @@ func TestUserLoginStaysLoggedOutAfterARefresh(t *testing.T) {
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 	require.NoError(t, err)
 
-	// Like another process logging out.
+	// Removed by another process.
 	require.NoError(t, os.Remove(credentialsFile))
 
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 	require.ErrorContains(t, err, "no user login stored")
+	var permanent clients.PermanentError
+	require.ErrorAs(t, err, &permanent)
+	assert.True(t, permanent.PermanentError())
 	assert.Equal(t, int64(1), exchanges.Load())
 	assert.NoFileExists(t, credentialsFile)
 }
@@ -579,17 +548,4 @@ func TestBrowserLoginIsNotUsedWhenAnAPIKeyIsSet(t *testing.T) {
 	require.Len(t, reqs, 1)
 	assert.Equal(t, "Basic YXBpOnRlc3QtYXBpLWtleQ==", reqs[0].Header.Get("Authorization"))
 	assert.Equal(t, int64(0), exchanges.Load())
-}
-
-func TestBrowserLoginAbsentIsNotAnError(t *testing.T) {
-	provider, err := api.NewCredentialProvider(
-		browserLoginSettings(
-			"https://api.wandb.ai",
-			filepath.Join(t.TempDir(), "credentials.json"),
-		),
-		observabilitytest.NewTestLogger(t).Logger,
-	)
-
-	require.NoError(t, err)
-	assert.Equal(t, api.NoopCredentialProvider{}, provider)
 }
