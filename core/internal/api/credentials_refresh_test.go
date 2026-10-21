@@ -29,11 +29,13 @@ func expiredTimestamp() string {
 	return time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05")
 }
 
+// writeCredentialsFile stores an expired user login for host.
 func writeCredentialsFile(t *testing.T, dir, host, refreshToken string) string {
 	t.Helper()
 	path := filepath.Join(dir, "credentials.json")
 	contents := fmt.Sprintf(`{
-  "credentials": {
+  "credentials": {},
+  "user_credentials": {
     %q: {
       "expires_at": %q,
       "access_token": "stale-access-token",
@@ -45,16 +47,57 @@ func writeCredentialsFile(t *testing.T, dir, host, refreshToken string) string {
 	return path
 }
 
-func readCredentialsFile(t *testing.T, path string) map[string]map[string]string {
+// writeWorkloadEntry stores an identity token exchange for host, in the
+// place older versions of wandb-core have always written it.
+func writeWorkloadEntry(t *testing.T, path, host, expiresAt string) {
+	t.Helper()
+	contents := fmt.Sprintf(`{
+  "credentials": {
+    %q: {
+      "expires_at": %q,
+      "access_token": "wb_at_workload",
+      "refresh_token": "wb_rt_workload"
+    }
+  }
+}`, host, expiresAt)
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+}
+
+type credentialsFileContents struct {
+	Credentials     map[string]map[string]string `json:"credentials"`
+	UserCredentials map[string]map[string]string `json:"user_credentials"`
+}
+
+func readCredentialsFile(t *testing.T, path string) credentialsFileContents {
 	t.Helper()
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	var parsed struct {
-		Credentials map[string]map[string]string `json:"credentials"`
-	}
+	var parsed credentialsFileContents
 	require.NoError(t, json.Unmarshal(contents, &parsed))
-	return parsed.Credentials
+	return parsed
+}
+
+func identityTokenSettings(host, credentialsFile, identityTokenFile string) *wbsettings.Settings {
+	return wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: host},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: identityTokenFile},
+	})
+}
+
+func writeIdentityTokenFile(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "identity.jwt")
+	require.NoError(t, os.WriteFile(path, []byte("jwt"), 0o600))
+	return path
+}
+
+func parseForm(t *testing.T, body []byte) url.Values {
+	t.Helper()
+	form, err := url.ParseQuery(string(body))
+	require.NoError(t, err)
+	return form
 }
 
 // rotatingAuthServer returns a new access token and refresh token on every exchange.
@@ -119,25 +162,19 @@ func TestBrowserLoginPersistsTheReplacementRefreshToken(t *testing.T) {
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 	require.NoError(t, err)
 
-	stored := readCredentialsFile(t, credentialsFile)[server.URL]
+	stored := readCredentialsFile(t, credentialsFile).UserCredentials[server.URL]
 	assert.Equal(t, "wb_rt_1", stored["refresh_token"])
 	assert.Equal(t, "wb_at_1", stored["access_token"])
-	assert.Equal(t, "user", stored["auth_type"])
 }
 
-func TestIdentityTokenExchangeTagsTheEntryAsWorkload(t *testing.T) {
+func TestIdentityTokenExchangeStoresTheIssuersRefreshToken(t *testing.T) {
 	server, _ := rotatingAuthServer(t)
 	dir := t.TempDir()
-	credentialsFile := writeCredentialsFile(t, dir, server.URL, "wb_rt_stored")
-	identityTokenFile := filepath.Join(dir, "identity.jwt")
-	require.NoError(t, os.WriteFile(identityTokenFile, []byte("jwt"), 0o600))
+	credentialsFile := filepath.Join(dir, "credentials.json")
+	identityTokenFile := writeIdentityTokenFile(t, dir)
 
 	provider, err := api.NewCredentialProvider(
-		wbsettings.From(&spb.Settings{
-			BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
-			CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
-			IdentityTokenFile: &wrapperspb.StringValue{Value: identityTokenFile},
-		}),
+		identityTokenSettings(server.URL, credentialsFile, identityTokenFile),
 		observabilitytest.NewTestLogger(t).Logger,
 	)
 	require.NoError(t, err)
@@ -145,27 +182,119 @@ func TestIdentityTokenExchangeTagsTheEntryAsWorkload(t *testing.T) {
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 	require.NoError(t, err)
 
-	stored := readCredentialsFile(t, credentialsFile)[server.URL]
-	assert.Equal(t, "workload", stored["auth_type"])
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 1)
+	assert.Equal(t,
+		"urn:ietf:params:oauth:grant-type:jwt-bearer",
+		parseForm(t, exchanges[0].Body).Get("grant_type"))
+	stored := readCredentialsFile(t, credentialsFile).Credentials[server.URL]
 	assert.Equal(t, "wb_rt_1", stored["refresh_token"])
 }
 
-func writeWorkloadEntry(t *testing.T, path, host, expiresAt string) {
-	t.Helper()
+func TestIdentityTokenExchangeRefreshesBeforePresentingTheJWTAgain(t *testing.T) {
+	server, _ := rotatingAuthServer(t)
+	dir := t.TempDir()
+	credentialsFile := filepath.Join(dir, "credentials.json")
+	writeWorkloadEntry(t, credentialsFile, server.URL, expiredTimestamp())
+	identityTokenFile := writeIdentityTokenFile(t, dir)
+
+	provider, err := api.NewCredentialProvider(
+		identityTokenSettings(server.URL, credentialsFile, identityTokenFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	reqs, err := httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.NoError(t, err)
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "Bearer wb_at_1", reqs[0].Header.Get("Authorization"))
+
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 1)
+	form := parseForm(t, exchanges[0].Body)
+	assert.Equal(t, "refresh_token", form.Get("grant_type"))
+	assert.Equal(t, "wb_rt_workload", form.Get("refresh_token"))
+	// The server derives the issuer's client from the token itself.
+	assert.False(t, form.Has("client_id"))
+	stored := readCredentialsFile(t, credentialsFile).Credentials[server.URL]
+	assert.Equal(t, "wb_rt_1", stored["refresh_token"])
+}
+
+func TestIdentityTokenExchangeFallsBackToTheJWTWhenRefreshIsRejected(t *testing.T) {
+	var exchanges atomic.Int64
+	server := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			n := exchanges.Add(1)
+			if req.FormValue("grant_type") == "refresh_token" {
+				// Like after the issuer's refresh setting is turned off.
+				http.Error(w, `{"error":"invalid_grant"}`, http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"access_token": fmt.Sprintf("wb_at_%d", n),
+				"expires_in":   time.Hour.Seconds(),
+			}))
+		}))
+	t.Cleanup(server.Close)
+	dir := t.TempDir()
+	credentialsFile := filepath.Join(dir, "credentials.json")
+	writeWorkloadEntry(t, credentialsFile, server.URL, expiredTimestamp())
+	identityTokenFile := writeIdentityTokenFile(t, dir)
+
+	provider, err := api.NewCredentialProvider(
+		identityTokenSettings(server.URL, credentialsFile, identityTokenFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	reqs, err := httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.NoError(t, err)
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "Bearer wb_at_2", reqs[0].Header.Get("Authorization"))
+
+	requests := server.Requests()
+	require.Len(t, requests, 2)
+	assert.Equal(t, "refresh_token", parseForm(t, requests[0].Body).Get("grant_type"))
+	assert.Equal(t,
+		"urn:ietf:params:oauth:grant-type:jwt-bearer",
+		parseForm(t, requests[1].Body).Get("grant_type"))
+	// The spent refresh token must not be kept for the next refresh.
+	stored := readCredentialsFile(t, credentialsFile).Credentials[server.URL]
+	assert.Equal(t, "wb_at_2", stored["access_token"])
+	assert.Empty(t, stored["refresh_token"])
+}
+
+func TestIdentityTokenExchangeReadsAnUntaggedEntry(t *testing.T) {
+	server, exchanges := rotatingAuthServer(t)
+	dir := t.TempDir()
+	credentialsFile := filepath.Join(dir, "credentials.json")
+	// Written by a version of wandb-core before refresh tokens existed.
 	contents := fmt.Sprintf(`{
   "credentials": {
     %q: {
-      "expires_at": %q,
-      "access_token": "wb_at_workload",
-      "refresh_token": "wb_rt_workload",
-      "auth_type": "workload"
+      "expires_at": "2099-01-01 00:00:00",
+      "access_token": "wb_at_untagged"
     }
   }
-}`, host, expiresAt)
-	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+}`, server.URL)
+	require.NoError(t, os.WriteFile(credentialsFile, []byte(contents), 0o600))
+	identityTokenFile := writeIdentityTokenFile(t, dir)
+
+	provider, err := api.NewCredentialProvider(
+		identityTokenSettings(server.URL, credentialsFile, identityTokenFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	reqs, err := httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.NoError(t, err)
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "Bearer wb_at_untagged", reqs[0].Header.Get("Authorization"))
+	assert.Equal(t, int64(0), exchanges.Load())
 }
 
-func TestBrowserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
+func TestUserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
 	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
 	writeWorkloadEntry(t, credentialsFile, "https://api.wandb.ai", expiredTimestamp())
 
@@ -178,7 +307,7 @@ func TestBrowserLoginIsNotUsedForAWorkloadRefreshToken(t *testing.T) {
 	assert.Equal(t, api.NoopCredentialProvider{}, provider)
 }
 
-func TestBrowserLoginDoesNotRefreshAWorkloadEntryWrittenLater(t *testing.T) {
+func TestUserLoginIsNotUsedAfterItIsRemoved(t *testing.T) {
 	server, exchanges := rotatingAuthServer(t)
 	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
 
@@ -187,14 +316,45 @@ func TestBrowserLoginDoesNotRefreshAWorkloadEntryWrittenLater(t *testing.T) {
 		observabilitytest.NewTestLogger(t).Logger,
 	)
 	require.NoError(t, err)
+	// Like `wandb logout`, which leaves any identity token exchange alone.
 	writeWorkloadEntry(t, credentialsFile, server.URL, expiredTimestamp())
 
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
-	require.ErrorContains(t, err, "no browser login stored")
+	require.ErrorContains(t, err, "no user login stored")
 	var permanent clients.PermanentError
 	require.ErrorAs(t, err, &permanent)
 	assert.True(t, permanent.PermanentError())
 	assert.Equal(t, int64(0), exchanges.Load())
+}
+
+func TestUserAndWorkloadLoginsForOneHostDoNotOverwriteEachOther(t *testing.T) {
+	server, _ := rotatingAuthServer(t)
+	dir := t.TempDir()
+	credentialsFile := writeCredentialsFile(t, dir, server.URL, "wb_rt_user")
+	identityTokenFile := writeIdentityTokenFile(t, dir)
+
+	workload, err := api.NewCredentialProvider(
+		identityTokenSettings(server.URL, credentialsFile, identityTokenFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+	_, err = httplayerstest.MapRequest(t, workload, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	user, err := api.NewCredentialProvider(
+		browserLoginSettings(server.URL, credentialsFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+	_, err = httplayerstest.MapRequest(t, user, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	requests := server.Requests()
+	require.Len(t, requests, 2)
+	assert.Equal(t, "wb_rt_user", parseForm(t, requests[1].Body).Get("refresh_token"))
+	stored := readCredentialsFile(t, credentialsFile)
+	assert.Equal(t, "wb_rt_1", stored.Credentials[server.URL]["refresh_token"])
+	assert.Equal(t, "wb_rt_2", stored.UserCredentials[server.URL]["refresh_token"])
 }
 
 func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
@@ -204,6 +364,12 @@ func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
 	credentialsFile := filepath.Join(dir, "credentials.json")
 	contents := fmt.Sprintf(`{
   "credentials": {
+    "https://other.example.com": {
+      "expires_at": "2099-01-01 00:00:00",
+      "access_token": "other-workload-access-token"
+    }
+  },
+  "user_credentials": {
     %q: {
       "expires_at": %q,
       "access_token": "stale-access-token",
@@ -227,9 +393,13 @@ func TestBrowserLoginLeavesOtherHostsAlone(t *testing.T) {
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 	require.NoError(t, err)
 
-	other := readCredentialsFile(t, credentialsFile)["https://other.example.com"]
+	stored := readCredentialsFile(t, credentialsFile)
+	other := stored.UserCredentials["https://other.example.com"]
 	assert.Equal(t, "other-refresh-token", other["refresh_token"])
 	assert.Equal(t, "other-access-token", other["access_token"])
+	assert.Equal(t,
+		"other-workload-access-token",
+		stored.Credentials["https://other.example.com"]["access_token"])
 }
 
 func TestBrowserLoginKeepsTheReplacementWhenItCannotBeSaved(t *testing.T) {
