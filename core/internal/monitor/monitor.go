@@ -271,8 +271,8 @@ func (sm *SystemMonitor) metadataRequest() *spb.GetMetadataRequest {
 	}
 }
 
-// probeResources merges the sidecar's probe with the CoreWeave
-// environment metadata.
+// probeResources merges the sidecar's probe with the CoreWeave and
+// Google Cloud environment metadata.
 func (sm *SystemMonitor) probeResources() *spb.Record {
 	sm.logger.Debug("monitor: probing resources")
 
@@ -285,6 +285,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 			return sm.symon.Probe(ctx, sm.metadataRequest())
 		},
 		sm.coreweave.Probe,
+		probeGoogleCloud,
 	} {
 		wg.Go(func() {
 			defer func() {

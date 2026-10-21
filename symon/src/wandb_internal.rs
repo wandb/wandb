@@ -2774,6 +2774,20 @@ pub struct CoreWeaveInfo {
     #[prost(string, tag = "3")]
     pub region: ::prost::alloc::string::String,
 }
+/// GoogleCloudInfo stores information about a Google Cloud compute environment.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GoogleCloudInfo {
+    #[prost(string, tag = "1")]
+    pub project_id: ::prost::alloc::string::String,
+    /// The VM's zone, such as "us-central1-b".
+    #[prost(string, tag = "2")]
+    pub zone: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub instance_id: ::prost::alloc::string::String,
+    /// The GKE cluster, when in one.
+    #[prost(string, tag = "4")]
+    pub cluster_name: ::prost::alloc::string::String,
+}
 /// EnvironmentRecord stores a snapshot of the system, hardware, software,
 /// and execution parameters captured at a run writer initialization.
 ///
@@ -2885,6 +2899,9 @@ pub struct EnvironmentRecord {
     /// Information about CoreWeave cloud environment.
     #[prost(message, optional, tag = "30")]
     pub coreweave: ::core::option::Option<CoreWeaveInfo>,
+    /// Information about the Google Cloud environment.
+    #[prost(message, optional, tag = "31")]
+    pub google_cloud: ::core::option::Option<GoogleCloudInfo>,
     /// A unique identifier for this writer session.
     ///
     /// This ID distinguishes this writer's metadata from that of other writers
