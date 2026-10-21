@@ -52,6 +52,10 @@ type RunInfo struct {
 	// runSummary is the summary of the run.
 	runSummary map[string]any
 
+	// systemMetrics is the last value of each system metric the run logged,
+	// keyed "system.<name>".
+	systemMetrics map[string]any
+
 	// displayName is the display name of the run.
 	displayName string
 
@@ -158,6 +162,11 @@ type ParquetHistorySource struct {
 	cancel context.CancelFunc
 	close  sync.Once
 
+	// started is set by the first Read, which describes the run before
+	// reading its history. A run that has not logged history yet keeps
+	// currentStep at zero, so currentStep cannot tell the first Read apart.
+	started bool
+
 	// readerDone is a flag to indicate if the reader is done.
 	readerDone bool
 
@@ -172,6 +181,16 @@ type ParquetHistorySource struct {
 
 	// graphqlClient is used to refresh metadata for live remote runs.
 	graphqlClient graphql.Client
+
+	// systemMetrics delivers the run's system metrics, which load in the
+	// background so the boot load does not wait for them. Nil when there
+	// are none or once they have been read.
+	systemMetrics <-chan systemMetricsBatch
+
+	// systemMetricsLast is the time of the latest system metric sample
+	// delivered so far, in seconds since the Unix epoch, where a live run's
+	// next query starts. Zero before the first batch.
+	systemMetricsLast float64
 
 	// runPath identifies the remote run in messages.
 	runPath string
@@ -215,7 +234,7 @@ func newParquetHistorySource(
 	ctx, cancel := context.WithCancel(ctx)
 	initialMaxStep := maxStepFromSummary(runInfo.runSummary)
 
-	return &ParquetHistorySource{
+	s := &ParquetHistorySource{
 		logger:           logger,
 		ctx:              ctx,
 		cancel:           cancel,
@@ -228,6 +247,8 @@ func newParquetHistorySource(
 		liveReader:       liveReader,
 		graphqlClient:    graphqlClient,
 	}
+	s.systemMetrics = s.loadSystemMetrics()
+	return s
 }
 
 // InitializeParquetHistorySource returns a tea.Cmd that initializes a
@@ -342,7 +363,8 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	var msgs []tea.Msg
-	if s.currentStep == 0 {
+	if !s.started {
+		s.started = true
 		msgs = append(msgs, s.runInfo.runMsg(), s.summaryMsg())
 	} else if !s.continuing {
 		refreshed, err := s.refreshRunInfo()
@@ -351,6 +373,7 @@ func (s *ParquetHistorySource) Read(
 		}
 		if refreshed {
 			msgs = append(msgs, s.runInfo.runMsg(), s.summaryMsg())
+			s.systemMetrics = s.loadSystemMetrics()
 		}
 	}
 
@@ -362,6 +385,7 @@ func (s *ParquetHistorySource) Read(
 	if len(chunk.histories) > 0 {
 		msgs = append(msgs, concatenateHistory(chunk.histories, s.runPath))
 	}
+	msgs = append(msgs, s.systemMetricsMsgs(!chunk.hasMore)...)
 
 	// After the initial boot load, switch to live data reader.
 	if !chunk.hasMore && s.runInfo.runState.mayBeLive() && !s.usingLiveReader {
@@ -707,6 +731,16 @@ func loadRunInfo(
 		runInfo.runSummary, err = simplejsonext.UnmarshalObjectString(run.SummaryMetrics)
 		if err != nil {
 			return nil, err
+		}
+	}
+	if run.SystemMetrics != "" {
+		runInfo.systemMetrics, err = simplejsonext.UnmarshalObjectString(run.SystemMetrics)
+		if err != nil {
+			logger.Warn(
+				"leet: failed to parse remote run system metrics",
+				"run", runId,
+				"error", err,
+			)
 		}
 	}
 	return runInfo, nil

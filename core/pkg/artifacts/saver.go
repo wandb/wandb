@@ -37,6 +37,17 @@ const (
 	// maxSimultaneousUploads is the maximum number of concurrent
 	// artifact save operations.
 	maxSimultaneousUploads = 128
+
+	// maxPendingFiles limits pending files across all batches
+	// for one artifact. Lowering this reduces the maximum files
+	// per CreateArtifactFiles request to reduce chance of backend
+	// timeout from deduplication checks.
+	maxPendingFiles = 5_000
+
+	// maxActiveBatches is the target number of batches in flight,
+	// including CreateArtifactFiles requests and subsequent file
+	// uploads. Max batch size is maxPendingFiles / maxActiveBatches.
+	maxActiveBatches = 5
 )
 
 // ArtifactSaveManager manages artifact uploads.
@@ -120,7 +131,7 @@ func (as *ArtifactSaveManager) Save(
 			artifact:            artifact,
 			historyStep:         historyStep,
 			stagingDir:          stagingDir,
-			maxActiveBatches:    5,
+			maxActiveBatches:    maxActiveBatches,
 			resultChan:          resultChan,
 			// these are functions so that we can resolve server flags lazily
 			useArtifactProjectEntityInfo:          as.useArtifactProjectEntityInfo(),
@@ -611,7 +622,7 @@ func (as *ArtifactSaver) batchSize() int {
 	// We want to keep the number of pending uploads under the concurrency limit until
 	// we know how fast they upload.
 	minBatchSize := filetransfer.DefaultConcurrencyLimit / as.maxActiveBatches
-	maxBatchSize := 10000 / as.maxActiveBatches
+	maxBatchSize := maxPendingFiles / as.maxActiveBatches
 	sinceStart := time.Since(as.startTime)
 	if as.numDone < filetransfer.DefaultConcurrencyLimit || sinceStart < 1*time.Second {
 		return minBatchSize
