@@ -1518,6 +1518,34 @@ type QueryProjectRunsResponse struct {
 // GetProject returns QueryProjectRunsResponse.Project, and is useful for accessing the field via an interface.
 func (v *QueryProjectRunsResponse) GetProject() *QueryProjectRunsProject { return v.Project }
 
+// QueryRunBucketedHistoryProject includes the requested fields of the GraphQL type Project.
+type QueryRunBucketedHistoryProject struct {
+	Run *QueryRunBucketedHistoryProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunBucketedHistoryProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryProject) GetRun() *QueryRunBucketedHistoryProjectRun { return v.Run }
+
+// QueryRunBucketedHistoryProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunBucketedHistoryProjectRun struct {
+	BucketedHistory []interface{} `json:"bucketedHistory"`
+}
+
+// GetBucketedHistory returns QueryRunBucketedHistoryProjectRun.BucketedHistory, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryProjectRun) GetBucketedHistory() []interface{} {
+	return v.BucketedHistory
+}
+
+// QueryRunBucketedHistoryResponse is returned by QueryRunBucketedHistory on success.
+type QueryRunBucketedHistoryResponse struct {
+	Project *QueryRunBucketedHistoryProject `json:"project"`
+}
+
+// GetProject returns QueryRunBucketedHistoryResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryResponse) GetProject() *QueryRunBucketedHistoryProject {
+	return v.Project
+}
+
 // QueryRunInfoProject includes the requested fields of the GraphQL type Project.
 type QueryRunInfoProject struct {
 	Run *QueryRunInfoProjectRun `json:"run"`
@@ -1530,10 +1558,14 @@ func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
 type QueryRunInfoProjectRun struct {
 	LeetRun        `json:"-"`
 	SummaryMetrics string `json:"summaryMetrics"`
+	SystemMetrics  string `json:"systemMetrics"`
 }
 
 // GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *QueryRunInfoProjectRun) GetSummaryMetrics() string { return v.SummaryMetrics }
+
+// GetSystemMetrics returns QueryRunInfoProjectRun.SystemMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSystemMetrics() string { return v.SystemMetrics }
 
 // GetName returns QueryRunInfoProjectRun.Name, and is useful for accessing the field via an interface.
 func (v *QueryRunInfoProjectRun) GetName() string { return v.LeetRun.Name }
@@ -1581,6 +1613,8 @@ func (v *QueryRunInfoProjectRun) UnmarshalJSON(b []byte) error {
 type __premarshalQueryRunInfoProjectRun struct {
 	SummaryMetrics string `json:"summaryMetrics"`
 
+	SystemMetrics string `json:"systemMetrics"`
+
 	Name string `json:"name"`
 
 	DisplayName string `json:"displayName"`
@@ -1606,6 +1640,7 @@ func (v *QueryRunInfoProjectRun) __premarshalJSON() (*__premarshalQueryRunInfoPr
 	var retval __premarshalQueryRunInfoProjectRun
 
 	retval.SummaryMetrics = v.SummaryMetrics
+	retval.SystemMetrics = v.SystemMetrics
 	retval.Name = v.LeetRun.Name
 	retval.DisplayName = v.LeetRun.DisplayName
 	retval.State = v.LeetRun.State
@@ -3371,6 +3406,26 @@ func (v *__QueryProjectRunsInput) GetOrder() *string { return v.Order }
 // GetCursor returns __QueryProjectRunsInput.Cursor, and is useful for accessing the field via an interface.
 func (v *__QueryProjectRunsInput) GetCursor() *string { return v.Cursor }
 
+// __QueryRunBucketedHistoryInput is used internally by genqlient
+type __QueryRunBucketedHistoryInput struct {
+	Entity  string   `json:"entity"`
+	Project string   `json:"project"`
+	Run     string   `json:"run"`
+	Specs   []string `json:"specs"`
+}
+
+// GetEntity returns __QueryRunBucketedHistoryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunBucketedHistoryInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunBucketedHistoryInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetRun() string { return v.Run }
+
+// GetSpecs returns __QueryRunBucketedHistoryInput.Specs, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetSpecs() []string { return v.Specs }
+
 // __QueryRunInfoInput is used internally by genqlient
 type __QueryRunInfoInput struct {
 	Entity  string `json:"entity"`
@@ -4835,6 +4890,48 @@ func QueryProjectRuns(
 	return data_, err_
 }
 
+// The query executed by QueryRunBucketedHistory.
+const QueryRunBucketedHistory_Operation = `
+query QueryRunBucketedHistory ($entity: String!, $project: String!, $run: String!, $specs: [JSONString!]!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			bucketedHistory(specs: $specs)
+		}
+	}
+}
+`
+
+func QueryRunBucketedHistory(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	specs []string,
+) (data_ *QueryRunBucketedHistoryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunBucketedHistory",
+		Query:  QueryRunBucketedHistory_Operation,
+		Variables: &__QueryRunBucketedHistoryInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Specs:   specs,
+		},
+	}
+
+	data_ = &QueryRunBucketedHistoryResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by QueryRunInfo.
 const QueryRunInfo_Operation = `
 query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
@@ -4842,6 +4939,7 @@ query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
 		run(name: $run) {
 			... LeetRun
 			summaryMetrics
+			systemMetrics
 		}
 	}
 }

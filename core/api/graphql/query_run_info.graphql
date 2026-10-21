@@ -8,6 +8,8 @@ query QueryRunInfo(
             ...LeetRun
             # @genqlient(pointer: false)
             summaryMetrics
+            # @genqlient(pointer: false)
+            systemMetrics
         }
     }
 }

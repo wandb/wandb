@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -183,6 +184,41 @@ func TestParquetHistorySource_LiveRun(t *testing.T) {
 	require.Nil(t, source.NextLiveReadCmd(readCmd, false))
 }
 
+// A live run opened before it logged any history keeps polling the backend
+// for its state.
+func TestParquetHistorySource_LiveRunWithoutHistoryRefreshes(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		runInfoResponse("crashed", `{}`),
+	)
+	runInfo := testRunInfo(map[string]any{})
+	runInfo.runState = RunStateRunning
+	source := newParquetHistorySource(
+		t.Context(),
+		runInfo,
+		&fakeStepReader{},
+		&fakeStepReader{},
+		observability.NewNoOpLogger(),
+		mockGQL,
+	)
+	readCmd := func() tea.Msg { return nil }
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch := msg.(ChunkedBatchMsg)
+	require.False(t, batch.HasMore)
+	require.Len(t, batch.Msgs, 2)
+	require.NotNil(t, source.NextLiveReadCmd(readCmd, false))
+
+	msg, err = source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch = msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 2)
+	assert.Equal(t, RunStateCrashed, *batch.Msgs[0].(RunMsg).State)
+	require.Nil(t, source.NextLiveReadCmd(readCmd, false))
+}
+
 // A live run that logs sparse steps must not stall on an empty window
 // below the step its summary reports.
 func TestParquetHistorySource_LiveRunSkipsStepGaps(t *testing.T) {
@@ -209,6 +245,113 @@ func TestParquetHistorySource_LiveRunSkipsStepGaps(t *testing.T) {
 	batch := msg.(ChunkedBatchMsg)
 	require.Len(t, batch.Msgs, 3)
 	assert.Equal(t, []float64{250}, batch.Msgs[2].(HistoryMsg).Metrics["loss"].X)
+}
+
+func TestParquetHistorySource_Read_SystemMetrics(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":1700000000.4,"bucketSize":3,
+			 "system/cpuAvg":42,"system/cpuMin":40,"system/gpu.0.gpuAvg":7},
+			{"_timestampAvg":1700000060,"system/cpuAvg":55,"system/cpuHasNaN":false}
+		]]}}}`,
+	)
+	runInfo := testRunInfo(map[string]any{"_step": int64(0)})
+	runInfo.systemMetrics = map[string]any{
+		"system.gpu.0.gpu":  int64(3),
+		"system.cpu":        0.5,
+		"system.gpu.0.name": "H100",
+		"_runtime":          12.5,
+	}
+	source := newParquetHistorySource(
+		t.Context(),
+		runInfo,
+		&fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}},
+		&fakeStepReader{},
+		observability.NewNoOpLogger(),
+		mockGQL,
+	)
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+
+	batch := msg.(ChunkedBatchMsg)
+	require.False(t, batch.HasMore)
+	require.Len(t, batch.Msgs, 5)
+	assert.Equal(t, StatsMsg{
+		RunPath:   "entity/project/run-id",
+		Timestamp: 1700000000,
+		Metrics:   map[string]float64{"cpu": 42, "gpu.0.gpu": 7},
+	}, batch.Msgs[3])
+	assert.Equal(t, StatsMsg{
+		RunPath:   "entity/project/run-id",
+		Timestamp: 1700000060,
+		Metrics:   map[string]float64{"cpu": 55},
+	}, batch.Msgs[4])
+
+	requests := mockGQL.AllRequests()
+	require.Len(t, requests, 1)
+	gqlmock.AssertVariables(t, requests[0], gqlmock.GQLVar("specs", gomock.Eq([]any{
+		`{"bins":500,"keys":["system/cpu","system/gpu.0.gpu"],"xAxis":"_timestamp"}`,
+	})))
+}
+
+// A live run's poll fetches the system metrics logged since the last
+// sample, which the inclusive bound returns again and the source drops.
+func TestParquetHistorySource_LiveRun_SystemMetrics(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":100,"_timestampLast":100,"system/cpuAvg":1},
+			{"_timestampAvg":110.5,"_timestampLast":111,"system/cpuAvg":2}
+		]]}}}`,
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		`{"project":{"run":{"name":"run-id","state":"running",
+			"summaryMetrics":"{\"_step\":0}","systemMetrics":"{\"system.cpu\":3}"}}}`,
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":111,"_timestampLast":111,"system/cpuAvg":2},
+			{"_timestampAvg":120,"_timestampLast":120,"system/cpuAvg":3}
+		]]}}}`,
+	)
+	runInfo := testRunInfo(map[string]any{"_step": int64(0)})
+	runInfo.runState = RunStateRunning
+	runInfo.systemMetrics = map[string]any{"system.cpu": 1.0}
+	source := newParquetHistorySource(
+		t.Context(),
+		runInfo,
+		&fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}},
+		&fakeStepReader{},
+		observability.NewNoOpLogger(),
+		mockGQL,
+	)
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch := msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 5)
+	assert.Equal(t, int64(110), batch.Msgs[4].(StatsMsg).Timestamp)
+
+	msg, err = source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch = msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 3)
+	assert.Equal(t, StatsMsg{
+		RunPath:   "entity/project/run-id",
+		Timestamp: 120,
+		Metrics:   map[string]float64{"cpu": 3},
+	}, batch.Msgs[2])
+
+	requests := mockGQL.AllRequests()
+	gqlmock.AssertVariables(t, requests[len(requests)-1], gqlmock.GQLVar("specs", gomock.Eq([]any{
+		`{"bins":500,"keys":["system/cpu"],"minX":111,"xAxis":"_timestamp"}`,
+	})))
 }
 
 func TestParquetHistorySource_Close(t *testing.T) {
@@ -269,10 +412,11 @@ func TestLoadRunInfo(t *testing.T) {
 				"run": {
 					"name": "run-id",
 					"displayName": "run_display_name",
-					"summaryMetrics": %q
+					"summaryMetrics": %q,
+					"systemMetrics": %q
 				}
 			}
-		}`, `{"_step":1000,"loss":0.1}`),
+		}`, `{"_step":1000,"loss":0.1}`, `{"system.cpu":12.5}`),
 	)
 
 	runInfo, err := loadRunInfo(
@@ -284,6 +428,7 @@ func TestLoadRunInfo(t *testing.T) {
 	assert.Equal(t, "run-id", runInfo.runId)
 	assert.Equal(t, "run_display_name", runInfo.displayName)
 	assert.Equal(t, int64(1000), maxStepFromSummary(runInfo.runSummary))
+	assert.Equal(t, map[string]any{"system.cpu": 12.5}, runInfo.systemMetrics)
 }
 
 func TestLoadRunInfo_RunNotFound(t *testing.T) {
