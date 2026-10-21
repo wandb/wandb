@@ -55,6 +55,9 @@ const (
 
 	// Refresh retries must finish within the server's grace period for a
 	// resent refresh token, which is otherwise treated as a replay.
+	//
+	// refreshExchangeTimeout bounds the whole refresh, including retries,
+	// whichever client makes it.
 	refreshExchangeRetryMax       = 2
 	refreshExchangeAttemptTimeout = 8 * time.Second
 	refreshExchangeRetryWaitMin   = time.Second
@@ -63,6 +66,19 @@ const (
 
 	// CLIClientID is the CLI's public OAuth client ID. It is not a secret.
 	CLIClientID = "wandb-cli"
+)
+
+// credentialsKind selects one of the maps in the credentials file.
+type credentialsKind int
+
+const (
+	// identityTokenCredentials are exchanges of an identity token with a JWT
+	// issuer trusted by the W&B server, stored under "credentials".
+	identityTokenCredentials credentialsKind = iota
+
+	// userCredentials are logins the user completed themselves, like a
+	// browser login, stored under "user_credentials".
+	userCredentials
 )
 
 // CredentialProvider adds credentials to HTTP requests.
@@ -79,7 +95,8 @@ type AccessTokenProvider interface {
 
 // NewCredentialProvider creates a new credential provider based on the SDK
 // settings. Settings for JWT authentication are prioritized above API key
-// authentication, and a browser login is used only when neither is configured.
+// authentication, and a user login stored in the credentials file is used
+// only when neither is configured.
 func NewCredentialProvider(
 	s *settings.Settings,
 	logger *slog.Logger,
@@ -116,7 +133,7 @@ func NewCredentialProvider(
 		return &apiKeyCredentialProvider{apiKey: apiKey}, nil
 	}
 
-	if hasStoredRefreshToken(s.GetCredentialsFile(), s.GetBaseURL()) {
+	if hasStoredUserLogin(s.GetCredentialsFile(), s.GetBaseURL()) {
 		// Like the client above, this must not attach credentials of its own.
 		exchangeClient := NewClient(ClientOptions{
 			RetryMax:        refreshExchangeRetryMax,
@@ -201,6 +218,10 @@ func (c NoopCredentialProvider) WrapHTTP(
 // with its expiration. The expiration is checked each time the access token is
 // used, and refreshed if it is at or near expiration.
 //
+// A JWT issuer may also return a refresh token. When one is stored, it is
+// used to renew the access token before the JWT is presented again, since
+// the server may reject a JWT it has already seen.
+//
 // The exchange is made with httpClient, which bounds how long a request that
 // depends on the access token can wait for it, and which must not itself
 // supply credentials.
@@ -221,6 +242,7 @@ func NewOAuth2CredentialProvider(
 	return newOAuth2CredentialProvider(
 		baseURL,
 		credentialsFilePath,
+		identityTokenCredentials,
 		&assertionExchange{
 			baseURL:               baseURL,
 			identityTokenFilePath: identityTokenFilePath,
@@ -231,7 +253,7 @@ func NewOAuth2CredentialProvider(
 }
 
 // NewRefreshTokenCredentialProvider creates a provider that renews access
-// tokens using the refresh token a browser login stores in the credentials file.
+// tokens using the refresh token a user login stores in the credentials file.
 func NewRefreshTokenCredentialProvider(
 	baseURL string,
 	credentialsFilePath string,
@@ -241,8 +263,10 @@ func NewRefreshTokenCredentialProvider(
 	return newOAuth2CredentialProvider(
 		baseURL,
 		credentialsFilePath,
+		userCredentials,
 		&refreshTokenExchange{
 			baseURL:    baseURL,
+			clientID:   CLIClientID,
 			httpClient: httpClient,
 		},
 		logger,
@@ -252,12 +276,14 @@ func NewRefreshTokenCredentialProvider(
 func newOAuth2CredentialProvider(
 	baseURL string,
 	credentialsFilePath string,
+	kind credentialsKind,
 	exchange tokenExchange,
 	logger *slog.Logger,
 ) *oauth2CredentialProvider {
 	return &oauth2CredentialProvider{
 		baseURL:             baseURL,
 		credentialsFilePath: credentialsFilePath,
+		kind:                kind,
 		exchange:            exchange,
 		// A separate file, since saving replaces the credentials file.
 		fileMu:  lockedfile.MutexAt(credentialsFilePath + ".lock"),
@@ -278,6 +304,10 @@ type tokenExchange interface {
 
 // assertionExchange trades an identity token for an access token using the JWT
 // Bearer flow of RFC 7523.
+//
+// If the issuer returned a refresh token with the last access token, that is
+// tried first. The identity token is presented again only when the refresh
+// is rejected, like after the issuer stops allowing refreshes.
 type assertionExchange struct {
 	baseURL               string
 	identityTokenFilePath string
@@ -285,13 +315,31 @@ type assertionExchange struct {
 }
 
 // rotates implements tokenExchange.rotates.
+//
+// A refresh does rotate the stored refresh token, but the identity token
+// stays the root credential: a lost replacement costs one extra exchange.
 func (e *assertionExchange) rotates() bool { return false }
 
 // exchange implements tokenExchange.exchange.
 func (e *assertionExchange) exchange(
 	ctx context.Context,
-	_ accessTokenInfo,
+	current accessTokenInfo,
 ) (accessTokenInfo, error) {
+	var refreshErr error
+	if current.RefreshToken != "" {
+		// The server derives the client from a JWT issuer's refresh token,
+		// so no client_id is sent.
+		refreshed, err := postRefreshRequest(
+			ctx, e.httpClient, e.baseURL, current.RefreshToken, "")
+		if err == nil {
+			return refreshed, nil
+		}
+		if ctx.Err() != nil {
+			return accessTokenInfo{}, err
+		}
+		refreshErr = err
+	}
+
 	// Re-read each time. Identity tokens are re-minted to the same path.
 	identityToken, err := readIdentityToken(e.identityTokenFilePath)
 	if err != nil {
@@ -306,10 +354,13 @@ func (e *assertionExchange) exchange(
 		"assertion":  {identityToken},
 	})
 	if err != nil {
+		if refreshErr != nil {
+			return accessTokenInfo{}, fmt.Errorf(
+				"%w (after refreshing failed: %v)", err, refreshErr)
+		}
 		return accessTokenInfo{}, err
 	}
 
-	token.AuthType = authTypeWorkload
 	return token, nil
 }
 
@@ -317,6 +368,7 @@ func (e *assertionExchange) exchange(
 // its own replacement, using the refresh grant of RFC 6749 section 6.
 type refreshTokenExchange struct {
 	baseURL    string
+	clientID   string
 	httpClient RetryableClient
 }
 
@@ -328,18 +380,42 @@ func (e *refreshTokenExchange) exchange(
 	ctx context.Context,
 	current accessTokenInfo,
 ) (accessTokenInfo, error) {
-	if !current.hasUserRefreshToken() {
+	if current.RefreshToken == "" {
 		return accessTokenInfo{}, noStoredLoginError{}
 	}
 
+	refreshed, err := postRefreshRequest(
+		ctx, e.httpClient, e.baseURL, current.RefreshToken, e.clientID)
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+
+	return refreshed, nil
+}
+
+// postRefreshRequest performs one refresh grant and checks that the response
+// can replace the credentials it was made with.
+//
+// clientID is omitted from the request when empty.
+func postRefreshRequest(
+	ctx context.Context,
+	httpClient RetryableClient,
+	baseURL string,
+	refreshToken string,
+	clientID string,
+) (accessTokenInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, refreshExchangeTimeout)
 	defer cancel()
 
-	refreshed, err := postTokenRequest(ctx, e.httpClient, e.baseURL, url.Values{
+	form := url.Values{
 		"grant_type":    {"refresh_token"},
-		"refresh_token": {current.RefreshToken},
-		"client_id":     {CLIClientID},
-	})
+		"refresh_token": {refreshToken},
+	}
+	if clientID != "" {
+		form.Set("client_id", clientID)
+	}
+
+	refreshed, err := postTokenRequest(ctx, httpClient, baseURL, form)
 	if err != nil {
 		return accessTokenInfo{}, err
 	}
@@ -358,7 +434,6 @@ func (e *refreshTokenExchange) exchange(
 			"api: refresh response did not include a replacement refresh token")
 	}
 
-	refreshed.AuthType = authTypeUser
 	return refreshed, nil
 }
 
@@ -424,8 +499,8 @@ func postTokenRequest(
 	}, nil
 }
 
-// hasStoredRefreshToken reports whether a browser login is stored for baseURL.
-func hasStoredRefreshToken(credentialsFilePath, baseURL string) bool {
+// hasStoredUserLogin reports whether a user login is stored for baseURL.
+func hasStoredUserLogin(credentialsFilePath, baseURL string) bool {
 	contents, err := os.ReadFile(credentialsFilePath)
 	if err != nil {
 		return false
@@ -436,8 +511,7 @@ func hasStoredRefreshToken(credentialsFilePath, baseURL string) bool {
 		return false
 	}
 
-	entry := credsFile.Credentials[baseURL]
-	return entry.hasUserRefreshToken()
+	return credsFile.entry(userCredentials, baseURL).RefreshToken != ""
 }
 
 // TokenExchangeError is a definitive rejection of an identity token
@@ -464,12 +538,12 @@ func (e *TokenExchangeError) Error() string {
 // PermanentError returns true: retrying the exchange cannot succeed.
 func (e *TokenExchangeError) PermanentError() bool { return true }
 
-// noStoredLoginError means the credentials file no longer holds a browser
+// noStoredLoginError means the credentials file no longer holds a user
 // login for the base URL, like after the user logs out.
 type noStoredLoginError struct{}
 
 func (noStoredLoginError) Error() string {
-	return "no browser login stored; run `wandb login` again"
+	return "no user login stored; run `wandb login` again"
 }
 
 // PermanentError returns true: only a new login can fix it.
@@ -527,6 +601,9 @@ type oauth2CredentialProvider struct {
 	// The file path to the access token and its metadata.
 	credentialsFilePath string
 
+	// Which map in the credentials file this provider reads and writes.
+	kind credentialsKind
+
 	exchange tokenExchange
 
 	// Serializes exchanges across processes sharing the credentials file.
@@ -570,36 +647,60 @@ type accessTokenInfo struct {
 	// The access token to use for authentication.
 	AccessToken string `json:"access_token"`
 
+	// Set when the server allows the access token to be renewed without
+	// logging in or presenting the identity token again.
 	RefreshToken string `json:"refresh_token,omitempty"`
-
-	// The login that produced the entry: authTypeUser or authTypeWorkload.
-	// Empty in entries written before the field existed.
-	AuthType string `json:"auth_type,omitempty"`
 }
-
-const (
-	// A browser login.
-	authTypeUser = "user"
-
-	// An identity token exchange.
-	authTypeWorkload = "workload"
-)
 
 func (c *accessTokenInfo) IsTokenExpiring() bool {
 	return time.Until(time.Time(c.ExpiresAt)) <= time.Minute*5
 }
 
-// hasUserRefreshToken reports whether the entry holds a browser login's
-// refresh token. Untagged entries predate workload refresh tokens.
-func (c *accessTokenInfo) hasUserRefreshToken() bool {
-	return c.RefreshToken != "" &&
-		(c.AuthType == "" || c.AuthType == authTypeUser)
-}
-
 // CredentialsFile is used when serializing/deserializing JSON data from the
 // credentials file.
+//
+// Each host has at most one entry in each map. Identity token exchanges
+// have always been stored under "credentials", and stay there so that older
+// versions keep reading and writing them; user logins have their own map so
+// the two never overwrite each other.
 type CredentialsFile struct {
+	// Credentials holds the identity token exchange for each host.
 	Credentials map[string]accessTokenInfo `json:"credentials"`
+
+	// UserCredentials holds the user login for each host.
+	UserCredentials map[string]accessTokenInfo `json:"user_credentials,omitempty"`
+}
+
+// entry returns the stored credentials of the given kind for baseURL.
+//
+// The zero value is returned when there are none; it counts as expired.
+func (f *CredentialsFile) entry(kind credentialsKind, baseURL string) accessTokenInfo {
+	switch kind {
+	case userCredentials:
+		return f.UserCredentials[baseURL]
+	default:
+		return f.Credentials[baseURL]
+	}
+}
+
+// setEntry stores token as the credentials of the given kind for baseURL.
+func (f *CredentialsFile) setEntry(
+	kind credentialsKind,
+	baseURL string,
+	token accessTokenInfo,
+) {
+	switch kind {
+	case userCredentials:
+		if f.UserCredentials == nil {
+			f.UserCredentials = make(map[string]accessTokenInfo)
+		}
+		f.UserCredentials[baseURL] = token
+	default:
+		if f.Credentials == nil {
+			f.Credentials = make(map[string]accessTokenInfo)
+		}
+		f.Credentials[baseURL] = token
+	}
 }
 
 // WrapHTTP implements HTTPWrapper.WrapHTTP.
@@ -683,7 +784,7 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 
 	// The previous lock holder may have already refreshed.
 	credsFile, _ := c.tryLoadCredentialsFromFile()
-	stored := credsFile.Credentials[c.baseURL]
+	stored := credsFile.entry(c.kind, c.baseURL)
 	if !stored.IsTokenExpiring() {
 		c.tokenInfo = stored
 		return nil
@@ -733,24 +834,22 @@ func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile
 		return credsFile, false
 	}
 
-	if credsFile.Credentials == nil {
-		credsFile.Credentials = make(map[string]accessTokenInfo)
-	}
-
 	return credsFile, true
 }
 
-// saveCredentialsToFile stores token for this provider's base URL.
+// saveCredentialsToFile stores token for this provider's base URL and kind,
+// leaving every other entry in the file as it was.
 //
 // The file is replaced atomically so a partial write cannot lose a refresh token.
 func (c *oauth2CredentialProvider) saveCredentialsToFile(
 	credentials CredentialsFile,
 	token accessTokenInfo,
 ) error {
+	credentials.setEntry(c.kind, c.baseURL, token)
 	if credentials.Credentials == nil {
+		// Older readers expect this map; write it even when empty.
 		credentials.Credentials = make(map[string]accessTokenInfo)
 	}
-	credentials.Credentials[c.baseURL] = token
 
 	contents, err := json.MarshalIndent(credentials, "", "  ")
 	if err != nil {
