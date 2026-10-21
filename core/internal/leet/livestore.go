@@ -64,8 +64,9 @@ func (ls *LiveStore) Read() (*spb.Record, error) {
 //
 // On EOF (including an unexpected EOF from a partially written record) the
 // read position is rewound so a future call retries once more data has
-// been written, and the error wraps io.EOF. Any other error means corrupt
-// data was skipped: the caller may keep reading from the next good block.
+// been written, and the error wraps io.EOF.
+// Errors that wrap errCorruptSkipped mean the reader advanced past corrupt
+// data. Other errors require the caller to stop reading.
 func (ls *LiveStore) ReadWithOffset() (*spb.Record, int64, error) {
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
@@ -76,7 +77,7 @@ func (ls *LiveStore) ReadWithOffset() (*spb.Record, int64, error) {
 
 	offset := ls.reader.NextRecordOffset()
 
-	record, err := ls.reader.Read()
+	record, err := readRecord(ls.reader)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			resetErr := ls.reader.ResetLastRead()
