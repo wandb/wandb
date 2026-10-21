@@ -96,29 +96,16 @@ func NewCredentialProvider(
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
 	if s.GetIdentityTokenFile() != "" {
-		// The exchange must not use a credential provider: supplying its
-		// credentials is what it is being used to make possible.
-		exchangeClient := NewClient(ClientOptions{
-			RetryMax:        TokenExchangeRetryMax,
-			RetryWaitMin:    tokenExchangeRetryWaitMin,
-			RetryWaitMax:    tokenExchangeRetryWaitMax,
-			RetryPolicy:     TokenExchangeRetryPolicy,
-			NonRetryTimeout: tokenExchangeAttemptTimeout,
-
-			Proxy:              s.GetProxyFn(),
-			ProxyConnectHeader: s.GetProxyConnectHeader(),
-
-			InsecureDisableSSL: s.IsInsecureDisableSSL(),
-			Logger:             logger,
-
-			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
-		})
-
 		return NewOAuth2CredentialProvider(
 			s.GetBaseURL(),
 			s.GetIdentityTokenFile(),
 			s.GetCredentialsFile(),
-			exchangeClient,
+			newTokenExchangeClient(s, logger, ClientOptions{
+				RetryMax:        TokenExchangeRetryMax,
+				RetryWaitMin:    tokenExchangeRetryWaitMin,
+				RetryWaitMax:    tokenExchangeRetryWaitMax,
+				NonRetryTimeout: tokenExchangeAttemptTimeout,
+			}),
 			logger,
 		)
 	}
@@ -128,32 +115,39 @@ func NewCredentialProvider(
 	}
 
 	if hasStoredUserLogin(s.GetCredentialsFile(), s.GetBaseURL()) {
-		// Like the client above, this must not attach credentials of its own.
-		exchangeClient := NewClient(ClientOptions{
-			RetryMax:        refreshExchangeRetryMax,
-			RetryWaitMin:    refreshExchangeRetryWaitMin,
-			RetryWaitMax:    refreshExchangeRetryWaitMax,
-			RetryPolicy:     TokenExchangeRetryPolicy,
-			NonRetryTimeout: refreshExchangeAttemptTimeout,
-
-			Proxy:              s.GetProxyFn(),
-			ProxyConnectHeader: s.GetProxyConnectHeader(),
-
-			InsecureDisableSSL: s.IsInsecureDisableSSL(),
-			Logger:             logger,
-
-			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
-		})
-
 		return NewRefreshTokenCredentialProvider(
 			s.GetBaseURL(),
 			s.GetCredentialsFile(),
-			exchangeClient,
+			newTokenExchangeClient(s, logger, ClientOptions{
+				RetryMax:        refreshExchangeRetryMax,
+				RetryWaitMin:    refreshExchangeRetryWaitMin,
+				RetryWaitMax:    refreshExchangeRetryWaitMax,
+				NonRetryTimeout: refreshExchangeAttemptTimeout,
+			}),
 			logger,
 		), nil
 	}
 
 	return NoopCredentialProvider{}, nil
+}
+
+// newTokenExchangeClient returns a client for the token endpoint with the
+// given retry settings.
+//
+// It must not use a credential provider: supplying credentials is what the
+// exchange is for.
+func newTokenExchangeClient(
+	s *settings.Settings,
+	logger *slog.Logger,
+	retry ClientOptions,
+) RetryableClient {
+	retry.RetryPolicy = TokenExchangeRetryPolicy
+	retry.Proxy = s.GetProxyFn()
+	retry.ProxyConnectHeader = s.GetProxyConnectHeader()
+	retry.InsecureDisableSSL = s.IsInsecureDisableSSL()
+	retry.Logger = logger
+	retry.PreRetryLayers = httplayers.DefaultHeaders(s.GetExtraHTTPHeaders())
+	return NewClient(retry)
 }
 
 // NewAPIKeyCredentialProvider returns a credential provider that uses the given
@@ -278,7 +272,7 @@ func newOAuth2CredentialProvider(
 		credentialsFilePath: credentialsFilePath,
 		kind:                kind,
 		exchange:            exchange,
-		// A separate file, since saving replaces the credentials file.
+		// Not the credentials file itself, which saving replaces.
 		fileMu:  lockedfile.MutexAt(credentialsFilePath + ".lock"),
 		tokenMu: &sync.RWMutex{},
 		logger:  logger,
@@ -290,9 +284,6 @@ type tokenExchange interface {
 	// exchange returns a fresh access token. current holds the newest known
 	// credentials for the base URL.
 	exchange(ctx context.Context, current accessTokenInfo) (accessTokenInfo, error)
-
-	// rotates reports whether the exchange invalidates the credential it used.
-	rotates() bool
 }
 
 // assertionExchange trades an identity token for an access token using the JWT
@@ -302,11 +293,6 @@ type assertionExchange struct {
 	identityTokenFilePath string
 	httpClient            RetryableClient
 }
-
-// rotates implements tokenExchange.rotates.
-//
-// A lost refresh token is recoverable: the identity token can be exchanged again.
-func (e *assertionExchange) rotates() bool { return false }
 
 // exchange implements tokenExchange.exchange.
 func (e *assertionExchange) exchange(
@@ -359,9 +345,6 @@ type refreshTokenExchange struct {
 	httpClient RetryableClient
 }
 
-// rotates implements tokenExchange.rotates.
-func (e *refreshTokenExchange) rotates() bool { return true }
-
 // exchange implements tokenExchange.exchange.
 func (e *refreshTokenExchange) exchange(
 	ctx context.Context,
@@ -370,14 +353,8 @@ func (e *refreshTokenExchange) exchange(
 	if current.RefreshToken == "" {
 		return accessTokenInfo{}, noStoredLoginError{}
 	}
-
-	refreshed, err := postRefreshRequest(
+	return postRefreshRequest(
 		ctx, e.httpClient, e.baseURL, current.RefreshToken, e.clientID)
-	if err != nil {
-		return accessTokenInfo{}, err
-	}
-
-	return refreshed, nil
 }
 
 // postRefreshRequest performs one refresh grant and checks that the response
@@ -523,7 +500,7 @@ func (e *TokenExchangeError) Error() string {
 func (e *TokenExchangeError) PermanentError() bool { return true }
 
 // noStoredLoginError means the credentials file no longer holds a user
-// login for the base URL, like after the user logs out.
+// login for the base URL.
 type noStoredLoginError struct{}
 
 func (noStoredLoginError) Error() string {
@@ -544,7 +521,6 @@ func (e invalidRefreshResponseError) Error() string {
 	return "api: refresh response did not include " + string(e)
 }
 
-// PermanentError returns true.
 func (invalidRefreshResponseError) PermanentError() bool { return true }
 
 // isExchangeRejection reports whether the token endpoint's status is a
@@ -778,7 +754,7 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 	}
 
 	// The previous lock holder may have already refreshed.
-	credsFile, _ := c.tryLoadCredentialsFromFile()
+	credsFile := c.tryLoadCredentialsFromFile()
 	stored := credsFile.entry(c.kind, c.baseURL)
 	if !stored.IsTokenExpiring() {
 		c.tokenInfo = stored
@@ -799,22 +775,18 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 	}
 
 	if err := c.saveCredentialsToFile(credsFile, token); err != nil {
-		if c.exchange.rotates() {
-			c.logger.Error(
-				"api: couldn't save refreshed credentials; "+
-					"the stored login will not work after this process exits",
-				"error", err.Error())
-		} else {
-			c.logger.Warn("failed to update credentials file", "error", err.Error())
-		}
+		c.logger.Error(
+			"api: couldn't save credentials; a stored refresh token is now stale",
+			"error", err.Error())
 	}
 
 	c.tokenInfo = token
 	return nil
 }
 
-// Attempts to load the access token from the credentials file.
-func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile, bool) {
+// tryLoadCredentialsFromFile reads the credentials file, or returns an
+// empty CredentialsFile if it cannot.
+func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() CredentialsFile {
 	var credsFile CredentialsFile
 
 	file, err := os.ReadFile(c.credentialsFilePath)
@@ -823,15 +795,15 @@ func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile
 			"file path", c.credentialsFilePath,
 			"error", err,
 		)
-		return credsFile, false
+		return credsFile
 	}
 
 	if err := json.Unmarshal(file, &credsFile); err != nil {
 		c.logger.Warn("failed to read credentials file", "error", err.Error())
-		return credsFile, false
+		return CredentialsFile{}
 	}
 
-	return credsFile, true
+	return credsFile
 }
 
 // saveCredentialsToFile stores token for this provider's base URL and kind,
@@ -863,10 +835,6 @@ func (c *oauth2CredentialProvider) saveCredentialsToFile(
 		_ = os.Remove(tempPath)
 	}()
 
-	if err := temp.Chmod(0o600); err != nil {
-		_ = temp.Close()
-		return err
-	}
 	if _, err := temp.Write(contents); err != nil {
 		_ = temp.Close()
 		return err
