@@ -268,9 +268,9 @@ func newWorkspaceTestModel(
 	logger := observability.NewNoOpLogger()
 
 	m := leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))

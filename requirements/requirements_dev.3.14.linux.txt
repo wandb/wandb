@@ -99,7 +99,7 @@ cachetools==7.2.1
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
