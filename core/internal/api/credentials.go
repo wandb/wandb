@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -55,9 +54,6 @@ const (
 
 	// Refresh retries must finish within the server's grace period for a
 	// resent refresh token, which is otherwise treated as a replay.
-	//
-	// refreshExchangeTimeout bounds the whole refresh, including retries,
-	// whichever client makes it.
 	refreshExchangeRetryMax       = 2
 	refreshExchangeAttemptTimeout = 8 * time.Second
 	refreshExchangeRetryWaitMin   = time.Second
@@ -72,12 +68,10 @@ const (
 type credentialsKind int
 
 const (
-	// identityTokenCredentials are exchanges of an identity token with a JWT
-	// issuer trusted by the W&B server, stored under "credentials".
+	// Identity token exchanges, under "credentials".
 	identityTokenCredentials credentialsKind = iota
 
-	// userCredentials are logins the user completed themselves, like a
-	// browser login, stored under "user_credentials".
+	// User logins such as a browser login, under "user_credentials".
 	userCredentials
 )
 
@@ -218,9 +212,8 @@ func (c NoopCredentialProvider) WrapHTTP(
 // with its expiration. The expiration is checked each time the access token is
 // used, and refreshed if it is at or near expiration.
 //
-// A JWT issuer may also return a refresh token. When one is stored, it is
-// used to renew the access token before the JWT is presented again, since
-// the server may reject a JWT it has already seen.
+// If the issuer also returns a refresh token, it is used before the JWT is
+// presented again, since the server may reject a JWT it has already seen.
 //
 // The exchange is made with httpClient, which bounds how long a request that
 // depends on the access token can wait for it, and which must not itself
@@ -303,11 +296,7 @@ type tokenExchange interface {
 }
 
 // assertionExchange trades an identity token for an access token using the JWT
-// Bearer flow of RFC 7523.
-//
-// If the issuer returned a refresh token with the last access token, that is
-// tried first. The identity token is presented again only when the refresh
-// is rejected, like after the issuer stops allowing refreshes.
+// Bearer flow of RFC 7523. A stored refresh token is tried first.
 type assertionExchange struct {
 	baseURL               string
 	identityTokenFilePath string
@@ -316,8 +305,7 @@ type assertionExchange struct {
 
 // rotates implements tokenExchange.rotates.
 //
-// A refresh does rotate the stored refresh token, but the identity token
-// stays the root credential: a lost replacement costs one extra exchange.
+// A lost refresh token is recoverable: the identity token can be exchanged again.
 func (e *assertionExchange) rotates() bool { return false }
 
 // exchange implements tokenExchange.exchange.
@@ -327,8 +315,7 @@ func (e *assertionExchange) exchange(
 ) (accessTokenInfo, error) {
 	var refreshErr error
 	if current.RefreshToken != "" {
-		// The server derives the client from a JWT issuer's refresh token,
-		// so no client_id is sent.
+		// The server derives the client from the token.
 		refreshed, err := postRefreshRequest(
 			ctx, e.httpClient, e.baseURL, current.RefreshToken, "")
 		if err == nil {
@@ -422,16 +409,13 @@ func postRefreshRequest(
 
 	switch {
 	case refreshed.AccessToken == "":
-		return accessTokenInfo{}, errors.New(
-			"api: refresh response did not include an access token")
+		return accessTokenInfo{}, invalidRefreshResponseError("an access token")
 	case !time.Now().Before(time.Time(refreshed.ExpiresAt)):
 		// Otherwise every request would refresh again.
-		return accessTokenInfo{}, errors.New(
-			"api: refresh response did not include a positive expires_in")
+		return accessTokenInfo{}, invalidRefreshResponseError("a positive expires_in")
 	case refreshed.RefreshToken == "":
 		// Otherwise the next refresh would resend a spent token.
-		return accessTokenInfo{}, errors.New(
-			"api: refresh response did not include a replacement refresh token")
+		return accessTokenInfo{}, invalidRefreshResponseError("a replacement refresh token")
 	}
 
 	return refreshed, nil
@@ -549,6 +533,20 @@ func (noStoredLoginError) Error() string {
 // PermanentError returns true: only a new login can fix it.
 func (noStoredLoginError) PermanentError() bool { return true }
 
+// invalidRefreshResponseError is a successful refresh response that is
+// missing what it needs to replace the stored credentials.
+//
+// It is permanent: the refresh token was spent, so retrying would resend it
+// and, past the server's grace period, revoke the login.
+type invalidRefreshResponseError string
+
+func (e invalidRefreshResponseError) Error() string {
+	return "api: refresh response did not include " + string(e)
+}
+
+// PermanentError returns true.
+func (invalidRefreshResponseError) PermanentError() bool { return true }
+
 // isExchangeRejection reports whether the token endpoint's status is a
 // definitive rejection of the exchange, like an invalid or expired
 // identity token, unknown user or bad audience. 429 and 5xx responses
@@ -647,8 +645,7 @@ type accessTokenInfo struct {
 	// The access token to use for authentication.
 	AccessToken string `json:"access_token"`
 
-	// Set when the server allows the access token to be renewed without
-	// logging in or presenting the identity token again.
+	// Empty when the server does not allow refreshing.
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
@@ -659,10 +656,8 @@ func (c *accessTokenInfo) IsTokenExpiring() bool {
 // CredentialsFile is used when serializing/deserializing JSON data from the
 // credentials file.
 //
-// Each host has at most one entry in each map. Identity token exchanges
-// have always been stored under "credentials", and stay there so that older
-// versions keep reading and writing them; user logins have their own map so
-// the two never overwrite each other.
+// Identity token exchanges stay under "credentials", where older versions
+// read them. User logins are kept apart so the two never overwrite each other.
 type CredentialsFile struct {
 	// Credentials holds the identity token exchange for each host.
 	Credentials map[string]accessTokenInfo `json:"credentials"`
@@ -791,8 +786,10 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 	}
 
 	// After a failed save, the file holds an already-spent refresh token.
+	// A missing entry means the login was removed and must not come back.
 	current := stored
-	if time.Time(c.tokenInfo.ExpiresAt).After(time.Time(stored.ExpiresAt)) {
+	if stored.RefreshToken != "" &&
+		time.Time(c.tokenInfo.ExpiresAt).After(time.Time(stored.ExpiresAt)) {
 		current = c.tokenInfo
 	}
 

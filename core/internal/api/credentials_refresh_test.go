@@ -47,8 +47,7 @@ func writeCredentialsFile(t *testing.T, dir, host, refreshToken string) string {
 	return path
 }
 
-// writeWorkloadEntry stores an identity token exchange for host, in the
-// place older versions of wandb-core have always written it.
+// writeWorkloadEntry stores an identity token exchange for host.
 func writeWorkloadEntry(t *testing.T, path, host, expiresAt string) {
 	t.Helper()
 	contents := fmt.Sprintf(`{
@@ -316,7 +315,7 @@ func TestUserLoginIsNotUsedAfterItIsRemoved(t *testing.T) {
 		observabilitytest.NewTestLogger(t).Logger,
 	)
 	require.NoError(t, err)
-	// Like `wandb logout`, which leaves any identity token exchange alone.
+	// Like another process logging out.
 	writeWorkloadEntry(t, credentialsFile, server.URL, expiredTimestamp())
 
 	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
@@ -497,8 +496,45 @@ func TestBrowserLoginRejectsAnIncompleteResponse(t *testing.T) {
 
 			_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
 			require.ErrorContains(t, err, tc.wantErr)
+			// The refresh token is spent; retrying would resend it.
+			var permanent clients.PermanentError
+			require.ErrorAs(t, err, &permanent)
+			assert.True(t, permanent.PermanentError())
 		})
 	}
+}
+
+func TestUserLoginStaysLoggedOutAfterARefresh(t *testing.T) {
+	// Inside the 5-minute window, so every request refreshes.
+	var exchanges atomic.Int64
+	server := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			n := exchanges.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  fmt.Sprintf("wb_at_%d", n),
+				"refresh_token": fmt.Sprintf("wb_rt_%d", n),
+				"expires_in":    time.Minute.Seconds(),
+			}))
+		}))
+	t.Cleanup(server.Close)
+	credentialsFile := writeCredentialsFile(t, t.TempDir(), server.URL, "wb_rt_stored")
+
+	provider, err := api.NewCredentialProvider(
+		browserLoginSettings(server.URL, credentialsFile),
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	// Like another process logging out.
+	require.NoError(t, os.Remove(credentialsFile))
+
+	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+	require.ErrorContains(t, err, "no user login stored")
+	assert.Equal(t, int64(1), exchanges.Load())
+	assert.NoFileExists(t, credentialsFile)
 }
 
 func TestBrowserLoginOnlyRefreshesOnceAcrossProviders(t *testing.T) {
