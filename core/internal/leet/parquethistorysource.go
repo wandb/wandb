@@ -180,7 +180,12 @@ type ParquetHistorySource struct {
 	// systemMetrics delivers the run's system metrics, which load in the
 	// background so the boot load does not wait for them. Nil when there
 	// are none or once they have been read.
-	systemMetrics <-chan []tea.Msg
+	systemMetrics <-chan systemMetricsBatch
+
+	// systemMetricsLast is the time of the latest system metric sample
+	// delivered so far, in seconds since the Unix epoch, where a live run's
+	// next query starts. Zero before the first batch.
+	systemMetricsLast float64
 
 	// runPath identifies the remote run in messages.
 	runPath string
@@ -362,6 +367,7 @@ func (s *ParquetHistorySource) Read(
 		}
 		if refreshed {
 			msgs = append(msgs, s.runInfo.runMsg(), s.summaryMsg())
+			s.systemMetrics = s.loadSystemMetrics()
 		}
 	}
 
