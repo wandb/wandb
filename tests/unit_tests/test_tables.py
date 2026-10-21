@@ -402,6 +402,27 @@ def test_table_records_telemetry(mocker, mock_run):
     assert run._telemetry_obj.feature.incremental_table is True
 
 
+@pytest.mark.parametrize(
+    "values, dtype",
+    [
+        ([1, None], "Int64"),
+        ([1.5, None], "Float64"),
+        ([True, None], "boolean"),
+        (["A", None], "string"),
+    ],
+)
+def test_table_logs_pandas_na_as_none(mocker, mock_run, values, dtype):
+    import pandas as pd
+
+    run = mock_run()
+    log_artifact = mocker.patch.object(run, "log_artifact")
+    df = pd.DataFrame({"a": pd.array(values, dtype=dtype)})
+
+    run.log({"table": wandb.Table(dataframe=df)})
+
+    assert _logged_artifact_table_data(log_artifact, 0) == [[values[0]], [None]]
+
+
 def test_table_logging_mode_incremental_operations():
     """Test that INCREMENTAL mode correctly handles unsupported operations."""
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
