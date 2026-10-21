@@ -575,7 +575,9 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
     ],
     ids=["http", "s3", "gcs", "azure"],
 )
-def test_etag_handler_load_path_forwards_dest_path(tmp_path, mocker, make_handler):
+def test_etag_handler_load_path_forwards_dest_path(
+    artifact_file_cache, tmp_path, mocker, make_handler
+):
     # Without the forwarding, the file would land in the cache while
     # `ArtifactManifestEntry.download` reports `dest_path`.
     handler = make_handler()
@@ -694,8 +696,7 @@ def test_wbartifact_handler_load_path_nonlocal():
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
 
-    # `dest_path` only applies to local loads.
-    local_path = handler.load_path(manifest_entry, dest_path="ignored")
+    local_path = handler.load_path(manifest_entry)
     assert local_path == uri
 
 
@@ -716,11 +717,8 @@ def test_wbartifact_handler_load_path_local():
     assert local_path == path
 
 
-@mark.parametrize("hosted", [False, True], ids=["reference", "hosted"])
-def test_wbartifact_handler_load_path_dest_path(
-    artifact_file_cache, tmp_path, mocker, hosted
-):
-    """`dest_path` is written directly, bypassing the dependency's root and the cache."""
+def _make_wb_reference(tmp_path: Path, mocker, *, hosted: bool):
+    """Return a handler and a `wandb-artifact://` entry to a one-file dependency."""
     mocker.patch.dict(os.environ, {env.ARTIFACT_DIR: str(tmp_path / "artifacts")})
     dep_artifact = Artifact("dep", type="dataset")
     if hosted:
@@ -742,11 +740,6 @@ def test_wbartifact_handler_load_path_dest_path(
         )
     dep_entry._parent_artifact = dep_artifact
     dep_artifact.get_entry = lambda _: dep_entry
-    # A stale same-size file at the dependency's own download root must be
-    # neither copied onward nor touched.
-    dep_file = Path(dep_artifact._default_root()) / "file.txt"
-    dep_file.parent.mkdir(parents=True)
-    dep_file.write_text("jello")
 
     handler = WBArtifactHandler()
     handler._client = mocker.Mock()
@@ -754,14 +747,47 @@ def test_wbartifact_handler_load_path_dest_path(
     entry = ArtifactManifestEntry(
         path="file.txt", ref="wandb-artifact://deadbeef/file.txt", digest="", size=0
     )
+    return handler, entry, dep_artifact
+
+
+@mark.parametrize("hosted", [False, True], ids=["reference", "hosted"])
+def test_wbartifact_handler_load_path_dest_path(
+    artifact_file_cache, tmp_path, mocker, hosted
+):
+    """`dest_path` is written directly, bypassing the dependency root and the cache."""
+    handler, entry, dep_artifact = _make_wb_reference(tmp_path, mocker, hosted=hosted)
+    dep_root = Path(dep_artifact._default_root())
+    if not hosted:
+        # A stale same-size file at the dependency's own download root must be
+        # neither copied onward nor touched.
+        dep_root.mkdir(parents=True)
+        (dep_root / "file.txt").write_text("jello")
     dest_path = tmp_path / "dest" / "file.txt"
 
     local_path = handler.load_path(entry, local=True, dest_path=str(dest_path))
 
     assert local_path == str(dest_path)
     assert dest_path.read_text() == "hello"
-    assert dep_file.read_text() == "jello"
+    if hosted:
+        assert not dep_root.exists()
+    else:
+        assert (dep_root / "file.txt").read_text() == "jello"
     assert not any(artifact_file_cache._obj_dir.rglob("*"))
+
+
+def test_wbartifact_handler_load_path_nonlocal_ignores_dest_path(
+    artifact_file_cache, tmp_path, mocker
+):
+    handler, entry, dep_artifact = _make_wb_reference(tmp_path, mocker, hosted=True)
+    dep_entry = dep_artifact.get_entry("file.txt")
+    dep_entry.ref = "https://example.invalid/file.txt"
+    dest_path = tmp_path / "dest" / "file.txt"
+
+    target = handler.load_path(entry, local=False, dest_path=str(dest_path))
+
+    assert target == dep_entry.ref
+    assert not dest_path.parent.exists()
+    dep_artifact.manifest.storage_policy._maybe_session.get.assert_not_called()
 
 
 class UnfinishedStoragePolicy(StoragePolicy):

@@ -45,19 +45,21 @@ class WBArtifactHandler(StorageHandler):
         local: bool = False,
         dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
-        """Load the file in the referenced artifact given its corresponding entry.
+        """Load the file in the specified artifact given its corresponding entry.
 
         Args:
-            manifest_entry: The index entry to load
-            local: Whether to download the referenced file or just resolve its target
-            dest_path: If set, download the referenced file here, bypassing the cache
+            manifest_entry (ArtifactManifestEntry): The index entry to load
+            local (bool): Whether to download the file or only resolve its target
+            dest_path: If set, download the file here instead of to the cache
 
         Returns:
-            The local path of the referenced file, or its reference target when
-            `local` is False.
+            (URIStr | FilePathStr): The local path of the referenced file, or its
+                reference target when `local` is False.
         """
         # No cache check here: cross-artifact references store 0 as the size, so
-        # the referenced entry's own download() does the checking.
+        # this entry cannot be verified on its own. Without `dest_path` the
+        # referenced entry's own download() does the checking; with it, the
+        # referenced artifact's storage policy writes straight to `dest_path`.
 
         # Parse the reference path and download the artifact if needed
         parsed = urlparse(manifest_entry.ref)

@@ -96,7 +96,7 @@ Section headings should be at level 3 (e.g. `### Added`).
   - Changing the system metrics grid rows or columns, including in `wandb leet symon`, no longer crashes and takes effect immediately (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
   - `wandb leet inspect` exits with an error when the file is not a `.wandb` log it can read, instead of printing "skipped corrupt data" forever when its output is piped (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
 - `artifact.download()` no longer returns or overwrites files from an earlier `artifact.download(skip_cache=True)` call in the same process (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13115)
-  - `skip_cache=True` also now replaces an existing file at the destination that has the expected size but different contents. Reference files whose digest is an ETag (S3, GCS, Azure, HTTP) are downloaded again unless a checksum recorded by an earlier download matches.
+  - With `skip_cache=True`, files referenced from another artifact (`wandb-artifact://`) are also downloaded directly to the destination instead of being staged in the referenced artifact's download root.
 
 ### Security
 
