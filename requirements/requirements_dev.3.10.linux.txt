@@ -40,7 +40,7 @@ asttokens==3.0.2
     # via stack-data
 astunparse==1.6.3
     # via tensorflow
-async-lru==2.3.0
+async-lru==2.4.0
     # via jupyterlab
 async-timeout==5.0.1
     # via aiohttp
@@ -78,12 +78,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.9.2
     # via -r requirements/requirements_dev.txt
-boto3==1.43.111
+boto3==1.43.113
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.111
+botocore==1.43.113
     # via
     #   boto3
     #   moto
@@ -93,7 +93,7 @@ cachetools==7.2.1
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
-certifi==2026.10.19
+certifi==2026.7.22
     # via
     #   httpcore
     #   httpx
@@ -157,7 +157,7 @@ cryptography==46.0.7
     #   msal
     #   pyjwt
     #   pyopenssl
-cuda-bindings==13.4.3
+cuda-bindings==13.4.4
     # via torch
 cuda-pathfinder==1.8.3
     # via cuda-bindings
@@ -187,7 +187,7 @@ docstring-parser==0.18.0
     #   kfp
 docutils==0.19
     # via awscli
-dspy==3.4.0
+dspy==3.4.1
     # via -r requirements/requirements_dev.txt
 exceptiongroup==1.3.1
     # via
@@ -409,7 +409,7 @@ jax==0.6.2
     # via -r requirements/requirements_dev.txt
 jaxlib==0.6.2
     # via jax
-jedi==0.20.0
+jedi==0.20.1
     # via ipython
 jinja2==3.1.6
     # via
@@ -440,6 +440,7 @@ jsonref==1.1.0
     # via sweeps
 jsonschema==4.26.0
     # via
+    #   dspy
     #   jupyter-events
     #   jupyterlab-server
     #   litellm
@@ -692,7 +693,7 @@ oauthlib==4.0.0
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.29.0
+openai==3.31.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -947,6 +948,7 @@ pyyaml==6.0.3
     # via
     #   awscli
     #   bokeh
+    #   dspy
     #   huggingface-hub
     #   jupyter-events
     #   kfp
@@ -1179,7 +1181,7 @@ traitlets==5.16.1
     #   nbformat
 triton==3.6.0
     # via torch
-truststore==0.10.4
+truststore==0.10.5
     # via
     #   httpcore2
     #   httpx2
@@ -1278,7 +1280,7 @@ wheel==0.48.0
     # via astunparse
 widgetsnbextension==4.0.16
     # via ipywidgets
-wrapt==2.5.0
+wrapt==2.5.1
     # via tensorflow
 xgboost==3.2.0
     # via -r requirements/requirements_dev.txt

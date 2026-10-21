@@ -44,7 +44,7 @@ asttokens==3.0.2
     # via stack-data
 astunparse==1.6.3
     # via tensorflow
-async-lru==2.3.0
+async-lru==2.4.0
     # via jupyterlab
 attrs==26.1.0
     # via
@@ -80,14 +80,14 @@ bleach==6.4.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-bokeh==3.10.0
+bokeh==3.10.1
     # via -r requirements/requirements_dev.txt
-boto3==1.43.111
+boto3==1.43.113
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.111
+botocore==1.43.113
     # via
     #   boto3
     #   moto
@@ -99,7 +99,7 @@ cachetools==7.2.1
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
-certifi==2026.10.19
+certifi==2026.7.22
     # via
     #   httpcore
     #   httpx
@@ -166,7 +166,7 @@ cryptography==46.0.7
     #   msal
     #   pyjwt
     #   pyopenssl
-cuda-bindings==13.4.3
+cuda-bindings==13.4.4
     # via torch
 cuda-pathfinder==1.8.3
     # via cuda-bindings
@@ -174,7 +174,7 @@ cuda-toolkit==13.0.2
     # via torch
 cwevals==0.0.1b1
     # via wandb
-cwsandbox==1.19.0
+cwsandbox==1.19.1
     # via wandb
 cycler==0.12.1
     # via matplotlib
@@ -198,7 +198,7 @@ docstring-parser==0.18.0
     #   kfp
 docutils==0.19
     # via awscli
-dspy==3.4.0
+dspy==3.4.1
     # via -r requirements/requirements_dev.txt
 execnet==2.1.2
     # via pytest-xdist
@@ -212,7 +212,7 @@ fastjsonschema==2.22.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==4.1.1
+filelock==4.1.2
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -221,7 +221,7 @@ flask==2.3.3
     # via -r requirements/requirements_test.txt
 flatbuffers==25.12.19
     # via tensorflow
-fonttools==4.66.1
+fonttools==4.67.0
     # via matplotlib
 fqdn==1.6.0
     # via jsonschema
@@ -364,7 +364,7 @@ httpx2==2.13.1
     #   openai
 huggingface-hub==2.2.0
     # via tokenizers
-hypothesis==6.169.0
+hypothesis==6.169.1
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -424,7 +424,7 @@ jax==0.11.2
     # via -r requirements/requirements_dev.txt
 jaxlib==0.11.2
     # via jax
-jedi==0.20.0
+jedi==0.20.1
     # via ipython
 jinja2==3.1.6
     # via
@@ -456,6 +456,7 @@ jsonref==1.1.0
     # via sweeps
 jsonschema==4.26.0
     # via
+    #   dspy
     #   jupyter-events
     #   jupyterlab-server
     #   litellm
@@ -514,7 +515,7 @@ jupyterlab-server==2.28.1
     #   notebook
 jupyterlab-widgets==3.0.17
     # via ipywidgets
-keras-nightly==3.16.0.dev2026101204
+keras-nightly==3.16.0.dev2026101404
     # via tensorflow
 kfp==2.16.1
     # via -r requirements/requirements_dev.txt
@@ -549,11 +550,11 @@ linear-operator==0.6.1
     #   gpytorch
 litellm==1.83.0
     # via dspy
-looptime==0.8
+looptime==0.9
     # via -r requirements/requirements_test.txt
 mako==1.4.3
     # via alembic
-markdown==3.11
+markdown==3.11.1
     # via
     #   ax-platform
     #   tensorboard
@@ -729,7 +730,7 @@ oauthlib==4.0.0
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.29.0
+openai==3.31.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -993,6 +994,7 @@ pyyaml==6.0.3
     # via
     #   awscli
     #   bokeh
+    #   dspy
     #   huggingface-hub
     #   jupyter-events
     #   kfp
@@ -1228,7 +1230,7 @@ traitlets==5.16.1
     #   nbformat
 triton==3.6.0
     # via torch
-truststore==0.10.4
+truststore==0.10.5
     # via
     #   httpcore2
     #   httpx2
@@ -1319,7 +1321,7 @@ wheel==0.48.0
     # via astunparse
 widgetsnbextension==4.0.16
     # via ipywidgets
-wrapt==2.5.0
+wrapt==2.5.1
     # via
     #   deprecated
     #   tensorflow
