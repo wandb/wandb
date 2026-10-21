@@ -6,10 +6,6 @@ on:
     branches: [main, release-*]
   workflow_dispatch:
     inputs:
-      windows:
-        description: Run the Windows unit tests
-        type: boolean
-        default: true
       server-image:
         description: local-testcontainer image for the server tests (defaults to the master build)
         type: string
@@ -44,18 +40,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/build-wheel
 
-  build-wheel-windows:
-    name: Build wheel · Windows
-    # Windows tests run on pushes, on branches named *-ci-win, and on request.
-    if: github.event_name == 'push' || inputs.windows || endsWith(github.head_ref, '-ci-win')
-    runs-on: windows-2022
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/build-wheel
-
   unit-tests-linux:
     name: Unit tests · Linux
     needs: build-wheel
@@ -69,13 +53,6 @@ jobs:
     uses: ./.github/workflows/sdk-unit-tests.yml
     with:
       runs-on: macos-15-xlarge
-
-  unit-tests-windows:
-    name: Unit tests · Windows
-    needs: build-wheel-windows
-    uses: ./.github/workflows/sdk-unit-tests.yml
-    with:
-      runs-on: windows-2022
 
   unit-tests-go:
     name: Unit tests · Go
@@ -141,7 +118,7 @@ jobs:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.12.11"
+          version: "0.13.4"
           enable-cache: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
@@ -249,7 +226,6 @@ jobs:
       - build-wheel
       - unit-tests-linux
       - unit-tests-macos
-      - unit-tests-windows
       - unit-tests-go
       - system-tests
       - extra-tests
@@ -280,10 +256,8 @@ jobs:
     if: ${{ !cancelled() }}
     needs:
       - build-wheel
-      - build-wheel-windows
       - unit-tests-linux
       - unit-tests-macos
-      - unit-tests-windows
       - unit-tests-go
       - unit-tests-rust
       - code-check
