@@ -13,7 +13,10 @@ requires-python = ">=3.10"
 dependencies = [
     "Click>=8.2.0",
     # Pin exact cwevals version during preview as API is subject to change.
-    "cwevals==0.0.1b1",
+    # DO NOT MERGE: cwevals comes from a local wandb/core checkout through
+    # [tool.uv.sources]. Before merge, pin the next published release here,
+    # such as "cwevals==0.0.1b2", and remove that source.
+    "cwevals",
     "requests>=2.0.0,<3",
     "protobuf>=5,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
@@ -121,6 +124,11 @@ eval-table = [ # wandb.EvalTable support (private testing only)
 # weave[video_support] requires moviepy<=1.0.3. We should reconcile these
 # dependencies (and probably make weave support moviepy>=2).
 eval-table-video-support = ["weave[video_support]>=0.52.41"]
+
+# DO NOT MERGE: installs the cwevals SDK generated in a wandb/core checkout next
+# to this one, ../core relative to this file. Remove before merge.
+[tool.uv.sources]
+cwevals = { path = "../core/services/evaluations/generated/python", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
