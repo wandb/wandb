@@ -11145,8 +11145,15 @@ type TPUInfo struct {
 	HbmGib         uint32                 `protobuf:"varint,2,opt,name=hbm_gib,json=hbmGib,proto3" json:"hbm_gib,omitempty"`
 	DevicesPerChip uint32                 `protobuf:"varint,3,opt,name=devices_per_chip,json=devicesPerChip,proto3" json:"devices_per_chip,omitempty"`
 	Count          uint32                 `protobuf:"varint,4,opt,name=count,proto3" json:"count,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// This host's place in a multi-host or multi-slice job, from the
+	// TPU_WORKER_ID, TPU_WORKER_HOSTNAMES, MEGASCALE_SLICE_ID and
+	// MEGASCALE_NUM_SLICES environment variables; zero when they are unset.
+	WorkerId      uint32 `protobuf:"varint,5,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	WorkerCount   uint32 `protobuf:"varint,6,opt,name=worker_count,json=workerCount,proto3" json:"worker_count,omitempty"`
+	SliceId       uint32 `protobuf:"varint,7,opt,name=slice_id,json=sliceId,proto3" json:"slice_id,omitempty"`
+	NumSlices     uint32 `protobuf:"varint,8,opt,name=num_slices,json=numSlices,proto3" json:"num_slices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TPUInfo) Reset() {
@@ -11203,6 +11210,34 @@ func (x *TPUInfo) GetDevicesPerChip() uint32 {
 func (x *TPUInfo) GetCount() uint32 {
 	if x != nil {
 		return x.Count
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetWorkerId() uint32 {
+	if x != nil {
+		return x.WorkerId
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetWorkerCount() uint32 {
+	if x != nil {
+		return x.WorkerCount
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetSliceId() uint32 {
+	if x != nil {
+		return x.SliceId
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetNumSlices() uint32 {
+	if x != nil {
+		return x.NumSlices
 	}
 	return 0
 }
@@ -12803,12 +12838,17 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06vendor\x18\x02 \x01(\tR\x06vendor\x12.\n" +
 	"\x13neuron_device_count\x18\x03 \x01(\rR\x11neuronDeviceCount\x12=\n" +
-	"\x1bneuroncore_per_device_count\x18\x04 \x01(\rR\x18neuroncorePerDeviceCount\"v\n" +
+	"\x1bneuroncore_per_device_count\x18\x04 \x01(\rR\x18neuroncorePerDeviceCount\"\xf0\x01\n" +
 	"\aTPUInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
 	"\ahbm_gib\x18\x02 \x01(\rR\x06hbmGib\x12(\n" +
 	"\x10devices_per_chip\x18\x03 \x01(\rR\x0edevicesPerChip\x12\x14\n" +
-	"\x05count\x18\x04 \x01(\rR\x05count\"a\n" +
+	"\x05count\x18\x04 \x01(\rR\x05count\x12\x1b\n" +
+	"\tworker_id\x18\x05 \x01(\rR\bworkerId\x12!\n" +
+	"\fworker_count\x18\x06 \x01(\rR\vworkerCount\x12\x19\n" +
+	"\bslice_id\x18\a \x01(\rR\asliceId\x12\x1d\n" +
+	"\n" +
+	"num_slices\x18\b \x01(\rR\tnumSlices\"a\n" +
 	"\rCoreWeaveInfo\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12\x15\n" +
 	"\x06org_id\x18\x02 \x01(\tR\x05orgId\x12\x16\n" +
