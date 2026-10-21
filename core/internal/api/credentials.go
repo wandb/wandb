@@ -64,15 +64,15 @@ const (
 	CLIClientID = "wandb-cli"
 )
 
-// credentialsKind selects one of the maps in the credentials file.
-type credentialsKind int
+// authMethod selects one of the maps in the credentials file.
+type authMethod int
 
 const (
 	// Identity token exchanges, under "credentials".
-	identityTokenCredentials credentialsKind = iota
+	authMethodIdentityToken authMethod = iota
 
 	// User logins such as a browser login, under "user_credentials".
-	userCredentials
+	authMethodUser
 )
 
 // CredentialProvider adds credentials to HTTP requests.
@@ -229,7 +229,7 @@ func NewOAuth2CredentialProvider(
 	return newOAuth2CredentialProvider(
 		baseURL,
 		credentialsFilePath,
-		identityTokenCredentials,
+		authMethodIdentityToken,
 		&assertionExchange{
 			baseURL:               baseURL,
 			identityTokenFilePath: identityTokenFilePath,
@@ -250,7 +250,7 @@ func NewRefreshTokenCredentialProvider(
 	return newOAuth2CredentialProvider(
 		baseURL,
 		credentialsFilePath,
-		userCredentials,
+		authMethodUser,
 		&refreshTokenExchange{
 			baseURL:    baseURL,
 			clientID:   CLIClientID,
@@ -263,14 +263,14 @@ func NewRefreshTokenCredentialProvider(
 func newOAuth2CredentialProvider(
 	baseURL string,
 	credentialsFilePath string,
-	kind credentialsKind,
+	method authMethod,
 	exchange tokenExchange,
 	logger *slog.Logger,
 ) *oauth2CredentialProvider {
 	return &oauth2CredentialProvider{
 		baseURL:             baseURL,
 		credentialsFilePath: credentialsFilePath,
-		kind:                kind,
+		method:              method,
 		exchange:            exchange,
 		// Not the credentials file itself, which saving replaces.
 		fileMu:  lockedfile.MutexAt(credentialsFilePath + ".lock"),
@@ -472,7 +472,7 @@ func hasStoredUserLogin(credentialsFilePath, baseURL string) bool {
 		return false
 	}
 
-	return credsFile.entry(userCredentials, baseURL).RefreshToken != ""
+	return credsFile.entry(authMethodUser, baseURL).RefreshToken != ""
 }
 
 // TokenExchangeError is a definitive rejection of an identity token
@@ -576,7 +576,7 @@ type oauth2CredentialProvider struct {
 	credentialsFilePath string
 
 	// Which map in the credentials file this provider reads and writes.
-	kind credentialsKind
+	method authMethod
 
 	exchange tokenExchange
 
@@ -642,26 +642,26 @@ type CredentialsFile struct {
 	UserCredentials map[string]accessTokenInfo `json:"user_credentials,omitempty"`
 }
 
-// entry returns the stored credentials of the given kind for baseURL.
+// entry returns the credentials stored for baseURL by the given method.
 //
 // The zero value is returned when there are none; it counts as expired.
-func (f *CredentialsFile) entry(kind credentialsKind, baseURL string) accessTokenInfo {
-	switch kind {
-	case userCredentials:
+func (f *CredentialsFile) entry(method authMethod, baseURL string) accessTokenInfo {
+	switch method {
+	case authMethodUser:
 		return f.UserCredentials[baseURL]
 	default:
 		return f.Credentials[baseURL]
 	}
 }
 
-// setEntry stores token as the credentials of the given kind for baseURL.
+// setEntry stores token for baseURL under the given method.
 func (f *CredentialsFile) setEntry(
-	kind credentialsKind,
+	method authMethod,
 	baseURL string,
 	token accessTokenInfo,
 ) {
-	switch kind {
-	case userCredentials:
+	switch method {
+	case authMethodUser:
 		if f.UserCredentials == nil {
 			f.UserCredentials = make(map[string]accessTokenInfo)
 		}
@@ -755,7 +755,7 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 
 	// The previous lock holder may have already refreshed.
 	credsFile := c.tryLoadCredentialsFromFile()
-	stored := credsFile.entry(c.kind, c.baseURL)
+	stored := credsFile.entry(c.method, c.baseURL)
 	if !stored.IsTokenExpiring() {
 		c.tokenInfo = stored
 		return nil
@@ -806,7 +806,7 @@ func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() CredentialsFile 
 	return credsFile
 }
 
-// saveCredentialsToFile stores token for this provider's base URL and kind,
+// saveCredentialsToFile stores token for this provider's base URL and method,
 // leaving every other entry in the file as it was.
 //
 // The file is replaced atomically so a partial write cannot lose a refresh token.
@@ -814,7 +814,7 @@ func (c *oauth2CredentialProvider) saveCredentialsToFile(
 	credentials CredentialsFile,
 	token accessTokenInfo,
 ) error {
-	credentials.setEntry(c.kind, c.baseURL, token)
+	credentials.setEntry(c.method, c.baseURL, token)
 	if credentials.Credentials == nil {
 		// Older readers expect this map; write it even when empty.
 		credentials.Credentials = make(map[string]accessTokenInfo)
