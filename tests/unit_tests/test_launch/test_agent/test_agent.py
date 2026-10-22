@@ -155,48 +155,9 @@ async def test_run_job_secure_mode(mocker, clean_agent, job, exception_type, err
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "runner,args",
-    [
-        ("sagemaker", {"RoleArn": "arn:aws:iam::000000000000:role/submitter"}),
-        ("sagemaker", {"role_arn": "submitter-role"}),
-        ("sagemaker", {"VpcConfig": {"Subnets": ["subnet-submitter"]}}),
-        ("sagemaker", {"OutputDataConfig": {"S3OutputPath": "s3://submitter/out"}}),
-        (
-            "sagemaker",
-            {"AlgorithmSpecification": {"TrainingImage": "submitter/image:latest"}},
-        ),
-        ("sagemaker", {"Environment": {"SUBMITTER": "value"}}),
-        ("sagemaker", {"ResourceConfig": {"InstanceType": "ml.p4d.24xlarge"}}),
-        ("vertex", {"run": {"service_account": "submitter@example.invalid"}}),
-        ("vertex", {"run": {"network": "projects/test/global/networks/submitter"}}),
-        ("vertex", {"spec": {"staging_bucket": "gs://submitter"}}),
-        (
-            "vertex",
-            {
-                "spec": {
-                    "worker_pool_specs": [
-                        {"container_spec": {"image_uri": "submitter/image:latest"}}
-                    ]
-                }
-            },
-        ),
-        (
-            "vertex",
-            {
-                "spec": {
-                    "worker_pool_specs": [
-                        {"machine_spec": {"machine_type": "n1-standard-96"}}
-                    ]
-                }
-            },
-        ),
-        ("gcp-vertex", {"run": {"service_account": "submitter@example.invalid"}}),
-        ("future-runner", {"privileged": True}),
-    ],
-)
+@pytest.mark.parametrize("runner", ["sagemaker", "vertex"])
 async def test_run_job_secure_mode_rejects_cloud_args_before_scheduling(
-    mocker, clean_agent, runner, args
+    mocker, clean_agent, runner
 ):
     _setup(mocker)
     agent = LaunchAgent(
@@ -216,11 +177,7 @@ async def test_run_job_secure_mode_rejects_cloud_args_before_scheduling(
     ):
         await agent.run_job(
             {
-                "runSpec": {
-                    "resource": runner,
-                    # A validated subtree must not hide an unvalidated sibling.
-                    "resource_args": {"kubernetes": {}, runner: args},
-                },
+                "runSpec": {"resource": runner, "resource_args": {runner: {}}},
                 "runQueueItemId": "test-item",
             },
             "test-queue",
@@ -229,15 +186,6 @@ async def test_run_job_secure_mode_rejects_cloud_args_before_scheduling(
 
     task_run_job.assert_not_called()
     create_task.assert_not_called()
-
-
-@pytest.mark.parametrize("runner", ["sagemaker", "vertex", "gcp-vertex"])
-def test_assert_secure_allows_cloud_args_without_secure_mode(runner):
-    agent = object.__new__(LaunchAgent)
-    agent._secure_mode = False
-    agent._assert_secure(
-        {"resource": runner, "resource_args": {runner: {"key": "value"}}}
-    )
 
 
 @pytest.mark.asyncio

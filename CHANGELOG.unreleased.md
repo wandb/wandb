@@ -23,7 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Harden Launch agent resource argument validation in secure mode by rejecting runner subtrees without an explicit validation policy, including SageMaker and Vertex. This also applies to resource arguments supplied through queue defaults (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13202)
+- Launch agents in secure mode now reject jobs with SageMaker or Vertex resource arguments (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13202)
 - In LEET, a remote run opened before it logged any history did not update its state, summary or system metrics while it was running (@dmitryduev in https://github.com/wandb/wandb/pull/13221)
 - `wandb leet symon` scaled the GPU PCIe and NVLink throughput charts and the Trainium memory charts by 1024³ on top of the bytes that the monitor reports, so their y-axis labels read like `7.67e+09GB/s` instead of `7.67GB/s` (@dmitryduev in https://github.com/wandb/wandb/pull/13191)
 - System metrics were not collected when `TMPDIR` was longer than about 60 characters or on a filesystem without Unix socket support (@dmitryduev in https://github.com/wandb/wandb/pull/13200)
