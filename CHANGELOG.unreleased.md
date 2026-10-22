@@ -21,6 +21,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - In LEET, the system metrics of a remote run that is still running update every 15 seconds along with its history (@dmitryduev in https://github.com/wandb/wandb/pull/13219)
 - The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
 
+### Changed
+
+- `wandb.Api().artifact(...)` now fetches an artifact's collection membership aliases a 100-alias page at a time instead of all at once, fetching further pages lazily only if something reads `Artifact.aliases`. This avoids multi-second to 19-plus-second response times for artifacts with many aliases (@ibindlish in https://github.com/wandb/wandb/pull/13183)
+
 ### Fixed
 
 - In LEET, a remote run opened before it logged any history did not update its state, summary or system metrics while it was running (@dmitryduev in https://github.com/wandb/wandb/pull/13221)
@@ -28,4 +32,3 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics were not collected when `TMPDIR` was longer than about 60 characters or on a filesystem without Unix socket support (@dmitryduev in https://github.com/wandb/wandb/pull/13200)
 - System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
 - Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
-- `wandb.Api().artifact(...)` no longer fetches every alias on an artifact's collection membership in one request; it now fetches a 100-alias page up front and the rest lazily, only if something reads `Artifact.aliases`, fixing multi-second to 19-plus-second response times for artifacts with many aliases (@ibindlish in https://github.com/wandb/wandb/pull/13183)
