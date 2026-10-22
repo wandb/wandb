@@ -16,6 +16,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	txnlogtest "github.com/wandb/wandb/core/internal/transactionlogtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -28,7 +29,7 @@ func TestDumpRecords_JSON(t *testing.T) {
 			},
 		}},
 	})
-	path := writeWandbFile(t, records...)
+	path := txnlogtest.WandbFile(t, records...)
 
 	var out, notes bytes.Buffer
 	require.NoError(t, leet.DumpRecords(path, "", &out, &notes, leet.DumpOptions{JSON: true}))
@@ -93,7 +94,7 @@ func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
 }
 
 func TestDumpRecords_FollowStopsForDeadRun(t *testing.T) {
-	path := writeWandbFile(t, inspectorTestRecords()[:2]...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()[:2]...)
 	hourAgo := time.Now().Add(-time.Hour)
 	require.NoError(t, os.Chtimes(path, hourAgo, hourAgo))
 
@@ -103,7 +104,7 @@ func TestDumpRecords_FollowStopsForDeadRun(t *testing.T) {
 
 func TestPrintSummary(t *testing.T) {
 	at := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
-	path := writeWandbFile(t,
+	path := txnlogtest.WandbFile(t,
 		&spb.Record{RecordType: &spb.Record_Run{Run: &spb.RunRecord{
 			RunId: "abc123", DisplayName: "my-run", Project: "proj",
 			Config: &spb.ConfigRecord{Update: []*spb.ConfigItem{{Key: "lr", ValueJson: "0.1"}}},

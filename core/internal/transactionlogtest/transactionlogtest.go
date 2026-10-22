@@ -14,6 +14,37 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+func WandbFile(t *testing.T, records ...*spb.Record) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "wandb-file.wandb")
+
+	w, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	for _, record := range records {
+		require.NoError(t, w.Write(record))
+	}
+	require.NoError(t, w.Close())
+
+	return path
+}
+
+func WandbFileUnsupportedVersion(t *testing.T, version byte, records ...*spb.Record) string {
+	t.Helper()
+
+	path := WandbFile(t, records...)
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+	contents[6] = version
+	require.NoError(t, os.WriteFile(path, contents, 0o600))
+	return path
+}
+
+func WandbFileVersion(t *testing.T, version byte, records ...*spb.Record) string {
+	t.Helper()
+	require.Equal(t, uint8(0), version)
+	return WandbFileUnsupportedVersion(t, version, records...)
+}
+
 // ReaderWriter returns a reader and writer pair connected to the same file.
 func ReaderWriter(t *testing.T) (
 	*transactionlog.Reader,
@@ -38,7 +69,7 @@ func RecordsReader(
 ) *transactionlog.Reader {
 	t.Helper()
 
-	content := validWandbFile(t, records...)
+	content := validWandbFileContents(t, 0, records...)
 	contentReader := bytes.NewReader(content.Bytes())
 
 	r, err := transactionlog.NewReader(
@@ -57,7 +88,7 @@ func RecordsReader(
 func UnseekableReader(t *testing.T) *transactionlog.Reader {
 	t.Helper()
 
-	content := validWandbFile(t)
+	content := validWandbFileContents(t, 0)
 
 	r, err := transactionlog.NewReader(
 		&readSeekCloser{
@@ -74,7 +105,7 @@ func UnseekableReader(t *testing.T) *transactionlog.Reader {
 func ErrorReader(t *testing.T) *transactionlog.Reader {
 	t.Helper()
 
-	content := validWandbFile(t)
+	content := validWandbFileContents(t, 0)
 	addInvalidChunk(content)
 	contentReader := bytes.NewReader(content.Bytes())
 
@@ -91,18 +122,11 @@ func ErrorReader(t *testing.T) *transactionlog.Reader {
 	return r
 }
 
-// validWandbFile contains a valid .wandb file with the given records,
+// validWandbFileContents contains a valid .wandb file with the given records,
 // including at a minimum a 7-byte W&B header.
-func validWandbFile(t *testing.T, records ...*spb.Record) *bytes.Buffer {
+func validWandbFileContents(t *testing.T, version byte, records ...*spb.Record) *bytes.Buffer {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "just-the-header.wandb")
-
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
-	for _, record := range records {
-		require.NoError(t, w.Write(record))
-	}
-	require.NoError(t, w.Close())
+	path := WandbFileVersion(t, version, records...)
 
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
