@@ -1346,11 +1346,21 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
 """
 
 LINK_ARTIFACT_GQL = """
-mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
+mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true, $perPage: Int = 100) {
   result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
       ...ArtifactMembershipFragment
+      aliasesConnection(first: $perPage) @include(if: true) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
     }
   }
 }
@@ -1417,6 +1427,12 @@ fragment CollectionInfoFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 
 fragment ProjectInfoFragment on Project {

@@ -113,9 +113,9 @@ class ArtifactMembershipFragment(GQLResult):
     id: GQLId
     version_index: int | None = Field(alias="versionIndex")
     created_at: str = Field(alias="createdAt")
-    # Optional + defaulted: `Artifact._from_name` omits this unbounded field
-    # from the request when it instead uses `aliasesConnection`, so the
-    # response JSON may not include the key.
+    # Optional + defaulted: callers that have a paginated alternative (e.g.
+    # `Artifact._from_name`, `.link()`) omit this unbounded field from the
+    # request, so the response JSON may not include the key.
     aliases: list[ArtifactAliasFragment] | None = None
     artifact_collection: CollectionInfoFragment | None = Field(
         alias="artifactCollection"
