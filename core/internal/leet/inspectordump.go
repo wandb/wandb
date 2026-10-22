@@ -93,20 +93,15 @@ func DumpRecords(
 				return nil
 			}
 
-			info, err := os.Stat(path)
+			idle, err := awaitWrite(reader, path, opts.IdleTimeout)
 			if err != nil {
 				return err
 			}
-			idle := time.Since(info.ModTime())
-			if opts.IdleTimeout > 0 && idle > opts.IdleTimeout {
+			if idle > 0 {
 				return note(fmt.Sprintf(
 					"no writes for %v; the run may have crashed",
 					idle.Round(time.Second)))
 			}
-			if err := reader.ResetLastRead(); err != nil {
-				return err
-			}
-			time.Sleep(followPollInterval)
 			continue
 
 		case errors.Is(err, errCorruptSkipped):
@@ -134,6 +129,29 @@ func DumpRecords(
 		}
 		num++
 	}
+}
+
+// awaitWrite, at the end of a live run's file, resets reader to read what
+// the run writes next and waits followPollInterval. When the file has gone
+// longer than idleTimeout (0 waits forever) without a write, it instead
+// returns the time since the last write.
+func awaitWrite(
+	reader *transactionlog.Reader,
+	path string,
+	idleTimeout time.Duration,
+) (time.Duration, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	if idle := time.Since(info.ModTime()); idleTimeout > 0 && idle > idleTimeout {
+		return idle, nil
+	}
+	if err := reader.ResetLastRead(); err != nil {
+		return 0, err
+	}
+	time.Sleep(followPollInterval)
+	return 0, nil
 }
 
 // errCorruptSkipped wraps a read error after which reading continues past

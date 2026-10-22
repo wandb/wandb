@@ -7,6 +7,7 @@ for viewing W&B runs.
 from __future__ import annotations
 
 import dataclasses
+import json
 import os
 import pathlib
 import subprocess
@@ -49,6 +50,16 @@ class DefaultCommandGroup(click.Group):
         formatter.write_usage(ctx.command_path, "[PATH] | COMMAND [ARGS]...")
 
 
+class ScriptCommand(click.Command):
+    """A click Command whose usage errors are one line of JSON on stderr."""
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, args)
+        except click.UsageError as e:
+            _fatal_json("bad_request", e.format_message())
+
+
 @click.group(
     cls=DefaultCommandGroup,
     default_cmd="run",
@@ -69,6 +80,7 @@ def leet() -> None:
         wandb leet symon              View live local system metrics
         wandb leet inspect [PATH]     Browse the raw records in a .wandb log
         wandb leet inspect --summary  Print the latest run's state and metrics
+        wandb leet history --keys K   Print a run's metric series as JSON
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -173,6 +185,121 @@ def inspect(
     )
 
 
+@leet.command(cls=ScriptCommand)
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.option(
+    "--run",
+    default="",
+    metavar="RUN",
+    help="The run to read: its directory name, its ID or its display name."
+    " Defaults to the newest run.",
+)
+@click.option(
+    "--keys",
+    default="",
+    metavar="KEYS",
+    help="Comma-separated metric keys or globs with * and ?, e.g. 'train/loss,val/*'."
+    " A glob never matches keys starting with _.",
+)
+@click.option(
+    "--x-axis",
+    default="",
+    metavar="KEY",
+    help="Key to use as the x axis of every metric instead of its own, e.g. _runtime.",
+)
+@click.option(
+    "--bins",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Aggregate each metric into N equal-width bins instead of returning rows.",
+)
+@click.option(
+    "--min-step", type=int, default=None, metavar="N", help="First _step to include."
+)
+@click.option(
+    "--max-step", type=int, default=None, metavar="N", help="Last _step to include."
+)
+@click.option(
+    "--last", type=int, default=None, metavar="N", help="Return only the last N rows."
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Rows per call. Defaults to 1000.",
+)
+@click.option(
+    "--after",
+    default="",
+    metavar="CURSOR",
+    help="The next_cursor of a previous call, to continue after the rows it returned.",
+)
+@click.option(
+    "--follow",
+    "-f",
+    is_flag=True,
+    help="Keep printing new rows as the run writes them, one JSON object per poll.",
+)
+@click.option(
+    "--idle-timeout",
+    default="",
+    metavar="DURATION",
+    help="With --follow, stop once the run's file has gone this long without"
+    " a write (e.g. 30s, 1h; 0 waits forever). Defaults to 10m.",
+)
+@click.help_option("-h", "--help")
+def history(
+    path: str | None = None,
+    run: str = "",
+    keys: str = "",
+    x_axis: str = "",
+    bins: int | None = None,
+    min_step: int | None = None,
+    max_step: int | None = None,
+    last: int | None = None,
+    limit: int | None = None,
+    after: str = "",
+    follow: bool = False,
+    idle_timeout: str = "",
+) -> None:
+    """Print the metric series of a run as JSON.
+
+    Prints one JSON object with the run's state and the rows of the
+    selected metrics, or with --bins their min, max, average and last
+    value per bin. When more rows exist than fit in one call, the object
+    carries a next_cursor to pass back with --after.
+
+    \b
+    Examples:
+        wandb leet history --keys 'train/loss,val/*' --bins 200
+        wandb leet history --keys train/loss --last 100
+        wandb leet history --keys train/loss --min-step 4000 --max-step 4400
+        wandb leet history --keys train/loss --last 50 --follow
+        wandb leet history ./wandb --run sim-unstable-L32 --keys 'eval/*'
+
+    PATH can be a .wandb file, a run directory containing one, or a
+    wandb directory. If PATH is not provided, the configured wandb
+    directory is used.
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    launch_query(
+        "history",
+        path,
+        run=run,
+        keys=keys,
+        x_axis=x_axis,
+        bins=bins,
+        min_step=min_step,
+        max_step=max_step,
+        last=last,
+        limit=limit,
+        after=after,
+        follow=follow,
+        idle_timeout=idle_timeout,
+    )
+
+
 @leet.command()
 def config() -> None:
     """Edit LEET configuration."""
@@ -210,6 +337,16 @@ def _fatal(message: str) -> Never:
     sys.exit(1)
 
 
+def _fatal_json(code: str, message: str) -> Never:
+    """Print an error as one line of JSON and exit with code 1."""
+    error = {"schema": "leet.error/1", "error": code, "message": message}
+    click.echo(
+        json.dumps(error, separators=(",", ":"), sort_keys=True, ensure_ascii=False),
+        err=True,
+    )
+    sys.exit(1)
+
+
 def _find_wandb_file_in_dir(dir_path: pathlib.Path) -> pathlib.Path | None:
     """Find a run-*.wandb file in the given directory.
 
@@ -221,7 +358,7 @@ def _find_wandb_file_in_dir(dir_path: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
-def _resolve_path(path: str | None) -> LaunchConfig:
+def _resolve_path(path: str | None) -> LocalLaunchConfig:
     """Resolve the given path into a LaunchConfig.
 
     Behavior:
@@ -335,6 +472,36 @@ def launch_inspect(
         args.append("--follow")
     if idle_timeout:
         args.extend(["--idle-timeout", idle_timeout])
+    args.extend(_get_local_launch_args(config))
+
+    _run_core(args)
+
+
+def launch_query(
+    command: str, path: str | None, **flags: str | int | bool | None
+) -> Never:
+    """Run a wandb-core leet query command on a local run.
+
+    Each flag is passed to wandb-core under its own name with underscores
+    replaced by dashes; flags that are unset, empty or False are left out.
+    """
+    if path is not None and path.startswith(("https://", "http://")):
+        _fatal(f"`wandb leet {command}` requires a local .wandb file.")
+    if path and not os.path.exists(path):
+        _fatal_json("path_not_found", f"path does not exist: {path}")
+    if path and os.path.isfile(path) and not path.endswith(".wandb"):
+        _fatal_json("bad_request", f"not a .wandb file: {path}")
+    config = _resolve_path(path)
+
+    args = _base_args(command)
+    for name, value in flags.items():
+        if value is None or value == "" or value is False:
+            continue
+        flag = "--" + name.replace("_", "-")
+        if value is True:
+            args.append(flag)
+        else:
+            args.extend([flag, str(value)])
     args.extend(_get_local_launch_args(config))
 
     _run_core(args)
