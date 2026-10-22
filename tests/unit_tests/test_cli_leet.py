@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import pathlib
 
 import pytest
@@ -196,6 +197,45 @@ def test_leet_inspect_wandb_dir_uses_latest_run(
             str(wandb_dir.resolve()),
         ]
     ]
+
+
+def test_leet_history_passes_flags_before_the_run(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    run_dir = tmp_path / "wandb" / "run-20250101_000000-abc123"
+    run_dir.mkdir(parents=True)
+    run_file = run_dir / "run-abc123.wandb"
+    run_file.touch()
+
+    result = runner.invoke(
+        cli.cli,
+        ["leet", "history", "--keys", "train/loss,val/*", "--bins", "20", str(run_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "history",
+            "--base-url",
+            _BASE_URL,
+            "--keys",
+            "train/loss,val/*",
+            "--bins",
+            "20",
+            "--run-file",
+            str(run_file.resolve()),
+            str((tmp_path / "wandb").resolve()),
+        ]
+    ]
+
+    result = runner.invoke(
+        cli.cli, ["leet", "history", "--keys", "train/loss", str(tmp_path / "missing")]
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stderr)["error"] == "path_not_found"
 
 
 def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
