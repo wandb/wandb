@@ -212,14 +212,8 @@ func (s *consoleScan) parse(q ConsoleQuery) error {
 			return badRequest("grep: %v", err)
 		}
 	}
-	if q.Since != "" {
-		if s.since, err = time.Parse(time.RFC3339, q.Since); err != nil {
-			if s.sinceAgo, err = time.ParseDuration(q.Since); err != nil || s.sinceAgo < 0 {
-				return badRequest("since must be an RFC 3339 time or a duration such as 10m")
-			}
-		}
-	}
-	return nil
+	s.since, s.sinceAgo, err = parseSince(q.Since)
+	return err
 }
 
 // scan reads records up to the end of the file, assembling console lines.

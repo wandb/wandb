@@ -286,6 +286,7 @@ type leetOptions struct {
 	history      leet.HistoryQuery
 	summaryQuery leet.SummaryQuery
 	console      leet.ConsoleQuery
+	system       leet.SystemQuery
 
 	// remoteURL is the W&B URL of the project or run to open
 	// (e.g. https://api.forge.coreweave.com/<entity>/<project> or
@@ -373,6 +374,16 @@ var leetCommands = []*leetCommand{
 		bindFlags: bindLeetConsoleFlags,
 		validate:  validateLeetQuerySource,
 		run:       runLeetConsole,
+	},
+	{
+		name:      "system",
+		args:      "[<wandb-directory>]",
+		short:     "Print the system metrics of a run as JSON",
+		mode:      "system",
+		script:    true,
+		bindFlags: bindLeetSystemFlags,
+		validate:  validateLeetQuerySource,
+		run:       runLeetSystem,
 	},
 	{
 		name:      "symon",
@@ -646,6 +657,22 @@ func bindLeetConsoleFlags(fs *flag.FlagSet, opts *leetOptions) {
 			" a write. 0 waits forever.")
 }
 
+func bindLeetSystemFlags(fs *flag.FlagSet, opts *leetOptions) {
+	bindLeetQueryFlags(fs, opts)
+	q := &opts.system
+	fs.Func("keys", "Comma-separated system metric keys or globs with * and ? to return,"+
+		" e.g. 'system.gpu.*.gpu,system.memory*'. Defaults to every key.",
+		appendKeys(&q.Keys))
+	fs.StringVar(&q.Since, "since", "",
+		"Return only the samples taken at or after this RFC 3339 time, or within this"+
+			" duration (e.g. 10m) of the run's last sample, or of now while it runs.")
+	fs.IntVar(&q.Bins, "bins", 0,
+		"Aggregate each metric into this many equal-width bins over time"+
+			" instead of returning rows.")
+	fs.IntVar(&q.Last, "last", 0, "Return only the last N samples.")
+	fs.IntVar(&q.Limit, "limit", 0, "Samples to return (default 1000).")
+}
+
 // appendKeys returns a flag function that appends the comma-separated keys
 // in its argument to keys.
 func appendKeys(keys *[]string) func(string) error {
@@ -823,6 +850,15 @@ func runLeetSummary(opts *leetOptions, _ *observability.CoreLogger) int {
 
 func runLeetConsole(opts *leetOptions, _ *observability.CoreLogger) int {
 	err := leet.QueryConsole(opts.wandbDir, opts.runFile, opts.run, opts.console, os.Stdout)
+	if err != nil {
+		leet.WriteQueryError(os.Stderr, err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+func runLeetSystem(opts *leetOptions, _ *observability.CoreLogger) int {
+	err := leet.QuerySystem(opts.wandbDir, opts.runFile, opts.run, opts.system, os.Stdout)
 	if err != nil {
 		leet.WriteQueryError(os.Stderr, err)
 		return exitCodeErrorInternal
