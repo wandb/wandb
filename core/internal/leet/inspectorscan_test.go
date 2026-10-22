@@ -140,7 +140,7 @@ func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 		{name: "maximum version", version: 255},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			path := writeUnsupportedWandbFile(t, test.version)
+			path := txnlogtest.WandbFileUnsupportedVersion(t, test.version)
 			scan, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
 			require.NoError(t, err)
 			defer scan.Close()
@@ -190,7 +190,7 @@ func TestReadInspectorBatch_InvalidHeader(t *testing.T) {
 }
 
 func TestReadInspectorBatch_SkipsCorruptRecord(t *testing.T) {
-	path := writeWandbFile(t,
+	path := txnlogtest.WandbFile(t,
 		&spb.Record{RecordType: &spb.Record_OutputRaw{
 			OutputRaw: &spb.OutputRawRecord{Line: strings.Repeat("x", 32*1024)},
 		}},
@@ -218,7 +218,7 @@ func TestReadInspectorBatch_SkipsCorruptRecord(t *testing.T) {
 }
 
 func TestReadInspectorBatch_PartialRecordResumesAfterAppend(t *testing.T) {
-	path := writeWandbFile(t, inspectorTestRecords()...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.NoError(t, os.Truncate(path, int64(len(data)-1)))
