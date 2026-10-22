@@ -1,12 +1,46 @@
 package leet
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
+	"github.com/wandb/simplejsonext"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// historyItemValue preserves numeric types and prefers the typed oneof.
+// Invalid typed JSON returns an error even when the legacy value is valid.
+func historyItemValue(item *spb.HistoryItem) (any, error) {
+	switch value := item.GetValue().(type) {
+	case *spb.HistoryItem_None:
+		return nil, nil
+	case *spb.HistoryItem_Boolean:
+		return value.Boolean, nil
+	case *spb.HistoryItem_Integer:
+		return value.Integer, nil
+	case *spb.HistoryItem_Number:
+		return value.Number, nil
+	case *spb.HistoryItem_Text:
+		return value.Text, nil
+	case *spb.HistoryItem_Json:
+		decoded, err := simplejsonext.UnmarshalString(value.Json)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal typed history item value: %w", err)
+		}
+		return decoded, nil
+	case nil:
+		decoded, err := simplejsonext.UnmarshalString(item.GetValueJson())
+		if err != nil {
+			return item.GetValueJson(), nil
+		}
+		return decoded, nil
+	default:
+		return nil, fmt.Errorf("unknown history value type %T", item.GetValue())
+	}
+}
 
 // historyItemFloat returns the item's value as a chart point.
 // The boolean return value is false if the value is not a number.
