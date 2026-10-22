@@ -59,6 +59,14 @@ var panelHTML string
 
 // server answers the requests of one client.
 type server struct {
+	// baseURL is the URL of the W&B server whose URLs the tools read, or
+	// "" when they read local runs only.
+	baseURL string
+
+	// appURLs are the URL prefixes of the W&B app pages of that server,
+	// such as https://wandb.ai, which name it too.
+	appURLs []string
+
 	// apps is whether the client declared in initialize that it renders
 	// MCP Apps.
 	apps bool
@@ -97,9 +105,12 @@ type rpcError struct {
 }
 
 // Serve answers the requests read from stdin on stdout until stdin ends,
-// noting protocol errors on stderr.
-func Serve(stdin io.Reader, stdout, stderr io.Writer) error {
-	s := &server{}
+// noting protocol errors on stderr. The tools read the W&B URLs of the
+// server at baseURL and of its app pages under the appURLs prefixes, or
+// none when baseURL is empty.
+func Serve(stdin io.Reader, stdout, stderr io.Writer, baseURL string, appURLs []string) error {
+	slices.SortFunc(appURLs, func(a, b string) int { return len(b) - len(a) })
+	s := &server{baseURL: strings.TrimSuffix(baseURL, "/"), appURLs: appURLs}
 	reader := bufio.NewReader(stdin)
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -197,7 +208,7 @@ func (s *server) handle(req *request) (map[string]any, *rpcError) {
 	case "tools/list":
 		result = ListTools(apps)
 	case "tools/call":
-		if result, rpcErr = callTool(p.Name, p.Arguments); rpcErr != nil {
+		if result, rpcErr = s.callTool(p.Name, p.Arguments); rpcErr != nil {
 			return nil, rpcErr
 		}
 	case "resources/list":
@@ -312,14 +323,14 @@ func rendersApps(capabilities json.RawMessage) bool {
 
 // callTool runs a tool and returns its result: the tool's JSON object as
 // text and as structuredContent, or with isError the leet.error/1 object.
-func callTool(name string, args json.RawMessage) (map[string]any, *rpcError) {
+func (s *server) callTool(name string, args json.RawMessage) (map[string]any, *rpcError) {
 	i := slices.IndexFunc(tools, func(t tool) bool { return t.name == name })
 	if i < 0 {
 		return nil, &rpcError{Code: errInvalidParams, Message: fmt.Sprintf("unknown tool %q", name)}
 	}
 
 	var out bytes.Buffer
-	err := tools[i].run(args, &out)
+	err := tools[i].run(s, args, &out)
 	if err != nil {
 		out.Reset()
 		leet.WriteQueryError(&out, err)

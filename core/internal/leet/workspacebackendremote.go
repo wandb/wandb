@@ -100,8 +100,8 @@ func (b *RemoteWorkspaceBackend) listRuns() (map[string]RunMsg, error) {
 	page := response.Project.Runs
 	runs := make(map[string]RunMsg, len(page.Edges))
 	var newIDs []string
-	for _, edge := range page.Edges {
-		info := newRunInfo(b.entity, b.project, &edge.Node.LeetRun, b.logger)
+	for i := range page.Edges {
+		info := newRunInfo(b.entity, b.project, &page.Edges[i].Node.LeetRun, b.logger)
 		runs[info.runId] = info.runMsg()
 		// Runs created while paging shift later pages, repeating runs.
 		if !slices.Contains(b.runIDs, info.runId) {
