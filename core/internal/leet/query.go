@@ -294,3 +294,15 @@ func matchKey(pattern, key string) bool {
 	}
 	return !strings.HasPrefix(key, "_") && wildcardMatch(pattern, key)
 }
+
+// unmatchedKeyWarnings returns a warning for every pattern that matches
+// none of the keys.
+func unmatchedKeyWarnings(patterns, keys []string) []string {
+	warnings := []string{}
+	for _, pattern := range patterns {
+		if !slices.ContainsFunc(keys, func(key string) bool { return matchKey(pattern, key) }) {
+			warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
+		}
+	}
+	return warnings
+}
