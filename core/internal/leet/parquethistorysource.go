@@ -2,7 +2,6 @@ package leet
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -63,8 +62,16 @@ type RunInfo struct {
 	tags   []string
 	config *spb.ConfigRecord
 
-	// runState is the authoritative state returned by the W&B backend.
+	// state is the run's state as the W&B backend reports it.
+	state string
+
+	// runState is state mapped to the states LEET renders.
 	runState RunState
+
+	// createdAt is when the run was created and heartbeatAt when it last
+	// reported to the W&B backend, zero when it never did.
+	createdAt   time.Time
+	heartbeatAt time.Time
 }
 
 // newRunInfo converts a run fetched from the W&B backend.
@@ -79,7 +86,7 @@ func newRunInfo(
 	if err != nil {
 		logger.Warn("leet: failed to parse remote run config", "run", run.Name, "error", err)
 	}
-	return &RunInfo{
+	info := &RunInfo{
 		entity:      entity,
 		project:     project,
 		runId:       run.Name,
@@ -87,8 +94,14 @@ func newRunInfo(
 		notes:       run.Notes,
 		tags:        run.Tags,
 		config:      config,
+		state:       run.State,
 		runState:    remoteRunState(run.State),
+		createdAt:   run.CreatedAt,
 	}
+	if run.HeartbeatAt != nil {
+		info.heartbeatAt = *run.HeartbeatAt
+	}
+	return info
 }
 
 // remoteConfig converts a run config from the W&B backend, which maps each
@@ -285,7 +298,10 @@ func newRemoteClients(
 ) (*remoteClients, error) {
 	apiKey := os.Getenv("WANDB_API_KEY")
 	if apiKey == "" {
-		return nil, errors.New("WANDB_API_KEY is not set")
+		return nil, &QueryError{
+			Code:    "not_available",
+			Message: "WANDB_API_KEY is not set: run wandb login",
+		}
 	}
 
 	s := settings.From(&spb.Settings{
@@ -719,11 +735,18 @@ func loadRunInfo(
 	}
 
 	if response == nil || response.Project == nil {
-		return nil, fmt.Errorf("project %q not found for entity %q", project, entity)
+		return nil, &QueryError{
+			Code: "run_not_found",
+			Message: fmt.Sprintf("project %s/%s not found or not readable with the"+
+				" configured API key", entity, project),
+		}
 	}
 	run := response.Project.Run
 	if run == nil {
-		return nil, fmt.Errorf("run %q not found in %s/%s", runId, entity, project)
+		return nil, &QueryError{
+			Code:    "run_not_found",
+			Message: fmt.Sprintf("run %q not found in %s/%s", runId, entity, project),
+		}
 	}
 
 	runInfo := newRunInfo(entity, project, &run.LeetRun, logger)

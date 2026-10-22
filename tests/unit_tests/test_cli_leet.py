@@ -6,6 +6,7 @@ import pathlib
 import pytest
 from wandb.cli import cli, leet
 from wandb.errors import WandbCoreNotAvailableError
+from wandb.sdk.lib import urls
 
 _BASE_URL = "https://api.wandb.ai"
 
@@ -19,6 +20,7 @@ def core_calls(monkeypatch) -> list[list[str]]:
         base_url = _BASE_URL
         _offline = False
         _noop = False
+        login_timeout = None
 
     class _StubSingleton:
         settings = _StubSettings()
@@ -28,6 +30,7 @@ def core_calls(monkeypatch) -> list[list[str]]:
     monkeypatch.setattr(leet, "is_debug", lambda default: False)
     monkeypatch.setattr(leet, "_run_core", lambda args, env=None: calls.append(args))
     monkeypatch.setattr(leet.wandb_setup, "singleton", lambda: _StubSingleton())
+    monkeypatch.setattr(leet.wbauth, "authenticate_session", lambda **kwargs: None)
 
     return calls
 
@@ -105,7 +108,90 @@ def test_mcp_execs_core(runner, core_calls):
     result = runner.invoke(cli.cli, ["mcp"])
 
     assert result.exit_code == 0
-    assert core_calls == [["wandb-core", "mcp", "--base-url", _BASE_URL]]
+    assert core_calls == [
+        ["wandb-core", "mcp", "--base-url", _BASE_URL, "--app-urls", "https://wandb.ai"]
+    ]
+
+
+def test_mcp_passes_the_api_key_only_when_found(runner, core_calls, monkeypatch):
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    envs: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        leet,
+        "_run_core",
+        lambda args, env=None: (core_calls.append(args), envs.append(env)),
+    )
+    key = "X" * 40
+    auths = iter([leet.wbauth.AuthApiKey(host=_BASE_URL, api_key=key), None])
+    monkeypatch.setattr(
+        leet.wbauth, "authenticate_session", lambda **kwargs: next(auths)
+    )
+    settings = leet.wandb_setup.singleton().settings
+    settings._offline = True
+    settings.base_url = urls.DEFAULT_BASE_URL
+
+    assert runner.invoke(cli.cli, ["mcp"]).exit_code == 0
+    assert runner.invoke(cli.cli, ["mcp"]).exit_code == 0
+
+    assert core_calls[0][:6] == [
+        "wandb-core",
+        "mcp",
+        "--no-observability",
+        "--base-url",
+        urls.DEFAULT_BASE_URL,
+        "--app-urls",
+    ]
+    assert {"https://wandb.ai", "https://api.wandb.ai"} <= set(
+        core_calls[0][6].split(",")
+    )
+    assert envs[0]["WANDB_API_KEY"] == key
+    assert "WANDB_API_KEY" not in envs[1]
+
+
+def test_leet_summary_hands_a_url_to_core(runner, core_calls, monkeypatch):
+    key = "X" * 40
+    url = "https://api.forge.coreweave.com/entity/project/runs/id"
+    auth = leet.wbauth.AuthApiKey(host=urls.DEFAULT_BASE_URL, api_key=key)
+    monkeypatch.setattr(leet.wbauth, "authenticate_session", lambda **kwargs: auth)
+    envs: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        leet,
+        "_run_core",
+        lambda args, env=None: (core_calls.append(args), envs.append(env)),
+    )
+
+    result = runner.invoke(
+        cli.cli,
+        ["leet", "summary", "--keys", "acc", "https://wandb.ai/entity/project/runs/id"],
+    )
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "summary",
+            "--base-url",
+            _BASE_URL,
+            "--keys",
+            "acc",
+            "--remote-url",
+            url,
+        ]
+    ]
+    assert envs[0]["WANDB_API_KEY"] == key
+
+    result = runner.invoke(cli.cli, ["leet", "summary", "--run", "x", url])
+    assert result.exit_code == 1
+    assert json.loads(result.stderr)["message"] == "run cannot be used with a URL"
+
+    result = runner.invoke(cli.cli, ["leet", "summary", "https://wandb.ai/entity"])
+    assert json.loads(result.stderr)["error"] == "bad_request"
+
+    monkeypatch.setattr(leet.wbauth, "authenticate_session", lambda **kwargs: None)
+    result = runner.invoke(cli.cli, ["leet", "summary", url])
+    assert result.exit_code == 1
+    assert json.loads(result.stderr)["error"] == "not_available"
 
 
 def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path):
@@ -311,6 +397,7 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
             "/entity/project/runs/id",
         ),
         ("https://wandb.ai/entity/project/workspace?nw=abc", "/entity/project"),
+        ("https://WANDB.AI/entity/project", "/entity/project"),
         ("https://forge.coreweave.com/wandb/entity/project", "/entity/project"),
     ],
 )
@@ -321,5 +408,5 @@ def test_parse_remote_url_forge(url, path):
 
 
 def test_parse_remote_url_requires_entity_and_project():
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         leet._parse_remote_url("https://wandb.ai/entity")
