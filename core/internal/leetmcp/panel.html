@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>LEET</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --fg: #1f1f1f;
+  --muted: #6b6b6b;
+  --line: #d9d9d9;
+  --grid: #ececec;
+  --error: #b3261e;
+}
+:root.dark {
+  color-scheme: dark;
+  --bg: #1b1b1b;
+  --fg: #e8e8e8;
+  --muted: #9a9a9a;
+  --line: #3a3a3a;
+  --grid: #2b2b2b;
+  --error: #ff6b6b;
+}
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  display: flex;
+  align-items: flex-start;
+  font: 12px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+#runs {
+  flex: none;
+  width: 200px;
+  max-height: 480px;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 8px 0;
+  border-right: 1px solid var(--line);
+}
+.run {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  width: 100%;
+  padding: 2px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.run:hover { background: var(--grid); }
+.run .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.run .state { color: var(--muted); font-size: 11px; }
+#main { flex: 1; min-width: 0; padding: 8px 12px; }
+.chart h3 { margin: 6px 0 2px; font-size: 12px; font-weight: 600; }
+canvas { display: block; width: 100%; height: 160px; }
+.empty { color: var(--muted); margin: 8px 0; }
+#status { color: var(--muted); margin-top: 6px; min-height: 1.5em; }
+#status.error { color: var(--error); }
+</style>
+</head>
+<body>
+<div id="runs"></div>
+<div id="main">
+  <div id="charts"></div>
+  <div id="status"></div>
+</div>
+<script>
+"use strict";
+
+const PALETTE = ["#4c78a8", "#f58518", "#e45756", "#72b7b2", "#54a24b",
+  "#eeca3b", "#b279a2", "#ff9da6", "#9d755d", "#bab0ac"];
+const MARGIN = {left: 48, right: 10, top: 8, bottom: 20};
+const REFRESH_MS = 15000;
+
+const runsEl = document.getElementById("runs");
+const chartsEl = document.getElementById("charts");
+const statusEl = document.getElementById("status");
+
+const view = {path: "", filter: "", glob: false, keys: [], bins: 200, truncated: false};
+let runs = [];
+const charted = new Set();
+const series = new Map();
+
+let nextId = 1;
+const pending = new Map();
+
+function post(msg) {
+  window.parent.postMessage(Object.assign({jsonrpc: "2.0"}, msg), "*");
+}
+
+function notify(method, params) {
+  post({method, params});
+}
+
+function request(method, params) {
+  return new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, {resolve, reject});
+    post({id, method, params});
+  });
+}
+
+window.addEventListener("message", (event) => {
+  const msg = event.data;
+  if (event.source !== window.parent || !msg || msg.jsonrpc !== "2.0") return;
+  if (msg.method === undefined) {
+    const p = pending.get(msg.id);
+    if (!p) return;
+    pending.delete(msg.id);
+    if (msg.error) p.reject(new Error(msg.error.message || "host error"));
+    else p.resolve(msg.result);
+    return;
+  }
+  const params = msg.params && typeof msg.params === "object" ? msg.params : {};
+  switch (msg.method) {
+    case "ui/notifications/tool-input": {
+      const args = params.arguments || {};
+      setStatus("Loading " + (typeof args.path === "string" ? args.path : "runs") + "...");
+      break;
+    }
+    case "ui/notifications/tool-result":
+      onToolResult(params);
+      break;
+    case "ui/notifications/tool-cancelled":
+      setStatus("leet_view cancelled" + (params.reason ? ": " + params.reason : ""));
+      break;
+    case "ui/notifications/host-context-changed":
+      applyHostContext(params);
+      break;
+    case "ui/resource-teardown":
+      if (msg.id !== undefined) post({id: msg.id, result: {}});
+      break;
+    default:
+      if (msg.id !== undefined) {
+        post({id: msg.id, error: {code: -32601, message: "unknown method " + msg.method}});
+      }
+  }
+});
+
+function applyHostContext(ctx) {
+  if (!ctx || (ctx.theme !== "light" && ctx.theme !== "dark")) return;
+  document.documentElement.classList.toggle("dark", ctx.theme === "dark");
+  drawAll();
+}
+
+function textOf(result) {
+  const content = result && Array.isArray(result.content) ? result.content : [];
+  const block = content.find((b) => b && b.type === "text");
+  return block ? String(block.text) : "";
+}
+
+function structuredOf(result) {
+  if (result && result.structuredContent) return result.structuredContent;
+  try {
+    return JSON.parse(textOf(result));
+  } catch {
+    return null;
+  }
+}
+
+function errorOf(sc) {
+  return sc && typeof sc.message === "string" ? sc.message : "unexpected result";
+}
+
+function onToolResult(result) {
+  const sc = structuredOf(result);
+  if (result.isError || !sc || sc.schema !== "leet.view/1") {
+    showError("leet_view: " + errorOf(sc));
+    return;
+  }
+  const v = sc.view || {};
+  const runsObject = sc.runs || {};
+  view.path = runsObject.source && typeof runsObject.source.path === "string" ? runsObject.source.path : "";
+  view.filter = typeof v.filter === "string" ? v.filter : "";
+  view.glob = Boolean(v.glob);
+  view.keys = Array.isArray(v.keys) ? v.keys.filter((k) => typeof k === "string") : [];
+  view.bins = typeof v.bins === "number" && v.bins > 0 ? v.bins : 200;
+  view.truncated = Boolean(runsObject.truncated);
+  runs = Array.isArray(runsObject.runs) ? runsObject.runs.filter((r) => r && typeof r.run_key === "string") : [];
+  charted.clear();
+  series.clear();
+  const selected = runs.filter((r) => r.selected);
+  for (const r of selected.length ? selected : runs.slice(0, 3)) charted.add(r.run_key);
+  const total = typeof runsObject.total === "number" ? runsObject.total : runs.length;
+  setStatus((view.truncated ? runs.length + " of " + total : runs.length) + " runs in " + view.path);
+  renderRuns();
+  reportSize();
+  load([...charted]);
+}
+
+async function load(runKeys) {
+  if (runKeys.length && (!view.keys.length || view.keys.some((k) => /[*?]/.test(k)))) {
+    const sc = await callHistory(runKeys[0], view.keys.length ? view.keys : ["*"], 1);
+    if (sc && Array.isArray(sc.keys)) view.keys = sc.keys.slice(0, 3);
+  }
+  if (view.keys.length) await Promise.all(runKeys.map((k) => fetchSeries(k, view.keys)));
+  renderRuns();
+  renderCharts();
+  updateModelContext();
+}
+
+function bins() {
+  return Math.max(0, chartsEl.clientWidth - MARGIN.left - MARGIN.right) || view.bins;
+}
+
+async function callHistory(runKey, keys, b) {
+  const run = runs.find((r) => r.run_key === runKey);
+  const file = run && typeof run.file === "string" ? run.file : "";
+  const args = {path: file || view.path, keys, bins: b};
+  try {
+    const result = await request("tools/call", {name: "leet_history", arguments: args});
+    const sc = structuredOf(result);
+    if (!sc || result.isError) throw new Error(errorOf(sc));
+    if (run && typeof sc.state === "string") run.state = sc.state;
+    return sc;
+  } catch (err) {
+    showError(runKey + ": " + err.message);
+    return null;
+  }
+}
+
+async function fetchSeries(runKey, keys) {
+  const b = bins();
+  const sc = await callHistory(runKey, keys, b);
+  if (!sc) return;
+  view.bins = b;
+  const byKey = {};
+  for (const s of Array.isArray(sc.series) ? sc.series : []) {
+    if (s && typeof s.key === "string") byKey[s.key] = Array.isArray(s.bins) ? s.bins : [];
+  }
+  series.set(runKey, byKey);
+}
+
+function toggleRun(runKey) {
+  if (charted.delete(runKey)) {
+    series.delete(runKey);
+    renderRuns();
+    renderCharts();
+    updateModelContext();
+  } else {
+    charted.add(runKey);
+    renderRuns();
+    load([runKey]);
+  }
+}
+
+setInterval(() => {
+  const running = runs.filter((r) => charted.has(r.run_key) && r.state === "running");
+  if (running.length && view.keys.length) load(running.map((r) => r.run_key));
+}, REFRESH_MS);
+
+function colorOf(runKey) {
+  const i = runs.findIndex((r) => r.run_key === runKey);
+  return PALETTE[Math.max(i, 0) % PALETTE.length];
+}
+
+function renderRuns() {
+  const focused = document.activeElement && document.activeElement.title;
+  runsEl.replaceChildren();
+  for (const r of runs) {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "run";
+    el.title = r.run_key;
+    el.setAttribute("aria-pressed", String(charted.has(r.run_key)));
+    const mark = document.createElement("span");
+    mark.textContent = charted.has(r.run_key) ? "●" : "○";
+    mark.style.color = charted.has(r.run_key) ? colorOf(r.run_key) : "var(--muted)";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = r.name || r.run_id || r.run_key;
+    const state = document.createElement("span");
+    state.className = "state";
+    state.textContent = typeof r.state === "string" ? r.state : "";
+    el.append(mark, name, state);
+    el.addEventListener("click", () => toggleRun(r.run_key));
+    runsEl.appendChild(el);
+    if (r.run_key === focused) el.focus();
+  }
+}
+
+function renderCharts() {
+  chartsEl.replaceChildren();
+  if (!runs.length) {
+    empty("No runs in " + (view.path || "the wandb directory") + ".");
+  } else if (!view.keys.length) {
+    empty("No metric keys to chart. Call leet_view with keys, e.g. train/loss.");
+  }
+  for (const key of runs.length ? view.keys : []) {
+    const box = document.createElement("div");
+    box.className = "chart";
+    const title = document.createElement("h3");
+    title.textContent = key;
+    const canvas = document.createElement("canvas");
+    canvas.dataset.key = key;
+    box.append(title, canvas);
+    chartsEl.appendChild(box);
+  }
+  drawAll();
+}
+
+function empty(text) {
+  const p = document.createElement("p");
+  p.className = "empty";
+  p.textContent = text;
+  chartsEl.appendChild(p);
+}
+
+function drawAll() {
+  for (const canvas of chartsEl.querySelectorAll("canvas")) drawChart(canvas, canvas.dataset.key);
+  reportSize();
+}
+
+function drawChart(canvas, key) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (!w || !h) return;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.font = "10px system-ui, sans-serif";
+  const style = getComputedStyle(document.documentElement);
+  const color = (name) => style.getPropertyValue(name).trim();
+
+  const lines = [];
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const runKey of charted) {
+    const byKey = series.get(runKey);
+    const points = [];
+    for (const b of (byKey && byKey[key]) || []) {
+      if (!b || !Number.isFinite(b.avg) || !Number.isFinite(b.x0) || !Number.isFinite(b.x1)) continue;
+      const x = (b.x0 + b.x1) / 2;
+      points.push([x, b.avg]);
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, b.avg);
+      y1 = Math.max(y1, b.avg);
+    }
+    if (points.length) lines.push({color: colorOf(runKey), points});
+  }
+  if (!lines.length) {
+    ctx.fillStyle = color("--muted");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("no data", w / 2, h / 2);
+    return;
+  }
+  if (x0 === x1) { x0 -= 1; x1 += 1; }
+  if (y0 === y1) { y0 -= 1; y1 += 1; }
+  const left = MARGIN.left, right = w - MARGIN.right, top = MARGIN.top, bottom = h - MARGIN.bottom;
+  const px = (x) => left + (x - x0) / (x1 - x0) * (right - left);
+  const py = (y) => bottom - (y - y0) / (y1 - y0) * (bottom - top);
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = color("--grid");
+  ctx.fillStyle = color("--muted");
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const yt = ticks(y0, y1, 4);
+  for (const y of yt.values) {
+    const yy = Math.round(py(y)) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(left, yy);
+    ctx.lineTo(right, yy);
+    ctx.stroke();
+    ctx.fillText(fmt(y, yt.step), left - 4, yy);
+  }
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const xt = ticks(x0, x1, 6);
+  for (const x of xt.values) {
+    const xx = Math.round(px(x)) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(xx, top);
+    ctx.lineTo(xx, bottom);
+    ctx.stroke();
+    ctx.fillText(fmt(x, xt.step), xx, bottom + 4);
+  }
+
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+  for (const line of lines) {
+    ctx.strokeStyle = line.color;
+    ctx.beginPath();
+    line.points.forEach(([x, y], i) => (i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y))));
+    ctx.stroke();
+  }
+}
+
+function ticks(lo, hi, n) {
+  const span = hi - lo;
+  const mag = Math.pow(10, Math.floor(Math.log10(span / n)));
+  const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => span / s <= n);
+  const values = [];
+  for (let i = Math.ceil(lo / step - 1e-9); i * step <= hi + step * 1e-9; i++) values.push(i * step);
+  return {step, values};
+}
+
+function fmt(v, step) {
+  return v.toFixed(Math.max(0, -Math.floor(Math.log10(step))));
+}
+
+function reportSize() {
+  notify("ui/notifications/size-changed", {height: Math.ceil(document.body.getBoundingClientRect().height)});
+}
+
+let lastContext = "";
+
+function updateModelContext() {
+  const keys = view.keys.join(", ") || "no keys";
+  const params = {
+    content: [{type: "text", text: "Viewing " + keys + " for " + charted.size + " runs in " + view.path}],
+    structuredContent: {
+      view: {
+        path: view.path, filter: view.filter, glob: view.glob, keys: view.keys,
+        x_axis: "_step", bins: view.bins, runs: [...charted], truncated: view.truncated,
+      },
+    },
+  };
+  const json = JSON.stringify(params);
+  if (json === lastContext) return;
+  lastContext = json;
+  request("ui/update-model-context", params).catch(() => {});
+}
+
+function setStatus(text) {
+  statusEl.textContent = text;
+  statusEl.className = "";
+}
+
+function showError(text) {
+  statusEl.textContent = text;
+  statusEl.className = "error";
+  reportSize();
+}
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  drawAll();
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (charted.size && view.keys.length && Math.abs(bins() - view.bins) > view.bins / 10) load([...charted]);
+  }, 250);
+});
+
+request("ui/initialize", {
+  protocolVersion: "2026-01-26",
+  appInfo: {name: "wandb-leet-panel", version: "1"},
+  appCapabilities: {},
+}).then((result) => {
+  notify("ui/notifications/initialized", {});
+  applyHostContext(result && result.hostContext);
+}).catch((err) => showError("initialize: " + err.message));
+</script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LEET panel mock host</title>
+<style>
+body {
+  margin: 0;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  grid-template-rows: auto 1fr;
+  font: 13px/1.4 system-ui, sans-serif;
+}
+body.dark { background: #111; color: #ddd; }
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #888;
+}
+main { padding: 12px; overflow: auto; }
+iframe { display: block; width: 100%; min-height: 200px; border: 1px solid #888; }
+aside {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-left: 1px solid #888;
+  overflow: hidden;
+}
+pre { margin: 0; white-space: pre-wrap; word-break: break-all; font-size: 11px; }
+#log { flex: 1; overflow: auto; }
+#log div { padding: 2px 0; border-bottom: 1px solid #8884; }
+</style>
+</head>
+<body>
+<header>
+  <strong>LEET panel mock host</strong>
+  <button id="theme">Theme: light</button>
+  <span id="info"></span>
+</header>
+<main><iframe id="panel" src="../panel.html"></iframe></main>
+<aside>
+  <div><strong>Last ui/update-model-context</strong><pre id="context">(none)</pre></div>
+  <strong>Messages, newest first</strong>
+  <div id="log"></div>
+</aside>
+<script>
+"use strict";
+
+const panel = document.getElementById("panel");
+const logEl = document.getElementById("log");
+const contextEl = document.getElementById("context");
+const infoEl = document.getElementById("info");
+const themeBtn = document.getElementById("theme");
+let theme = "light";
+const history = new Map();
+
+function log(direction, msg) {
+  const el = document.createElement("div");
+  el.textContent = direction + " " + JSON.stringify(msg).slice(0, 600);
+  logEl.prepend(el);
+}
+
+function send(msg) {
+  const full = Object.assign({jsonrpc: "2.0"}, msg);
+  log("host → view", full);
+  panel.contentWindow.postMessage(full, "*");
+}
+
+async function fixture(name) {
+  const res = await fetch(name);
+  if (!res.ok) throw new Error(name + ": HTTP " + res.status);
+  return res.json();
+}
+
+function toolResult(structuredContent) {
+  return {
+    content: [{type: "text", text: JSON.stringify(structuredContent)}],
+    structuredContent,
+    isError: false,
+  };
+}
+
+const viewLoaded = fixture("view.json").then((view) => {
+  infoEl.textContent = view.runs.total + " runs recorded from " + view.runs.source.path;
+  return view;
+}).catch((err) => {
+  infoEl.textContent = err.message;
+  throw err;
+});
+
+async function historyFixture(run) {
+  const view = await viewLoaded;
+  for (const key of [run, ...view.runs.runs.map((r) => r.run_key)]) {
+    if (!history.has(key)) {
+      try {
+        history.set(key, await fixture("history-" + key + ".json"));
+      } catch {
+        history.set(key, null);
+      }
+    }
+    if (history.get(key)) return toolResult(history.get(key));
+  }
+  return {content: [{type: "text", text: "no recording for " + run}], isError: true};
+}
+
+async function onViewMessage(msg) {
+  const params = msg.params || {};
+  switch (msg.method) {
+    case "ui/initialize":
+      if (!params.appInfo || !params.appCapabilities || !params.protocolVersion) {
+        send({id: msg.id, error: {code: -32602, message: "Invalid params for ui/initialize"}});
+        break;
+      }
+      send({id: msg.id, result: {
+        protocolVersion: "2026-01-26",
+        hostInfo: {name: "mockhost", version: "1"},
+        hostContext: {theme, displayMode: "inline", containerDimensions: {width: panel.clientWidth}},
+      }});
+      break;
+    case "ui/notifications/initialized": {
+      const view = await viewLoaded;
+      send({method: "ui/notifications/tool-input", params: {arguments: {
+        path: view.runs.source.path, keys: view.view.keys, bins: view.view.bins,
+      }}});
+      send({method: "ui/notifications/tool-result", params: toolResult(view)});
+      break;
+    }
+    case "tools/call": {
+      const args = params.arguments || {};
+      const byFile = (await viewLoaded).runs.runs.find((r) => r.file === args.path);
+      if (params.name === "leet_history") {
+        send({id: msg.id, result: await historyFixture(byFile ? byFile.run_key : args.run)});
+      } else {
+        send({id: msg.id, error: {code: -32602, message: "unknown tool " + params.name}});
+      }
+      break;
+    }
+    case "ui/update-model-context":
+      contextEl.textContent = JSON.stringify(params, null, 1);
+      send({id: msg.id, result: {}});
+      break;
+    case "ui/notifications/size-changed":
+      panel.style.height = params.height + "px";
+      break;
+    default:
+      if (msg.id !== undefined) {
+        send({id: msg.id, error: {code: -32601, message: "unknown method " + msg.method}});
+      }
+  }
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== panel.contentWindow) return;
+  log("view → host", event.data);
+  onViewMessage(event.data);
+});
+
+themeBtn.addEventListener("click", () => {
+  theme = theme === "light" ? "dark" : "light";
+  themeBtn.textContent = "Theme: " + theme;
+  document.body.classList.toggle("dark", theme === "dark");
+  send({method: "ui/notifications/host-context-changed", params: {theme}});
+});
+</script>
+</body>
+</html>
