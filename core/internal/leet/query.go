@@ -72,21 +72,21 @@ type metricDef struct {
 	Step string `json:"s"`
 }
 
-func encodeCursor(c historyCursor) string {
+func encodeCursor(c any) string {
 	b, _ := json.Marshal(c)
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func decodeCursor(s string) (historyCursor, error) {
-	var c historyCursor
+// decodeCursor decodes a cursor into c, a pointer to a cursor struct.
+func decodeCursor(s string, c any) error {
 	b, err := base64.RawURLEncoding.DecodeString(s)
 	if err == nil {
-		err = json.Unmarshal(b, &c)
+		err = json.Unmarshal(b, c)
 	}
 	if err != nil {
-		return c, badRequest("after: not a cursor from a previous call")
+		return badRequest("after: not a cursor from a previous call")
 	}
-	return c, nil
+	return nil
 }
 
 // queryRunFile returns the one .wandb file a query names: runFile when
@@ -249,6 +249,18 @@ func readRunTail(path string, size int64) runTail {
 		}
 	}
 	return tail
+}
+
+// querySource returns the source field of a query object for a local run.
+func querySource(path, entity, project, runID string) map[string]any {
+	return map[string]any{
+		"kind":    "local",
+		"path":    path,
+		"url":     nil,
+		"entity":  orNil(entity),
+		"project": orNil(project),
+		"run_id":  orNil(runID),
+	}
 }
 
 // matchKey reports whether key matches pattern: the key itself, or a glob
