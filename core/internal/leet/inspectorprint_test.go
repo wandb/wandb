@@ -77,7 +77,11 @@ func decodeExportJSON(t *testing.T, data []byte) map[string]any {
 }
 
 func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
-	complexJSON := `{"values":[0,false,null,[],{},{"large":9223372036854775807}],"special":[NaN,Infinity,-Infinity],"items":[{"key":"x","value_json":"7"}]}`
+	complexJSON := `{
+		"values":[0,false,null,[],{},{"large":9223372036854775807}],
+		"special":[NaN,Infinity,-Infinity],
+		"items":[{"key":"x","value_json":"7"}]
+	}`
 	items := []struct {
 		typed  *spb.HistoryItem
 		legacy string
