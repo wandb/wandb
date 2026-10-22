@@ -68,6 +68,12 @@ type Model struct {
 	// schemes, sidebar visibility, etc.).
 	config *ConfigManager
 
+	// control delivers wandb leet session requests, or is nil.
+	control <-chan ControlMsg
+
+	// restarting is closed when the user restarts LEET.
+	restarting chan struct{}
+
 	logger *observability.CoreLogger
 }
 
@@ -80,6 +86,10 @@ type ModelParams struct {
 	//
 	// When RunParams is nil, LEET starts in Config.StartupMode.
 	RunParams *RunParams
+
+	// Control delivers the requests of wandb leet session, each answered
+	// on its Reply channel. Nil means LEET cannot be steered.
+	Control <-chan ControlMsg
 
 	Config *ConfigManager
 	Logger *observability.CoreLogger
@@ -115,11 +125,13 @@ func NewModel(params ModelParams) *Model {
 	}
 
 	m := &Model{
-		mode:      viewModeWorkspace,
-		workspace: NewWorkspace(params.Backend, params.Config, params.Logger),
-		help:      NewHelp(),
-		config:    params.Config,
-		logger:    params.Logger,
+		mode:       viewModeWorkspace,
+		workspace:  NewWorkspace(params.Backend, params.Config, params.Logger),
+		help:       NewHelp(),
+		config:     params.Config,
+		control:    params.Control,
+		restarting: make(chan struct{}),
+		logger:     params.Logger,
 	}
 
 	if params.RunParams != nil {
@@ -137,7 +149,7 @@ func NewModel(params ModelParams) *Model {
 // If starting in single-run mode, the run's reader and watcher commands are
 // also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.waitForControl()}
 
 	if m.run == nil || !m.run.IsRemote() {
 		cmds = append(cmds, m.startWorkspace())
@@ -170,6 +182,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if handled, cmd := m.handleRestart(msg); handled {
 		return m, cmd
+	}
+
+	if ctl, ok := msg.(ControlMsg); ok {
+		reply, cmd := m.handleControl(ctl)
+		ctl.Reply <- reply
+		return m, tea.Batch(cmd, m.waitForControl())
 	}
 
 	// Snapshot before sub-models consume the key — a filter's Enter exits
@@ -408,7 +426,10 @@ func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
 	if km, ok := msg.(tea.KeyPressMsg); ok {
 		if km.String() == "alt+r" {
 			m.logger.Debug("model: restart requested")
-			m.shouldRestart = true
+			if !m.shouldRestart {
+				m.shouldRestart = true
+				close(m.restarting)
+			}
 
 			return true, tea.Quit
 		}
