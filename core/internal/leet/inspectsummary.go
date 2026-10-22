@@ -124,14 +124,24 @@ func (d *runDigest) apply(record *spb.Record) {
 // Without an exit record, a run is presumed crashed once its file has not
 // changed for RunCrashTimeout, as in the TUI.
 func (d *runDigest) state() (string, string) {
-	age := time.Since(d.lastWrite).Round(time.Second)
-	state := runState(d.exit, d.run.ID != "", d.lastWrite)
+	state, detail := runStateDetail(d.exit, d.run.ID != "", d.lastWrite)
 	d.overview.SetRunState(state)
+	return strings.ToLower(state.String()), detail
+}
 
+// runStateDetail returns the state of a run read from its file, as
+// runState decides, and a short explanation of it.
+func runStateDetail(
+	exit *spb.RunExitRecord,
+	haveRun bool,
+	lastWrite time.Time,
+) (RunState, string) {
+	state := runState(exit, haveRun, lastWrite)
+	age := time.Since(lastWrite).Round(time.Second)
 	var detail string
 	switch {
-	case d.exit != nil:
-		detail = fmt.Sprintf("exit code %d", d.exit.GetExitCode())
+	case exit != nil:
+		detail = fmt.Sprintf("exit code %d", exit.GetExitCode())
 	case state == RunStateUnknown:
 		detail = "no run record yet"
 	case state == RunStateCrashed:
@@ -139,7 +149,7 @@ func (d *runDigest) state() (string, string) {
 	default:
 		detail = fmt.Sprintf("last write %v ago", age)
 	}
-	return strings.ToLower(state.String()), detail
+	return state, detail
 }
 
 // runState returns the state of a run read from its file: from its exit
