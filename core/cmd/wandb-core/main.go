@@ -306,7 +306,7 @@ func mcpMain(args []string) int {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(leetmcp.ListTools()); err != nil {
+		if err := enc.Encode(leetmcp.ListTools(true)); err != nil {
 			fmt.Fprintln(os.Stderr, "Error:", err)
 			return exitCodeErrorInternal
 		}
