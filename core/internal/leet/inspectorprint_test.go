@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -28,7 +30,11 @@ func TestDumpRecords_JSON(t *testing.T) {
 				{Key: "empty", ValueJson: "[]"},
 			},
 		}},
-	})
+	}, &spb.Record{RecordType: &spb.Record_Config{Config: &spb.ConfigRecord{
+		Update: []*spb.ConfigItem{{Key: "batch", ValueJson: "32"}},
+	}}}, &spb.Record{RecordType: &spb.Record_Summary{Summary: &spb.SummaryRecord{
+		Update: []*spb.SummaryItem{{NestedKey: []string{"val", "loss"}, ValueJson: "0.25"}},
+	}}})
 	path := txnlogtest.WandbFile(t, records...)
 
 	var out, notes bytes.Buffer
@@ -41,7 +47,7 @@ func TestDumpRecords_JSON(t *testing.T) {
 		require.NoError(t, json.Unmarshal(line, &record), string(line))
 		lines = append(lines, record)
 	}
-	require.Len(t, lines, 6)
+	require.Len(t, lines, 8)
 
 	assert.Equal(t, "history", lines[1]["type"])
 	assert.EqualValues(t, 2, lines[1]["num"])
@@ -55,6 +61,168 @@ func TestDumpRecords_JSON(t *testing.T) {
 	assert.Equal(t,
 		map[string]any{"val.acc": "NaN", "empty": []any{}},
 		lines[5]["history"].(map[string]any)["item"])
+	assert.Equal(t, map[string]any{"batch": 32.0},
+		lines[6]["config"].(map[string]any)["update"])
+	assert.Equal(t, map[string]any{"val.loss": 0.25},
+		lines[7]["summary"].(map[string]any)["update"])
+}
+
+func decodeExportJSON(t *testing.T, data []byte) map[string]any {
+	t.Helper()
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var record map[string]any
+	require.NoError(t, decoder.Decode(&record))
+	return record
+}
+
+func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
+	complexJSON := `{"values":[0,false,null,[],{},{"large":9223372036854775807}],"special":[NaN,Infinity,-Infinity],"items":[{"key":"x","value_json":"7"}]}`
+	items := []struct {
+		typed  *spb.HistoryItem
+		legacy string
+	}{
+		{typedNone("null"), "null"},
+		{typedBoolean("false", false), "false"},
+		{typedBoolean("true", true), "true"},
+		{typedInteger("integer_zero", 0), "0"},
+		{typedInteger("integer_large", 9007199254740993), "9007199254740993"},
+		{typedInteger("integer_min", math.MinInt64), "-9223372036854775808"},
+		{typedInteger("integer_max", math.MaxInt64), "9223372036854775807"},
+		{typedNumber("number_zero", 0), "0.0"},
+		{typedNumber("number", 0.125), "0.125"},
+		{typedText("text", "007"), `"007"`},
+		{typedText("empty_text", ""), `""`},
+		{typedNumber("nan", math.NaN()), "NaN"},
+		{typedNumber("positive_inf", math.Inf(1)), "Infinity"},
+		{typedNumber("negative_inf", math.Inf(-1)), "-Infinity"},
+		{typedJSON("array", "[]"), "[]"},
+		{typedJSON("object", "{}"), "{}"},
+		{typedJSON("complex", complexJSON), complexJSON},
+		{
+			typed: &spb.HistoryItem{
+				Key:       "ignored",
+				NestedKey: []string{"val", "loss"},
+				Value:     &spb.HistoryItem_Number{Number: 0.5},
+			},
+			legacy: "0.5",
+		},
+	}
+	want := decodeExportJSON(t, []byte(`{
+		"num":1,
+		"type":"history",
+		"history":{
+			"step":{"num":0},
+			"item":{
+				"null":null,
+				"false":false,
+				"true":true,
+				"integer_zero":0,
+				"integer_large":9007199254740993,
+				"integer_min":-9223372036854775808,
+				"integer_max":9223372036854775807,
+				"number_zero":0,
+				"number":0.125,
+				"text":"007",
+				"empty_text":"",
+				"nan":"NaN",
+				"positive_inf":"Infinity",
+				"negative_inf":"-Infinity",
+				"array":[],
+				"object":{},
+				"complex":{
+					"values":[0,false,null,[],{},{"large":9223372036854775807}],
+					"special":["NaN","Infinity","-Infinity"],
+					"items":[{"key":"x","value_json":"7"}]
+				},
+				"val.loss":0.5
+			}
+		}
+	}`))
+
+	for _, encoding := range []string{"json", "json,typed", "typed"} {
+		t.Run(encoding, func(t *testing.T) {
+			history := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 0}}
+			for _, test := range items {
+				item := proto.Clone(test.typed).(*spb.HistoryItem)
+				if encoding == "json" {
+					item.Value = nil
+				}
+				if encoding != "typed" {
+					item.ValueJson = test.legacy
+				}
+				history.Item = append(history.Item, item)
+			}
+			path := writeWandbFile(
+				t,
+				&spb.Record{RecordType: &spb.Record_History{History: history}},
+			)
+			var out bytes.Buffer
+			require.NoError(
+				t,
+				leet.DumpRecords(path, "", &out, io.Discard, leet.DumpOptions{JSON: true}),
+			)
+			assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte{'\n'}))
+			assert.Equal(t, want, decodeExportJSON(t, out.Bytes()))
+		})
+	}
+}
+
+func TestDumpRecords_JSONHistoryMixedValues(t *testing.T) {
+	path := writeWandbFile(
+		t,
+		&spb.Record{RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{Key: "typed", Value: &spb.HistoryItem_Number{Number: 0.5}},
+				{Key: "legacy", ValueJson: "7"},
+				{Key: "conflict", Value: &spb.HistoryItem_Integer{Integer: 42}, ValueJson: "8"},
+				{
+					Key:       "bad_legacy",
+					Value:     &spb.HistoryItem_Boolean{Boolean: false},
+					ValueJson: "{",
+				},
+				{Key: "raw_legacy", ValueJson: "not JSON"},
+			},
+		}}},
+	)
+	var out bytes.Buffer
+	require.NoError(t, leet.DumpRecords(path, "", &out, io.Discard, leet.DumpOptions{JSON: true}))
+	want := decodeExportJSON(t, []byte(`{
+		"num":1,"type":"history","history":{"item":{
+			"typed":0.5,"legacy":7,"conflict":42,"bad_legacy":false,"raw_legacy":"not JSON"
+		}}
+	}`))
+	assert.Equal(t, want, decodeExportJSON(t, out.Bytes()))
+}
+
+func TestDumpRecords_JSONHistoryInvalidTypedJSON(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		legacy string
+	}{
+		{name: "typed only"},
+		{name: "valid legacy", legacy: "42"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := writeWandbFile(
+				t,
+				&spb.Record{RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+					Item: []*spb.HistoryItem{
+						{
+							Key:       "bad",
+							Value:     &spb.HistoryItem_Json{Json: "{"},
+							ValueJson: test.legacy,
+						},
+					},
+				}}},
+			)
+			var out bytes.Buffer
+			err := leet.DumpRecords(path, "", &out, io.Discard, leet.DumpOptions{JSON: true})
+			assert.ErrorContains(t, err, "failed to unmarshal typed history item value")
+			assert.ErrorContains(t, err, "bad")
+			assert.Empty(t, out.String())
+		})
+	}
 }
 
 func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
