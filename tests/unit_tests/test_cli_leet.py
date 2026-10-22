@@ -238,6 +238,43 @@ def test_leet_history_passes_flags_before_the_run(
     assert json.loads(result.stderr)["error"] == "path_not_found"
 
 
+def test_leet_session_builds_the_request(runner, core_calls, tmp_path: pathlib.Path):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(
+        cli.cli,
+        [
+            "leet",
+            "session",
+            str(wandb_dir),
+            "runs.select",
+            "--params",
+            '{"keys": ["a"]}',
+        ],
+    )
+
+    assert result.exit_code == 0
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "runs.select",
+        "params": {"keys": ["a"]},
+    }
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "session",
+            "--base-url",
+            _BASE_URL,
+            "--request",
+            json.dumps(request),
+            str(wandb_dir.resolve()),
+        ]
+    ]
+
+
 def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     wandb_dir = tmp_path / "wandb"
     wandb_dir.mkdir()
