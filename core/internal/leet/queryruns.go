@@ -19,24 +19,24 @@ const defaultRunsLimit = 200
 
 // RunsQuery selects the runs ListRuns returns.
 type RunsQuery struct {
-	Filter      string   `json:"filter"`
-	Glob        bool     `json:"glob"`
-	SummaryKeys []string `json:"summary_keys"`
-	Limit       int      `json:"limit"`
+	Filter      string   `json:"filter"       doc:"List only the runs matching this filter, in the language of the LEET runs sidebar, e.g. 'name:resnet cfg.lr>=0.001'."`
+	Glob        bool     `json:"glob"         doc:"Match the patterns of the filter as globs instead of regexes."`
+	SummaryKeys []string `json:"summary_keys" doc:"Summary keys or globs with * and ? to return per run, e.g. val/loss or train/*, as updated in the last 2 MiB of the file. A glob never matches keys starting with _."`
+	Limit       int      `json:"limit"        doc:"Runs to return, 0 for the default of 200."`
 }
 
 // ListRuns writes the runs of a wandb directory, newest first, as one JSON
 // object with the schema leet.runs/1. Each run's identity comes from the
 // first records of its .wandb file and its state, exit code, last step and,
 // with q.SummaryKeys, latest summary values from the last records. The one
-// run that queryRunFile names from runFile and wandbDir is listed alone.
+// run that QueryRunFile names from runFile and wandbDir is listed alone.
 func ListRuns(wandbDir, runFile string, q RunsQuery, w io.Writer) error {
 	if q.Limit < 0 {
 		return badRequest("limit must be >= 0")
 	}
 	limit := cmp.Or(q.Limit, defaultRunsLimit)
 
-	file := queryRunFile(wandbDir, runFile)
+	file := QueryRunFile(wandbDir, runFile)
 	path, err := filepath.Abs(cmp.Or(file, wandbDir))
 	if err != nil {
 		return err

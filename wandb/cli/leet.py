@@ -649,6 +649,20 @@ def config() -> None:
     launch_config()
 
 
+@click.command()
+@click.help_option("-h", "--help")
+def mcp() -> None:
+    """Serve local W&B runs to an MCP client over stdio.
+
+    The tools are the `wandb leet` query commands with the same JSON.
+
+    \b
+    Example client configuration:
+        {"mcpServers": {"wandb": {"command": "wandb", "args": ["mcp"]}}}
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap the example.
+    _run_core(_base_args("mcp"))
+
+
 class LaunchConfig:
     """Configuration for launching LEET."""
 
@@ -735,18 +749,18 @@ def _resolve_path(path: str | None) -> LocalLaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def _base_args(command: str) -> list[str]:
-    """Build the arguments for a wandb-core leet command and its common flags."""
+def _base_args(*command: str) -> list[str]:
+    """Build the arguments for a wandb-core command and its common flags."""
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
         get_telemetry_recorder().exception(
-            WandbCoreNotAvailableError(f"using `wandb leet`. failed with {e}"),
+            WandbCoreNotAvailableError(f"using `wandb {command[0]}`. failed with {e}"),
             attributes=e.context,
         )
         _fatal(str(e))
 
-    args = [core_path, "leet", command]
+    args = [core_path, *command]
 
     settings = wandb_setup.singleton().settings
     if settings._offline or settings._noop or not error_reporting_enabled():
@@ -777,7 +791,7 @@ def launch(path: str | None, pprof: str) -> Never:
     else:
         config = _resolve_path(path)
 
-    args = _base_args("run")
+    args = _base_args("leet", "run")
     env = os.environ.copy()
 
     if pprof:
@@ -806,7 +820,7 @@ def launch_inspect(
     if not isinstance(config, LocalLaunchConfig):
         _fatal("`wandb leet inspect` requires a local .wandb file.")
 
-    args = _base_args("inspect")
+    args = _base_args("leet", "inspect")
     if summary:
         args.append("--summary")
     if json_output:
@@ -836,7 +850,7 @@ def launch_query(
         _fatal_json("bad_request", f"not a .wandb file: {path}")
     config = _resolve_path(path)
 
-    args = _base_args(command)
+    args = _base_args("leet", command)
     for name, value in flags.items():
         if value is None or value == "" or value is False:
             continue
@@ -862,19 +876,19 @@ def launch_session(path: str | None, request: dict[str, Any]) -> Never:
         _fatal_json("path_not_found", f"path does not exist: {path}")
     wandb_dir = _resolve_path(path).wandb_dir
 
-    args = _base_args("session")
+    args = _base_args("leet", "session")
     args.extend(["--request", json.dumps(request), wandb_dir])
     _run_core(args)
 
 
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
-    _run_core(_base_args("config"))
+    _run_core(_base_args("leet", "config"))
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
-    args = _base_args("symon")
+    args = _base_args("leet", "symon")
 
     if pprof:
         args.extend(["--pprof", pprof])

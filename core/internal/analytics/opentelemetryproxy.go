@@ -87,8 +87,8 @@ type LowCardinalityAttributes struct {
 	PythonRuntime string
 	ExceptionType string
 
-	// LeetMode is the leet launch mode: leet, config, inspect, symon, or a
-	// query verb: runs, history, summary, console, system or session.
+	// LeetMode is the leet launch mode: leet, config, inspect, symon, a
+	// query verb: runs, history, summary, console, system or session, or mcp.
 	LeetMode string
 
 	// ExecutionContext classifies where the process runs:

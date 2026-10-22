@@ -30,17 +30,13 @@ const (
 
 // ConsoleQuery selects the console lines of a run for QueryConsole.
 type ConsoleQuery struct {
-	Last int    `json:"last"`
-	Grep string `json:"grep"`
-	// Since keeps the lines logged at or after an RFC 3339 time, or within
-	// a duration of the file's last write for a run that is not running
-	// and of now for a live one. A line redrawn in place keeps the time it
-	// was first written.
-	Since       string        `json:"since"`
-	Limit       int           `json:"limit"`
-	After       string        `json:"after"`
-	Follow      bool          `json:"follow"`
-	IdleTimeout time.Duration `json:"idle_timeout"`
+	Last        int           `json:"last"         doc:"Return only the last N matching lines (default 200)."`
+	Grep        string        `json:"grep"         doc:"Return only the lines matching this regular expression."`
+	Since       string        `json:"since"        doc:"Return only the lines logged at or after this RFC 3339 time, or within this duration (e.g. 10m) of the run's last write, or of now while it runs. A line redrawn in place keeps the time it was first written."`
+	Limit       int           `json:"limit"        doc:"Lines per call when paging from the start or from after (default 1000); last is ignored."`
+	After       string        `json:"after"        doc:"The next_cursor of a previous call, to continue after the lines it returned."`
+	Follow      bool          `json:"follow"       doc:"Keep printing new lines as the run writes them, one JSON object per poll, until it exits."`
+	IdleTimeout time.Duration `json:"idle_timeout" doc:"With --follow, stop once the run's file has gone this long without a write. 0 waits forever."`
 }
 
 // consoleCursor is where a page of console lines ended, for the call that
