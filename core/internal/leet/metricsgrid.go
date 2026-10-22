@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -646,6 +647,28 @@ func (mg *MetricsGrid) restoreFocus(previousTitle string) {
 	if foundRow != -1 {
 		mg.setFocus(foundRow, foundCol)
 	}
+}
+
+// FocusChartByTitle pages to the chart with the given title and focuses
+// it. It reports false when no chart visible under the filter has the title.
+func (mg *MetricsGrid) FocusChartByTitle(title string) bool {
+	mg.mu.RLock()
+	idx := slices.IndexFunc(mg.filtered, func(ch *EpochLineChart) bool {
+		return ch.Title() == title
+	})
+	mg.mu.RUnlock()
+	size := mg.effectiveGridSize()
+	perPage := ItemsPerPage(size)
+	if idx < 0 || perPage == 0 {
+		return false
+	}
+
+	mg.clearFocus()
+	mg.nav.GoToPage(idx / perPage)
+	mg.loadCurrentPage()
+	mg.drawVisible()
+	mg.setFocus(idx%perPage/size.Cols, idx%perPage%size.Cols)
+	return true
 }
 
 // HandleClick handles clicks in the main chart guides.

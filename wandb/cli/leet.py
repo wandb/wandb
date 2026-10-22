@@ -85,6 +85,7 @@ def leet() -> None:
         wandb leet summary [PATH]     Print a run's state, metrics and console as JSON
         wandb leet console --last 50  Print the last console lines of a run as JSON
         wandb leet system --bins 60   Print a run's system metrics as JSON
+        wandb leet session status     Steer the LEET open on a wandb directory
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -594,6 +595,54 @@ def system(
     )
 
 
+@leet.command(cls=ScriptCommand)
+@click.argument("args", nargs=-1, required=True, metavar="[PATH] METHOD")
+@click.option(
+    "--params",
+    default="",
+    metavar="JSON",
+    help="The parameters of the request as a JSON object,"
+    ' e.g. \'{"filter": "cfg.lr>=0.001"}\'.',
+)
+@click.help_option("-h", "--help")
+def session(args: tuple[str, ...], params: str) -> None:
+    """Steer the LEET a user has open on a wandb directory.
+
+    Sends one request to the running LEET and prints its JSON reply.
+    METHOD is one of status, runs.select, runs.deselect, runs.pin,
+    runs.open, runs.close, filter.set, metrics.focus, step.goto, action
+    and actions.
+
+    \b
+    Examples:
+        wandb leet session status
+        wandb leet session runs.select --params '{"filter": "cfg.lr>=0.001"}'
+        wandb leet session filter.set --params '{"target": "metrics", "query": "loss"}'
+        wandb leet session metrics.focus --params '{"key": "train/loss"}'
+        wandb leet session step.goto --params '{"step": 4200}'
+        wandb leet session action --params '{"name": "workspace.next_page", "key": "n"}'
+        wandb leet session actions
+
+    PATH is the wandb directory LEET shows. If PATH is not provided, the
+    configured wandb directory is used.
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    if len(args) > 2:
+        _fatal_json("bad_request", f"unexpected argument: {args[2]}")
+    if len(args) == 1 and os.path.exists(args[0]):
+        _fatal_json("bad_request", "METHOD required after PATH")
+    path = args[0] if len(args) == 2 else None
+    try:
+        request_params: Any = json.loads(params) if params else {}
+    except json.JSONDecodeError as e:
+        _fatal_json("bad_request", f"--params is not JSON: {e}")
+    if not isinstance(request_params, dict):
+        _fatal_json("bad_request", "--params must be a JSON object")
+    launch_session(
+        path,
+        {"jsonrpc": "2.0", "id": 1, "method": args[-1], "params": request_params},
+    )
+
+
 @leet.command()
 def config() -> None:
     """Edit LEET configuration."""
@@ -798,6 +847,23 @@ def launch_query(
             args.extend([flag, str(value)])
     args.extend(_get_local_launch_args(config))
 
+    _run_core(args)
+
+
+def launch_session(path: str | None, request: dict[str, Any]) -> Never:
+    """Send a JSON-RPC request to the LEET showing a wandb directory."""
+    if path is not None and path.startswith(("https://", "http://")):
+        _fatal_json(
+            "bad_request",
+            "session requires a local wandb directory:"
+            " a run on the W&B server cannot be steered",
+        )
+    if path and not os.path.exists(path):
+        _fatal_json("path_not_found", f"path does not exist: {path}")
+    wandb_dir = _resolve_path(path).wandb_dir
+
+    args = _base_args("session")
+    args.extend(["--request", json.dumps(request), wandb_dir])
     _run_core(args)
 
 
