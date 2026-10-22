@@ -215,15 +215,62 @@ def link_artifact_gql_options(
     when no membership is passed in.
     """
     omit_fields = omit_artifact_fields(service_api)
-    omit_variables = {"includeAliases"}
+    omit_variables = {"includeAliases", "perPage"}
 
-    if service_api.feature_enabled(
+    if not service_api.feature_enabled(
         ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
     ):
+        omit_fields.add("artifactMembership")
+        return omit_fields, omit_variables
+
+    if service_api.feature_enabled(
+        ServerFeature.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+    ):
+        # `aliases` names both the membership's own unbounded field and the
+        # nested artifact's `@include(if: $includeAliases)` field; omitting
+        # it by name drops both, so `$includeAliases` goes unused too. The
+        # membership's aliases are fetched page by page instead, via
+        # `aliasesConnection`/`$perPage`.
+        omit_fields.add("aliases")
+        omit_variables.discard("perPage")
+    else:
+        omit_fields.add("aliasesConnection")
         omit_variables.discard("includeAliases")
         gql_vars["includeAliases"] = False
-    else:
+
+    return omit_fields, omit_variables
+
+
+def update_artifact_gql_options(service_api: ServiceApi) -> tuple[set[str], set[str]]:
+    """Return `(omit_fields, omit_variables)` for an UpdateArtifact request.
+
+    Unlike `link_artifact_gql_options`, `UpdateArtifact` always requests the
+    top-level `artifact` field (not only when `artifactMembership` is
+    present), so `$includeAliases` keeps gating that field's own `aliases`
+    for servers that don't return `artifactMembership` at all. It's only
+    safe to drop once a membership -- which `Artifact._assign_attrs` prefers
+    over the artifact's own `aliases` -- is actually in the response.
+    """
+    omit_fields = omit_artifact_fields(service_api)
+    omit_variables = {"perPage"}
+
+    if not service_api.feature_enabled(
+        ServerFeature.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD
+    ):
         omit_fields.add("artifactMembership")
+        return omit_fields, omit_variables
+
+    if service_api.feature_enabled(
+        ServerFeature.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+    ):
+        # See the comment in `link_artifact_gql_options`: omitting `aliases`
+        # by name also drops the top-level artifact's own `aliases`, which is
+        # fine now that a membership is present and takes priority.
+        omit_fields.add("aliases")
+        omit_variables.add("includeAliases")
+        omit_variables.discard("perPage")
+    else:
+        omit_fields.add("aliasesConnection")
 
     return omit_fields, omit_variables
 

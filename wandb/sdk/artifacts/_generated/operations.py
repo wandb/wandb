@@ -1255,13 +1255,23 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
 """
 
 UPDATE_ARTIFACT_GQL = """
-mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
+mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true, $perPage: Int = 100) {
   result: updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
     }
     artifactMembership @include(if: true) {
       ...ArtifactMembershipFragment
+      aliasesConnection(first: $perPage) @include(if: true) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
     }
   }
 }
@@ -1328,6 +1338,12 @@ fragment CollectionInfoFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 
 fragment ProjectInfoFragment on Project {
@@ -1365,11 +1381,21 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
 """
 
 LINK_ARTIFACT_GQL = """
-mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
+mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true, $perPage: Int = 100) {
   result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
       ...ArtifactMembershipFragment
+      aliasesConnection(first: $perPage) @include(if: true) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
     }
   }
 }
@@ -1436,6 +1462,12 @@ fragment CollectionInfoFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 
 fragment ProjectInfoFragment on Project {

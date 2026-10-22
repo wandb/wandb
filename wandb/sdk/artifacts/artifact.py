@@ -74,6 +74,7 @@ from ._gqlutils import (
     omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
+    update_artifact_gql_options,
 )
 from ._validators import (
     ensure_logged,
@@ -176,6 +177,30 @@ def _resolve_version(
     except TooManyItemsError:
         msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
         raise ValueError(msg) from None
+
+
+def _paginate_membership_aliases(
+    service_api: ServiceApi,
+    membership: ArtifactMembershipFragment,
+    *,
+    entity: str,
+    project: str,
+    name: str,
+    error_context: str,
+) -> tuple[list[str], MembershipAliasesPaginator | None]:
+    """Split a membership's `aliasesConnection` into fetched + deferred pages.
+
+    Raises if the response is missing `aliasesConnection`, which the caller
+    is expected to have requested via `ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION`.
+    """
+    from ._alias_paginator import split_membership_aliases
+
+    if (first_page := membership.aliases_connection) is None:
+        raise ValueError(f"Expected 'aliasesConnection' in {error_context}")
+
+    return split_membership_aliases(
+        first_page, service_api, entity=entity, project=project, name=name
+    )
 
 
 class Artifact:
@@ -1483,20 +1508,39 @@ class Artifact:
             # membership instead of fanning out across every collection this
             # artifact belongs to (see Artifact.aliases vs
             # ArtifactCollectionMembership.aliases).
-            omit_fields = omit_artifact_fields(client)
-            if not client.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD):
-                omit_fields.add("artifactMembership")
+            omit_fields, omit_variables = update_artifact_gql_options(client)
 
             data = client.execute_graphql(
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
                 omit_fields=omit_fields,
+                omit_variables=omit_variables or None,
             )
 
             if not ((result := data.result) and (artifact := result.artifact)):
                 raise ValueError("Unable to parse updateArtifact response")
-            self._assign_attrs(artifact, membership=result.artifact_membership)
+
+            membership_aliases = None
+            aliases_paginator = None
+            if (membership := result.artifact_membership) and client.feature_enabled(
+                pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+            ):
+                membership_aliases, aliases_paginator = _paginate_membership_aliases(
+                    client,
+                    membership,
+                    entity=self.entity,
+                    project=self.project,
+                    name=self.name,
+                    error_context=f"updateArtifact response for {self.qualified_name!r}",
+                )
+
+            self._assign_attrs(
+                artifact,
+                membership=result.artifact_membership,
+                membership_aliases=membership_aliases,
+                aliases_paginator=aliases_paginator,
+            )
 
             self._ttl_changed = False  # Reset after updating artifact
         else:
@@ -2628,6 +2672,40 @@ class Artifact:
             gql_op, variables={"input": gql_input.model_dump()}
         )
 
+    def _link_result_to_artifact(
+        self,
+        membership: ArtifactMembershipFragment,
+        *,
+        target: FullArtifactPath,
+        service_api: ServiceApi,
+    ) -> Artifact:
+        """Build the linked `Artifact` from a `LinkArtifact` response's membership."""
+        membership_aliases = None
+        aliases_paginator = None
+        if service_api.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION):
+            if (version_idx := membership.version_index) is None:
+                msg = (
+                    f"Expected 'versionIndex' in link response for {target.to_str()!r}"
+                )
+                raise ValueError(msg)
+
+            membership_aliases, aliases_paginator = _paginate_membership_aliases(
+                service_api,
+                membership,
+                entity=target.prefix,
+                project=target.project,
+                name=f"{target.name}:v{version_idx}",
+                error_context=f"link response for {target.to_str()!r}",
+            )
+
+        return self._from_membership(
+            membership,
+            target=target,
+            service_api=self._get_service_api(),
+            membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
+        )
+
     @normalize_exceptions
     def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
         """Link this artifact to a collection.
@@ -2721,10 +2799,8 @@ class Artifact:
 
         # Newer server versions can return artifactMembership directly in the response
         if (result := data.result) and (membership := result.artifact_membership):
-            return self._from_membership(
-                membership,
-                target=target,
-                service_api=self._get_service_api(),
+            return self._link_result_to_artifact(
+                membership, target=target, service_api=service_api
             )
 
         # Old behavior, which requires re-fetching the linked artifact to return it
