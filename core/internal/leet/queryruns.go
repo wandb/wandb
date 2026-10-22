@@ -22,11 +22,11 @@ var runStates = []string{"running", "finished", "failed", "crashed", "unknown"}
 
 // RunsQuery selects the runs ListRuns returns.
 type RunsQuery struct {
-	Filter      string   `json:"filter"`
-	Glob        bool     `json:"glob"`
-	State       []string `json:"state"`
-	SummaryKeys []string `json:"summary_keys"`
-	Limit       int      `json:"limit"`
+	Filter      string   `json:"filter"       doc:"List only the runs matching this filter, in the language of the LEET runs sidebar, e.g. 'name:resnet cfg.lr>=0.001'."`
+	Glob        bool     `json:"glob"         doc:"Match the patterns of the filter as globs instead of regexes."`
+	State       []string `json:"state"        doc:"States to list: running, finished, failed, crashed or unknown."`
+	SummaryKeys []string `json:"summary_keys" doc:"Summary keys or globs with * and ? to return per run, e.g. val/loss or train/*, as updated in the last 2 MiB of the file. A glob never matches keys starting with _."`
+	Limit       int      `json:"limit"        doc:"Runs to return, 0 for the default of 200."`
 }
 
 func (q RunsQuery) validate() error {
@@ -61,14 +61,14 @@ func (q RunsQuery) lists(state string) bool {
 // with q.SummaryKeys, latest summary values from the last records. states
 // counts the runs q.Filter matches by state, and q.State keeps the runs in
 // the states it names. The one
-// run that queryRunFile names from runFile and wandbDir is listed alone.
+// run that QueryRunFile names from runFile and wandbDir is listed alone.
 func ListRuns(wandbDir, runFile string, q RunsQuery, w io.Writer) error {
 	if err := q.validate(); err != nil {
 		return err
 	}
 	limit := cmp.Or(q.Limit, defaultRunsLimit)
 
-	file := queryRunFile(wandbDir, runFile)
+	file := QueryRunFile(wandbDir, runFile)
 	path, err := filepath.Abs(cmp.Or(file, wandbDir))
 	if err != nil {
 		return err
