@@ -153,7 +153,7 @@ func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
 				}
 				history.Item = append(history.Item, item)
 			}
-			path := writeWandbFile(
+			path := txnlogtest.WandbFile(
 				t,
 				&spb.Record{RecordType: &spb.Record_History{History: history}},
 			)
@@ -169,7 +169,7 @@ func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
 }
 
 func TestDumpRecords_JSONHistoryMixedValues(t *testing.T) {
-	path := writeWandbFile(
+	path := txnlogtest.WandbFile(
 		t,
 		&spb.Record{RecordType: &spb.Record_History{History: &spb.HistoryRecord{
 			Item: []*spb.HistoryItem{
@@ -204,7 +204,7 @@ func TestDumpRecords_JSONHistoryInvalidTypedJSON(t *testing.T) {
 		{name: "valid legacy", legacy: "42"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			path := writeWandbFile(
+			path := txnlogtest.WandbFile(
 				t,
 				&spb.Record{RecordType: &spb.Record_History{History: &spb.HistoryRecord{
 					Item: []*spb.HistoryItem{
