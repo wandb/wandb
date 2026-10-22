@@ -2752,6 +2752,17 @@ pub struct TpuInfo {
     pub devices_per_chip: u32,
     #[prost(uint32, tag = "4")]
     pub count: u32,
+    /// This host's place in a multi-host or multi-slice job, from the
+    /// TPU_WORKER_ID, TPU_WORKER_HOSTNAMES, MEGASCALE_SLICE_ID and
+    /// MEGASCALE_NUM_SLICES environment variables; zero when they are unset.
+    #[prost(uint32, tag = "5")]
+    pub worker_id: u32,
+    #[prost(uint32, tag = "6")]
+    pub worker_count: u32,
+    #[prost(uint32, tag = "7")]
+    pub slice_id: u32,
+    #[prost(uint32, tag = "8")]
+    pub num_slices: u32,
 }
 /// CoreWeaveInfo stores information about a CoreWeave compute environment.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

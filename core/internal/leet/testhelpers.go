@@ -8,6 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -480,7 +482,7 @@ func (w *Workspace) TestGetRunOverviewByRunKey(runKey string) *RunOverview {
 // TestExecutePreloadCmd calls the preload command for a given run key
 // and returns the resulting message.
 func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPreloadedMsg {
-	cmd := w.preloadRunOverviewCmd(runKey)
+	cmd := w.backend.PreloadOverviewCmd(runKey)
 	msg := cmd()
 	return msg.(WorkspaceRunOverviewPreloadedMsg)
 }
@@ -745,4 +747,19 @@ func (w *Workspace) TestFilteredRunKeys() []string {
 // TestRunByKey returns the workspace's streaming state for a run key.
 func (w *Workspace) TestRunByKey(key string) *WorkspaceRun {
 	return w.runsByKey[key]
+}
+
+// TestRemoteWorkspaceBackend creates a RemoteWorkspaceBackend that talks
+// to graphqlClient.
+func TestRemoteWorkspaceBackend(
+	entity, project string,
+	graphqlClient graphql.Client,
+	logger *observability.CoreLogger,
+) *RemoteWorkspaceBackend {
+	return &RemoteWorkspaceBackend{
+		entity:  entity,
+		project: project,
+		clients: &remoteClients{graphql: graphqlClient},
+		logger:  logger,
+	}
 }

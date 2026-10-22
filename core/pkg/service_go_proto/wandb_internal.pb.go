@@ -113,6 +113,9 @@ const (
 	// Indicates that the server supports returning artifactMembership on the
 	// createArtifact, updateArtifact, and commitArtifact mutation payloads.
 	ServerFeature_ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD ServerFeature = 39
+	// Indicates that the server supports paginating
+	// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+	ServerFeature_ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION ServerFeature = 40
 )
 
 // Enum value maps for ServerFeature.
@@ -157,6 +160,7 @@ var (
 		37: "AUTOMATION_ACTION_ARIA",
 		38: "EVAL_TABLES_CES",
 		39: "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD",
+		40: "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -198,6 +202,7 @@ var (
 		"AUTOMATION_ACTION_ARIA":                               37,
 		"EVAL_TABLES_CES":                                      38,
 		"ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD":              39,
+		"ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION":               40,
 	}
 )
 
@@ -11150,8 +11155,15 @@ type TPUInfo struct {
 	HbmGib         uint32                 `protobuf:"varint,2,opt,name=hbm_gib,json=hbmGib,proto3" json:"hbm_gib,omitempty"`
 	DevicesPerChip uint32                 `protobuf:"varint,3,opt,name=devices_per_chip,json=devicesPerChip,proto3" json:"devices_per_chip,omitempty"`
 	Count          uint32                 `protobuf:"varint,4,opt,name=count,proto3" json:"count,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// This host's place in a multi-host or multi-slice job, from the
+	// TPU_WORKER_ID, TPU_WORKER_HOSTNAMES, MEGASCALE_SLICE_ID and
+	// MEGASCALE_NUM_SLICES environment variables; zero when they are unset.
+	WorkerId      uint32 `protobuf:"varint,5,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	WorkerCount   uint32 `protobuf:"varint,6,opt,name=worker_count,json=workerCount,proto3" json:"worker_count,omitempty"`
+	SliceId       uint32 `protobuf:"varint,7,opt,name=slice_id,json=sliceId,proto3" json:"slice_id,omitempty"`
+	NumSlices     uint32 `protobuf:"varint,8,opt,name=num_slices,json=numSlices,proto3" json:"num_slices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TPUInfo) Reset() {
@@ -11208,6 +11220,34 @@ func (x *TPUInfo) GetDevicesPerChip() uint32 {
 func (x *TPUInfo) GetCount() uint32 {
 	if x != nil {
 		return x.Count
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetWorkerId() uint32 {
+	if x != nil {
+		return x.WorkerId
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetWorkerCount() uint32 {
+	if x != nil {
+		return x.WorkerCount
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetSliceId() uint32 {
+	if x != nil {
+		return x.SliceId
+	}
+	return 0
+}
+
+func (x *TPUInfo) GetNumSlices() uint32 {
+	if x != nil {
+		return x.NumSlices
 	}
 	return 0
 }
@@ -12808,12 +12848,17 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06vendor\x18\x02 \x01(\tR\x06vendor\x12.\n" +
 	"\x13neuron_device_count\x18\x03 \x01(\rR\x11neuronDeviceCount\x12=\n" +
-	"\x1bneuroncore_per_device_count\x18\x04 \x01(\rR\x18neuroncorePerDeviceCount\"v\n" +
+	"\x1bneuroncore_per_device_count\x18\x04 \x01(\rR\x18neuroncorePerDeviceCount\"\xf0\x01\n" +
 	"\aTPUInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
 	"\ahbm_gib\x18\x02 \x01(\rR\x06hbmGib\x12(\n" +
 	"\x10devices_per_chip\x18\x03 \x01(\rR\x0edevicesPerChip\x12\x14\n" +
-	"\x05count\x18\x04 \x01(\rR\x05count\"a\n" +
+	"\x05count\x18\x04 \x01(\rR\x05count\x12\x1b\n" +
+	"\tworker_id\x18\x05 \x01(\rR\bworkerId\x12!\n" +
+	"\fworker_count\x18\x06 \x01(\rR\vworkerCount\x12\x19\n" +
+	"\bslice_id\x18\a \x01(\rR\asliceId\x12\x1d\n" +
+	"\n" +
+	"num_slices\x18\b \x01(\rR\tnumSlices\"a\n" +
 	"\rCoreWeaveInfo\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12\x15\n" +
 	"\x06org_id\x18\x02 \x01(\tR\x05orgId\x12\x16\n" +
@@ -12884,8 +12929,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xfc\n" +
-	"\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xa8\v\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12927,7 +12971,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$\x12\x1a\n" +
 	"\x16AUTOMATION_ACTION_ARIA\x10%\x12\x13\n" +
 	"\x0fEVAL_TABLES_CES\x10&\x12+\n" +
-	"'ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD\x10'\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"'ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD\x10'\x12*\n" +
+	"&ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION\x10(\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

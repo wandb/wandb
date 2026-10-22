@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.30.1.dev1"
+__version__ = "0.31.1.dev1"
 
 
 from wandb.errors import Error
@@ -148,8 +148,7 @@ ensure_configured = _deprecated_api.ensure_configured
 
 
 def __getattr__(name: str):
-    # The public API is imported on first use: it is a large package that
-    # training scripts and the CLI rarely need.
+    # The public API is imported on first use.
     if name == "Api":
         from wandb.apis.public import Api
 

@@ -130,6 +130,9 @@ def run_pytest(
         "PATH": session.env.get("PATH") or os.environ.get("PATH"),
         "USERNAME": os.environ.get("USERNAME"),
         "USERPROFILE": os.environ.get("USERPROFILE"),
+        # platform.machine() on Windows reads this before Python 3.12, and
+        # polars refuses to import when it comes back empty.
+        "PROCESSOR_ARCHITECTURE": os.environ.get("PROCESSOR_ARCHITECTURE"),
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
@@ -187,10 +190,11 @@ def unit_tests(session: nox.Session) -> None:
     """
     is_windows = platform.system() == "Windows"
 
-    if is_windows:
+    if is_windows and "WANDB_BUILD_SKIP_WANDB_SYMON" not in os.environ:
         # Linux already exercises the heavier Go race/coverage build path.
         # Skipping it on Windows keeps this job focused on Python compatibility
-        # and avoids multi-minute rebuilds.
+        # and avoids multi-minute rebuilds. The symon-tests-windows CI job sets
+        # this to false to build and test wandb-symon.
         session.env["WANDB_BUILD_SKIP_WANDB_SYMON"] = "true"
 
     install_wandb(session, dev=not is_windows)

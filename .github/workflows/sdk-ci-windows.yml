@@ -1,0 +1,81 @@
+name: SDK CI · Windows
+
+# Pull requests opt in to the Windows tests with the ci:windows label. This is
+# a separate workflow so that labeling a PR does not restart SDK CI.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main, release-*]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-wheel:
+    name: Build wheel
+    if: >-
+      github.event_name == 'push'
+      || (contains(github.event.pull_request.labels.*.name, 'ci:windows')
+          && (github.event.action != 'labeled' || github.event.label.name == 'ci:windows'))
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-wheel
+
+  unit-tests:
+    name: Unit tests
+    needs: build-wheel
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: windows-2022
+
+  symon-tests:
+    name: wandb-symon tests
+    # The Windows wheel is built without wandb-symon. This job builds it and
+    # runs the tests that need it.
+    if: >-
+      github.event_name == 'push'
+      || (contains(github.event.pull_request.labels.*.name, 'ci:windows')
+          && (github.event.action != 'labeled' || github.event.label.name == 'ci:windows'))
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.4"
+          python-version: "3.14"
+          enable-cache: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: |
+            core/go.sum
+            hatch_build.py
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: symon
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Run the wandb-symon tests
+        shell: bash
+        env:
+          WANDB_BUILD_SKIP_WANDB_SYMON: "false"
+          # The shipped profile (fat LTO, one codegen unit) re-optimizes the
+          # whole binary at link time, which takes minutes on this runner and
+          # defeats the build cache. These tests check behavior, not size.
+          CARGO_PROFILE_RELEASE_LTO: "off"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+        run: uvx nox -s unit_tests --python 3.14 --verbose -- tests/unit_tests/test_system_metrics.py
