@@ -282,6 +282,7 @@ type leetOptions struct {
 
 	// run selects a run in the wandb directory for the query commands.
 	run     string
+	runs    leet.RunsQuery
 	history leet.HistoryQuery
 
 	// remoteURL is the W&B URL of the project or run to open
@@ -330,6 +331,16 @@ var leetCommands = []*leetCommand{
 		bindFlags: bindLeetInspectFlags,
 		validate:  validateLeetInspectOptions,
 		run:       runLeetInspector,
+	},
+	{
+		name:      "runs",
+		args:      "[<wandb-directory>]",
+		short:     "List the runs of a wandb directory as JSON",
+		mode:      "runs",
+		script:    true,
+		bindFlags: bindLeetRunsFlags,
+		validate:  validateLeetQuerySource,
+		run:       runLeetRuns,
 	},
 	{
 		name:      "history",
@@ -543,19 +554,27 @@ func bindLeetQueryFlags(fs *flag.FlagSet, opts *leetOptions) {
 	)
 }
 
+func bindLeetRunsFlags(fs *flag.FlagSet, opts *leetOptions) {
+	q := &opts.runs
+	fs.StringVar(&opts.runFile, "run-file", "", "Path to a .wandb file, to list only its run.")
+	fs.StringVar(&q.Filter, "filter", "",
+		"List only the runs matching this filter, in the language of the LEET runs"+
+			" sidebar, e.g. 'name:resnet cfg.lr>=0.001'.")
+	fs.BoolVar(&q.Glob, "glob", false,
+		"Match the patterns of --filter as globs instead of regexes.")
+	fs.Func("summary-keys", "Comma-separated summary keys or globs with * and ? to return"+
+		" per run, e.g. 'val/loss,train/*', as updated in the last 2 MiB of the file."+
+		" A glob never matches keys starting with _.",
+		appendKeys(&q.SummaryKeys))
+	fs.IntVar(&q.Limit, "limit", 0, "Runs to return, 0 for the default of 200.")
+}
+
 func bindLeetHistoryFlags(fs *flag.FlagSet, opts *leetOptions) {
 	bindLeetQueryFlags(fs, opts)
 	q := &opts.history
 	fs.Func("keys", "Comma-separated metric keys or globs with * and ? to return,"+
 		" e.g. 'train/loss,val/*'. A glob never matches keys starting with _.",
-		func(s string) error {
-			for _, k := range strings.Split(s, ",") {
-				if k = strings.TrimSpace(k); k != "" {
-					q.Keys = append(q.Keys, k)
-				}
-			}
-			return nil
-		})
+		appendKeys(&q.Keys))
 	fs.StringVar(&q.XAxis, "x-axis", "",
 		"Key to use as the x axis of every metric instead of its own,"+
 			" e.g. _runtime. Rows without a finite value for it are left out.")
@@ -574,6 +593,19 @@ func bindLeetHistoryFlags(fs *flag.FlagSet, opts *leetOptions) {
 	fs.DurationVar(&q.IdleTimeout, "idle-timeout", leet.RunCrashTimeout,
 		"With --follow, stop once the run's file has gone this long without"+
 			" a write. 0 waits forever.")
+}
+
+// appendKeys returns a flag function that appends the comma-separated keys
+// in its argument to keys.
+func appendKeys(keys *[]string) func(string) error {
+	return func(s string) error {
+		for _, k := range strings.Split(s, ",") {
+			if k = strings.TrimSpace(k); k != "" {
+				*keys = append(*keys, k)
+			}
+		}
+		return nil
+	}
 }
 
 func setInt64(p **int64) func(string) error {
@@ -706,6 +738,15 @@ func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+func runLeetRuns(opts *leetOptions, _ *observability.CoreLogger) int {
+	err := leet.ListRuns(opts.wandbDir, opts.runFile, opts.runs, os.Stdout)
+	if err != nil {
+		leet.WriteQueryError(os.Stderr, err)
 		return exitCodeErrorInternal
 	}
 	return exitCodeSuccess
