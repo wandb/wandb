@@ -78,7 +78,7 @@ func TestInspector_HeaderErrorStopsScanning(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			logger := observability.NewNoOpLogger()
-			path := writeWandbFile(t, inspectorTestRecords()...)
+			path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 			data, err := os.ReadFile(path)
 			require.NoError(t, err)
 			copy(data, test.header)
