@@ -204,6 +204,17 @@ func runMsgFromRecord(runPath string, run *spb.RunRecord) RunMsg {
 	return msg
 }
 
+func (hs *LevelDBHistorySource) NextLiveReadCmd(
+	readCmd tea.Cmd,
+	hasMore bool,
+) tea.Cmd {
+	if hasMore {
+		return readCmd
+	}
+
+	return nil
+}
+
 func (hs *LevelDBHistorySource) Close() {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()

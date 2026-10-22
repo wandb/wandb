@@ -360,6 +360,11 @@ After that you can run your test using the standard `pytest` commands. For examp
 pytest -s -vv tests/path-to-tests/test_file.py
 ```
 
+### Windows tests in CI
+
+CI runs the Windows unit tests only on pushes to `main` and `release-*`.
+To run them on a pull request, add the `ci:windows` label to the PR.
+
 ### Running `system_tests` locally (internal-only)
 
 > [!NOTE]

@@ -1457,6 +1457,14 @@ message TPUInfo {
   uint32 hbm_gib = 2;
   uint32 devices_per_chip = 3;
   uint32 count = 4;
+
+  // This host's place in a multi-host or multi-slice job, from the
+  // TPU_WORKER_ID, TPU_WORKER_HOSTNAMES, MEGASCALE_SLICE_ID and
+  // MEGASCALE_NUM_SLICES environment variables; zero when they are unset.
+  uint32 worker_id = 5;
+  uint32 worker_count = 6;
+  uint32 slice_id = 7;
+  uint32 num_slices = 8;
 }
 
 // CoreWeaveInfo stores information about a CoreWeave compute environment.
