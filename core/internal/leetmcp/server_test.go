@@ -24,9 +24,16 @@ const modernMeta = `"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-
 // end of its input without an error, and returns the decoded responses.
 func serve(t *testing.T, lines ...string) []map[string]any {
 	t.Helper()
+	return serveWith(t, "", nil, lines...)
+}
+
+// serveWith is serve on a server reading the W&B URLs of baseURL and of
+// its app pages under the appURLs prefixes.
+func serveWith(t *testing.T, baseURL string, appURLs []string, lines ...string) []map[string]any {
+	t.Helper()
 	var stdout, stderr bytes.Buffer
 	stdin := strings.NewReader(strings.Join(lines, "\n") + "\n")
-	require.NoError(t, leetmcp.Serve(stdin, &stdout, &stderr))
+	require.NoError(t, leetmcp.Serve(stdin, &stdout, &stderr, baseURL, appURLs))
 
 	var responses []map[string]any
 	for line := range strings.Lines(stdout.String()) {
@@ -243,4 +250,46 @@ func TestServe_ParseErrorThenContinues(t *testing.T) {
 	assert.Nil(t, resps[5]["id"])
 	assert.EqualValues(t, 7, resps[6]["id"])
 	assert.Equal(t, map[string]any{}, result(t, resps[6]))
+}
+
+func TestServe_RemoteURLHostRule(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "")
+	call := func(baseURL string, appURLs []string, path string) map[string]any {
+		resps := serveWith(t, baseURL, appURLs, `{"jsonrpc":"2.0","id":1,"method":"tools/call",`+
+			`"params":{"name":"leet_runs","arguments":{"path":"`+path+`"}}}`)
+		require.Len(t, resps, 1)
+		res := result(t, resps[0])
+		require.Equal(t, true, res["isError"])
+		return res["structuredContent"].(map[string]any)
+	}
+	noKey := "no W&B credentials: run wandb login and restart the server"
+	forge := "https://api.forge.coreweave.com"
+	forgeApps := []string{"https://wandb.ai", "https://forge.coreweave.com/wandb"}
+
+	e := call("", nil, "https://api.wandb.ai/e/p")
+	assert.Equal(t, "not_available", e["error"])
+	assert.Equal(t, noKey, e["message"])
+
+	e = call("https://api.wandb.ai", nil, "https://example.com/e/p")
+	assert.Equal(t, "bad_request", e["error"])
+	assert.Equal(t,
+		"URL host example.com is not the configured W&B server https://api.wandb.ai",
+		e["message"])
+
+	e = call(forge, forgeApps, "https://api.wandb.ai/e/p")
+	assert.Equal(t, "bad_request", e["error"])
+	assert.Equal(t, "URL host api.wandb.ai is not the configured W&B server "+forge,
+		e["message"])
+
+	for _, path := range []string{
+		"https://api.forge.coreweave.com/e/p/runs/x",
+		"https://wandb.ai/e/p",
+		"https://WANDB.AI/e/p",
+		"http://wandb.ai/e/p",
+		"https://forge.coreweave.com/wandb/e/p",
+	} {
+		e = call(forge, forgeApps, path)
+		assert.Equal(t, "not_available", e["error"], path)
+		assert.Equal(t, noKey, e["message"], path)
+	}
 }

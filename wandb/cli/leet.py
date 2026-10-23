@@ -20,7 +20,7 @@ from typing_extensions import Never
 
 from wandb.analytics import get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
-from wandb.errors import WandbCoreNotAvailableError
+from wandb.errors import AuthenticationError, UsageError, WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import urls, wbauth
 from wandb.util import get_core_path
@@ -80,10 +80,11 @@ def leet() -> None:
         wandb leet symon              View live local system metrics
         wandb leet inspect [PATH]     Browse the raw records in a .wandb log
         wandb leet inspect --summary  Print the latest run's state and metrics
-        wandb leet runs [PATH]        List the runs of a wandb directory as JSON
+        wandb leet runs [PATH]        List the runs of a directory or project as JSON
         wandb leet history --keys K   Print a run's metric series as JSON
         wandb leet summary [PATH]     Print a run's state, metrics and console as JSON
         wandb leet console --last 50  Print the last console lines of a run as JSON
+        wandb leet summary <run-url>  The same for a run on the W&B server
         wandb leet system --bins 60   Print a run's system metrics as JSON
         wandb leet session status     Steer the LEET open on a wandb directory
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
@@ -228,7 +229,7 @@ def runs(
     summary_keys: str = "",
     limit: int | None = None,
 ) -> None:
-    """List the runs of a wandb directory as JSON.
+    """List the runs of a wandb directory or a W&B project as JSON.
 
     Prints one JSON object with the runs newest first: each run's ID, name,
     project, state, exit code, last step, tags and notes, whether it is
@@ -241,10 +242,11 @@ def runs(
         wandb leet runs --filter 'cfg.lr>=0.001' --limit 5
         wandb leet runs --summary-keys 'val/loss,train/*'
         wandb leet runs ./wandb/run-20260623_234844-2w7tm747
+        wandb leet runs https://wandb.ai/<entity>/<project>
 
-    PATH can be a wandb directory, or a run directory or a .wandb file to
-    list that one run. If PATH is not provided, the configured wandb
-    directory is used.
+    PATH can be a wandb directory, a run directory or a .wandb file to list
+    that one run, or the URL of a W&B project to list its runs from the
+    server. If PATH is not provided, the configured wandb directory is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
     launch_query(
         "runs",
@@ -401,10 +403,11 @@ def summary(path: str | None = None, run: str = "", keys: str = "") -> None:
         wandb leet summary
         wandb leet summary --keys 'val/*,train/loss'
         wandb leet summary ./wandb --run sim-unstable-L32
+        wandb leet summary https://wandb.ai/<entity>/<project>/runs/<run-id>
 
-    PATH can be a .wandb file, a run directory containing one, or a
-    wandb directory. If PATH is not provided, the configured wandb
-    directory is used.
+    PATH can be a .wandb file, a run directory containing one, a wandb
+    directory, or the URL of a W&B run to read it from the server. If PATH
+    is not provided, the configured wandb directory is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
     launch_query("summary", path, run=run, keys=keys)
 
@@ -490,10 +493,11 @@ def console(
         wandb leet console --grep 'explosion|nan' --since 2026-06-24T06:50:00Z
         wandb leet console --since 10m
         wandb leet console --last 50 --follow
+        wandb leet console https://wandb.ai/<entity>/<project>/runs/<run-id>
 
-    PATH can be a .wandb file, a run directory containing one, or a
-    wandb directory. If PATH is not provided, the configured wandb
-    directory is used.
+    PATH can be a .wandb file, a run directory containing one, a wandb
+    directory, or the URL of a W&B run to read it from the server. If PATH
+    is not provided, the configured wandb directory is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
     launch_query(
         "console",
@@ -652,15 +656,36 @@ def config() -> None:
 @click.command()
 @click.help_option("-h", "--help")
 def mcp() -> None:
-    """Serve local W&B runs to an MCP client over stdio.
+    """Serve W&B runs to an MCP client over stdio.
 
-    The tools are the `wandb leet` query commands with the same JSON.
+    The tools are the `wandb leet` query commands with the same JSON, for
+    local runs and for the runs of the configured W&B server when you are
+    logged in.
 
     \b
     Example client configuration:
         {"mcpServers": {"wandb": {"command": "wandb", "args": ["mcp"]}}}
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap the example.
-    _run_core(_base_args("mcp"))
+    settings = wandb_setup.singleton().settings
+    args = _base_args("mcp")
+    if "--base-url" not in args:
+        args.extend(["--base-url", settings.base_url])
+    if app_urls := _app_urls(settings.base_url):
+        args.extend(["--app-urls", ",".join(app_urls)])
+
+    env = os.environ.copy()
+    try:
+        auth = wbauth.authenticate_session(
+            host=settings.base_url,
+            source="wandb mcp",
+            prompt=False,
+            update_session=False,
+        )
+    except AuthenticationError:
+        auth = None
+    if isinstance(auth, wbauth.AuthApiKey):
+        env["WANDB_API_KEY"] = auth.api_key
+    _run_core(args, env)
 
 
 class LaunchConfig:
@@ -787,7 +812,10 @@ def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
 def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
-        config = _create_remote_launch_config(path)
+        try:
+            config = _create_remote_launch_config(path)
+        except (ValueError, UsageError, AuthenticationError) as e:
+            _fatal(str(e))
     else:
         config = _resolve_path(path)
 
@@ -837,18 +865,18 @@ def launch_inspect(
 def launch_query(
     command: str, path: str | None, **flags: str | int | bool | None
 ) -> Never:
-    """Run a wandb-core leet query command on a local run.
+    """Run a wandb-core leet query command on a local run or a W&B URL.
 
     Each flag is passed to wandb-core under its own name with underscores
     replaced by dashes; flags that are unset, empty or False are left out.
     """
+    env = None
     if path is not None and path.startswith(("https://", "http://")):
-        _fatal(f"`wandb leet {command}` requires a local .wandb file.")
-    if path and not os.path.exists(path):
-        _fatal_json("path_not_found", f"path does not exist: {path}")
-    if path and os.path.isfile(path) and not path.endswith(".wandb"):
-        _fatal_json("bad_request", f"not a .wandb file: {path}")
-    config = _resolve_path(path)
+        if command in ("history", "system"):
+            _fatal(f"`wandb leet {command}` requires a local .wandb file.")
+        source_args, env = _remote_query_source(path, flags)
+    else:
+        source_args = _local_query_source(path)
 
     args = _base_args("leet", command)
     for name, value in flags.items():
@@ -859,9 +887,34 @@ def launch_query(
             args.append(flag)
         else:
             args.extend([flag, str(value)])
-    args.extend(_get_local_launch_args(config))
+    args.extend(source_args)
 
-    _run_core(args)
+    _run_core(args, env)
+
+
+def _remote_query_source(
+    path: str, flags: dict[str, str | int | bool | None]
+) -> tuple[list[str], dict[str, str]]:
+    """The source arguments and environment of a query on a W&B URL."""
+    if flags.get("run"):
+        _fatal_json("bad_request", "run cannot be used with a URL")
+    try:
+        remote = _create_remote_launch_config(path)
+    except ValueError as e:
+        _fatal_json("bad_request", str(e))
+    except (UsageError, AuthenticationError) as e:
+        _fatal_json("not_available", str(e))
+    env = os.environ | {"WANDB_API_KEY": remote.api_key}
+    return _get_remote_launch_args(remote), env
+
+
+def _local_query_source(path: str | None) -> list[str]:
+    """The source arguments of a query on a local run."""
+    if path and not os.path.exists(path):
+        _fatal_json("path_not_found", f"path does not exist: {path}")
+    if path and os.path.isfile(path) and not path.endswith(".wandb"):
+        _fatal_json("bad_request", f"not a .wandb file: {path}")
+    return _get_local_launch_args(_resolve_path(path))
 
 
 def launch_session(path: str | None, request: dict[str, Any]) -> Never:
@@ -914,7 +967,11 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 
 
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
-    """Create a LEET launch configuration for a remote project or run."""
+    """Create a LEET launch configuration for a remote project or run.
+
+    Raises ValueError for an invalid URL and UsageError or
+    AuthenticationError when no API key is found for its server.
+    """
     base_url, remote_url = _parse_remote_url(path)
 
     auth = wbauth.authenticate_session(
@@ -922,30 +979,46 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
         source="wandb-cli",
         no_offline=True,
         input_timeout=wandb_setup.singleton().settings.login_timeout,
+        update_session=False,
     )
     if not isinstance(auth, wbauth.AuthApiKey):
-        _fatal("LEET remote runs require API key authentication.")
+        raise UsageError("LEET remote runs require API key authentication.")
 
     return RemoteLaunchConfig(remote_url=remote_url, api_key=auth.api_key)
+
+
+def _app_urls(base_url: str) -> list[str]:
+    """The W&B app URL prefixes whose pages name the API server at base_url."""
+    prefixes = []
+    if base_url in (urls.DEFAULT_BASE_URL, "https://api.wandb.ai"):
+        prefixes.append("https://wandb.ai")
+    for host, api in urls.FORGE_HOSTS.items():
+        if base_url == f"https://api.{host}":
+            paths = (urls.FORGE_API_PATH, urls.FORGE_APP_PATH, "")
+            prefixes.extend(f"https://{host}{p}" for p in paths)
+            prefixes.append(f"https://{api}")
+    return prefixes
 
 
 def _parse_remote_url(path: str) -> tuple[str, str]:
     """Validate a W&B project or run URL and return (base_url, canonical_url).
 
     Canonicalization maps W&B app URLs to their API base URLs and keeps only
-    the entity, the project and, for a run page, the run ID.
+    the entity, the project and, for a run page, the run ID. Raises
+    ValueError for any other URL.
     """
+    invalid = ValueError(
+        f"Invalid remote URL: {path!r}."
+        " Expected format: https://<host>/<entity>/<project>"
+        " or https://<host>/<entity>/<project>/runs/<run_id>"
+    )
     parsed_url = urllib.parse.urlparse(path)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        _fatal(
-            f"Invalid remote URL: {path!r}."
-            " Expected format: https://<host>/<entity>/<project>"
-            " or https://<host>/<entity>/<project>/runs/<run_id>"
-        )
+        raise invalid
 
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
     run_path = parsed_url.path
-    if parsed_url.netloc == "wandb.ai":
+    if parsed_url.hostname == "wandb.ai":
         base_url = urls.DEFAULT_BASE_URL
     elif parsed_url.hostname in urls.FORGE_HOSTS:
         base_url = f"https://api.{parsed_url.hostname}"
@@ -956,11 +1029,7 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
 
     parts = run_path.strip("/").split("/")
     if len(parts) < 2 or not all(parts[:2]):
-        _fatal(
-            f"Invalid remote URL: {path!r}."
-            " Expected format: https://<host>/<entity>/<project>"
-            " or https://<host>/<entity>/<project>/runs/<run_id>"
-        )
+        raise invalid
 
     remote_url = f"{base_url}/{parts[0]}/{parts[1]}"
     if len(parts) >= 4 and parts[2] == "runs" and parts[3]:
