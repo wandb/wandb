@@ -309,6 +309,7 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
 mutation UpdateArtifact(
   $input: UpdateArtifactInput!
   $includeAliases: Boolean = true
+  $perPage: Int = 100 # Only used to fetch the first page of membership.aliasesConnection
 ) {
   result: updateArtifact(input: $input) {
     artifact {
@@ -317,6 +318,17 @@ mutation UpdateArtifact(
     artifactMembership @include(if: true) {
       # Workaround: ensures generated pydantic field defaults to `None`
       ...ArtifactMembershipFragment
+      aliasesConnection(first: $perPage) @include(if: true) {
+        # Workaround: ensures generated pydantic field defaults to `None`
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
     }
   }
 }

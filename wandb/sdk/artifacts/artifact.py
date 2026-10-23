@@ -74,6 +74,7 @@ from ._gqlutils import (
     omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
+    update_artifact_gql_options,
 )
 from ._validators import (
     ensure_logged,
@@ -1523,20 +1524,36 @@ class Artifact:
             # membership instead of fanning out across every collection this
             # artifact belongs to (see Artifact.aliases vs
             # ArtifactCollectionMembership.aliases).
-            omit_fields = omit_artifact_fields(client)
-            if not client.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD):
-                omit_fields.add("artifactMembership")
+            omit_fields, omit_variables = update_artifact_gql_options(client)
 
             data = client.execute_graphql(
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
                 omit_fields=omit_fields,
+                omit_variables=omit_variables or None,
             )
 
             if not ((result := data.result) and (artifact := result.artifact)):
                 raise ValueError("Unable to parse updateArtifact response")
-            self._assign_attrs(artifact, membership=result.artifact_membership)
+
+            membership_aliases = None
+            aliases_paginator = None
+            if (membership := result.artifact_membership) and client.feature_enabled(
+                pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+            ):
+                membership_aliases, aliases_paginator = _paginate_membership_aliases(
+                    client,
+                    membership,
+                    error_context=f"updateArtifact response for {self.qualified_name!r}",
+                )
+
+            self._assign_attrs(
+                artifact,
+                membership=result.artifact_membership,
+                membership_aliases=membership_aliases,
+                aliases_paginator=aliases_paginator,
+            )
 
             self._ttl_changed = False  # Reset after updating artifact
         else:
