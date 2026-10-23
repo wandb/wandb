@@ -329,6 +329,39 @@ func NewIamCredentialsClient(ctx context.Context, opts ...option.ClientOption) (
 		client.CallOptions.SignBlob = append(client.CallOptions.SignBlob, gax.WithClientMetrics(metrics))
 		client.CallOptions.SignJwt = append(client.CallOptions.SignJwt, gax.WithClientMetrics(metrics))
 	}
+	if gax.IsFeatureEnabled("TRACING") {
+		tracing := gax.NewClientTracing(
+			gax.WithTracingAttributes(map[string]string{
+				gax.ClientService:  "iamcredentials",
+				gax.ClientVersion:  getVersionClient(),
+				gax.ClientArtifact: "cloud.google.com/go/iam/credentials/apiv1",
+				gax.RPCSystem:      "grpc",
+				gax.URLDomain:      "iamcredentials.googleapis.com",
+			}),
+		)
+
+		client.CallOptions.GenerateAccessToken = append(client.CallOptions.GenerateAccessToken, gax.WithClientTracing(tracing))
+		client.CallOptions.GenerateIdToken = append(client.CallOptions.GenerateIdToken, gax.WithClientTracing(tracing))
+		client.CallOptions.SignBlob = append(client.CallOptions.SignBlob, gax.WithClientTracing(tracing))
+		client.CallOptions.SignJwt = append(client.CallOptions.SignJwt, gax.WithClientTracing(tracing))
+	}
+	if gax.IsFeatureEnabled("LOGGING") {
+		logging := gax.NewClientLogging(
+			gax.WithLoggerProvider(c.logger),
+			gax.WithLoggingAttributes(map[string]string{
+				gax.ClientService:  "iamcredentials",
+				gax.ClientVersion:  getVersionClient(),
+				gax.ClientArtifact: "cloud.google.com/go/iam/credentials/apiv1",
+				gax.RPCSystem:      "grpc",
+				gax.URLDomain:      "iamcredentials.googleapis.com",
+			}),
+		)
+
+		client.CallOptions.GenerateAccessToken = append(client.CallOptions.GenerateAccessToken, gax.WithClientLogging(logging))
+		client.CallOptions.GenerateIdToken = append(client.CallOptions.GenerateIdToken, gax.WithClientLogging(logging))
+		client.CallOptions.SignBlob = append(client.CallOptions.SignBlob, gax.WithClientLogging(logging))
+		client.CallOptions.SignJwt = append(client.CallOptions.SignJwt, gax.WithClientLogging(logging))
+	}
 
 	client.internalClient = c
 
@@ -431,6 +464,39 @@ func NewIamCredentialsRESTClient(ctx context.Context, opts ...option.ClientOptio
 		callOpts.SignBlob = append(callOpts.SignBlob, gax.WithClientMetrics(metrics))
 		callOpts.SignJwt = append(callOpts.SignJwt, gax.WithClientMetrics(metrics))
 	}
+	if gax.IsFeatureEnabled("TRACING") {
+		tracing := gax.NewClientTracing(
+			gax.WithTracingAttributes(map[string]string{
+				gax.ClientService:  "iamcredentials",
+				gax.ClientVersion:  getVersionClient(),
+				gax.ClientArtifact: "cloud.google.com/go/iam/credentials/apiv1",
+				gax.RPCSystem:      "http",
+				gax.URLDomain:      "iamcredentials.googleapis.com",
+			}),
+		)
+
+		callOpts.GenerateAccessToken = append(callOpts.GenerateAccessToken, gax.WithClientTracing(tracing))
+		callOpts.GenerateIdToken = append(callOpts.GenerateIdToken, gax.WithClientTracing(tracing))
+		callOpts.SignBlob = append(callOpts.SignBlob, gax.WithClientTracing(tracing))
+		callOpts.SignJwt = append(callOpts.SignJwt, gax.WithClientTracing(tracing))
+	}
+	if gax.IsFeatureEnabled("LOGGING") {
+		logging := gax.NewClientLogging(
+			gax.WithLoggerProvider(c.logger),
+			gax.WithLoggingAttributes(map[string]string{
+				gax.ClientService:  "iamcredentials",
+				gax.ClientVersion:  getVersionClient(),
+				gax.ClientArtifact: "cloud.google.com/go/iam/credentials/apiv1",
+				gax.RPCSystem:      "http",
+				gax.URLDomain:      "iamcredentials.googleapis.com",
+			}),
+		)
+
+		callOpts.GenerateAccessToken = append(callOpts.GenerateAccessToken, gax.WithClientLogging(logging))
+		callOpts.GenerateIdToken = append(callOpts.GenerateIdToken, gax.WithClientLogging(logging))
+		callOpts.SignBlob = append(callOpts.SignBlob, gax.WithClientLogging(logging))
+		callOpts.SignJwt = append(callOpts.SignJwt, gax.WithClientLogging(logging))
+	}
 
 	return &IamCredentialsClient{internalClient: c, CallOptions: callOpts}, nil
 }
@@ -477,9 +543,6 @@ func (c *iamCredentialsGRPCClient) GenerateAccessToken(ctx context.Context, req 
 
 	hds = append(c.xGoogHeaders, hds...)
 	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/GenerateAccessToken")
 	}
@@ -501,9 +564,6 @@ func (c *iamCredentialsGRPCClient) GenerateIdToken(ctx context.Context, req *cre
 
 	hds = append(c.xGoogHeaders, hds...)
 	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/GenerateIdToken")
 	}
@@ -525,9 +585,6 @@ func (c *iamCredentialsGRPCClient) SignBlob(ctx context.Context, req *credential
 
 	hds = append(c.xGoogHeaders, hds...)
 	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/SignBlob")
 	}
@@ -549,9 +606,6 @@ func (c *iamCredentialsGRPCClient) SignJwt(ctx context.Context, req *credentials
 
 	hds = append(c.xGoogHeaders, hds...)
 	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/SignJwt")
 	}
@@ -593,9 +647,6 @@ func (c *iamCredentialsRESTClient) GenerateAccessToken(ctx context.Context, req 
 	hds = append(c.xGoogHeaders, hds...)
 	hds = append(hds, "Content-Type", "application/json")
 	headers := gax.BuildHeaders(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/GenerateAccessToken")
 		ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/{name=projects/*/serviceAccounts/*}:generateAccessToken")
@@ -656,9 +707,6 @@ func (c *iamCredentialsRESTClient) GenerateIdToken(ctx context.Context, req *cre
 	hds = append(c.xGoogHeaders, hds...)
 	hds = append(hds, "Content-Type", "application/json")
 	headers := gax.BuildHeaders(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/GenerateIdToken")
 		ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/{name=projects/*/serviceAccounts/*}:generateIdToken")
@@ -719,9 +767,6 @@ func (c *iamCredentialsRESTClient) SignBlob(ctx context.Context, req *credential
 	hds = append(c.xGoogHeaders, hds...)
 	hds = append(hds, "Content-Type", "application/json")
 	headers := gax.BuildHeaders(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/SignBlob")
 		ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/{name=projects/*/serviceAccounts/*}:signBlob")
@@ -782,9 +827,6 @@ func (c *iamCredentialsRESTClient) SignJwt(ctx context.Context, req *credentials
 	hds = append(c.xGoogHeaders, hds...)
 	hds = append(hds, "Content-Type", "application/json")
 	headers := gax.BuildHeaders(ctx, hds...)
-	if gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", fmt.Sprintf("//iamcredentials.googleapis.com/%v", req.GetName()))
-	}
 	if gax.IsFeatureEnabled("METRICS") || gax.IsFeatureEnabled("TRACING") || gax.IsFeatureEnabled("LOGGING") {
 		ctx = callctx.WithTelemetryContext(ctx, "rpc_method", "google.iam.credentials.v1.IAMCredentials/SignJwt")
 		ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/{name=projects/*/serviceAccounts/*}:signJwt")
