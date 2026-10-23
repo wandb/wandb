@@ -28,3 +28,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics were not collected when `TMPDIR` was longer than about 60 characters or on a filesystem without Unix socket support (@dmitryduev in https://github.com/wandb/wandb/pull/13200)
 - System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
 - Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
+- `artifact.download()` no longer returns or overwrites files from an earlier `artifact.download(skip_cache=True)` call in the same process (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13115)
+  - With `skip_cache=True`, files referenced from another artifact (`wandb-artifact://`) are also downloaded directly to the destination instead of being staged in the referenced artifact's download root.
