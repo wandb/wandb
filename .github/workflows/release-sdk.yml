@@ -111,7 +111,7 @@ jobs:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@8c2dcd2e96041a619f5ff03c9638d7941e2553a4 # v4.3
+        uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3 # v4.3
         with:
           package-dir: .
           output-dir: dist
@@ -194,7 +194,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@8c2dcd2e96041a619f5ff03c9638d7941e2553a4 # v4.3
+        uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3 # v4.3
         with:
           package-dir: .
           output-dir: dist
