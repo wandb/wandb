@@ -80,6 +80,7 @@ def leet() -> None:
         wandb leet symon              View live local system metrics
         wandb leet inspect [PATH]     Browse the raw records in a .wandb log
         wandb leet inspect --summary  Print the latest run's state and metrics
+        wandb leet runs [PATH]        List the runs of a wandb directory as JSON
         wandb leet history --keys K   Print a run's metric series as JSON
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
@@ -182,6 +183,72 @@ def inspect(
         json_output=json_output,
         follow=follow,
         idle_timeout=idle_timeout,
+    )
+
+
+@leet.command(cls=ScriptCommand)
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.option(
+    "--filter",
+    "filter_",
+    default="",
+    metavar="QUERY",
+    help="List only the runs matching this filter, in the language of the LEET"
+    " runs sidebar, e.g. 'name:resnet cfg.lr>=0.001'.",
+)
+@click.option(
+    "--glob",
+    is_flag=True,
+    help="Match the patterns of --filter as globs instead of regexes.",
+)
+@click.option(
+    "--summary-keys",
+    default="",
+    metavar="KEYS",
+    help="Comma-separated summary keys or globs with * and ? to return per run,"
+    " e.g. 'val/loss,train/*', as updated in the last 2 MiB of the file."
+    " A glob never matches keys starting with _.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Runs to return. Defaults to 200.",
+)
+@click.help_option("-h", "--help")
+def runs(
+    path: str | None = None,
+    filter_: str = "",
+    glob: bool = False,
+    summary_keys: str = "",
+    limit: int | None = None,
+) -> None:
+    """List the runs of a wandb directory as JSON.
+
+    Prints one JSON object with the runs newest first: each run's ID, name,
+    project, state, exit code, last step, tags and notes, whether it is
+    selected or pinned in LEET and, with --summary-keys, its latest summary
+    values.
+
+    \b
+    Examples:
+        wandb leet runs
+        wandb leet runs --filter 'cfg.lr>=0.001' --limit 5
+        wandb leet runs --summary-keys 'val/loss,train/*'
+        wandb leet runs ./wandb/run-20260623_234844-2w7tm747
+
+    PATH can be a wandb directory, or a run directory or a .wandb file to
+    list that one run. If PATH is not provided, the configured wandb
+    directory is used.
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    launch_query(
+        "runs",
+        path,
+        filter=filter_,
+        glob=glob,
+        summary_keys=summary_keys,
+        limit=limit,
     )
 
 

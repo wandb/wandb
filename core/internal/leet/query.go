@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -88,19 +89,27 @@ func decodeCursor(s string) (historyCursor, error) {
 	return c, nil
 }
 
-// resolveQueryRun returns the .wandb file a query reads: runFile when
-// given, else wandbDir itself when it is a file or the .wandb file of the
-// run directory it names, else the run in wandbDir that run names by its
+// queryRunFile returns the one .wandb file a query names: runFile when
+// given, else wandbDir itself when it is a file, else the .wandb file of
+// the run directory wandbDir names, else "".
+func queryRunFile(wandbDir, runFile string) string {
+	if runFile != "" {
+		return runFile
+	}
+	if info, err := os.Stat(wandbDir); err == nil && !info.IsDir() {
+		return wandbDir
+	}
+	if id := extractRunID(filepath.Base(wandbDir)); id != "" {
+		return filepath.Join(wandbDir, "run-"+id+".wandb")
+	}
+	return ""
+}
+
+// resolveQueryRun returns the .wandb file a query reads: the one
+// queryRunFile names, else the run in wandbDir that run names by its
 // directory, its ID or its display name, else the newest run in wandbDir.
 func resolveQueryRun(wandbDir, runFile, run string) (string, error) {
-	if runFile == "" {
-		if info, err := os.Stat(wandbDir); err == nil && !info.IsDir() {
-			runFile = wandbDir
-		} else if id := extractRunID(filepath.Base(wandbDir)); id != "" {
-			runFile = filepath.Join(wandbDir, "run-"+id+".wandb")
-		}
-	}
-	if runFile != "" {
+	if runFile := queryRunFile(wandbDir, runFile); runFile != "" {
 		if run != "" {
 			return "", badRequest("run cannot be used with a run's path")
 		}
@@ -157,8 +166,8 @@ func resolveQueryRun(wandbDir, runFile, run string) (string, error) {
 		len(named), run, strings.Join(ids, ", "))
 }
 
-// readRunRecord returns the run record among the first records of a .wandb
-// file, or nil.
+// readRunRecord returns the run record among the first maxRecordsToScan
+// records of a .wandb file, or nil.
 func readRunRecord(path string) *spb.RunRecord {
 	reader, err := transactionlog.OpenReader(path, observability.NewNoOpLogger())
 	if err != nil {
@@ -178,33 +187,68 @@ func readRunRecord(path string) *spb.RunRecord {
 	return nil
 }
 
-// readExitRecord returns the exit record among the last records of a .wandb
-// file of the given size, or nil.
-func readExitRecord(path string, size int64) *spb.RunExitRecord {
+// queryTailBytes is how far from the end of a .wandb file readRunTail
+// starts reading: 64 LevelDB blocks.
+const queryTailBytes = 64 * 32 * 1024
+
+// runTail is what the last records of a .wandb file say about a run.
+type runTail struct {
+	exit *spb.RunExitRecord
+	// step is the higher of the highest history step and the summary's
+	// _step, or -1.
+	step int64
+	// summary holds the summary values updated within the tail by top-level
+	// key, nested values assembled as wandb leet inspect --summary shows
+	// them, or is nil when no summary record was read.
+	summary map[string]any
+}
+
+// readRunTail reads the records in the last queryTailBytes of a .wandb file
+// of the given size, or all of a shorter file, leaving out a record that
+// started before the tail.
+func readRunTail(path string, size int64) runTail {
+	tail := runTail{step: -1}
 	reader, err := transactionlog.OpenReader(path, observability.NewNoOpLogger())
 	if err != nil {
-		return nil
+		return tail
 	}
 	defer reader.Close()
 
-	if size > queryTailBytes {
-		if err := reader.SeekRecord((size - queryTailBytes) &^ (32*1024 - 1)); err != nil {
-			return nil
+	if start := (size - queryTailBytes) &^ (32*1024 - 1); start > 0 {
+		if err := reader.SeekRecord(start); err != nil {
+			return tail
 		}
 	}
-	var exit *spb.RunExitRecord
+	var summary *runsummary.RunSummary
 	for {
 		record, err := readRecord(reader)
-		switch {
-		case errors.Is(err, errCorruptSkipped):
+		if errors.Is(err, errCorruptSkipped) {
 			continue
-		case err != nil:
-			return exit
 		}
-		if e := record.GetExit(); e != nil {
-			exit = e
+		if err != nil {
+			break
+		}
+		switch rec := record.RecordType.(type) {
+		case *spb.Record_Exit:
+			tail.exit = rec.Exit
+		case *spb.Record_History:
+			if step, ok := historyStep(rec.History); ok {
+				tail.step = max(tail.step, step)
+			}
+		case *spb.Record_Summary:
+			if summary == nil {
+				summary = runsummary.New()
+			}
+			_ = runsummary.FromProto(rec.Summary).Apply(summary)
 		}
 	}
+	if summary != nil {
+		tail.summary = summary.ToNestedMaps()
+		if step, ok := tail.summary["_step"].(int64); ok {
+			tail.step = max(tail.step, step)
+		}
+	}
+	return tail
 }
 
 // matchKey reports whether key matches pattern: the key itself, or a glob
