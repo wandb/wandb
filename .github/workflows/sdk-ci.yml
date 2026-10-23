@@ -6,10 +6,6 @@ on:
     branches: [main, release-*]
   workflow_dispatch:
     inputs:
-      windows:
-        description: Run the Windows unit tests
-        type: boolean
-        default: true
       server-image:
         description: local-testcontainer image for the server tests (defaults to the master build)
         type: string
@@ -44,18 +40,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/build-wheel
 
-  build-wheel-windows:
-    name: Build wheel · Windows
-    # Windows tests run on pushes, on branches named *-ci-win, and on request.
-    if: github.event_name == 'push' || inputs.windows || endsWith(github.head_ref, '-ci-win')
-    runs-on: windows-2022
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/build-wheel
-
   unit-tests-linux:
     name: Unit tests · Linux
     needs: build-wheel
@@ -69,13 +53,6 @@ jobs:
     uses: ./.github/workflows/sdk-unit-tests.yml
     with:
       runs-on: macos-15-xlarge
-
-  unit-tests-windows:
-    name: Unit tests · Windows
-    needs: build-wheel-windows
-    uses: ./.github/workflows/sdk-unit-tests.yml
-    with:
-      runs-on: windows-2022
 
   unit-tests-go:
     name: Unit tests · Go
@@ -92,7 +69,7 @@ jobs:
       - name: Run tests
         working-directory: core
         run: go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: ${{ !cancelled() }}
         with:
           name: unit-go
@@ -108,20 +85,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             parquet-rust-wrapper
-            xpu
+            symon
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Test parquet-rust-wrapper
         working-directory: parquet-rust-wrapper
         run: cargo test --verbose
-      - name: Test wandb-xpu
-        working-directory: xpu
+      - name: Test wandb-symon
+        working-directory: symon
         run: |
           cargo test --verbose
           cargo check --features build-proto --bin build_proto
@@ -136,25 +113,25 @@ jobs:
           persist-credentials: false
           # The size check compares against the merge base with main.
           fetch-depth: 0
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.13"
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.12.11"
+          version: "0.13.4"
           enable-cache: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             parquet-rust-wrapper
-            xpu
+            symon
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check generated files
         run: |
@@ -188,7 +165,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.13"]
+        python: ["3.10", "3.14"]
         server: [current, minimum]
         group: [1, 2, 3, 4, 5, 6, 7, 8]
         exclude:
@@ -225,9 +202,9 @@ jobs:
       matrix:
         include:
           - { name: Notebook tests, session: notebook_tests, python: "3.10", coverage: system }
-          - { name: Notebook tests, session: notebook_tests, python: "3.13", coverage: system }
-          - { name: Functional tests, session: functional_tests, python: "3.13", coverage: func }
-          - { name: Experimental client tests, session: experimental_tests, python: "3.13", coverage: func }
+          - { name: Notebook tests, session: notebook_tests, python: "3.14", coverage: system }
+          - { name: Functional tests, session: functional_tests, python: "3.14", coverage: func }
+          - { name: Experimental client tests, session: experimental_tests, python: "3.14", coverage: func }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -249,7 +226,6 @@ jobs:
       - build-wheel
       - unit-tests-linux
       - unit-tests-macos
-      - unit-tests-windows
       - unit-tests-go
       - system-tests
       - extra-tests
@@ -264,7 +240,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: ${{ matrix.flags }}-*
           path: coverage-reports
@@ -280,10 +256,8 @@ jobs:
     if: ${{ !cancelled() }}
     needs:
       - build-wheel
-      - build-wheel-windows
       - unit-tests-linux
       - unit-tests-macos
-      - unit-tests-windows
       - unit-tests-go
       - unit-tests-rust
       - code-check

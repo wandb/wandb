@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/clients"
@@ -86,6 +87,39 @@ func (s *Settings) GetTransactionLogFlushInterval() time.Duration {
 // for example from different machines.
 func (s *Settings) IsSharedMode() bool {
 	return s.Proto.XShared.GetValue()
+}
+
+// IsHistoryValueEncodingTyped reports whether history records include typed values.
+//
+// Defaults to false if no encoding is specified.
+func (s *Settings) IsHistoryValueEncodingTyped() bool {
+	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
+	for _, form := range forms {
+		if strings.ToLower(strings.TrimSpace(form)) == "typed" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsHistoryValueEncodingJSON reports whether history records include JSON values.
+//
+// Defaults to true if no encoding is specified.
+func (s *Settings) IsHistoryValueEncodingJSON() bool {
+	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
+	hasJSON := false
+	hasTyped := false
+	for _, form := range forms {
+		trimmed := strings.ToLower(strings.TrimSpace(form))
+		switch trimmed {
+		case "json":
+			hasJSON = true
+		case "typed":
+			hasTyped = true
+		}
+	}
+	return hasJSON || !hasTyped
 }
 
 // The ID of the run.

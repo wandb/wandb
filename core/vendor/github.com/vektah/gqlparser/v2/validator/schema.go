@@ -120,9 +120,22 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		)
 	}
 
+	// Each root operation type may be specified once across the schema
+	// definition and all of its extensions. The recorded position is where
+	// root type errors are reported.
+	rootPositions := map[Operation]*Position{}
+
 	if len(sd.Schema) == 1 {
 		schema.Description = sd.Schema[0].Description
 		for _, entrypoint := range sd.Schema[0].OperationTypes {
+			if _, ok := rootPositions[entrypoint.Operation]; ok {
+				return nil, gqlerror.ErrorPosf(
+					entrypoint.Position,
+					"There can be only one %s type in schema.",
+					entrypoint.Operation,
+				)
+			}
+			rootPositions[entrypoint.Operation] = entrypoint.Position
 			def := schema.Types[entrypoint.Type]
 			if def == nil {
 				return nil, gqlerror.ErrorPosf(
@@ -155,6 +168,14 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 
 	for _, ext := range sd.SchemaExtension {
 		for _, entrypoint := range ext.OperationTypes {
+			if _, ok := rootPositions[entrypoint.Operation]; ok {
+				return nil, gqlerror.ErrorPosf(
+					entrypoint.Position,
+					"There can be only one %s type in schema.",
+					entrypoint.Operation,
+				)
+			}
+			rootPositions[entrypoint.Operation] = entrypoint.Position
 			def := schema.Types[entrypoint.Type]
 			if def == nil {
 				return nil, gqlerror.ErrorPosf(
@@ -214,6 +235,12 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		}
 	}
 
+	// Checked after inference so that explicit and inferred roots obey the
+	// same rule.
+	if err := validateRootOperationTypes(&schema, rootPositions); err != nil {
+		return nil, err
+	}
+
 	if schema.Query != nil {
 		schema.Query.Fields = append(
 			schema.Query.Fields,
@@ -232,6 +259,45 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 	}
 
 	return &schema, nil
+}
+
+// validateRootOperationTypes rejects any root operation type that is not an
+// object type. Errors are reported at the root's entry in the schema
+// definition or extension, or at the type itself when the root was inferred
+// by name. Messages match graphql-js.
+// https://spec.graphql.org/October2021/#sec-Root-Operation-Types
+func validateRootOperationTypes(
+	schema *Schema,
+	rootPositions map[Operation]*Position,
+) *gqlerror.Error {
+	roots := []struct {
+		op      Operation
+		def     *Definition
+		message string
+	}{
+		{Query, schema.Query, "Query root type must be Object type, it cannot be %s."},
+		{
+			Mutation,
+			schema.Mutation,
+			"Mutation root type must be Object type if provided, it cannot be %s.",
+		},
+		{
+			Subscription,
+			schema.Subscription,
+			"Subscription root type must be Object type if provided, it cannot be %s.",
+		},
+	}
+	for _, root := range roots {
+		if root.def == nil || root.def.Kind == Object {
+			continue
+		}
+		pos, ok := rootPositions[root.op]
+		if !ok {
+			pos = root.def.Position
+		}
+		return gqlerror.ErrorPosf(pos, root.message, root.def.Name)
+	}
+	return nil
 }
 
 func validateTypeDefinitions(schema *Schema) *gqlerror.Error {
@@ -338,6 +404,14 @@ func validateDirective(schema *Schema, def *DirectiveDefinition) *gqlerror.Error
 		// now, GraphQL spec doesn't have reserved directive name
 		return err
 	}
+	if dup := duplicateArg(def.Arguments); dup != nil {
+		return gqlerror.ErrorPosf(
+			dup.Position,
+			"Argument @%s(%s:) can only be defined once.",
+			def.Name,
+			dup.Name,
+		)
+	}
 
 	return validateArgs(schema, def.Arguments, def)
 }
@@ -350,6 +424,18 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 		if err := validateTypeRef(schema, field.Type); err != nil {
 			return err
+		}
+		if err := validateInputFieldNames(field.DefaultValue); err != nil {
+			return err
+		}
+		if dup := duplicateArg(field.Arguments); dup != nil {
+			return gqlerror.ErrorPosf(
+				dup.Position,
+				"Argument %s.%s(%s:) can only be defined once.",
+				def.Name,
+				field.Name,
+				dup.Name,
+			)
 		}
 		if err := validateArgs(schema, field.Arguments, nil); err != nil {
 			return err
@@ -538,6 +624,20 @@ func validateTypeRef(schema *Schema, typ *Type) *gqlerror.Error {
 	return nil
 }
 
+// duplicateArg returns the first argument whose name repeats an earlier one in
+// args, or nil if every name is unique. Callers build the error message only on
+// a hit, so the common no-duplicate path does not allocate.
+func duplicateArg(args ArgumentDefinitionList) *ArgumentDefinition {
+	for idx, arg1 := range args {
+		for _, arg2 := range args[idx+1:] {
+			if arg1.Name == arg2.Name {
+				return arg2
+			}
+		}
+	}
+	return nil
+}
+
 func validateArgs(
 	schema *Schema,
 	args ArgumentDefinitionList,
@@ -549,6 +649,9 @@ func validateArgs(
 			return err
 		}
 		if err := validateTypeRef(schema, arg.Type); err != nil {
+			return err
+		}
+		if err := validateInputFieldNames(arg.DefaultValue); err != nil {
 			return err
 		}
 		def := schema.Types[arg.Type.Name()]
@@ -623,13 +726,20 @@ func validateDirectives(
 				location,
 			)
 		}
-		for _, arg := range dir.Arguments {
+		for i, arg := range dir.Arguments {
 			if dirDefinition.Arguments.ForName(arg.Name) == nil {
 				return gqlerror.ErrorPosf(
 					arg.Position,
 					"Undefined argument %s for directive %s.",
 					arg.Name,
 					dir.Name,
+				)
+			}
+			if dir.Arguments[:i].ForName(arg.Name) != nil {
+				return gqlerror.ErrorPosf(
+					arg.Position,
+					"There can be only one argument named %s.",
+					arg.Name,
 				)
 			}
 		}
@@ -648,7 +758,44 @@ func validateDirectives(
 				}
 			}
 		}
-		dir.Definition = schema.Directives[dir.Name]
+		// Last, so argument-set errors are reported first.
+		for _, arg := range dir.Arguments {
+			if err := validateInputFieldNames(arg.Value); err != nil {
+				return err
+			}
+		}
+		dir.Definition = dirDefinition
+	}
+	return nil
+}
+
+// validateInputFieldNames rejects an input object that sets the same field
+// more than once, anywhere within value.
+//
+// It uses a map because a literal's field count is unbounded, so rescanning
+// would be quadratic.
+func validateInputFieldNames(value *Value) *gqlerror.Error {
+	if value == nil {
+		return nil
+	}
+	var seen map[string]struct{}
+	if value.Kind == ObjectValue && len(value.Children) > 1 {
+		seen = make(map[string]struct{}, len(value.Children))
+	}
+	for _, child := range value.Children {
+		if seen != nil {
+			if _, dup := seen[child.Name]; dup {
+				return gqlerror.ErrorPosf(
+					child.Position,
+					`There can be only one input field named "%s".`,
+					child.Name,
+				)
+			}
+			seen[child.Name] = struct{}{}
+		}
+		if err := validateInputFieldNames(child.Value); err != nil {
+			return err
+		}
 	}
 	return nil
 }

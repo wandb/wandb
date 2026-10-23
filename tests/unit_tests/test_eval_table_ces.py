@@ -281,13 +281,14 @@ def test_ces_eval_table_writes_supported_media_in_raise_mode(mock_ces_client, ru
     assert rows[0]["output"]["image"]["extension_type"] == "wandb-image"
 
 
-def test_default_writer_validates_cells_during_construction():
+def test_ces_writer_validates_cells_during_construction():
     nested_table = wandb.Table(columns=["value"], data=[[1]])
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
         wandb.EvalTable(
             columns=["table"],
             data=[[nested_table]],
+            backend="ces",
         )
 
 
@@ -667,6 +668,10 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
 def test_ces_base_url(monkeypatch):
     monkeypatch.delenv("CES_BASE_URL", raising=False)
     assert ces._ces_base_url("https://api.wandb.ai") == "https://evaluations.wandb.ai"
+    assert (
+        ces._ces_base_url("https://forge.coreweave.com/api/wandb")
+        == "https://evaluations.wandb.ai"
+    )
     assert (
         ces._ces_base_url("https://example.test") == "https://example.test/evaluations"
     )

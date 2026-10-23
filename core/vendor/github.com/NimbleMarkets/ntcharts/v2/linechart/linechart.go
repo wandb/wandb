@@ -26,10 +26,15 @@ var defaultStyle = lipgloss.NewStyle()
 type LabelFormatter func(int, float64) string
 
 // DefaultLabelFormatter returns a LabelFormatter
-// that convert float64 to integers
+// that convert float64 to integers.
+// Values that round to zero are always labeled "0", never "-0".
 func DefaultLabelFormatter() LabelFormatter {
 	return func(i int, v float64) string {
-		return fmt.Sprintf("%.0f", v)
+		s := fmt.Sprintf("%.0f", v)
+		if s == "-0" {
+			return "0"
+		}
+		return s
 	}
 }
 
@@ -71,7 +76,8 @@ type Model struct {
 	graphWidth  int          // width of graphing area - excludes X axis and labels
 	graphHeight int          // height of graphing area - excludes Y axis and labels
 
-	MaxInterpolationPoints int // maximum points to interpolate for lines/circles
+	MaxInterpolationPoints int   // maximum points to interpolate for lines/circles
+	y2                     *Axis // right Y axis; nil when there is none. Never written through: Model copies share it.
 
 	zoneManager *zone.Manager // provides mouse functionality
 	zoneID      string
@@ -147,7 +153,10 @@ func getGraphSizeAndOrigin(w, h int, minY, maxY float64, xStep, yStep int, yScal
 					}
 					lastVal = s
 				}
-				i += yStep
+				if i == gHeight {
+					break
+				}
+				i = min(i+yStep, gHeight)
 			}
 		}
 		origin.X += valueLen
@@ -170,6 +179,14 @@ func (m *Model) UpdateGraphSizes() {
 		m.yScale,
 		m.YLabelFormatter,
 	)
+	if m.y2Drawn() {
+		// reserve the right Y axis column and the widest right label
+		w := 0
+		for _, t := range m.y2Ticks(gHeight) {
+			w = max(w, len(t.label))
+		}
+		gWidth = max(0, gWidth-1-w)
+	}
 	m.origin = origin
 	m.graphWidth = gWidth
 	m.graphHeight = gHeight
@@ -288,10 +305,14 @@ func (m *Model) SetXRange(min, max float64) {
 // decade below the maximum (max/10), a non-positive maximum one decade
 // above the minimum, and if neither bound is positive the range becomes
 // 1..10. The same applies to SetViewYRange.
+//
+// The right Y axis's displayed range follows the left view within this
+// range (see Axis), so the layout is recomputed.
 func (m *Model) SetYRange(min, max float64) {
 	min, max = m.yScale.sanitize(min, max)
 	m.minY = min
 	m.maxY = max
+	m.UpdateGraphSizes()
 }
 
 // SetXYRange updates the minimum and maximum expected X and Y values.
@@ -354,6 +375,8 @@ func (m *Model) Resize(w, h int) {
 // and the displayed X and Y values if enabled and the given Float64Point
 // is outside of expected ranges.
 // It returns whether or not the display X and Y ranges have been adjusted.
+// With a right Y axis, widening the expected Y range counts as adjusting
+// the display, since the right axis's view follows the left range.
 // A point with a non-positive coordinate on a log axis has no place on the
 // chart and is ignored.
 func (m *Model) AutoAdjustRange(f canvas.Float64Point) (b bool) {
@@ -362,20 +385,8 @@ func (m *Model) AutoAdjustRange(f canvas.Float64Point) (b bool) {
 	}
 	// adjusts both expected range and
 	// the display range (if not zoomed in)
-	if m.AutoMinX && (f.X < m.minX) {
-		if m.minX == m.viewMinX {
-			m.viewMinX = f.X
-			b = true
-		}
-		m.minX = f.X
-	}
-	if m.AutoMaxX && (f.X > m.maxX) {
-		if m.maxX == m.viewMaxX {
-			m.viewMaxX = f.X
-			b = true
-		}
-		m.maxX = f.X
-	}
+	b = m.autoAdjustX(f.X)
+	minY, maxY := m.minY, m.maxY
 	if m.AutoMinY && (f.Y < m.minY) {
 		if m.minY == m.viewMinY {
 			m.viewMinY = f.Y
@@ -389,6 +400,30 @@ func (m *Model) AutoAdjustRange(f canvas.Float64Point) (b bool) {
 			b = true
 		}
 		m.maxY = f.Y
+	}
+	if m.y2 != nil && (m.minY != minY || m.maxY != maxY) {
+		b = true
+	}
+	return
+}
+
+// autoAdjustX widens the expected X range to x if enabled, and the
+// displayed X range with it unless zoomed in. It reports whether the
+// displayed range changed.
+func (m *Model) autoAdjustX(x float64) (b bool) {
+	if m.AutoMinX && (x < m.minX) {
+		if m.minX == m.viewMinX {
+			m.viewMinX = x
+			b = true
+		}
+		m.minX = x
+	}
+	if m.AutoMaxX && (x > m.maxX) {
+		if m.maxX == m.viewMaxX {
+			m.viewMaxX = x
+			b = true
+		}
+		m.maxX = x
 	}
 	return
 }
@@ -560,7 +595,7 @@ func (m *Model) drawXTicks(n int) {
 	}
 }
 
-// DrawXYAxisAndLabel draws the X, Y axes.
+// DrawXYAxisAndLabel draws the X and Y axes, the right Y axis if any, and their labels.
 func (m *Model) DrawXYAxisAndLabel() {
 	drawY := m.yStep > 0
 	drawX := m.xStep > 0
@@ -574,7 +609,9 @@ func (m *Model) DrawXYAxisAndLabel() {
 			graph.DrawHorizonalLineRight(&m.Canvas, m.origin, m.AxisStyle)
 		}
 	}
+	m.drawY2Axis()
 	m.drawYLabel(m.yStep)
+	m.drawY2Label()
 	m.drawXLabel(m.xStep)
 }
 
@@ -656,6 +693,9 @@ func (m *Model) DrawRuneWithStyle(f canvas.Float64Point, r rune, s lipgloss.Styl
 	if m.xStep > 0 {
 		p.Y--
 	}
+	if !m.inPlot(p) {
+		return
+	}
 	m.Canvas.SetCell(p, canvas.NewCellWithStyle(r, s))
 }
 
@@ -698,6 +738,9 @@ func (m *Model) DrawRuneLineWithStyle(f1 canvas.Float64Point, f2 canvas.Float64P
 		if m.xStep > 0 {
 			p.Y--
 		}
+		if !m.inPlot(p) {
+			continue
+		}
 		m.Canvas.SetCell(p, canvas.NewCellWithStyle(r, s))
 	}
 }
@@ -732,7 +775,7 @@ func (m *Model) DrawRuneCircleWithStyle(c canvas.Float64Point, f float64, r rune
 		p := canvas.CanvasPointFromFloat64Point(m.origin, sf)
 		// draw rune while avoiding drawing outside of graphing area
 		// or on the X and Y axes
-		ok := (p.X >= m.origin.X) && (p.Y <= m.origin.Y)
+		ok := (p.X >= m.origin.X) && (p.Y <= m.origin.Y) && m.inPlot(p)
 		if (m.yStep > 0) && (p.X == m.origin.X) {
 			ok = false
 		}
@@ -775,6 +818,17 @@ func (m *Model) DrawLineWithStyle(f1 canvas.Float64Point, f2 canvas.Float64Point
 	// draw line runes on all canvas coordinates between
 	// the two canvas points that approximates a line
 	points := graph.GetLinePointsWithLimit(p1, p2, m.MaxInterpolationPoints)
+	if m.y2Drawn() {
+		// a straight line leaves the plot area at one end only, so the
+		// points kept stay contiguous
+		in := points[:0]
+		for _, p := range points {
+			if m.inPlot(p) {
+				in = append(in, p)
+			}
+		}
+		points = in
+	}
 	if len(points) <= 0 {
 		return
 	}

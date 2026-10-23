@@ -47,6 +47,10 @@ type HistorySource interface {
 		maxTimePerChunk time.Duration,
 	) (tea.Msg, error)
 
+	// NextLiveReadCmd returns a command to read the next set of records from the history source.
+	// hasMore indicates whether the previous read stopped before exhausting currently available data.
+	NextLiveReadCmd(readCmd tea.Cmd, hasMore bool) tea.Cmd
+
 	// Close closes the history source that is being read from.
 	Close()
 }
@@ -86,6 +90,8 @@ func concatenateHistory(messages []HistoryMsg, runPath string) HistoryMsg {
 		for mediaKey, points := range msg.Media {
 			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
 		}
+		h.StepTimes.X = append(h.StepTimes.X, msg.StepTimes.X...)
+		h.StepTimes.Y = append(h.StepTimes.Y, msg.StepTimes.Y...)
 	}
 
 	if len(h.Metrics) == 0 {

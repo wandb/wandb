@@ -32,8 +32,11 @@ func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
 // Metrics that cannot be marshalled to JSON are skipped without affecting
 // other metrics.
 //
+// If includeTyped is true, the records will include the typed value in
+// addition to the JSON value.
+//
 // TODO: Don't convert history back to protos. Delete this method.
-func (rh *RunHistory) ToRecords() ([]*spb.HistoryItem, error) {
+func (rh *RunHistory) ToRecords(includeTyped, includeJSON bool) ([]*spb.HistoryItem, error) {
 	var records []*spb.HistoryItem
 	var errs []error
 
@@ -45,16 +48,43 @@ func (rh *RunHistory) ToRecords() ([]*spb.HistoryItem, error) {
 				fmt.Errorf("failed to marshal key %v: %v", path, err))
 			return true
 		}
+		valueJSONText := string(valueJSON)
 
-		records = append(records, &spb.HistoryItem{
+		record := &spb.HistoryItem{
 			NestedKey: path.Labels(),
-			ValueJson: string(valueJSON),
-		})
+		}
+		if includeJSON {
+			record.ValueJson = valueJSONText
+		}
+		if includeTyped {
+			if !setTypedScalar(record, value) {
+				record.Value = &spb.HistoryItem_Json{Json: valueJSONText}
+			}
+		}
+		records = append(records, record)
 
 		return true
 	})
 
 	return records, errors.Join(errs...)
+}
+
+func setTypedScalar(record *spb.HistoryItem, value any) bool {
+	switch value := value.(type) {
+	case nil:
+		record.Value = &spb.HistoryItem_None{}
+	case bool:
+		record.Value = &spb.HistoryItem_Boolean{Boolean: value}
+	case int64:
+		record.Value = &spb.HistoryItem_Integer{Integer: value}
+	case float64:
+		record.Value = &spb.HistoryItem_Number{Number: value}
+	case string:
+		record.Value = &spb.HistoryItem_Text{Text: value}
+	default:
+		return false
+	}
+	return true
 }
 
 // ForEachNumber runs a callback on every numeric metric.

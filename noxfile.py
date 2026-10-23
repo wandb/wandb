@@ -16,7 +16,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 
 # Protobuf Python bindings.
 #
@@ -130,6 +130,9 @@ def run_pytest(
         "PATH": session.env.get("PATH") or os.environ.get("PATH"),
         "USERNAME": os.environ.get("USERNAME"),
         "USERPROFILE": os.environ.get("USERPROFILE"),
+        # platform.machine() on Windows reads this before Python 3.12, and
+        # polars refuses to import when it comes back empty.
+        "PROCESSOR_ARCHITECTURE": os.environ.get("PROCESSOR_ARCHITECTURE"),
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
@@ -187,11 +190,12 @@ def unit_tests(session: nox.Session) -> None:
     """
     is_windows = platform.system() == "Windows"
 
-    if is_windows:
+    if is_windows and "WANDB_BUILD_SKIP_WANDB_SYMON" not in os.environ:
         # Linux already exercises the heavier Go race/coverage build path.
         # Skipping it on Windows keeps this job focused on Python compatibility
-        # and avoids multi-minute rebuilds.
-        session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
+        # and avoids multi-minute rebuilds. The symon-tests-windows CI job sets
+        # this to false to build and test wandb-symon.
+        session.env["WANDB_BUILD_SKIP_WANDB_SYMON"] = "true"
 
     install_wandb(session, dev=not is_windows)
 
@@ -319,14 +323,16 @@ def experimental_tests(session: nox.Session):
 def local_testcontainer_registry(session: nox.Session) -> None:
     """Archive the local-testcontainer image for a wandb/core server release.
 
-    Finds the requested release (tag) of wandb/core (latest by default)
-    and its commit hash, then copies the local-testcontainer image with
-    that commit hash from
-    us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
-    to us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+    Finds the requested release (tag) of wandb/core (latest by default),
+    its commit hash, and the build-and-test workflow run for that commit,
+    then copies the image that run published to
+    us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer-gha
+    (tagged run-<run id>-<attempt>; a re-run of failed jobs keeps the
+    image from the attempt that built it) to
+    us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
     tagged with the release version. No-op if the tag is already archived.
 
-    The wandb-production registry only retains images for recent commits,
+    The wandb-production registry only retains images for about 30 days,
     so this archive is what allows testing the SDK against older server
     releases (e.g. the system-tests-min-server-version CI jobs). It is
     run manually by maintainers about once a month; see "Archiving server
@@ -334,11 +340,11 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     Prerequisites:
     - gcloud authenticated with an account that can read
-      wandb-production/images/local-testcontainer and write
+      wandb-production/images/local-testcontainer-gha and write
       wandb-client-cicd/images/local-testcontainer
     - gcrane: go install github.com/google/go-containerregistry/cmd/gcrane@latest
-    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core,
-      e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
+    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core and
+      its Actions runs, e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
 
     To archive the latest release:
         nox -s local-testcontainer-registry
@@ -348,15 +354,15 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     """
     tags: list[str] = session.posargs or []
 
+    import requests
+
+    headers = {
+        "Authorization": f"bearer {os.environ['GITHUB_ACCESS_TOKEN']}",
+        "Content-Type": "application/json",
+    }
+
     def query_github(payload: dict[str, Any]) -> dict[str, Any]:
         import json
-
-        import requests
-
-        headers = {
-            "Authorization": f"bearer {os.environ['GITHUB_ACCESS_TOKEN']}",
-            "Content-Type": "application/json",
-        }
 
         url = "https://api.github.com/graphql"
         response = requests.post(url, headers=headers, data=json.dumps(payload))
@@ -444,7 +450,25 @@ def local_testcontainer_registry(session: nox.Session) -> None:
         session.warn(f"Image with tag {release_tag} already exists.")
         return
 
-    source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
+    runs = requests.get(
+        "https://api.github.com/repos/wandb/core/actions/workflows/build-and-test.yaml/runs",
+        headers=headers,
+        params={"head_sha": commit_hash},
+    ).json()["workflow_runs"]
+    if not runs:
+        session.error(f"No build-and-test workflow run found for {commit_hash}.")
+    run = runs[0]
+    session.log(f"Workflow run: {run['html_url']} (attempt {run['run_attempt']})")
+
+    for attempt in range(run["run_attempt"], 0, -1):
+        source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer-gha:run-{run['id']}-{attempt}"
+        if not subprocess.run(
+            ["gcrane", "digest", source_image], capture_output=True
+        ).returncode:
+            break
+    else:
+        session.error(f"No image found for workflow run {run['id']}.")
+
     target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
 
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
@@ -452,7 +476,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
-@nox.session(python="3.13", name="codegen-check")
+@nox.session(python="3.14", name="codegen-check")
 def codegen_check(session: nox.Session) -> None:
     """Generate code and ensure nothing changed."""
     install_timed(
@@ -486,7 +510,7 @@ def gql_codegen(session: nox.Session) -> None:
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
     session.run("./core/api/proto/install-protoc.sh", "34.1", external=True)
-    session.run("./xpu/tools/generate-proto.sh", external=True)
+    session.run("./symon/tools/generate-proto.sh", external=True)
 
 
 @nox.session(python=False, name="proto-go", tags=["proto"])
@@ -740,56 +764,7 @@ def binary_size_check(session: nox.Session) -> None:
 
 @nox.session(name="wandb-import-time-check", python="3.12")
 def wandb_import_time_check(session: nox.Session) -> None:
-    """Compare wandb import time against main branch."""
-
-    def measure_import_time(num_samples: int = 5) -> float:
-        """Measure the average time to import wandb across multiple samples."""
-        times = []
-        for _ in range(num_samples):
-            result = session.run(
-                "python",
-                "-c",
-                "import time; tic = time.perf_counter(); import wandb; print(time.perf_counter() - tic)",
-                external=True,
-                silent=True,
-            )
-            times.append(float(result.strip()))
-        return sum(times) / len(times)
-
-    session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "switch", "--detach", "origin/main", external=True)
-    install_wandb(session, dev=False)
-    main_time = measure_import_time()
-
-    session.run("git", "checkout", "-", external=True)
-    install_wandb(session, dev=False)
-    current_time = measure_import_time()
-
-    diff = current_time - main_time
-    pct = (diff / main_time) if main_time else 0
-
-    session.log("=" * 60)
-    session.log(f"Main branch:  {main_time:.2g}s")
-    session.log(f"Current:      {current_time:.2g}")
-    session.log(f"Difference:   {abs(diff):.2g} ({pct:+.0%})")
-    session.log("=" * 60)
-
-    if pct > 0.20:
-        session.log(
-            textwrap.dedent("""\
-
-                ❌ Import time increased beyond acceptable threshold!
-
-                If this increase is necessary:
-                  1. Verify the increase is justified.
-                  2. Consider lazy imports or module reorganization.
-                  3. Document the reason in your PR description.
-
-                To debug import time issues:
-                  uv pip install -U pyinstrument
-                  pyinstrument -r html -c 'import wandb'
-            """)
-        )
-        session.error(f"Import time increased by {pct:+.0%} (>20% threshold)")
-    elif pct > 0.10:
-        session.warn(f"Import time increased by {pct:+.0%}")
+    """Fail if `import wandb` or the CLI got slower than the pull request's base."""
+    # Both trees are imported from source, so only the dependencies are installed.
+    install_timed(session, "-r", "pyproject.toml")
+    session.run("python", "tools/import_time_check.py", *session.posargs)

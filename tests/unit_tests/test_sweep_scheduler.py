@@ -9,16 +9,19 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import asyncio
 import importlib.util
 import logging
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
+from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
+from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange, describe_done
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     RunConfig,
@@ -53,6 +56,7 @@ def make_scheduler_grid_sweep(config: dict[str, Any] | None = None) -> SweepInfo
         entity="test_entity",
         project="test_project",
         config=SCHEDULER_GRID_SWEEP_CONFIG if config is None else config,
+        controller_run_name="test_controller_run",
     )
 
 
@@ -481,6 +485,7 @@ class TestSweepSchedulerCli:
                 **SCHEDULER_GRID_SWEEP_CONFIG,
                 "scheduler": {"engine": "wandb"},
             },
+            controller_run_name="c",
         )
         optimizer = make_optimizer(wandb_engine)
         assert isinstance(optimizer, WandbOptimizer)
@@ -500,7 +505,14 @@ class TestSweepSchedulerCli:
         assert result.exit_code == 0
 
         make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
-        sweep = SweepInfo(id="s", name="s", entity="e", project="p", config=config)
+        sweep = SweepInfo(
+            id="s",
+            name="s",
+            entity="e",
+            project="p",
+            config=config,
+            controller_run_name="c",
+        )
         with pytest.raises(Exception, match=expected_error):
             make_optimizer(sweep)
 
@@ -835,25 +847,32 @@ class TestLoadSourceObject:
             scheduler_client.load_source_object(str(source), "configure")
 
 
+class _Engine:
+    """Stands in for an engine's optimizer type, like optuna.Study."""
+
+
 class TestLoadOptimizerConfig:
     def test_returns_bare_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        optimizer = object()
+        optimizer = _Engine()
         configure = MagicMock(return_value=optimizer)
         monkeypatch.setattr(
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
+        sweep = make_scheduler_grid_sweep()
+
         loaded, terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", "engine.Optimizer"
+            "optimizer.py", "configure", _Engine, sweep
         )
 
+        configure.assert_called_once_with(sweep)
         assert loaded is optimizer
         assert terminator is None
 
     def test_returns_optimizer_and_terminator(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        optimizer = object()
+        optimizer = _Engine()
         terminator = MagicMock(return_value=True)
         configure = MagicMock(return_value=(optimizer, terminator))
         monkeypatch.setattr(
@@ -861,21 +880,21 @@ class TestLoadOptimizerConfig:
         )
 
         loaded, loaded_terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", "engine.Optimizer"
+            "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
         )
 
         assert loaded is optimizer
         assert loaded_terminator is terminator
 
     def test_returns_only_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        optimizer = object()
+        optimizer = _Engine()
         configure = MagicMock(return_value=(optimizer, None))
         monkeypatch.setattr(
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
         loaded, terminator = scheduler_client.load_optimizer_config(
-            "optimizer.py", "configure", "engine.Optimizer"
+            "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
         )
 
         assert loaded is optimizer
@@ -884,12 +903,144 @@ class TestLoadOptimizerConfig:
     def test_non_callable_terminator_raises(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        configure = MagicMock(return_value=(object(), "not-callable"))
+        configure = MagicMock(return_value=(_Engine(), "not-callable"))
         monkeypatch.setattr(
             scheduler_client, "load_source_object", lambda *_: configure
         )
 
         with pytest.raises(ValueError, match="terminator.*Callable"):
             scheduler_client.load_optimizer_config(
-                "optimizer.py", "configure", "engine.Optimizer"
+                "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
             )
+
+    @pytest.mark.parametrize(
+        "factory, problem",
+        [
+            (3, "is int, not a function"),
+            (lambda: _Engine(), "cannot be called with one SweepInfo argument"),
+            (lambda sweep: object(), "returned object instead of"),
+            (lambda sweep: (object(), None), "returned object instead of"),
+            (lambda sweep: (_Engine(), None, None), "returned a tuple of 3 items"),
+        ],
+        ids=[
+            "not-callable",
+            "takes-no-argument",
+            "wrong-type",
+            "wrong-type-in-tuple",
+            "tuple-too-long",
+        ],
+    )
+    def test_rejects_a_factory_of_the_wrong_type(
+        self, monkeypatch: pytest.MonkeyPatch, factory: object, problem: str
+    ) -> None:
+        monkeypatch.setattr(scheduler_client, "load_source_object", lambda *_: factory)
+
+        with pytest.raises(ValueError, match=problem) as error:
+            scheduler_client.load_optimizer_config(
+                "optimizer.py", "configure", _Engine, make_scheduler_grid_sweep()
+            )
+
+        assert "scheduler.optimizer must name a function" in str(error.value)
+
+
+class _FakeHandle:
+    def __init__(self, response: sspb.SweepSchedulerServerNextTaskResponse) -> None:
+        self._response = response
+
+    async def wait_async(
+        self, timeout: float | None
+    ) -> sspb.SweepSchedulerServerNextTaskResponse:
+        return self._response
+
+    def cancel(self) -> None:
+        pass
+
+
+class _FakeSchedulerService:
+    """Serves one task, then answers Done to its result."""
+
+    def __init__(self, task: sspb.SweepSchedulerServerNextTaskResponse) -> None:
+        self._task = task
+
+    async def sweep_scheduler_next_task(
+        self,
+        scheduler_id: str,
+        result: sspb.SweepSchedulerClientTaskResult | None,
+    ) -> _FakeHandle:
+        if result is None:
+            return _FakeHandle(self._task)
+        return _FakeHandle(
+            sspb.SweepSchedulerServerNextTaskResponse(
+                done=sspb.SweepSchedulerServerDoneTask(
+                    reason=sspb.SweepSchedulerServerDoneTask.REASON_SHUTDOWN
+                )
+            )
+        )
+
+
+class TestSchedulerTaskExchange:
+    def test_prints_an_optimizer_error_before_reporting_it(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        optimizer = MagicMock(spec=Optimizer)
+        optimizer.should_terminate_sweep.side_effect = RuntimeError("bad terminator")
+        exchange = SchedulerTaskExchange(
+            MagicMock(), "sid", optimizer, caplog.handler, MagicMock()
+        )
+
+        result = exchange._execute(
+            sspb.SweepSchedulerServerNextTaskResponse(
+                generation=sspb.SweepSchedulerServerGenerationTask()
+            )
+        )
+
+        assert "RuntimeError: bad terminator" in caplog.text
+        assert result.error.message == "bad terminator"
+
+    def test_warns_when_a_tell_fails(self, caplog: pytest.LogCaptureFixture) -> None:
+        optimizer = MagicMock(spec=Optimizer)
+        optimizer.tell_run.side_effect = ValueError("bad summary")
+        optimizer.should_terminate_sweep.return_value = True
+        update = sspb.SweepSchedulerServerRunUpdate(
+            run=sspb.SweepSchedulerServerRunData(
+                wandb_run_id="wandb-1",
+                optimizer_run_id="0",
+                state=sspb.SWEEP_RUN_STATE_FINISHED,
+            )
+        )
+        service = _FakeSchedulerService(
+            sspb.SweepSchedulerServerNextTaskResponse(
+                generation=sspb.SweepSchedulerServerGenerationTask(updates=[update])
+            )
+        )
+        exchange = SchedulerTaskExchange(
+            cast(Any, service), "sid", optimizer, caplog.handler, MagicMock()
+        )
+
+        asyncio.run(exchange.run())
+
+        assert "failed to record run wandb-1" in caplog.text
+        assert "with error: bad summary" in caplog.text
+
+
+class TestDescribeDone:
+    def test_an_optimizer_error_is_not_repeated(self) -> None:
+        done = sspb.SweepSchedulerServerDoneTask(
+            reason=sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR,
+            message="bad terminator",
+        )
+
+        assert describe_done(done) == (
+            "the optimizer failed; the sweep can be resumed",
+            True,
+        )
+
+    def test_other_reasons_keep_their_message(self) -> None:
+        done = sspb.SweepSchedulerServerDoneTask(
+            reason=sspb.SweepSchedulerServerDoneTask.REASON_FATAL_ERROR,
+            message="backend unavailable",
+        )
+
+        message, _ = describe_done(done)
+
+        assert "backend unavailable" in message

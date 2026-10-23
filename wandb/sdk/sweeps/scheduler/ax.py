@@ -55,6 +55,29 @@ def _value_type(values: list[Any]) -> Literal["bool", "int", "float", "str"]:
     return "str"
 
 
+def _check_one_type(name: str, values: list[Any]) -> None:
+    """Raise if a choice list mixes value types, which Ax cannot hold.
+
+    Raises:
+        ValueError: If the values are not all the same type.
+    """
+    # Ax accepts mixed Int and float types only
+    kinds = {
+        "bool"
+        if isinstance(v, bool)
+        else "number"
+        if isinstance(v, (int, float))
+        else type(v).__name__
+        for v in values
+    }
+    if len(kinds) > 1:
+        raise ValueError(
+            f"Sweep parameter {name!r} mixes value types ({', '.join(sorted(kinds))}),"
+            " which the Ax engine does not support. Choose values of one type, or"
+            " use the wandb or optuna engine."
+        )
+
+
 def _choice_config(name: str, values: list[Any]) -> Any:
     """Build an Ax `ChoiceParameterConfig` from W&B `values`.
 
@@ -62,6 +85,7 @@ def _choice_config(name: str, values: list[Any]) -> Any:
     categoricals carry no order; declaring `is_ordered` explicitly also silences
     Ax's "is_ordered not specified" warning.
     """
+    _check_one_type(name, values)
     return ax.ChoiceParameterConfig(
         name=name,
         values=values,
@@ -314,6 +338,11 @@ class AxOptimizer(Optimizer):
         return restore
 
     @override
+    def has_terminator(self) -> bool:
+        """Whether a terminator was supplied with the Ax client."""
+        return self._terminator is not None
+
+    @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
 
@@ -473,7 +502,8 @@ class AxOptimizer(Optimizer):
         try:
             if not self.client.should_stop_trial_early(trial_index=trial_index):
                 return False
-        except Exception:
+        except Exception as e:
+            wandb.termwarn(f"Early stopping failed for trial {trial_index}: {e}")
             return False
         self._finalized.add(trial_index)
         self.client.mark_trial_early_stopped(trial_index=trial_index)
@@ -593,17 +623,16 @@ def create_default_client(config: dict[str, Any]) -> ax.Client:
     return client
 
 
-def build_ax_optimizer(
-    sweep: SweepInfo, scheduler_config: dict[str, Any]
-) -> AxOptimizer:
+def build_ax_optimizer(sweep: SweepInfo) -> AxOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
 
-    `scheduler.optimizer` names a zero-argument function in
-    `scheduler.source`. The function may return either an Ax `Client` or a
+    `scheduler.optimizer` names a function in `scheduler.source` that takes
+    the sweep's SweepInfo. The function may return either an Ax `Client` or a
     `(Client, terminator)` tuple. A terminator is a one-argument function
     that receives the client after each generation and finishes the sweep by
     returning `True`.
     """
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     optimizer_name: str = scheduler_config.get("optimizer", "")
     source: str = scheduler_config.get("source", "")
 
@@ -613,7 +642,7 @@ def build_ax_optimizer(
     if optimizer_name:
         try:
             client, terminator = load_optimizer_config(
-                source, optimizer_name, "ax.api.client.Client"
+                source, optimizer_name, ax.Client, sweep
             )
         except ValueError as e:
             raise wandb.Error(str(e)) from e

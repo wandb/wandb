@@ -17,6 +17,7 @@ class SweepInfo:
         entity: The entity that owns the sweep.
         project: The project the sweep belongs to.
         config: The parsed sweep config. Treat it as read-only.
+        controller_run_name: The id of the sweep's controller run.
     """
 
     id: str
@@ -24,3 +25,4 @@ class SweepInfo:
     entity: str
     project: str
     config: dict[str, Any]
+    controller_run_name: str

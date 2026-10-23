@@ -1677,12 +1677,14 @@ class MemoryInfo(_message.Message):
     def __init__(self, total: _Optional[int] = ...) -> None: ...
 
 class CpuInfo(_message.Message):
-    __slots__ = ("count", "count_logical")
+    __slots__ = ("count", "count_logical", "model")
     COUNT_FIELD_NUMBER: _ClassVar[int]
     COUNT_LOGICAL_FIELD_NUMBER: _ClassVar[int]
+    MODEL_FIELD_NUMBER: _ClassVar[int]
     count: int
     count_logical: int
-    def __init__(self, count: _Optional[int] = ..., count_logical: _Optional[int] = ...) -> None: ...
+    model: str
+    def __init__(self, count: _Optional[int] = ..., count_logical: _Optional[int] = ..., model: _Optional[str] = ...) -> None: ...
 
 class AppleInfo(_message.Message):
     __slots__ = ("name", "ecpu_cores", "pcpu_cores", "gpu_cores", "memory_gb", "swap_total_bytes", "ram_total_bytes", "mac_model")
@@ -1765,16 +1767,24 @@ class TrainiumInfo(_message.Message):
     def __init__(self, name: _Optional[str] = ..., vendor: _Optional[str] = ..., neuron_device_count: _Optional[int] = ..., neuroncore_per_device_count: _Optional[int] = ...) -> None: ...
 
 class TPUInfo(_message.Message):
-    __slots__ = ("name", "hbm_gib", "devices_per_chip", "count")
+    __slots__ = ("name", "hbm_gib", "devices_per_chip", "count", "worker_id", "worker_count", "slice_id", "num_slices")
     NAME_FIELD_NUMBER: _ClassVar[int]
     HBM_GIB_FIELD_NUMBER: _ClassVar[int]
     DEVICES_PER_CHIP_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_COUNT_FIELD_NUMBER: _ClassVar[int]
+    SLICE_ID_FIELD_NUMBER: _ClassVar[int]
+    NUM_SLICES_FIELD_NUMBER: _ClassVar[int]
     name: str
     hbm_gib: int
     devices_per_chip: int
     count: int
-    def __init__(self, name: _Optional[str] = ..., hbm_gib: _Optional[int] = ..., devices_per_chip: _Optional[int] = ..., count: _Optional[int] = ...) -> None: ...
+    worker_id: int
+    worker_count: int
+    slice_id: int
+    num_slices: int
+    def __init__(self, name: _Optional[str] = ..., hbm_gib: _Optional[int] = ..., devices_per_chip: _Optional[int] = ..., count: _Optional[int] = ..., worker_id: _Optional[int] = ..., worker_count: _Optional[int] = ..., slice_id: _Optional[int] = ..., num_slices: _Optional[int] = ...) -> None: ...
 
 class CoreWeaveInfo(_message.Message):
     __slots__ = ("cluster_name", "org_id", "region")

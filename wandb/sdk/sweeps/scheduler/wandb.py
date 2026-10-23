@@ -183,7 +183,8 @@ class WandbOptimizer(Optimizer):
                 self._sweep.config,
                 self._sweep_runs_for_stop_runs(run_ids, runs),
             )
-        except Exception:
+        except Exception as e:
+            wandb.termwarn(f"Early termination failed; no runs were stopped: {e}")
             return []
         to_stop_names = {run.name for run in to_stop}
         pruned: list[str] = []
@@ -235,11 +236,15 @@ class WandbOptimizer(Optimizer):
         )
         return run_id
 
+    @override
+    def has_terminator(self) -> bool:
+        """The wandb engine does not support terminators."""
+        return False
 
-def build_wandb_optimizer(
-    sweep: SweepInfo, scheduler_config: dict[str, Any]
-) -> WandbOptimizer:
+
+def build_wandb_optimizer(sweep: SweepInfo) -> WandbOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     if scheduler_config.get("optimizer") is not None:
         wandb.termwarn("optimizer config is not supported by the wandb engine.")
     if scheduler_config.get("search_space") is not None:

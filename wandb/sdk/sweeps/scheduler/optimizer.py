@@ -308,6 +308,11 @@ class Optimizer(ABC):
             if self.prune_run(run_id, run)
         ]
 
+    @abstractmethod
+    def has_terminator(self) -> bool:
+        """Whether this optimizer was given a sweep-level terminator."""
+        ...
+
     def should_terminate_sweep(self) -> bool:
         """Return True if the sweep should be terminated."""
         return False
@@ -330,13 +335,13 @@ def make_optimizer(sweep: SweepInfo) -> Optimizer:
     if engine == "wandb":
         from wandb.sdk.sweeps.scheduler.wandb import build_wandb_optimizer
 
-        return build_wandb_optimizer(sweep, scheduler_config)
+        return build_wandb_optimizer(sweep)
     if engine == "optuna":
         from wandb.sdk.sweeps.scheduler.optuna import build_optuna_optimizer
 
-        return build_optuna_optimizer(sweep, scheduler_config)
+        return build_optuna_optimizer(sweep)
     if engine == "ax":
         from wandb.sdk.sweeps.scheduler.ax import build_ax_optimizer
 
-        return build_ax_optimizer(sweep, scheduler_config)
+        return build_ax_optimizer(sweep)
     raise wandb.Error(f"Unsupported engine: {engine}")

@@ -16,7 +16,7 @@ include = [
 [build.targets.sdist]
 include = [
     "core",
-    "xpu",
+    "symon",
     "parquet-rust-wrapper",
     "wandb/py.typed",
     "package_readme.md",

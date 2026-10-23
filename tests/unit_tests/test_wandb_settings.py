@@ -30,7 +30,7 @@ def test_mapping_interface():
 
 
 def test_is_local():
-    s = Settings(base_url="https://api.wandb.ai")
+    s = Settings(base_url="https://forge.coreweave.com/api/wandb/")
     assert s.is_local is False
 
 
@@ -140,7 +140,7 @@ def test_noop():
 
 def test_get_base_url():
     s = Settings()
-    assert s.base_url == "https://api.wandb.ai"
+    assert s.base_url == "https://api.forge.coreweave.com"
 
 
 def test_base_url_validation():
@@ -152,7 +152,7 @@ def test_base_url_validation():
 
 def test_app_url_default():
     s = Settings(base_url="https://api.wandb.ai")
-    assert s.app_url == "https://wandb.ai"
+    assert s.app_url == "https://forge.coreweave.com/wandb"
 
 
 def test_app_url_override():
@@ -730,7 +730,6 @@ def test_infer_git_root_skips_if_disable_git(tmp_path):
     "value, expected",
     [
         ("json", "json"),
-        ("typed", "typed"),
         ("json,typed", "json,typed"),
         ("typed,json", "typed,json"),
         (" JSON , Typed ", "json,typed"),
@@ -744,6 +743,17 @@ def test_history_value_encoding(value, expected):
 
 def test_history_value_encoding_default():
     assert Settings().x_history_value_encoding == "json"
+
+
+@pytest.mark.parametrize("value", ["typed", " TYPED ", "typed,typed"])
+def test_history_value_encoding_rejects_typed_only(value):
+    with pytest.raises(ValueError, match="Use 'json,typed'"):
+        Settings(x_history_value_encoding=value)
+
+    settings = Settings()
+    with pytest.raises(ValueError, match="Use 'json,typed'"):
+        settings.x_history_value_encoding = value
+    assert settings.x_history_value_encoding == "json"
 
 
 @pytest.mark.parametrize("value", ["", "cbor", "typed,cbor", "json,"])

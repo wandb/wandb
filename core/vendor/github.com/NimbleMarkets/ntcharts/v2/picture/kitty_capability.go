@@ -1,6 +1,7 @@
 package picture
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -72,12 +73,50 @@ func KittySupported() KittyCapability {
 	return KittyCapability(kittyCap.Load())
 }
 
+// Errors returned by KittyUnavailable and Model.ToggleBlocked, explaining
+// why Toggle will not enter Kitty mode. Compare with errors.Is.
+var (
+	// ErrKittyProbePending means the Kitty probe has not resolved yet. It
+	// resolves within a few milliseconds of Init in a Kitty-capable
+	// terminal, so a later Toggle will succeed. If Init was never run, the
+	// probe never starts; batch Model.Init (or QueryKittySupport).
+	ErrKittyProbePending = errors.New("kitty graphics probe has not resolved yet; try again shortly")
+
+	// ErrKittyNotDetected means the environment did not look Kitty-aware,
+	// so no probe was sent (or the capability was set to unsupported by
+	// NTCHARTS_KITTY or ForceKittyCapability).
+	ErrKittyNotDetected = errors.New("terminal not recognized as Kitty-capable; set NTCHARTS_KITTY=supported or call picture.ForceKittyCapability to override")
+
+	// ErrKittyProbeTimeout means a probe was sent but the terminal did not
+	// answer in time, which usually points to a multiplexer or transport
+	// that drops the query.
+	ErrKittyProbeTimeout = errors.New("terminal did not answer the Kitty graphics probe; set NTCHARTS_KITTY=supported or call picture.ForceKittyCapability to override")
+)
+
+// KittyUnavailable returns nil when the terminal is known to support Kitty
+// graphics, or an error (ErrKittyProbePending, ErrKittyNotDetected, or
+// ErrKittyProbeTimeout) saying why Toggle into Kitty mode is blocked.
+func KittyUnavailable() error {
+	switch KittySupported() {
+	case KittyCapabilitySupported:
+		return nil
+	case KittyCapabilityUnsupported:
+		if KittyEnvSignalled() {
+			return ErrKittyProbeTimeout
+		}
+		return ErrKittyNotDetected
+	default:
+		return ErrKittyProbePending
+	}
+}
+
 // ForceKittyCapability sets the process-wide Kitty graphics capability,
-// bypassing terminal probing. **Typically used in tests** — production
-// code should rely on QueryKittySupport batched from Model.Init. May
-// also be useful in transports where auto-detection misfires (some tmux
-// passthrough setups, terminal multiplexer chains) and the application
-// has out-of-band knowledge of true terminal support.
+// bypassing terminal probing. Use it when the application knows more than
+// the probe can: terminals whose environment is not recognized (some ssh
+// paths, custom builds), tmux passthrough setups or multiplexer chains
+// where auto-detection misfires, or tests. Call it before the first
+// Model.Init so the probe is skipped; NTCHARTS_KITTY=supported|unsupported
+// does the same from the environment.
 func ForceKittyCapability(c KittyCapability) {
 	kittyCap.Store(int32(c))
 }

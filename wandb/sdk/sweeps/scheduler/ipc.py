@@ -10,14 +10,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import traceback
 from collections.abc import Iterable
 
-from wandb.errors import term
+from wandb.analytics import LowCardinalityAttributes, TelemetryRecorder
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
+from wandb.sdk.sweeps.errors import format_caught_error
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
@@ -77,10 +79,6 @@ def _to_run_with_metrics(
     )
 
 
-def _log_run(run: Run) -> None:
-    term.termlog(f"Run {run.wandb_run_id} loaded as {run.state.name.lower()}.")
-
-
 class SchedulerTaskExchange:
     """Long-polls wandb-core for optimizer tasks and reports results."""
 
@@ -89,18 +87,28 @@ class SchedulerTaskExchange:
         service: ServiceConnection,
         scheduler_id: str,
         optimizer: Optimizer,
+        handler: logging.Handler,
+        telemetry: TelemetryRecorder,
     ) -> None:
         self._service = service
         self._id = scheduler_id
         self._optimizer = optimizer
+        self._telemetry = telemetry
 
         # Unresolved suggestions (no update or discard yet), by config JSON.
         self._await_enqueue: dict[str, str] = {}
 
         self._is_warm_starting = False
+        self._warm_start_time: int = 0
 
         # Each run's last reported state, so only transitions are logged.
         self._seen_states: dict[str, RunState] = {}
+
+        # Per-session logger so concurrent exchanges do not share handlers.
+        self._logger = logging.getLogger(f"wandb.sweep_scheduler.{scheduler_id}")
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = False
+        self._logger.addHandler(handler)
 
     async def run(self) -> sspb.SweepSchedulerServerDoneTask:
         """Exchange tasks until the scheduler is done.
@@ -113,6 +121,20 @@ class SchedulerTaskExchange:
                 state is stored on the backend, so rerunning the scheduler
                 resumes it.
         """
+        self._telemetry.define_histogram(
+            "sweep_scheduler.warm_start_time",
+            "ms",
+            "The time taken to warm start the scheduler.",
+            [
+                0,
+                100,
+                500,
+                1000,
+                5000,
+                30000,
+                60000,
+            ],
+        )
         result: sspb.SweepSchedulerClientTaskResult | None = None
         while True:
             handle = await self._service.sweep_scheduler_next_task(self._id, result)
@@ -137,6 +159,9 @@ class SchedulerTaskExchange:
             result = await asyncio.to_thread(self._execute, response)
             result.task_seq = response.task_seq
 
+    def _log_run(self, run: Run) -> None:
+        self._logger.info(f"Run {run.wandb_run_id} loaded as {run.state.name.lower()}.")
+
     def _drop_enqueued(
         self,
         discarded: Iterable[str],
@@ -157,9 +182,15 @@ class SchedulerTaskExchange:
         }
         for run_id, config_json in list(self._await_enqueue.items()):
             if run_id in dropped:
-                term.termwarn(f"Run with config {config_json} was deleted.")
+                self._telemetry.increment_counter_and_log_event(
+                    "sweep_scheduler.run_deleted",
+                    attributes={
+                        "run_id": run_id,
+                    },
+                )
+                self._logger.warning(f"Run with config {config_json} was deleted.")
             elif run_id in wandb_run_ids:
-                term.termlog(
+                self._logger.info(
                     f"Enqueued run {wandb_run_ids[run_id]} with config {config_json}."
                 )
             else:
@@ -183,7 +214,7 @@ class SchedulerTaskExchange:
                 continue
             else:
                 self._seen_states[run_id] = state
-            term.termlog(f"Run {update.run.wandb_run_id} is {state.name.lower()}.")
+            self._logger.info(f"Run {update.run.wandb_run_id} is {state.name.lower()}.")
 
     def _execute(
         self,
@@ -193,7 +224,7 @@ class SchedulerTaskExchange:
 
         Only per-run tells are fault-tolerant; an exception anywhere else
         becomes a task error, which stops the scheduler without finishing
-        the sweep.
+        the sweep. The error is printed with its traceback when it is caught.
         """
         try:
             if response.WhichOneof("task") == "warm_start":
@@ -204,6 +235,9 @@ class SchedulerTaskExchange:
                 generation=self._execute_generation(response.generation)
             )
         except Exception as e:
+            self._logger.error(  # noqa: TRY400
+                format_caught_error("The optimizer failed, stopping the scheduler.")
+            )
             return sspb.SweepSchedulerClientTaskResult(
                 error=sspb.SweepSchedulerClientTaskError(
                     message=str(e),
@@ -219,13 +253,14 @@ class SchedulerTaskExchange:
 
         if not self._is_warm_starting:
             self._is_warm_starting = True
-            term.termlog("Loading run state from the backend.")
+            self._logger.info("Loading run state from the backend.")
+            self._warm_start_time = time.monotonic_ns()
         page_size = len(task.finished_runs) + len(task.active_runs)
-        term.termlog(f"Processing {page_size} runs in this page.")
+        self._logger.info(f"Processing {page_size} runs in this page.")
 
         for data in task.finished_runs:
             run = _to_run_with_metrics(data)
-            _log_run(run)
+            self._log_run(run)
             try:
                 self._optimizer.tell_existing_finished_run(run)
             except Exception as e:
@@ -234,11 +269,19 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
+                self._telemetry.increment_counter_and_log_event(
+                    "sweep_scheduler.warm_start_run_skipped",
+                    attributes={
+                        "is_finished_run": "true",
+                        "run_id": data.wandb_run_id,
+                        "error": str(e),
+                    },
+                )
+                self._logger.warning(f"Optimizer rejected run {data.wandb_run_id}: {e}")
 
         for data in task.active_runs:
             run = _to_run(data)
-            _log_run(run)
+            self._log_run(run)
             try:
                 run_id = self._optimizer.tell_existing_active_run(run)
             except Exception as e:
@@ -247,14 +290,27 @@ class SchedulerTaskExchange:
                         wandb_run_id=data.wandb_run_id, error=str(e)
                     )
                 )
-                term.termwarn(f"Optimizer rejected run {data.wandb_run_id}: {e}")
+                self._telemetry.increment_counter_and_log_event(
+                    "sweep_scheduler.warm_start_run_skipped",
+                    attributes={
+                        "is_finished_run": "false",
+                        "run_id": data.wandb_run_id,
+                        "error": str(e),
+                    },
+                )
+                self._logger.warning(f"Optimizer rejected run {data.wandb_run_id}: {e}")
                 continue
             if run_id is not None:
                 result.adoptions[data.wandb_run_id] = str(run_id)
 
         if not task.has_more:
             self._is_warm_starting = False
-            term.termlog("Finished loading run state.")
+            self._logger.info("Finished loading run state.")
+            self._telemetry.record_histogram(
+                "sweep_scheduler.warm_start_time",
+                (time.monotonic_ns() - self._warm_start_time) / 1_000_000,
+                low_cardinality_attributes=LowCardinalityAttributes(),
+            )
 
         return result
 
@@ -277,6 +333,10 @@ class SchedulerTaskExchange:
             try:
                 self._optimizer.tell_run(run_id, data)
             except Exception as e:
+                self._logger.warning(
+                    f"The optimizer failed to record run {data.wandb_run_id}"
+                    f" with error: {e}; the scheduler will stop tracking it."
+                )
                 result.tell_errors.append(
                     sspb.SweepSchedulerClientTellError(
                         optimizer_run_id=run_id, message=str(e)
@@ -295,7 +355,7 @@ class SchedulerTaskExchange:
                 )
             )
             for run_id in result.prune:
-                term.termlog(
+                self._logger.info(
                     f"Requesting early stop of run {told[run_id].wandb_run_id}."
                 )
 
@@ -312,12 +372,14 @@ class SchedulerTaskExchange:
         result: sspb.SweepSchedulerClientGenerationResult,
     ) -> None:
         engine = self._optimizer.engine
-        term.termlog(f"{engine} optimizer is generating {ask_up_to} new runs")
+        self._logger.info(f"{engine} optimizer is generating {ask_up_to} new runs")
         started = time.perf_counter()
         suggestions = self._optimizer.ask_n_runs(ask_up_to)
         elapsed = time.perf_counter() - started
         generated = 0 if suggestions is None else len(suggestions)
-        term.termlog(f"{engine} optimizer generated {generated} runs in {elapsed:.2f}s")
+        self._logger.info(
+            f"{engine} optimizer generated {generated} runs in {elapsed:.2f}s"
+        )
 
         if suggestions is None:
             result.ask_outcome = (
@@ -383,6 +445,10 @@ def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:
     }
     message, is_error = messages.get(reason, ("the scheduler stopped", False))
 
-    if done.message:
+    # Optimizer errors were printed with their traceback when they happened.
+    already_reported = (
+        reason == sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR
+    )
+    if done.message and not already_reported:
         message = f"{message} ({done.message})"
     return message, is_error

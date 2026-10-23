@@ -137,7 +137,7 @@
   <g transform="translate(974 562)">
     <rect class="card" x="0" y="0" width="210" height="92" rx="15"/>
     <text x="22" y="31" class="cardTitle">System monitor</text>
-    <text x="22" y="58" class="body">process + XPU metrics;</text>
+    <text x="22" y="58" class="body">metrics from wandb-symon;</text>
     <text x="22" y="76" class="body">emits stats into the stream</text>
   </g>
 

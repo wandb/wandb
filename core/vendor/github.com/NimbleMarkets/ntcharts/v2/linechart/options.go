@@ -123,3 +123,10 @@ func WithMaxInterpolationPoints(n int) Option {
 		m.MaxInterpolationPoints = n
 	}
 }
+
+// WithY2Axis adds a right Y axis. See SetY2Axis.
+func WithY2Axis(a Axis) Option {
+	return func(m *Model) {
+		m.SetY2Axis(a)
+	}
+}

@@ -1,0 +1,62 @@
+[package]
+name = "wandb-symon"
+version = "0.8.1"
+edition = "2024"
+rust-version = "1.88"
+
+[[bin]]
+name = "build_proto"
+path = "tools/build_proto.rs"
+required-features = ["build-proto"]
+
+[features]
+build-proto = ["dep:tempfile", "dep:tonic-prost-build"]
+
+[dependencies]
+log = "0.4.33"
+env_logger = { version = "0.11.11", default-features = false, features = ["auto-color"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+clap = { version = "4.6.5", features = ["derive"] }
+prost = "0.14.4"
+prost-types = "0.14.4"
+tonic = "0.14.6"
+tonic-prost = "0.14.6"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-stream = "0.1.19"
+chrono = "0.4.45"
+sysinfo = { version = "0.38", default-features = false, features = ["system", "disk", "network"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+regex-lite = "0.1"
+
+tonic-prost-build = { version = "0.14.6", optional = true }
+tempfile = { version = "3.27.0", optional = true }
+
+async-trait = "0.1.91"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+nvml-wrapper = "0.13.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+glob = "0.3.4"
+libloading = "0.9"
+sysinfo = { version = "0.38", default-features = false, features = ["component"] }
+
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+core-foundation = "0.10.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.189"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", features = ["fs", "process"] }
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+codegen-units = 1

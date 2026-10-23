@@ -144,7 +144,8 @@ func (f *formatter) WriteDescription(s string) *formatter {
 	}
 
 	f.WriteString(`"""`)
-	ss := strings.Split(s, "\n")
+	// An unescaped """ in the description would end the block string early.
+	ss := strings.Split(strings.ReplaceAll(s, `"""`, `\"""`), "\n")
 	f.WriteNewline()
 	for _, s := range ss {
 		f.WriteString(s).WriteNewline()

@@ -76,6 +76,7 @@ def authenticate_session(
     relogin: bool = False,
     verify: bool = False,
     prompt: bool = True,
+    update_session: bool = True,
 ) -> Auth | None:
     """Returns or configures the session credentials.
 
@@ -98,6 +99,9 @@ def authenticate_session(
         relogin: If true, forces an interactive prompt.
         verify: If true, verifies the credentials against the W&B server.
         prompt: Whether to prompt interactively when no credentials are found.
+        update_session: Whether to store newly found credentials as the
+            session credentials and update the global settings. If false,
+            they are only returned.
 
     Raises:
         TimeoutError: If an interactive prompt is shown and input_timeout expires.
@@ -115,6 +119,7 @@ def authenticate_session(
             host=host,
             source=source,
             verify=verify,
+            update_session=update_session,
         )
     ):
         return auth
@@ -130,6 +135,7 @@ def authenticate_session(
             referrer=referrer,
             input_timeout=input_timeout,
             verify=verify,
+            update_session=update_session,
         )
     except term.NotATerminalError:
         raise UsageError(
@@ -167,6 +173,7 @@ def _use_system_auth(
     host: HostUrl,
     source: str,
     verify: bool = False,
+    update_session: bool = True,
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
@@ -178,6 +185,8 @@ def _use_system_auth(
         source: The source to include in the printed message,
             like "wandb.init()".
         verify: If true, verifies the credentials against the W&B server.
+        update_session: Whether to store found credentials as the session
+            credentials and update the global settings.
 
     Raises:
         AuthenticationError: If a source of credentials is found but has an
@@ -203,11 +212,13 @@ def _use_system_auth(
 
     with _session_auth_lock:
         if auth:
-            term.termlog(
-                f"[{source}] Loaded credentials for {auth.auth.host}"
-                + f" from {auth.source}."
-            )
-            _locked_set_session_auth(auth.auth)
+            if update_session:
+                term.termlog(
+                    f"[{source}] Loaded credentials for {auth.auth.host}"
+                    + f" from {auth.source}."
+                )
+                _locked_set_session_auth(auth.auth)
+            return auth.auth
 
         return _session_auth
 
@@ -257,6 +268,7 @@ def _use_prompted_auth(
     referrer: str,
     input_timeout: float | None = None,
     verify: bool = True,
+    update_session: bool = True,
 ) -> Auth | None:
     """Prompt interactively to set session credentials.
 
@@ -269,6 +281,8 @@ def _use_prompted_auth(
         referrer: Referrer parameter to include in printed URLs for analytics.
         input_timeout: How long to wait for user input before timing out.
         verify: If true, verifies the credentials against the W&B server.
+        update_session: Whether to store the entered credentials as the
+            session credentials and update the global settings.
 
     Raises:
         NotATerminalError: If interactive prompting is not possible.
@@ -285,9 +299,12 @@ def _use_prompted_auth(
 
     with _session_auth_lock:
         if api_key:
-            _locked_set_session_auth(AuthApiKey(host=host, api_key=api_key))
+            auth: Auth | None = AuthApiKey(host=host, api_key=api_key)
         else:
             # Offline mode selected.
-            _locked_set_session_auth(None)
+            auth = None
 
-        return _session_auth
+        if update_session:
+            _locked_set_session_auth(auth)
+
+        return auth
