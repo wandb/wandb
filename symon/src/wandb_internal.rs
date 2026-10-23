@@ -3054,6 +3054,12 @@ pub enum ServerFeature {
     AutomationActionAria = 37,
     /// Indicates that the server supports CoreWeave Evaluation Service.
     EvalTablesCes = 38,
+    /// Indicates that the server supports returning artifactMembership on the
+    /// createArtifact, updateArtifact, and commitArtifact mutation payloads.
+    ArtifactMembershipOnArtifactPayload = 39,
+    /// Indicates that the server supports paginating
+    /// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+    ArtifactMembershipAliasesPagination = 40,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3124,6 +3130,12 @@ impl ServerFeature {
             Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
             Self::AutomationActionAria => "AUTOMATION_ACTION_ARIA",
             Self::EvalTablesCes => "EVAL_TABLES_CES",
+            Self::ArtifactMembershipOnArtifactPayload => {
+                "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD"
+            }
+            Self::ArtifactMembershipAliasesPagination => {
+                "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3199,6 +3211,12 @@ impl ServerFeature {
             "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             "AUTOMATION_ACTION_ARIA" => Some(Self::AutomationActionAria),
             "EVAL_TABLES_CES" => Some(Self::EvalTablesCes),
+            "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD" => {
+                Some(Self::ArtifactMembershipOnArtifactPayload)
+            }
+            "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION" => {
+                Some(Self::ArtifactMembershipAliasesPagination)
+            }
             _ => None,
         }
     }
