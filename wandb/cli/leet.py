@@ -82,6 +82,8 @@ def leet() -> None:
         wandb leet inspect --summary  Print the latest run's state and metrics
         wandb leet runs [PATH]        List the runs of a wandb directory as JSON
         wandb leet history --keys K   Print a run's metric series as JSON
+        wandb leet summary [PATH]     Print a run's state, metrics and console as JSON
+        wandb leet console --last 50  Print the last console lines of a run as JSON
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -360,6 +362,144 @@ def history(
         min_step=min_step,
         max_step=max_step,
         last=last,
+        limit=limit,
+        after=after,
+        follow=follow,
+        idle_timeout=idle_timeout,
+    )
+
+
+@leet.command(cls=ScriptCommand)
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.option(
+    "--run",
+    default="",
+    metavar="RUN",
+    help="The run to read: its directory name, its ID or its display name."
+    " Defaults to the newest run.",
+)
+@click.option(
+    "--keys",
+    default="",
+    metavar="KEYS",
+    help="Comma-separated summary and history keys or globs with * and ? to report,"
+    " e.g. 'val/*,train/loss'. A glob never matches keys starting with _.",
+)
+@click.help_option("-h", "--help")
+def summary(path: str | None = None, run: str = "", keys: str = "") -> None:
+    """Print a run's state, latest metrics, config and console tail as JSON.
+
+    Prints one JSON object with the run's identity, state, exit code and
+    last step, its summary and config, the keys it logged to its history
+    with each one's count, last value and last step, and its last 50
+    console lines.
+
+    \b
+    Examples:
+        wandb leet summary
+        wandb leet summary --keys 'val/*,train/loss'
+        wandb leet summary ./wandb --run sim-unstable-L32
+
+    PATH can be a .wandb file, a run directory containing one, or a
+    wandb directory. If PATH is not provided, the configured wandb
+    directory is used.
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    launch_query("summary", path, run=run, keys=keys)
+
+
+@leet.command(cls=ScriptCommand)
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.option(
+    "--run",
+    default="",
+    metavar="RUN",
+    help="The run to read: its directory name, its ID or its display name."
+    " Defaults to the newest run.",
+)
+@click.option(
+    "--last",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Return only the last N matching lines. Defaults to 200.",
+)
+@click.option(
+    "--grep",
+    default="",
+    metavar="REGEX",
+    help="Return only the lines matching this regular expression.",
+)
+@click.option(
+    "--since",
+    default="",
+    metavar="T",
+    help="Return only the lines logged at or after this RFC 3339 time, or within"
+    " this duration (e.g. 10m) of the run's last write, or of now while it runs."
+    " A line redrawn in place keeps the time it was first written.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Lines per call when paging from the start or from --after. Defaults to 1000.",
+)
+@click.option(
+    "--after",
+    default="",
+    metavar="CURSOR",
+    help="The next_cursor of a previous call, to continue after the lines it returned.",
+)
+@click.option(
+    "--follow",
+    "-f",
+    is_flag=True,
+    help="Keep printing new lines as the run writes them, one JSON object per poll.",
+)
+@click.option(
+    "--idle-timeout",
+    default="",
+    metavar="DURATION",
+    help="With --follow, stop once the run's file has gone this long without"
+    " a write (e.g. 30s, 1h; 0 waits forever). Defaults to 10m.",
+)
+@click.help_option("-h", "--help")
+def console(
+    path: str | None = None,
+    run: str = "",
+    last: int | None = None,
+    grep: str = "",
+    since: str = "",
+    limit: int | None = None,
+    after: str = "",
+    follow: bool = False,
+    idle_timeout: str = "",
+) -> None:
+    """Print the console output of a run as JSON.
+
+    Prints one JSON object with the run's state and its console lines,
+    assembled as LEET shows them, with ANSI escapes stripped. --grep and
+    --since select lines, --last keeps the last N of them, and --limit
+    with --after pages through them from the start.
+
+    \b
+    Examples:
+        wandb leet console --last 200
+        wandb leet console --grep 'explosion|nan' --since 2026-06-24T06:50:00Z
+        wandb leet console --since 10m
+        wandb leet console --last 50 --follow
+
+    PATH can be a .wandb file, a run directory containing one, or a
+    wandb directory. If PATH is not provided, the configured wandb
+    directory is used.
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    launch_query(
+        "console",
+        path,
+        run=run,
+        last=last,
+        grep=grep,
+        since=since,
         limit=limit,
         after=after,
         follow=follow,
