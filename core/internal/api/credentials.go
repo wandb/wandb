@@ -115,7 +115,7 @@ func NewCredentialProvider(
 	}
 
 	if hasStoredUserLogin(s.GetCredentialsFile(), s.GetBaseURL()) {
-		return NewRefreshTokenCredentialProvider(
+		return newRefreshTokenCredentialProvider(
 			s.GetBaseURL(),
 			s.GetCredentialsFile(),
 			newTokenExchangeClient(s, logger, ClientOptions{
@@ -239,9 +239,9 @@ func NewOAuth2CredentialProvider(
 	), nil
 }
 
-// NewRefreshTokenCredentialProvider creates a provider that renews access
+// newRefreshTokenCredentialProvider creates a provider that renews access
 // tokens using the refresh token a user login stores in the credentials file.
-func NewRefreshTokenCredentialProvider(
+func newRefreshTokenCredentialProvider(
 	baseURL string,
 	credentialsFilePath string,
 	httpClient RetryableClient,
