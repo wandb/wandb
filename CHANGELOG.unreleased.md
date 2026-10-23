@@ -20,6 +20,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - LEET shows the system metrics of runs opened from a W&B server with `wandb leet <run-url>` or from a project view (@jacobromero, @dmitryduev in https://github.com/wandb/wandb/pull/13217)
 - In LEET, the system metrics of a remote run that is still running update every 15 seconds along with its history (@dmitryduev in https://github.com/wandb/wandb/pull/13219)
 - The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
+- `wandb leet`: `shift+↑` and `shift+↓` scroll the rows of a heatmap system chart that has more series than fit, so every CPU core or GPU can be inspected (@dmitryduev in https://github.com/wandb/wandb/pull/13189)
 
 ### Fixed
 
