@@ -228,7 +228,7 @@ func leetMain(args []string) int {
 	defer stopLeetPprof(pprofStop)
 
 	recorder, stopTelemetry := leet.ConfigureTelemetry(leet.TelemetryParams{
-		Disabled: opts.disableAnalytics,
+		Disabled: opts.disableAnalytics || cmd.noTelemetry,
 		Mode:     cmd.mode,
 		Commit:   commit,
 		BaseURL:  opts.baseURL,
@@ -281,7 +281,10 @@ type leetOptions struct {
 	wandbDir         string
 
 	// run selects a run in the wandb directory for the query commands.
-	run          string
+	run string
+
+	// request is the JSON-RPC request wandb-core leet session sends.
+	request      string
 	runs         leet.RunsQuery
 	history      leet.HistoryQuery
 	summaryQuery leet.SummaryQuery
@@ -309,6 +312,9 @@ type leetCommand struct {
 	// script marks a command for scripts and agents: its errors are JSON
 	// lines with exit code 1, and it never writes the debug log.
 	script bool
+
+	// noTelemetry marks a command that reports no launch or session telemetry.
+	noTelemetry bool
 
 	bindFlags func(fs *flag.FlagSet, opts *leetOptions)
 	validate  func(opts *leetOptions) error
@@ -384,6 +390,17 @@ var leetCommands = []*leetCommand{
 		bindFlags: bindLeetSystemFlags,
 		validate:  validateLeetQuerySource,
 		run:       runLeetSystem,
+	},
+	{
+		name:        "session",
+		args:        "<wandb-directory>",
+		short:       "Send a request to the LEET showing a wandb directory",
+		mode:        "session",
+		script:      true,
+		noTelemetry: true,
+		bindFlags:   bindLeetSessionFlags,
+		validate:    validateLeetSessionOptions,
+		run:         runLeetSession,
 	},
 	{
 		name:      "symon",
@@ -694,6 +711,11 @@ func setInt64(p **int64) func(string) error {
 	}
 }
 
+func bindLeetSessionFlags(fs *flag.FlagSet, opts *leetOptions) {
+	fs.StringVar(&opts.request, "request", "",
+		`The JSON-RPC request to send, e.g. '{"jsonrpc":"2.0","id":1,"method":"status"}'.`)
+}
+
 func bindLeetSymonFlags(fs *flag.FlagSet, opts *leetOptions) {
 	fs.DurationVar(
 		&opts.symonInterval,
@@ -739,6 +761,17 @@ func validateLeetQuerySource(opts *leetOptions) error {
 		return errors.New("wandb directory path or --run-file required")
 	case opts.runFile != "" && opts.run != "":
 		return errors.New("--run cannot be used with --run-file")
+	default:
+		return nil
+	}
+}
+
+func validateLeetSessionOptions(opts *leetOptions) error {
+	switch {
+	case opts.wandbDir == "":
+		return errors.New("wandb directory path required")
+	case opts.request == "":
+		return errors.New("--request required")
 	default:
 		return nil
 	}
@@ -866,6 +899,19 @@ func runLeetSystem(opts *leetOptions, _ *observability.CoreLogger) int {
 	return exitCodeSuccess
 }
 
+// runLeetSession prints the reply of the running LEET. A reply that carries
+// an error is printed as is and exits 1.
+func runLeetSession(opts *leetOptions, _ *observability.CoreLogger) int {
+	err := leet.SessionRequest(opts.wandbDir, opts.request, os.Stdout)
+	switch {
+	case err == nil:
+		return exitCodeSuccess
+	case !errors.Is(err, leet.ErrSessionReplyError):
+		leet.WriteQueryError(os.Stderr, err)
+	}
+	return exitCodeErrorInternal
+}
+
 func runLeetInspectorTUI(opts *leetOptions, logger *observability.CoreLogger) int {
 	m := leet.NewInspector(leet.InspectorParams{
 		RunFile:  opts.runFile,
@@ -930,12 +976,28 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
+	var control chan leet.ControlMsg
+	if opts.remoteRun == nil {
+		control = make(chan leet.ControlMsg)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			leet.ServeControl(ctx, opts.wandbDir, control, logger)
+		}()
+		defer func() {
+			cancel()
+			<-done
+		}()
+	}
+
 	for {
 		params, err := newModelParams(opts, logger)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error:", err)
 			return exitCodeErrorArgs
 		}
+		params.Control = control
 		m := leet.NewModel(params)
 		program := tea.NewProgram(m)
 

@@ -198,6 +198,11 @@ func (gn *GridNavigator) GoHome() bool {
 	return true
 }
 
+// GoToPage jumps to a page, clamped to the existing pages.
+func (gn *GridNavigator) GoToPage(page int) {
+	gn.currentPage = clamp(page, 0, max(gn.totalPages-1, 0))
+}
+
 // GoEnd jumps to the last page. Returns true if the page changed.
 func (gn *GridNavigator) GoEnd() bool {
 	if gn.totalPages <= 0 {
