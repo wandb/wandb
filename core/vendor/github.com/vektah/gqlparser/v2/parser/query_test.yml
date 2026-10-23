@@ -144,6 +144,115 @@ operations:
   - name: named subscription
     input: 'subscription Foo { subscriptionField }'
 
+descriptions:
+  - name: on an operation
+    input: |
+      "Fetches a user."
+      query GetUser { user }
+    ast: |
+      <QueryDocument>
+        Operations: [OperationDefinition]
+        - <OperationDefinition>
+            Description: "Fetches a user."
+            Operation: Operation("query")
+            Name: "GetUser"
+            SelectionSet: [Selection]
+            - <Field>
+                Alias: "user"
+                Name: "user"
+
+  - name: on a fragment
+    input: |
+      """
+      The fields of a user.
+      """
+      fragment UserFields on User { id }
+    ast: |
+      <QueryDocument>
+        Fragments: [FragmentDefinition]
+        - <FragmentDefinition>
+            Description: "The fields of a user."
+            Name: "UserFields"
+            TypeCondition: "User"
+            SelectionSet: [Selection]
+            - <Field>
+                Alias: "id"
+                Name: "id"
+
+  - name: on a variable
+    input: 'query GetUser("The id of the user." $id: ID!) { user }'
+    ast: |
+      <QueryDocument>
+        Operations: [OperationDefinition]
+        - <OperationDefinition>
+            Operation: Operation("query")
+            Name: "GetUser"
+            VariableDefinitions: [VariableDefinition]
+            - <VariableDefinition>
+                Description: "The id of the user."
+                Variable: "id"
+                Type: ID!
+            SelectionSet: [Selection]
+            - <Field>
+                Alias: "user"
+                Name: "user"
+
+  - name: keeps comments before and after a description
+    input: |
+      # before op
+      "op"
+      # after op
+      query Q(
+        # before var
+        "var"
+        # after var
+        $a: Int
+      ) { a }
+      # before frag
+      "frag"
+      # after frag
+      fragment F on T { a }
+    ast: |
+      <QueryDocument>
+        Operations: [OperationDefinition]
+        - <OperationDefinition>
+            Description: "op"
+            Operation: Operation("query")
+            Name: "Q"
+            VariableDefinitions: [VariableDefinition]
+            - <VariableDefinition>
+                Description: "var"
+                Variable: "a"
+                Type: Int
+                Comment: "# before var\n# after var\n"
+            SelectionSet: [Selection]
+            - <Field>
+                Alias: "a"
+                Name: "a"
+            Comment: "# before op\n# after op\n"
+        Fragments: [FragmentDefinition]
+        - <FragmentDefinition>
+            Description: "frag"
+            Name: "F"
+            TypeCondition: "T"
+            SelectionSet: [Selection]
+            - <Field>
+                Alias: "a"
+                Name: "a"
+            Comment: "# before frag\n# after frag\n"
+
+  - name: not on the query shorthand
+    input: '"Fetches a user." { user }'
+    error:
+      message: 'Unexpected String "Fetches a user."'
+      locations: [{ line: 1, column: 2 }]
+
+  - name: not on the query shorthand, even when empty
+    input: '"" { user }'
+    error:
+      message: 'Unexpected String'
+      locations: [{ line: 1, column: 2 }]
+
 
 ast:
   - name: simple query
