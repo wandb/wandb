@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -261,6 +262,23 @@ func querySource(path, entity, project, runID string) map[string]any {
 		"project": orNil(project),
 		"run_id":  orNil(runID),
 	}
+}
+
+// parseSince parses a --since value: an RFC 3339 time, or a duration such
+// as 10m for the caller to anchor.
+func parseSince(s string) (time.Time, time.Duration, error) {
+	if s == "" {
+		return time.Time{}, 0, nil
+	}
+	if at, err := time.Parse(time.RFC3339, s); err == nil {
+		return at, 0, nil
+	}
+	ago, err := time.ParseDuration(s)
+	if err != nil || ago <= 0 {
+		return time.Time{}, 0,
+			badRequest("since must be an RFC 3339 time or a duration such as 10m")
+	}
+	return time.Time{}, ago, nil
 }
 
 // matchKey reports whether key matches pattern: the key itself, or a glob
