@@ -6,40 +6,35 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+import lightning
+import torch.nn as nn
+from lightning.fabric.loggers.logger import Logger, rank_zero_experiment
+from lightning.fabric.utilities.exceptions import MisconfigurationException
+from lightning.fabric.utilities.logger import (
+    _add_prefix,
+    _convert_params,
+    _sanitize_callable_params,
+)
+from lightning.fabric.utilities.rank_zero import rank_zero_only, rank_zero_warn
+from lightning.fabric.utilities.types import _PATH
 from packaging import version
+from torch import Tensor
+from torch.nn import Module
 from typing_extensions import override
 
 import wandb
 from wandb import Artifact
 from wandb.sdk.lib import telemetry
 
-try:
-    import lightning
-    import torch.nn as nn
-    from lightning.fabric.loggers.logger import Logger, rank_zero_experiment
-    from lightning.fabric.utilities.exceptions import MisconfigurationException
-    from lightning.fabric.utilities.logger import (
-        _add_prefix,
-        _convert_params,
-        _sanitize_callable_params,
+if version.parse(lightning.__version__) > version.parse("2.1.3"):
+    wandb.termwarn(
+        """This integration is tested and supported for lightning Fabric 2.1.3.
+        Please report any issues to https://github.com/wandb/wandb/issues with the tag `lightning-fabric`.""",
+        repeat=False,
     )
-    from lightning.fabric.utilities.rank_zero import rank_zero_only, rank_zero_warn
-    from lightning.fabric.utilities.types import _PATH
-    from torch import Tensor
-    from torch.nn import Module
 
-    if version.parse(lightning.__version__) > version.parse("2.1.3"):
-        wandb.termwarn(
-            """This integration is tested and supported for lightning Fabric 2.1.3.
-            Please report any issues to https://github.com/wandb/wandb/issues with the tag `lightning-fabric`.""",
-            repeat=False,
-        )
-
-    if TYPE_CHECKING:
-        from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
-
-except ImportError as e:
-    wandb.Error(e)
+if TYPE_CHECKING:
+    from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 
 
 class WandbLogger(Logger):

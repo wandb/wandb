@@ -24,7 +24,7 @@
     "editor.tabSize": 4
   },
   "rust-analyzer.linkedProjects": [
-    "./xpu/Cargo.toml",
+    "./symon/Cargo.toml",
     "./experimental/rust-sdk/Cargo.toml",
     "./experimental/rust-sdk/examples/basic/Cargo.toml",
     "./parquet-rust-wrapper/Cargo.toml",

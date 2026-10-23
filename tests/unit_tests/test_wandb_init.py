@@ -78,6 +78,25 @@ def test_avoids_sync_dir_conflict(mocker):
     assert run3.sync_dir == run1.sync_dir + "-2"
 
 
+def test_init_with_previous_run_config():
+    with wandb.init(mode="offline", config={"lr": 0.1}) as prev:
+        pass
+
+    with wandb.init(mode="offline", config=prev.config) as run:
+        assert set(run.config._as_dict()) - {"_wandb"} == {"lr"}
+        assert run.config.lr == 0.1
+
+
+def test_config_update_with_previous_run_config():
+    with wandb.init(mode="offline", config={"lr": 0.1}) as prev:
+        pass
+
+    with wandb.init(mode="offline") as run:
+        run.config.update(prev.config)
+        assert set(run.config._as_dict()) - {"_wandb"} == {"lr"}
+        assert run.config.lr == 0.1
+
+
 def test_temp_dir_cleanup_on_exit(tmp_path, monkeypatch):
     isolated_temp = tmp_path / "temp"
     isolated_temp.mkdir()

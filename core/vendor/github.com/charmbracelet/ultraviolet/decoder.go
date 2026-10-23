@@ -854,6 +854,10 @@ func (p *EventDecoder) parseOsc(b []byte) (int, Event) {
 
 		sel := ClipboardSelection(parts[0][0]) //nolint:unconvert
 		return i, ClipboardEvent{Selection: sel, Content: string(bts)}
+	case 7501:
+		if data[0] == '?' {
+			return i, ProgramStatusSupportEvent{}
+		}
 	}
 
 	return i, UnknownOscEvent(b[:i])

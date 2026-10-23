@@ -46,9 +46,13 @@ function platform_python_name() {
 
 # Compiles requirements for a Python version ($1) and platform ($2).
 function compile() {
+    # These packages bypass the normal one-week release delay for security fixes.
+    # Otherwise --upgrade can downgrade a newly patched version (e.g. certifi).
     uv pip compile "${PIP_COMPILE_ARGS[@]}" \
         --no-emit-package wandb \
         --exclude-newer "1w" \
+        --exclude-newer-package certifi=0s \
+        --exclude-newer-package pillow=0s \
         --python-version "$1" \
         --python-platform "$(platform_python_name $2)" \
         --constraints requirements/constraints.txt \
@@ -61,6 +65,6 @@ compile 3.10 darwin
 compile 3.10 linux
 compile 3.10 windows
 
-compile 3.13 darwin
-compile 3.13 linux
-compile 3.13 windows
+compile 3.14 darwin
+compile 3.14 linux
+compile 3.14 windows

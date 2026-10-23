@@ -29,7 +29,7 @@ type RunParams struct {
 
 // RemoteRunParams identifies a run stored on a W&B server.
 type RemoteRunParams struct {
-	// BaseURL is the W&B API base URL (e.g. https://api.wandb.ai).
+	// BaseURL is the W&B API base URL (e.g. https://api.forge.coreweave.com).
 	BaseURL string
 
 	Entity  string
@@ -105,6 +105,11 @@ type Run struct {
 	consoleLogsPane      *ConsoleLogsPane
 	mediaStore           *MediaStore
 	mediaPane            *MediaPane
+
+	// stepTimes maps history steps to wall-clock time. With linkConsole set,
+	// the selected console line and the charts' crosshair follow each other.
+	stepTimes   stepTimeline
+	linkConsole bool
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -399,8 +404,12 @@ func (r *Run) renderMainView() string {
 
 		if r.metricsGridAnimState.IsVisible() && layout.height > 0 {
 			if r.metricsGrid.ChartCount() == 0 {
+				hint := "No scalar metrics logged."
+				if r.runState.mayBeLive() {
+					hint = liveDataLoadingHint(time.Now())
+				}
 				sections = append(sections,
-					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
+					renderMetricsEmptyState(w, layout.height, hint))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
 				// Pad the grid (header + rows*cellHeight lines, short of
@@ -443,6 +452,16 @@ func (r *Run) renderMainView() string {
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
 	return lipgloss.Place(r.width, r.height, lipgloss.Left, lipgloss.Top, fullView)
+}
+
+var liveDataSpinnerFrames = [...]string{
+	"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
+}
+
+func liveDataLoadingHint(now time.Time) string {
+	frame := now.UnixNano() / LivePulseFrame.Nanoseconds()
+	return liveDataSpinnerFrames[frame%int64(len(liveDataSpinnerFrames))] +
+		" Waiting for data..."
 }
 
 // buildMainViewWithSidebars builds the main view with sidebars.
@@ -684,6 +703,14 @@ func (r *Run) buildActiveStatus() string {
 	if r.mediaPane.Active() {
 		if label := r.mediaPane.StatusLabel(); label != "" {
 			parts = append(parts, label)
+		}
+	}
+
+	if r.consoleLogsPane.Active() {
+		if r.linkConsole {
+			parts = append(parts, "linked to charts (l to unlink)")
+		} else {
+			parts = append(parts, "l: link to charts")
 		}
 	}
 

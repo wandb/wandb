@@ -21,34 +21,77 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type GetStatsRequest struct {
+type SubscribeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Seconds between the samples delivered to this subscriber, 0.1 or more.
+	//
+	// The service samples the system once for all of its subscribers and may
+	// sample more often than this to serve a subscriber with a shorter interval.
+	// Metrics that describe the time since the previous sample, such as GPM
+	// utilization, are averaged over this interval.
+	IntervalSeconds float64 `protobuf:"fixed64,1,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
 	// Capture the system metrics for the process with this PID, in addition to
 	// system-wide metrics.
-	Pid int32 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Pid int32 `protobuf:"varint,2,opt,name=pid,proto3" json:"pid,omitempty"`
 	// GPU device IDs to capture metrics for.
 	//
 	// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
 	// If not set, metrics for all GPUs will be captured.
-	GpuDeviceIds  []int32 `protobuf:"varint,2,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
+	GpuDeviceIds []int32 `protobuf:"varint,3,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
+	// Identifies the subscriber across streams, such as the run's writer ID.
+	//
+	// Metrics that count since the subscription started keep counting when a
+	// stream with the same ID reopens, as after a pause or a reconnect.
+	SubscriberId string `protobuf:"bytes,4,opt,name=subscriber_id,json=subscriberId,proto3" json:"subscriber_id,omitempty"`
+	// Whether process metrics cover the descendants of the process as well.
+	TrackProcessTree bool `protobuf:"varint,5,opt,name=track_process_tree,json=trackProcessTree,proto3" json:"track_process_tree,omitempty"`
+	// Processes whose CPU and memory use, with their children's, is reported
+	// as wandb.cpu and wandb.memory.rssMB.
+	WandbPids []int32 `protobuf:"varint,7,rep,packed,name=wandb_pids,json=wandbPids,proto3" json:"wandb_pids,omitempty"`
+	// Paths whose file systems' usage and device I/O are reported.
+	DiskPaths []string `protobuf:"bytes,8,rep,name=disk_paths,json=diskPaths,proto3" json:"disk_paths,omitempty"`
+	// Whether to ignore the cgroup limits that apply to the process when
+	// reporting memory and CPU usage.
+	DisableCgroup bool `protobuf:"varint,9,opt,name=disable_cgroup,json=disableCgroup,proto3" json:"disable_cgroup,omitempty"`
+	// OpenMetrics endpoints to scrape, by name. Their gauges and counters are
+	// reported as openmetrics.<name>.<metric>.<index>, where <index> numbers
+	// the distinct label sets of a metric in the order they were first seen.
+	OpenMetricsEndpoints map[string]string `protobuf:"bytes,10,rep,name=open_metrics_endpoints,json=openMetricsEndpoints,proto3" json:"open_metrics_endpoints,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Keep only the OpenMetrics samples matching one of these filters.
+	// No filters keeps every sample.
+	OpenMetricsFilters []*OpenMetricsFilter `protobuf:"bytes,11,rep,name=open_metrics_filters,json=openMetricsFilters,proto3" json:"open_metrics_filters,omitempty"`
+	// Headers sent with every OpenMetrics and DCGM exporter request.
+	OpenMetricsHttpHeaders map[string]string `protobuf:"bytes,12,rep,name=open_metrics_http_headers,json=openMetricsHttpHeaders,proto3" json:"open_metrics_http_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Prometheus instant-query URL for DCGM exporter metrics, such as
+	// https://gateway:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337"}.
+	// Each query parameter is a PromQL query whose samples are reported as
+	// gpu.<index>.<metric>.
+	DcgmExporter string `protobuf:"bytes,13,opt,name=dcgm_exporter,json=dcgmExporter,proto3" json:"dcgm_exporter,omitempty"`
+	// Path to the configuration file for neuron-monitor, which reports AWS
+	// Trainium metrics. A default configuration is written when empty.
+	NeuronMonitorConfigPath string `protobuf:"bytes,14,opt,name=neuron_monitor_config_path,json=neuronMonitorConfigPath,proto3" json:"neuron_monitor_config_path,omitempty"`
+	// Whether to report the host details wandb leet symon shows: the use of
+	// every CPU core, the load averages, uptime, swap, the CPU temperature
+	// and the process table.
+	HostDetails   bool `protobuf:"varint,15,opt,name=host_details,json=hostDetails,proto3" json:"host_details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetStatsRequest) Reset() {
-	*x = GetStatsRequest{}
+func (x *SubscribeRequest) Reset() {
+	*x = SubscribeRequest{}
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetStatsRequest) String() string {
+func (x *SubscribeRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetStatsRequest) ProtoMessage() {}
+func (*SubscribeRequest) ProtoMessage() {}
 
-func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
+func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -60,47 +103,133 @@ func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetStatsRequest.ProtoReflect.Descriptor instead.
-func (*GetStatsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeRequest) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetStatsRequest) GetPid() int32 {
+func (x *SubscribeRequest) GetIntervalSeconds() float64 {
+	if x != nil {
+		return x.IntervalSeconds
+	}
+	return 0
+}
+
+func (x *SubscribeRequest) GetPid() int32 {
 	if x != nil {
 		return x.Pid
 	}
 	return 0
 }
 
-func (x *GetStatsRequest) GetGpuDeviceIds() []int32 {
+func (x *SubscribeRequest) GetGpuDeviceIds() []int32 {
 	if x != nil {
 		return x.GpuDeviceIds
 	}
 	return nil
 }
 
-type GetStatsResponse struct {
+func (x *SubscribeRequest) GetSubscriberId() string {
+	if x != nil {
+		return x.SubscriberId
+	}
+	return ""
+}
+
+func (x *SubscribeRequest) GetTrackProcessTree() bool {
+	if x != nil {
+		return x.TrackProcessTree
+	}
+	return false
+}
+
+func (x *SubscribeRequest) GetWandbPids() []int32 {
+	if x != nil {
+		return x.WandbPids
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetDiskPaths() []string {
+	if x != nil {
+		return x.DiskPaths
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetDisableCgroup() bool {
+	if x != nil {
+		return x.DisableCgroup
+	}
+	return false
+}
+
+func (x *SubscribeRequest) GetOpenMetricsEndpoints() map[string]string {
+	if x != nil {
+		return x.OpenMetricsEndpoints
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetOpenMetricsFilters() []*OpenMetricsFilter {
+	if x != nil {
+		return x.OpenMetricsFilters
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetOpenMetricsHttpHeaders() map[string]string {
+	if x != nil {
+		return x.OpenMetricsHttpHeaders
+	}
+	return nil
+}
+
+func (x *SubscribeRequest) GetDcgmExporter() string {
+	if x != nil {
+		return x.DcgmExporter
+	}
+	return ""
+}
+
+func (x *SubscribeRequest) GetNeuronMonitorConfigPath() string {
+	if x != nil {
+		return x.NeuronMonitorConfigPath
+	}
+	return ""
+}
+
+func (x *SubscribeRequest) GetHostDetails() bool {
+	if x != nil {
+		return x.HostDetails
+	}
+	return false
+}
+
+type OpenMetricsFilter struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// System metrics.
-	Record        *Record `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	// Regular expression matched against "<endpoint name>.<metric name>".
+	MetricRegex string `protobuf:"bytes,1,opt,name=metric_regex,json=metricRegex,proto3" json:"metric_regex,omitempty"`
+	// Label name -> regular expression the label's value must match. All must match.
+	LabelRegexes  map[string]string `protobuf:"bytes,2,rep,name=label_regexes,json=labelRegexes,proto3" json:"label_regexes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetStatsResponse) Reset() {
-	*x = GetStatsResponse{}
+func (x *OpenMetricsFilter) Reset() {
+	*x = OpenMetricsFilter{}
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetStatsResponse) String() string {
+func (x *OpenMetricsFilter) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetStatsResponse) ProtoMessage() {}
+func (*OpenMetricsFilter) ProtoMessage() {}
 
-func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
+func (x *OpenMetricsFilter) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -112,27 +241,163 @@ func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetStatsResponse.ProtoReflect.Descriptor instead.
-func (*GetStatsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use OpenMetricsFilter.ProtoReflect.Descriptor instead.
+func (*OpenMetricsFilter) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetStatsResponse) GetRecord() *Record {
+func (x *OpenMetricsFilter) GetMetricRegex() string {
+	if x != nil {
+		return x.MetricRegex
+	}
+	return ""
+}
+
+func (x *OpenMetricsFilter) GetLabelRegexes() map[string]string {
+	if x != nil {
+		return x.LabelRegexes
+	}
+	return nil
+}
+
+type SubscribeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// System metrics.
+	Record *Record `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	// Every process on the host, for subscribers that asked for host_details.
+	Processes     []*ProcessStats `protobuf:"bytes,2,rep,name=processes,proto3" json:"processes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubscribeResponse) Reset() {
+	*x = SubscribeResponse{}
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubscribeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubscribeResponse) ProtoMessage() {}
+
+func (x *SubscribeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubscribeResponse.ProtoReflect.Descriptor instead.
+func (*SubscribeResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SubscribeResponse) GetRecord() *Record {
 	if x != nil {
 		return x.Record
 	}
 	return nil
 }
 
-type GetMetadataRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+func (x *SubscribeResponse) GetProcesses() []*ProcessStats {
+	if x != nil {
+		return x.Processes
+	}
+	return nil
+}
+
+type ProcessStats struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Pid   int32                  `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// CPU use since the previous sample in percent of one core.
+	CpuPercent    float64 `protobuf:"fixed64,3,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
+	RssBytes      uint64  `protobuf:"varint,4,opt,name=rss_bytes,json=rssBytes,proto3" json:"rss_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *ProcessStats) Reset() {
+	*x = ProcessStats{}
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessStats) ProtoMessage() {}
+
+func (x *ProcessStats) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessStats.ProtoReflect.Descriptor instead.
+func (*ProcessStats) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ProcessStats) GetPid() int32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *ProcessStats) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProcessStats) GetCpuPercent() float64 {
+	if x != nil {
+		return x.CpuPercent
+	}
+	return 0
+}
+
+func (x *ProcessStats) GetRssBytes() uint64 {
+	if x != nil {
+		return x.RssBytes
+	}
+	return 0
+}
+
+type GetMetadataRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Paths whose file systems' size and usage are reported.
+	DiskPaths []string `protobuf:"bytes,1,rep,name=disk_paths,json=diskPaths,proto3" json:"disk_paths,omitempty"`
+	// Prometheus instant-query URL for DCGM exporter metrics, see SubscribeRequest.
+	DcgmExporter string `protobuf:"bytes,2,opt,name=dcgm_exporter,json=dcgmExporter,proto3" json:"dcgm_exporter,omitempty"`
+	// Headers sent with the DCGM exporter requests.
+	OpenMetricsHttpHeaders map[string]string `protobuf:"bytes,3,rep,name=open_metrics_http_headers,json=openMetricsHttpHeaders,proto3" json:"open_metrics_http_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
 func (x *GetMetadataRequest) Reset() {
 	*x = GetMetadataRequest{}
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[2]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -144,7 +409,7 @@ func (x *GetMetadataRequest) String() string {
 func (*GetMetadataRequest) ProtoMessage() {}
 
 func (x *GetMetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[2]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -157,7 +422,28 @@ func (x *GetMetadataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMetadataRequest.ProtoReflect.Descriptor instead.
 func (*GetMetadataRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{2}
+	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetMetadataRequest) GetDiskPaths() []string {
+	if x != nil {
+		return x.DiskPaths
+	}
+	return nil
+}
+
+func (x *GetMetadataRequest) GetDcgmExporter() string {
+	if x != nil {
+		return x.DcgmExporter
+	}
+	return ""
+}
+
+func (x *GetMetadataRequest) GetOpenMetricsHttpHeaders() map[string]string {
+	if x != nil {
+		return x.OpenMetricsHttpHeaders
+	}
+	return nil
 }
 
 type GetMetadataResponse struct {
@@ -170,7 +456,7 @@ type GetMetadataResponse struct {
 
 func (x *GetMetadataResponse) Reset() {
 	*x = GetMetadataResponse{}
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[3]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -182,7 +468,7 @@ func (x *GetMetadataResponse) String() string {
 func (*GetMetadataResponse) ProtoMessage() {}
 
 func (x *GetMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[3]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -195,7 +481,7 @@ func (x *GetMetadataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMetadataResponse.ProtoReflect.Descriptor instead.
 func (*GetMetadataResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{3}
+	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetMetadataResponse) GetRecord() *Record {
@@ -213,7 +499,7 @@ type TearDownRequest struct {
 
 func (x *TearDownRequest) Reset() {
 	*x = TearDownRequest{}
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -225,7 +511,7 @@ func (x *TearDownRequest) String() string {
 func (*TearDownRequest) ProtoMessage() {}
 
 func (x *TearDownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -238,7 +524,7 @@ func (x *TearDownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TearDownRequest.ProtoReflect.Descriptor instead.
 func (*TearDownRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{4}
+	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{6}
 }
 
 type TearDownResponse struct {
@@ -249,7 +535,7 @@ type TearDownResponse struct {
 
 func (x *TearDownResponse) Reset() {
 	*x = TearDownResponse{}
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -261,7 +547,7 @@ func (x *TearDownResponse) String() string {
 func (*TearDownResponse) ProtoMessage() {}
 
 func (x *TearDownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_system_monitor_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -274,26 +560,67 @@ func (x *TearDownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TearDownResponse.ProtoReflect.Descriptor instead.
 func (*TearDownResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{5}
+	return file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP(), []int{7}
 }
 
 var File_wandb_proto_wandb_system_monitor_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\n" +
-	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"I\n" +
-	"\x0fGetStatsRequest\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12$\n" +
-	"\x0egpu_device_ids\x18\x02 \x03(\x05R\fgpuDeviceIds\"B\n" +
-	"\x10GetStatsResponse\x12.\n" +
-	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x14\n" +
-	"\x12GetMetadataRequest\"E\n" +
+	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\x86\a\n" +
+	"\x10SubscribeRequest\x12)\n" +
+	"\x10interval_seconds\x18\x01 \x01(\x01R\x0fintervalSeconds\x12\x10\n" +
+	"\x03pid\x18\x02 \x01(\x05R\x03pid\x12$\n" +
+	"\x0egpu_device_ids\x18\x03 \x03(\x05R\fgpuDeviceIds\x12#\n" +
+	"\rsubscriber_id\x18\x04 \x01(\tR\fsubscriberId\x12,\n" +
+	"\x12track_process_tree\x18\x05 \x01(\bR\x10trackProcessTree\x12\x1d\n" +
+	"\n" +
+	"wandb_pids\x18\a \x03(\x05R\twandbPids\x12\x1d\n" +
+	"\n" +
+	"disk_paths\x18\b \x03(\tR\tdiskPaths\x12%\n" +
+	"\x0edisable_cgroup\x18\t \x01(\bR\rdisableCgroup\x12p\n" +
+	"\x16open_metrics_endpoints\x18\n" +
+	" \x03(\v2:.wandb_internal.SubscribeRequest.OpenMetricsEndpointsEntryR\x14openMetricsEndpoints\x12S\n" +
+	"\x14open_metrics_filters\x18\v \x03(\v2!.wandb_internal.OpenMetricsFilterR\x12openMetricsFilters\x12w\n" +
+	"\x19open_metrics_http_headers\x18\f \x03(\v2<.wandb_internal.SubscribeRequest.OpenMetricsHttpHeadersEntryR\x16openMetricsHttpHeaders\x12#\n" +
+	"\rdcgm_exporter\x18\r \x01(\tR\fdcgmExporter\x12;\n" +
+	"\x1aneuron_monitor_config_path\x18\x0e \x01(\tR\x17neuronMonitorConfigPath\x12!\n" +
+	"\fhost_details\x18\x0f \x01(\bR\vhostDetails\x1aG\n" +
+	"\x19OpenMetricsEndpointsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aI\n" +
+	"\x1bOpenMetricsHttpHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd1\x01\n" +
+	"\x11OpenMetricsFilter\x12!\n" +
+	"\fmetric_regex\x18\x01 \x01(\tR\vmetricRegex\x12X\n" +
+	"\rlabel_regexes\x18\x02 \x03(\v23.wandb_internal.OpenMetricsFilter.LabelRegexesEntryR\flabelRegexes\x1a?\n" +
+	"\x11LabelRegexesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x7f\n" +
+	"\x11SubscribeResponse\x12.\n" +
+	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\x12:\n" +
+	"\tprocesses\x18\x02 \x03(\v2\x1c.wandb_internal.ProcessStatsR\tprocesses\"r\n" +
+	"\fProcessStats\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
+	"\vcpu_percent\x18\x03 \x01(\x01R\n" +
+	"cpuPercent\x12\x1b\n" +
+	"\trss_bytes\x18\x04 \x01(\x04R\brssBytes\"\x9e\x02\n" +
+	"\x12GetMetadataRequest\x12\x1d\n" +
+	"\n" +
+	"disk_paths\x18\x01 \x03(\tR\tdiskPaths\x12#\n" +
+	"\rdcgm_exporter\x18\x02 \x01(\tR\fdcgmExporter\x12y\n" +
+	"\x19open_metrics_http_headers\x18\x03 \x03(\v2>.wandb_internal.GetMetadataRequest.OpenMetricsHttpHeadersEntryR\x16openMetricsHttpHeaders\x1aI\n" +
+	"\x1bOpenMetricsHttpHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\x13GetMetadataResponse\x12.\n" +
 	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x11\n" +
 	"\x0fTearDownRequest\"\x12\n" +
-	"\x10TearDownResponse2\x92\x02\n" +
-	"\x14SystemMonitorService\x12O\n" +
-	"\bGetStats\x12\x1f.wandb_internal.GetStatsRequest\x1a .wandb_internal.GetStatsResponse\"\x00\x12X\n" +
+	"\x10TearDownResponse2\x97\x02\n" +
+	"\x14SystemMonitorService\x12T\n" +
+	"\tSubscribe\x12 .wandb_internal.SubscribeRequest\x1a!.wandb_internal.SubscribeResponse\"\x000\x01\x12X\n" +
 	"\vGetMetadata\x12\".wandb_internal.GetMetadataRequest\x1a#.wandb_internal.GetMetadataResponse\"\x00\x12O\n" +
 	"\bTearDown\x12\x1f.wandb_internal.TearDownRequest\x1a .wandb_internal.TearDownResponse\"\x00B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
@@ -309,30 +636,42 @@ func file_wandb_proto_wandb_system_monitor_proto_rawDescGZIP() []byte {
 	return file_wandb_proto_wandb_system_monitor_proto_rawDescData
 }
 
-var file_wandb_proto_wandb_system_monitor_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_wandb_proto_wandb_system_monitor_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_wandb_proto_wandb_system_monitor_proto_goTypes = []any{
-	(*GetStatsRequest)(nil),     // 0: wandb_internal.GetStatsRequest
-	(*GetStatsResponse)(nil),    // 1: wandb_internal.GetStatsResponse
-	(*GetMetadataRequest)(nil),  // 2: wandb_internal.GetMetadataRequest
-	(*GetMetadataResponse)(nil), // 3: wandb_internal.GetMetadataResponse
-	(*TearDownRequest)(nil),     // 4: wandb_internal.TearDownRequest
-	(*TearDownResponse)(nil),    // 5: wandb_internal.TearDownResponse
-	(*Record)(nil),              // 6: wandb_internal.Record
+	(*SubscribeRequest)(nil),    // 0: wandb_internal.SubscribeRequest
+	(*OpenMetricsFilter)(nil),   // 1: wandb_internal.OpenMetricsFilter
+	(*SubscribeResponse)(nil),   // 2: wandb_internal.SubscribeResponse
+	(*ProcessStats)(nil),        // 3: wandb_internal.ProcessStats
+	(*GetMetadataRequest)(nil),  // 4: wandb_internal.GetMetadataRequest
+	(*GetMetadataResponse)(nil), // 5: wandb_internal.GetMetadataResponse
+	(*TearDownRequest)(nil),     // 6: wandb_internal.TearDownRequest
+	(*TearDownResponse)(nil),    // 7: wandb_internal.TearDownResponse
+	nil,                         // 8: wandb_internal.SubscribeRequest.OpenMetricsEndpointsEntry
+	nil,                         // 9: wandb_internal.SubscribeRequest.OpenMetricsHttpHeadersEntry
+	nil,                         // 10: wandb_internal.OpenMetricsFilter.LabelRegexesEntry
+	nil,                         // 11: wandb_internal.GetMetadataRequest.OpenMetricsHttpHeadersEntry
+	(*Record)(nil),              // 12: wandb_internal.Record
 }
 var file_wandb_proto_wandb_system_monitor_proto_depIdxs = []int32{
-	6, // 0: wandb_internal.GetStatsResponse.record:type_name -> wandb_internal.Record
-	6, // 1: wandb_internal.GetMetadataResponse.record:type_name -> wandb_internal.Record
-	0, // 2: wandb_internal.SystemMonitorService.GetStats:input_type -> wandb_internal.GetStatsRequest
-	2, // 3: wandb_internal.SystemMonitorService.GetMetadata:input_type -> wandb_internal.GetMetadataRequest
-	4, // 4: wandb_internal.SystemMonitorService.TearDown:input_type -> wandb_internal.TearDownRequest
-	1, // 5: wandb_internal.SystemMonitorService.GetStats:output_type -> wandb_internal.GetStatsResponse
-	3, // 6: wandb_internal.SystemMonitorService.GetMetadata:output_type -> wandb_internal.GetMetadataResponse
-	5, // 7: wandb_internal.SystemMonitorService.TearDown:output_type -> wandb_internal.TearDownResponse
-	5, // [5:8] is the sub-list for method output_type
-	2, // [2:5] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	8,  // 0: wandb_internal.SubscribeRequest.open_metrics_endpoints:type_name -> wandb_internal.SubscribeRequest.OpenMetricsEndpointsEntry
+	1,  // 1: wandb_internal.SubscribeRequest.open_metrics_filters:type_name -> wandb_internal.OpenMetricsFilter
+	9,  // 2: wandb_internal.SubscribeRequest.open_metrics_http_headers:type_name -> wandb_internal.SubscribeRequest.OpenMetricsHttpHeadersEntry
+	10, // 3: wandb_internal.OpenMetricsFilter.label_regexes:type_name -> wandb_internal.OpenMetricsFilter.LabelRegexesEntry
+	12, // 4: wandb_internal.SubscribeResponse.record:type_name -> wandb_internal.Record
+	3,  // 5: wandb_internal.SubscribeResponse.processes:type_name -> wandb_internal.ProcessStats
+	11, // 6: wandb_internal.GetMetadataRequest.open_metrics_http_headers:type_name -> wandb_internal.GetMetadataRequest.OpenMetricsHttpHeadersEntry
+	12, // 7: wandb_internal.GetMetadataResponse.record:type_name -> wandb_internal.Record
+	0,  // 8: wandb_internal.SystemMonitorService.Subscribe:input_type -> wandb_internal.SubscribeRequest
+	4,  // 9: wandb_internal.SystemMonitorService.GetMetadata:input_type -> wandb_internal.GetMetadataRequest
+	6,  // 10: wandb_internal.SystemMonitorService.TearDown:input_type -> wandb_internal.TearDownRequest
+	2,  // 11: wandb_internal.SystemMonitorService.Subscribe:output_type -> wandb_internal.SubscribeResponse
+	5,  // 12: wandb_internal.SystemMonitorService.GetMetadata:output_type -> wandb_internal.GetMetadataResponse
+	7,  // 13: wandb_internal.SystemMonitorService.TearDown:output_type -> wandb_internal.TearDownResponse
+	11, // [11:14] is the sub-list for method output_type
+	8,  // [8:11] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_system_monitor_proto_init() }
@@ -347,7 +686,7 @@ func file_wandb_proto_wandb_system_monitor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_system_monitor_proto_rawDesc), len(file_wandb_proto_wandb_system_monitor_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

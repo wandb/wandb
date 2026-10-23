@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -38,6 +39,7 @@ func makeHandlerWithSettings(
 	inChan chan runwork.Work,
 	commit string,
 	settingsProto *spb.Settings,
+	stats ...*filestreamstats.Stats,
 ) *stream.Handler {
 	t.Helper()
 
@@ -49,6 +51,9 @@ func makeHandlerWithSettings(
 		TerminalPrinter: observability.NewPrinter(0),
 		Commit:          stream.GitCommitHash(commit),
 		RunHandle:       runhandle.New(),
+	}
+	if len(stats) > 0 {
+		handlerFactory.Stats = stats[0]
 	}
 	h := handlerFactory.New(runworktest.New())
 

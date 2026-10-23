@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.30.1.dev1"
+__version__ = "0.31.1.dev1"
 
 
 from wandb.errors import Error
@@ -44,7 +44,6 @@ AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
-from wandb.apis.public import Api
 from wandb.errors import CommError, UsageError
 
 from wandb.sdk.lib import preinit as _preinit
@@ -146,6 +145,15 @@ sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sa
 
 api = _deprecated_api.DeprecatedApi()
 ensure_configured = _deprecated_api.ensure_configured
+
+
+def __getattr__(name: str):
+    # The public API is imported on first use.
+    if name == "Api":
+        from wandb.apis.public import Api
+
+        return Api
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 if wandb_sdk.lib.ipython.in_notebook():

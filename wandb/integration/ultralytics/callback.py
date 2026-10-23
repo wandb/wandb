@@ -4,72 +4,66 @@ import copy
 from collections.abc import Callable
 from datetime import datetime
 
+import torch
+import ultralytics
 from packaging import version
+from tqdm.auto import tqdm
+from ultralytics.models import YOLO
+from ultralytics.models.sam.predict import Predictor as SAMPredictor
+from ultralytics.models.yolo.classify import (
+    ClassificationPredictor,
+    ClassificationTrainer,
+    ClassificationValidator,
+)
+from ultralytics.models.yolo.detect import (
+    DetectionPredictor,
+    DetectionTrainer,
+    DetectionValidator,
+)
+from ultralytics.models.yolo.pose import PosePredictor, PoseTrainer, PoseValidator
+from ultralytics.models.yolo.segment import (
+    SegmentationPredictor,
+    SegmentationTrainer,
+    SegmentationValidator,
+)
+from ultralytics.utils import RANK
+
+import wandb
+from wandb.integration.ultralytics.bbox_utils import (
+    plot_bbox_predictions,
+    plot_detection_validation_results,
+)
+from wandb.integration.ultralytics.classification_utils import (
+    plot_classification_predictions,
+    plot_classification_validation_results,
+)
+from wandb.integration.ultralytics.mask_utils import (
+    plot_mask_predictions,
+    plot_sam_predictions,
+    plot_segmentation_validation_results,
+)
+from wandb.integration.ultralytics.pose_utils import (
+    plot_pose_predictions,
+    plot_pose_validation_results,
+)
+from wandb.sdk.lib import telemetry
 
 try:
     import dill as pickle
 except ImportError:
     import pickle
 
-import wandb
-from wandb.sdk.lib import telemetry
-
 try:
-    import torch
-    import ultralytics
-    from tqdm.auto import tqdm
-
-    if version.parse(ultralytics.__version__) > version.parse("8.0.238"):
-        wandb.termwarn(
-            """This integration is tested and supported for ultralytics v8.0.238 and below.
-            Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.""",
-            repeat=False,
-        )
-
-    from ultralytics.models import YOLO
-    from ultralytics.models.sam.predict import Predictor as SAMPredictor
-    from ultralytics.models.yolo.classify import (
-        ClassificationPredictor,
-        ClassificationTrainer,
-        ClassificationValidator,
-    )
-    from ultralytics.models.yolo.detect import (
-        DetectionPredictor,
-        DetectionTrainer,
-        DetectionValidator,
-    )
-    from ultralytics.models.yolo.pose import PosePredictor, PoseTrainer, PoseValidator
-    from ultralytics.models.yolo.segment import (
-        SegmentationPredictor,
-        SegmentationTrainer,
-        SegmentationValidator,
-    )
+    from ultralytics.utils.torch_utils import unwrap_model as de_parallel
+except ImportError:  # ultralytics < 8.3.200
     from ultralytics.utils.torch_utils import de_parallel
 
-    try:
-        from ultralytics.yolo.utils import RANK, __version__
-    except ModuleNotFoundError:
-        from ultralytics.utils import RANK, __version__
-
-    from wandb.integration.ultralytics.bbox_utils import (
-        plot_bbox_predictions,
-        plot_detection_validation_results,
+if version.parse(ultralytics.__version__) > version.parse("8.0.238"):
+    wandb.termwarn(
+        """This integration is tested and supported for ultralytics v8.0.238 and below.
+        Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.""",
+        repeat=False,
     )
-    from wandb.integration.ultralytics.classification_utils import (
-        plot_classification_predictions,
-        plot_classification_validation_results,
-    )
-    from wandb.integration.ultralytics.mask_utils import (
-        plot_mask_predictions,
-        plot_sam_predictions,
-        plot_segmentation_validation_results,
-    )
-    from wandb.integration.ultralytics.pose_utils import (
-        plot_pose_predictions,
-        plot_pose_validation_results,
-    )
-except Exception as e:
-    wandb.Error(e)
 
 
 TRAINER_TYPE = (
@@ -251,7 +245,7 @@ class WandBUltralyticsCallback:
             "optimizer": trainer.optimizer.state_dict(),
             "train_args": vars(trainer.args),
             "date": datetime.now().isoformat(),
-            "version": __version__,
+            "version": ultralytics.__version__,
         }
         checkpoint_path = trainer.wdir / f"epoch{trainer.epoch}.pt"
         torch.save(checkpoint_dict, checkpoint_path, pickle_module=pickle)

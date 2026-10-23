@@ -120,7 +120,7 @@ class Api:
 
         Args:
             overrides: You can set `base_url` if you are
-                using a W&B server other than `https://api.wandb.ai`. You can also
+                using a W&B server other than `https://api.forge.coreweave.com`. You can also
                 set defaults for `entity`, `project`, and `run`.
             timeout: HTTP timeout in seconds for API requests. If not
                 specified, the default timeout will be used.
@@ -195,6 +195,7 @@ class Api:
             source="wandb.Api()",
             no_offline=True,
             input_timeout=wandb_setup.singleton().settings.login_timeout,
+            update_session=False,
         )
 
         if not auth:

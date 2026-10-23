@@ -42,4 +42,4 @@ def test_app_url_env(monkeypatch: pytest.MonkeyPatch):
 def test_app_url_default():
     url = HostUrl("https://api.wandb.ai")
 
-    assert url.app_url == "https://wandb.ai"
+    assert url.app_url == "https://forge.coreweave.com/wandb"
