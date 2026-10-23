@@ -100,33 +100,48 @@ def test_locked_no_sideeffect(consolidated, config):
 
 
 @pytest.fixture()
-def rejecting_config():
-    def callback(key=None, val=None, data=None):
-        raise TypeError("not JSON serializable")
-
-    config = wandb_sdk.Config()
-    config.update(dict(kept=1))
-    config._set_callback(callback)
+def existing_config(mock_run):
+    config: wandb_sdk.Config = mock_run().config
+    config.update(dict(existing=1))
     return config
 
 
 @pytest.mark.parametrize(
     "write",
     [
-        lambda c: c.__setitem__("bad", 1),
-        lambda c: c.update(dict(good=1, bad=2)),
-        lambda c: c.setdefaults(dict(good=1, bad=2)),
-        lambda c: c.update_locked(dict(good=1, bad=2), "sweep"),
-        lambda c: c.merge_locked(dict(good=1, bad=2), "sweep"),
+        lambda c: c.__setitem__("bad", object()),
+        lambda c: c.update(dict(good=1, bad=object())),
+        lambda c: c.setdefaults(dict(good=1, bad=object())),
+        lambda c: c.update_locked(dict(good=1, bad=object()), "sweep"),
+        lambda c: c.merge_locked(dict(good=1, bad=object()), "sweep"),
     ],
     ids=["setitem", "update", "setdefaults", "update_locked", "merge_locked"],
 )
-def test_rejected_write_is_not_stored(rejecting_config, write):
+def test_rejected_write_is_not_stored(existing_config, write):
     with pytest.raises(TypeError):
-        write(rejecting_config)
+        write(existing_config)
 
-    assert dict(rejecting_config) == dict(kept=1)
-    assert not rejecting_config._locked
+    assert dict(existing_config) == dict(existing=1)
+
+    # The failed write must not have locked its keys either.
+    existing_config["bad"] = 2
+    assert existing_config["bad"] == 2
+
+
+def test_rejected_merge_does_not_change_nested_dict(mock_run):
+    config = mock_run().config
+    config.update({"nested": {"override": "original", "keep": "kept"}})
+    nested = config["nested"]
+
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        config.merge_locked(
+            {"nested": {"override": object()}},
+            "sweep",
+            _allow_val_change=True,
+        )
+
+    assert nested == {"override": "original", "keep": "kept"}
+    assert config["nested"] is nested
 
 
 def test_load_config_default():

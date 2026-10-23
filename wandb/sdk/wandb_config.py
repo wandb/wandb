@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 
 import wandb
@@ -247,7 +248,7 @@ class Config:
                 and isinstance(self._items[k], dict)
                 and isinstance(v, dict)
             ):
-                merged[k] = config_util.merge_dicts(self._items[k], v)
+                merged[k] = config_util.merge_dicts(copy.deepcopy(self._items[k]), v)
             else:
                 merged[k] = v
 
