@@ -11,10 +11,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any, Concatenate, NamedTuple
 
-import requests
 from opentelemetry._logs import SeverityNumber
-from opentelemetry.metrics import Counter, Histogram
-from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
 from wandb import env
@@ -22,10 +19,12 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
+    import requests
     from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
     from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
         OTLPMetricExporter,
     )
+    from opentelemetry.metrics import Counter, Histogram
     from opentelemetry.sdk._logs import LoggerProvider
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.resources import Resource
@@ -90,6 +89,8 @@ def _check_server_supports_open_telemetry_proxy(
     url: str,
 ) -> bool:
     """Return whether the server exposes the OpenTelemetry proxy endpoint at `url`."""
+    import requests
+
     try:
         response = session.post(url, timeout=_HTTP_CLIENT_TIMEOUT_SECONDS)
     except requests.RequestException:
@@ -572,6 +573,8 @@ class OpenTelemetryProxy:
         Args:
             settings: The settings to use to configure the proxy.
         """
+        import requests
+
         self._pid = pid or os.getpid()
         self._settings = settings
         self._session = requests.Session()
@@ -646,7 +649,10 @@ class OpenTelemetryProxy:
         from opentelemetry.sdk.metrics import Counter as SdkCounter
         from opentelemetry.sdk.metrics import Histogram as SdkHistogram
         from opentelemetry.sdk.metrics import MeterProvider
-        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+        from opentelemetry.sdk.metrics.export import (
+            AggregationTemporality,
+            PeriodicExportingMetricReader,
+        )
 
         exporter = _ProbedExporter(
             OTLPMetricExporter(

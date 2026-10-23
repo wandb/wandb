@@ -27,9 +27,7 @@ func (w *Workspace) handleEnterRunsFilter(msg tea.KeyPressMsg) tea.Cmd {
 		cmd = w.handleToggleRunsSidebar(msg)
 	}
 
-	w.runs.Active = true
-	w.consoleLogsPane.SetActive(false)
-	w.runOverviewSidebar.deactivateAllSections()
+	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	w.filter.Activate()
 	w.applyRunFilter()
 

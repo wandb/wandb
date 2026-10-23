@@ -39,7 +39,6 @@ from wandb._iterutils import one, unique_list
 from wandb._pydantic import from_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.data_types import WBValue
 from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
@@ -71,6 +70,7 @@ from wandb.util import (
 from ._factories import make_storage_policy
 from ._generated.enums import ArtifactDigestAlgorithm
 from ._gqlutils import (
+    link_artifact_gql_options,
     omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
@@ -111,6 +111,7 @@ from .storage_policies._multipart import should_multipart_download
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
     from wandb.apis.public.service_api import ServiceApi
 
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
@@ -637,6 +638,8 @@ class Artifact:
         The collection that an artifact originates from is known as
         the source sequence.
         """
+        from wandb.apis.public import ArtifactCollection
+
         if (service_api := self._service_api) is None:
             raise RuntimeError("ServiceApi not initialized")
         base_name = self.name.split(":")[0]
@@ -693,6 +696,8 @@ class Artifact:
 
         The source collection is the collection that the artifact was logged from.
         """
+        from wandb.apis.public import ArtifactCollection
+
         if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized")
         base_name = self.source_name.split(":")[0]
@@ -2419,6 +2424,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from wandb.apis.public import ArtifactFiles
+
         if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized")
         return ArtifactFiles(service_api, self, names, per_page, start=start)
@@ -2571,18 +2578,12 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        omit_fields = omit_artifact_fields(service_api)
-        omit_variables = None
-        if not service_api.feature_enabled(
-            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
-        ):
-            omit_variables = {"includeAliases"}
-            omit_fields.add("artifactMembership")
+        omit_fields, omit_variables = link_artifact_gql_options(service_api, gql_vars)
 
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,
             variables=gql_vars,
-            omit_variables=omit_variables,
+            omit_variables=omit_variables or None,
             omit_fields=omit_fields,
             parse=LinkArtifact.model_validate_json,
         )
@@ -2649,6 +2650,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from wandb.apis.public import Run
+
         from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy
 
         if (service_api := self._service_api) is None:
@@ -2689,6 +2692,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from wandb.apis.public import Run
+
         from ._generated import (
             ARTIFACT_CREATED_BY_GQL,
             ArtifactCreatedBy,

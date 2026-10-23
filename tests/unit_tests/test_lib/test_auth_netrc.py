@@ -27,6 +27,19 @@ def test_read(fake_netrc_path: pathlib.Path):
     assert result == key
 
 
+@pytest.mark.parametrize(
+    "host",
+    ["https://forge.coreweave.com/api/wandb", "https://api.forge.coreweave.com"],
+)
+def test_read_forge_falls_back_to_api_host(fake_netrc_path: pathlib.Path, host: str):
+    key = "test" * 10
+    fake_netrc_path.write_text(f"machine api.wandb.ai login user password {key}")
+
+    result = wbnetrc.read_netrc_auth(host=host)
+
+    assert result == key
+
+
 def test_read_host_not_found(fake_netrc_path: pathlib.Path):
     fake_netrc_path.write_text("machine test login user password pass")
 

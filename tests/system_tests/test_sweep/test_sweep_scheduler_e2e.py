@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 import wandb
 import yaml
+from wandb.analytics import get_telemetry_recorder
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._gqlutils import server_supports
@@ -126,7 +127,11 @@ def _start_scheduler(
     optimizer = _SpyOptimizer(sweep)
     handler = logging.NullHandler() if make_handler is None else make_handler(sweep)
     exchange = SchedulerTaskExchange(
-        service, init_response.session_id, optimizer, handler
+        service,
+        init_response.session_id,
+        optimizer,
+        handler,
+        get_telemetry_recorder(),
     )
 
     future_list: list = []

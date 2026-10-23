@@ -502,6 +502,19 @@ inputs:
         id: ID!
       }
 
+  - name: default values cannot repeat an input field
+    input: |
+      input Point {
+        x: Int
+        y: Int
+      }
+      input Shape {
+        origin: Point = {x: 1, y: 2, x: 3}
+      }
+    error:
+      message: 'There can be only one input field named "x".'
+      locations: [{line: 6, column: 32}]
+
 args:
   - name: Valid arg types
     input: |
@@ -540,6 +553,85 @@ args:
     error:
       message: 'cannot use Interface as argument a because INTERFACE is not a valid input type'
       locations: [{line: 2, column: 16}]
+
+  - name: cannot be duplicated on an object field
+    input: |
+      type Query {
+        f(id: ID, name: String, id: String): Boolean
+      }
+    error:
+      message: 'Argument Query.f(id:) can only be defined once.'
+      locations: [{line: 2, column: 27}]
+
+  - name: cannot be duplicated on an interface field
+    input: |
+      interface Node {
+        f(id: ID, id: ID): Boolean
+      }
+    error:
+      message: 'Argument Node.f(id:) can only be defined once.'
+      locations: [{line: 2, column: 13}]
+
+  - name: same name can be used on different fields
+    input: |
+      type Query {
+        a(id: ID): Boolean
+        b(id: ID): Boolean
+      }
+
+  - name: default values cannot repeat an input field
+    input: |
+      input Point {
+        x: Int
+        y: Int
+      }
+      type Query {
+        f(at: Point = {x: 1, x: 2}): Boolean
+      }
+    error:
+      message: 'There can be only one input field named "x".'
+      locations: [{line: 6, column: 24}]
+
+  - name: default values cannot repeat an input field first set to null
+    input: |
+      input Point {
+        x: Int
+      }
+      type Query {
+        f(at: Point = {x: null, x: 2}): Boolean
+      }
+    error:
+      message: 'There can be only one input field named "x".'
+      locations: [{line: 5, column: 27}]
+
+  - name: default values cannot repeat an input field in a nested list
+    input: |
+      input Point {
+        x: Int
+        y: Int
+      }
+      input Path {
+        points: [Point]
+      }
+      type Query {
+        f(path: Path = {points: [{x: 1}, {y: 1, y: 2}]}): Boolean
+      }
+    error:
+      message: 'There can be only one input field named "y".'
+      locations: [{line: 9, column: 43}]
+
+  - name: default values can use the same field name at different depths
+    input: |
+      input Inner {
+        a: Int
+      }
+      input Outer {
+        a: Int
+        inner: Inner
+      }
+      type Query {
+        f(o: Outer = {a: 1, inner: {a: 2}}, others: [Inner] = [{a: 1}, {a: 2}]): Boolean
+      }
 
 enums:
   - name: must define one or more unique enum values
@@ -821,6 +913,18 @@ directives:
       message: 'cannot use Interface as argument a because INTERFACE is not a valid input type'
       locations: [{line: 2, column: 14}]
 
+  - name: arguments cannot be duplicated
+    input: |
+      directive @A(id: ID, id: String) on FIELD_DEFINITION
+    error:
+      message: 'Argument @A(id:) can only be defined once.'
+      locations: [{line: 1, column: 22}]
+
+  - name: same argument name can be used on different directives
+    input: |
+      directive @A(id: ID) on FIELD_DEFINITION
+      directive @B(id: ID) on FIELD_DEFINITION
+
   - name: Invalid location usage not allowed
     input: |
       directive @test on FIELD_DEFINITION
@@ -848,6 +952,43 @@ directives:
       message: 'Undefined argument foobla for directive foo.'
       locations: [{line: 2, column: 21}]
 
+  - name: directive argument values cannot repeat an input field
+    input: |
+      input Options {
+        a: Int
+        b: Int
+      }
+      directive @foo(opts: Options) on FIELD_DEFINITION
+      type P {f: Int @foo(opts: {a: 1, b: 2, a: 3}) }
+    error:
+      message: 'There can be only one input field named "a".'
+      locations: [{line: 6, column: 40}]
+
+  - name: directive argument values cannot repeat a nested input field
+    input: |
+      input Inner {
+        a: Int
+      }
+      input Options {
+        inner: Inner
+      }
+      directive @foo(opts: Options) on SCHEMA
+      type Query {f: Int }
+      schema @foo(opts: {inner: {a: 1, a: 2}}) { query: Query }
+    error:
+      message: 'There can be only one input field named "a".'
+      locations: [{line: 9, column: 34}]
+
+  - name: directive definition default values cannot repeat an input field
+    input: |
+      input Options {
+        a: Int
+      }
+      directive @foo(opts: Options = {a: 1, a: 2}) on FIELD_DEFINITION
+    error:
+      message: 'There can be only one input field named "a".'
+      locations: [{line: 4, column: 39}]
+
   - name: non-null argument must be provided
     input: |
       directive @foo(bla: Int!) on FIELD_DEFINITION
@@ -865,6 +1006,52 @@ directives:
     error:
       message: 'Argument bla for directive foo cannot be null.'
       locations: [{line: 2, column: 17}]
+
+  - name: directive arguments cannot be repeated on a field
+    input: |
+      directive @foo(bla: Int) on FIELD_DEFINITION
+      type P {f: Int @foo(bla: 1, bla: 2) }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 29}]
+
+  - name: directive arguments cannot be repeated on a type
+    input: |
+      directive @foo(bla: Int) on OBJECT
+      type P @foo(bla: 1, bla: 2) {f: Int }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 21}]
+
+  - name: directive arguments cannot be repeated on the schema
+    input: |
+      directive @foo(bla: Int) on SCHEMA
+      type Query {f: Int }
+      schema @foo(bla: 1, bla: 2) { query: Query }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 3, column: 21}]
+
+  - name: directive arguments cannot be repeated on an argument definition
+    input: |
+      directive @foo(bla: Int) on ARGUMENT_DEFINITION
+      type P {f(x: Int @foo(bla: 1, bla: 2)): Int }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 31}]
+
+  - name: directive arguments cannot be repeated on an enum value
+    input: |
+      directive @foo(bla: Int) on ENUM_VALUE
+      enum E { X @foo(bla: 1, bla: 2) }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 25}]
+
+  - name: same argument name can be used on repeated directives
+    input: |
+      directive @foo(bla: Int) repeatable on FIELD_DEFINITION
+      type P {f: Int @foo(bla: 1) @foo(bla: 2) }
 
 entry points:
   - name: multiple schema entry points
@@ -889,19 +1076,168 @@ entry points:
       message: "Schema root query refers to a type Query that does not exist."
       locations: [{line: 2, column: 3}]
 
+  - name: cannot specify the same operation type twice
+    input: |
+      schema {
+        query: Query
+        query: Other
+      }
+      type Query { id: ID }
+      type Other { id: ID }
+    error:
+      message: "There can be only one query type in schema."
+      locations: [{line: 3, column: 3}]
+
+  - name: query root type must be an object type
+    input: |
+      schema {
+        query: Query
+      }
+      interface Query { id: ID }
+    error:
+      message: "Query root type must be Object type, it cannot be Query."
+      locations: [{line: 2, column: 3}]
+
+  - name: mutation root type must be an object type
+    input: |
+      schema {
+        query: Query
+        mutation: Mutation
+      }
+      type Query { id: ID }
+      input Mutation { id: ID }
+    error:
+      message: "Mutation root type must be Object type if provided, it cannot be Mutation."
+      locations: [{line: 3, column: 3}]
+
+  - name: subscription root type must be an object type
+    input: |
+      schema {
+        query: Query
+        subscription: String
+      }
+      type Query { id: ID }
+    error:
+      message: "Subscription root type must be Object type if provided, it cannot be String."
+      locations: [{line: 3, column: 3}]
+
+  - name: inferred query root type must be an object type
+    input: |
+      union Query = Foo
+      type Foo { id: ID }
+    error:
+      message: "Query root type must be Object type, it cannot be Query."
+      locations: [{line: 1, column: 7}]
+
+  - name: inferred mutation root type must be an object type
+    input: |
+      type Query { id: ID }
+      enum Mutation { A }
+    error:
+      message: "Mutation root type must be Object type if provided, it cannot be Mutation."
+      locations: [{line: 2, column: 6}]
+
+  - name: inferred subscription root type must be an object type
+    input: |
+      type Query { id: ID }
+      scalar Subscription
+    error:
+      message: "Subscription root type must be Object type if provided, it cannot be Subscription."
+      locations: [{line: 2, column: 8}]
+
+  - name: non-object types named like root types are allowed with a schema definition
+    input: |
+      schema {
+        query: Root
+      }
+      type Root { id: ID }
+      scalar Query
+      input Mutation { id: ID }
+
 entry point extensions:
   - name: Undefined schema entrypoint
     input: |
       schema {
         query: Query
       }
-      scalar Query
+      type Query { id: ID }
       extend schema {
         mutation: Mutation
       }
     error:
       message: "Schema root mutation refers to a type Mutation that does not exist."
       locations: [{line: 6, column: 3}]
+
+  - name: cannot redefine an operation type from the schema definition
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        query: Other
+      }
+      type Query { id: ID }
+      type Other { id: ID }
+    error:
+      message: "There can be only one query type in schema."
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot specify the same operation type in two extensions
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        mutation: Mutation
+      }
+      extend schema {
+        mutation: Other
+      }
+      type Query { id: ID }
+      type Mutation { id: ID }
+      type Other { id: ID }
+    error:
+      message: "There can be only one mutation type in schema."
+      locations: [{line: 8, column: 3}]
+
+  - name: can add each operation type once across extensions
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        mutation: Mutation
+      }
+      extend schema {
+        subscription: Subscription
+      }
+      type Query { id: ID }
+      type Mutation { id: ID }
+      type Subscription { id: ID }
+
+  - name: extension root type must be an object type
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        subscription: Subscription
+      }
+      type Query { id: ID }
+      interface Subscription { id: ID }
+    error:
+      message: "Subscription root type must be Object type if provided, it cannot be Subscription."
+      locations: [{line: 5, column: 3}]
+
+  - name: extension root type must be an object type without a schema definition
+    input: |
+      extend schema {
+        query: Root
+      }
+      interface Root { id: ID }
+    error:
+      message: "Query root type must be Object type, it cannot be Root."
+      locations: [{line: 2, column: 3}]
 
 type references:
   - name: Field types

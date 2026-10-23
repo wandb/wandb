@@ -19,7 +19,7 @@
 // See https://gocloud.dev/howto/blob/ for a detailed how-to guide.
 //
 // *blob.Bucket implements io/fs.FS and io/fs.SubFS, so it can be used with
-// functions in that package.
+// functions in those packages.
 //
 // # Errors
 //
@@ -1275,9 +1275,34 @@ func (b *Bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *CopyOpti
 //
 // If the blob does not exist, Delete returns an error for which
 // gcerrors.Code will return gcerrors.NotFound.
-func (b *Bucket) Delete(ctx context.Context, key string) (err error) {
+func (b *Bucket) Delete(ctx context.Context, key string) error {
+	return b.DeleteWithOptions(ctx, key, nil)
+}
+
+// DeleteOptions sets options for DeleteWithOptions.
+type DeleteOptions struct {
+	// BeforeDelete is a callback that will be called before the delete is
+	// initiated. It can be used to apply a driver-specific precondition
+	// (for example a generation or If-Match condition) so the delete is
+	// refused if the blob has changed.
+	//
+	// asFunc converts its argument to driver-specific types.
+	// See https://gocloud.dev/concepts/as/ for background information.
+	BeforeDelete func(asFunc func(any) bool) error
+}
+
+// DeleteWithOptions deletes the blob stored at key, like Delete, with
+// options to configure the delete.
+// A nil DeleteOptions is treated the same as the zero value.
+//
+// If the blob does not exist, DeleteWithOptions returns an error for which
+// gcerrors.Code will return gcerrors.NotFound.
+func (b *Bucket) DeleteWithOptions(ctx context.Context, key string, opts *DeleteOptions) (err error) {
 	if !utf8.ValidString(key) {
 		return gcerr.Newf(gcerr.InvalidArgument, nil, "blob: Delete key must be a valid UTF-8 string: %q", key)
+	}
+	if opts == nil {
+		opts = &DeleteOptions{}
 	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -1286,7 +1311,8 @@ func (b *Bucket) Delete(ctx context.Context, key string) (err error) {
 	}
 	ctx, span := b.tracer.Start(ctx, "Delete")
 	defer func() { b.tracer.End(ctx, span, err) }()
-	return wrapError(b.b, b.b.Delete(ctx, key), key)
+	dopts := &driver.DeleteOptions{BeforeDelete: opts.BeforeDelete}
+	return wrapError(b.b, b.b.Delete(ctx, key, dopts), key)
 }
 
 // SignedURL returns a URL that can be used to GET (default), PUT or DELETE

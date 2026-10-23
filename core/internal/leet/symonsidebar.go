@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/wandb/wandb/core/internal/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -29,7 +28,7 @@ type symonSidebar struct {
 
 	// procs pages through the processes that match filter, sorted by CPU
 	// or by memory. Its cursor is shown while the list has focus.
-	procs        PagedList[monitor.ProcessStat]
+	procs        PagedList[*spb.ProcessStats]
 	filter       *Filter
 	sortByMemory bool
 
@@ -48,15 +47,15 @@ func newSymonSidebar(config *ConfigManager) *symonSidebar {
 
 // setProcesses replaces the process table, keeping the sort, the filter
 // and the cursor position.
-func (sb *symonSidebar) setProcesses(procs []monitor.ProcessStat) {
+func (sb *symonSidebar) setProcesses(procs []*spb.ProcessStats) {
 	sb.procs.Items = procs
 	sb.sortProcesses()
 }
 
 func (sb *symonSidebar) sortProcesses() {
-	slices.SortFunc(sb.procs.Items, func(a, b monitor.ProcessStat) int {
-		byCPU := cmp.Compare(b.CPUPercent, a.CPUPercent)
-		byMemory := cmp.Compare(b.RSS, a.RSS)
+	slices.SortFunc(sb.procs.Items, func(a, b *spb.ProcessStats) int {
+		byCPU := cmp.Compare(b.CpuPercent, a.CpuPercent)
+		byMemory := cmp.Compare(b.RssBytes, a.RssBytes)
 		if sb.sortByMemory {
 			return cmp.Or(byMemory, byCPU)
 		}
@@ -68,9 +67,9 @@ func (sb *symonSidebar) sortProcesses() {
 // applyProcessFilter recomputes the visible processes by name or PID.
 func (sb *symonSidebar) applyProcessFilter() {
 	matcher := sb.filter.Matcher()
-	filtered := make([]monitor.ProcessStat, 0, len(sb.procs.Items))
+	filtered := make([]*spb.ProcessStats, 0, len(sb.procs.Items))
 	for _, proc := range sb.procs.Items {
-		if matcher(proc.Name) || matcher(strconv.Itoa(int(proc.PID))) {
+		if matcher(proc.Name) || matcher(strconv.Itoa(int(proc.Pid))) {
 			filtered = append(filtered, proc)
 		}
 	}
@@ -132,7 +131,7 @@ func (sb *symonSidebar) hostLines(width int) []string {
 	env := sb.probe.Env
 	var lines []string
 
-	if model := cmp.Or(env.GetApple().GetName(), sb.probe.CPUModel); model != "" {
+	if model := cmp.Or(env.GetApple().GetName(), env.GetCpu().GetModel()); model != "" {
 		lines = append(lines, leftSidebarHeaderStyle.Render(truncateValue(model, width)))
 	}
 
@@ -305,7 +304,7 @@ func (sb *symonSidebar) processLines(width, rows int) []string {
 	for i := start; i < end; i++ {
 		proc := sb.procs.FilteredItems[i]
 		line := truncateValue(fmt.Sprintf("%7d %6.1f %8s  %s",
-			proc.PID, proc.CPUPercent, formatBytesBinary(float64(proc.RSS)), proc.Name), width)
+			proc.Pid, proc.CpuPercent, formatBytesBinary(float64(proc.RssBytes)), proc.Name), width)
 		if sb.procs.Active && i-start == sb.procs.CurrentLine() {
 			lines = append(lines, runOverviewSidebarHighlightedItem.Width(width).Render(line))
 		} else {

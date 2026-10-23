@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 from typing_extensions import override
 
 import wandb
-from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table._writer import (
@@ -95,9 +94,9 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Optional storage-backend override. CES is the default. Pass "weave"
-                to use the Weave backend from the private preview phase which will be
-                removed soon.
+            backend: Optional storage-backend override. Weave is the default. Pass
+                "ces" to write through the CoreWeave Evaluation Service instead, which
+                is not yet released.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -140,8 +139,9 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
+        self._backend: Backend = backend if backend is not None else "weave"
         self._writer: EvalTableWriter = create_writer(
-            backend if backend is not None else "ces",
+            self._backend,
             allow_mixed_types=allow_mixed_types,
             unsupported_media_mode=unsupported_media_mode,
         )
@@ -199,9 +199,14 @@ class EvalTable(Table):
                 "Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
-        service_api = ServiceApi(run._settings)
-        if not service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES):
-            raise UsageError("This W&B server does not support EvalTable logging.")
+        if self._backend == "ces":
+            from wandb.apis.public.service_api import ServiceApi
+
+            service_api = ServiceApi(run._settings)
+            if not service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES):
+                raise UsageError(
+                    "This W&B server does not support CES EvalTable logging."
+                )
 
         # Initialize writer with run context while intentionally
         # skipping the file-copy behavior in Table.bind_to_run().

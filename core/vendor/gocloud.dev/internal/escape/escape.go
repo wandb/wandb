@@ -58,7 +58,19 @@ func HexEscape(s string, shouldEscape func(s []rune, i int) bool) string {
 	runes := []rune(s)
 	var toEscape []int
 	for i := range runes {
-		if shouldEscape(runes, i) {
+		// In addition to whatever the caller wants escaped, always escape
+		// the start of any substring that HexUnescape would itself parse as
+		// an escape sequence (i.e., that looks like "__0x<hex>__"). Without
+		// this, a string need not contain any character the caller wants
+		// escaped to still produce output identical to some other,
+		// different string that does: e.g., a literal "__0x2f__" in the
+		// input is indistinguishable, after escaping, from a "/" that some
+		// other input had escaped into that same text. Two different
+		// preimages mapping to the same escaped string is a real
+		// correctness and security problem for callers that use the
+		// escaped string as a storage key or path, since it lets one
+		// caller-chosen key collide with another's.
+		if shouldEscape(runes, i) || isEscapeSequence(runes, i) {
 			toEscape = append(toEscape, i)
 		}
 	}
@@ -85,6 +97,14 @@ func HexEscape(s string, shouldEscape func(s []rune, i int) bool) string {
 		}
 	}
 	return string(escaped[0:j])
+}
+
+// isEscapeSequence reports whether the rune sequence starting at r[i] would
+// be parsed by HexUnescape as an escape sequence, regardless of whether it
+// was actually produced by a previous call to HexEscape.
+func isEscapeSequence(r []rune, i int) bool {
+	ok, _, _ := unescape(r, i)
+	return ok
 }
 
 // unescape tries to unescape starting at r[i].

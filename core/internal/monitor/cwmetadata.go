@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -85,10 +86,10 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client = retryablehttp.NewClient()
 		params.Client.Logger = params.Logger
 		params.Client.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-		params.Client.RetryMax = DefaultOpenMetricsRetryMax
-		params.Client.RetryWaitMin = DefaultOpenMetricsRetryWaitMin
-		params.Client.RetryWaitMax = DefaultOpenMetricsRetryWaitMax
-		params.Client.HTTPClient.Timeout = DefaultOpenMetricsTimeout
+		params.Client.RetryMax = 3
+		params.Client.RetryWaitMin = time.Second
+		params.Client.RetryWaitMax = 10 * time.Second
+		params.Client.HTTPClient.Timeout = 5 * time.Second
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
 
@@ -103,19 +104,15 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 	return cwm, nil
 }
 
-// Sample is a no-op method.
-//
-// Required for CoreWeaveMetadata to implement the Resource interface.
-func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
-	return nil, nil
-}
-
 // Probe collects metadata about the CoreWeave compute environment.
 //
 // It first checks if the current W&B entity's organization is using
 // CoreWeave by querying the W&B backend. If so, it fetches instance
 // metadata from the CoreWeave metadata endpoint using the Get method.
 func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord {
+	if cwm == nil {
+		return nil
+	}
 	if cwm.graphqlClient == nil {
 		cwm.logger.Debug(
 			"cwmetadata: error collecting data",

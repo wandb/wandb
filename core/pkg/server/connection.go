@@ -37,10 +37,10 @@ const (
 )
 
 type ConnectionParams struct {
-	StreamMux          *stream.StreamMux
-	RunSyncManager     *runsync.RunSyncManager
-	SweepSchedBroker   *scheduler.IPCSessionBroker
-	XPUResourceManager *monitor.XPUResourceManager
+	StreamMux            *stream.StreamMux
+	RunSyncManager       *runsync.RunSyncManager
+	SweepSchedBroker     *scheduler.IPCSessionBroker
+	SymonResourceManager *monitor.SymonResourceManager
 
 	ID string
 
@@ -86,8 +86,8 @@ type Connection struct {
 	// sweepSchedBroker implements `wandb sweep-scheduler` sessions.
 	sweepSchedBroker *scheduler.IPCSessionBroker
 
-	// xpuResourceManager is used by streams for system accelerator metrics.
-	xpuResourceManager *monitor.XPUResourceManager
+	// symonResourceManager is used by streams for system metrics.
+	symonResourceManager *monitor.SymonResourceManager
 
 	// id is the unique id for the connection
 	id string
@@ -123,22 +123,22 @@ func NewConnection(
 	connLifetimeCtx, stopConnection := context.WithCancel(serverLifetimeCtx)
 
 	return &Connection{
-		connLifetimeCtx:    connLifetimeCtx,
-		stopConnection:     stopConnection,
-		requestCanceller:   NewRequestCanceller(connLifetimeCtx, slog.Default()),
-		stopServer:         stopServer,
-		streamMux:          params.StreamMux,
-		runSyncManager:     params.RunSyncManager,
-		sweepSchedBroker:   params.SweepSchedBroker,
-		xpuResourceManager: params.XPUResourceManager,
-		conn:               params.Conn,
-		commit:             params.Commit,
-		id:                 params.ID,
-		inChan:             make(chan *spb.ServerRequest, BufferSize),
-		outChan:            make(chan *spb.ServerResponse, BufferSize),
-		loggerPath:         params.LoggerPath,
-		logLevel:           params.LogLevel,
-		apiManager:         wbapi.NewManager(),
+		connLifetimeCtx:      connLifetimeCtx,
+		stopConnection:       stopConnection,
+		requestCanceller:     NewRequestCanceller(connLifetimeCtx, slog.Default()),
+		stopServer:           stopServer,
+		streamMux:            params.StreamMux,
+		runSyncManager:       params.RunSyncManager,
+		sweepSchedBroker:     params.SweepSchedBroker,
+		symonResourceManager: params.SymonResourceManager,
+		conn:                 params.Conn,
+		commit:               params.Commit,
+		id:                   params.ID,
+		inChan:               make(chan *spb.ServerRequest, BufferSize),
+		outChan:              make(chan *spb.ServerResponse, BufferSize),
+		loggerPath:           params.LoggerPath,
+		logLevel:             params.LogLevel,
+		apiManager:           wbapi.NewManager(),
 	}
 }
 
@@ -419,7 +419,7 @@ func (nc *Connection) handleInformInit(
 
 	strm := stream.InjectStream(
 		stream.GitCommitHash(nc.commit),
-		nc.xpuResourceManager,
+		nc.symonResourceManager,
 		stream.DebugCorePath(nc.loggerPath),
 		nc.logLevel,
 		s,

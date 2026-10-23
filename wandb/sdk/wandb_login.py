@@ -5,16 +5,20 @@ This authenticates your machine to log data to your account.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import click
 
 import wandb
 from wandb import env
-from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import settings_file, wbauth
+from wandb.sdk.lib import settings_file, urls, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+
+if TYPE_CHECKING:
+    from wandb.apis.public.service_api import ServiceApi
 
 
 def login(
@@ -100,7 +104,7 @@ def login(
         return False
 
     if host:
-        host = host.rstrip("/")
+        host = wbauth.HostUrl(host).url
 
     logged_in, _ = _login(
         key=key,
@@ -133,7 +137,7 @@ def _update_system_settings(
     system_settings.clear("anonymous", globally=True)
 
     if host:
-        if host == "https://api.wandb.ai":
+        if host == urls.DEFAULT_BASE_URL:
             system_settings.clear("base_url", globally=True)
         else:
             system_settings.set("base_url", host, globally=True)
@@ -331,6 +335,8 @@ def _verify_login(
         AuthenticationError: If the server rejects the credentials or
             cannot be reached.
     """
+    from wandb.apis.public.service_api import ServiceApi
+
     if service_api is None:
         settings = wandb_setup.singleton().settings.model_copy()
         wbauth.set_auth_settings(settings, auth)
