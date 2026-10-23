@@ -32,6 +32,17 @@ type Writer struct {
 // Wraps errors from the os.OpenFile() call so that they can be checked
 // with errors.Is().
 func OpenWriter(path string) (*Writer, error) {
+	return OpenWriterWithVersion(path, VersionLegacy)
+}
+
+// OpenWriterWithVersion creates a file with the specified format version.
+// It has the same creation and flush behavior as OpenWriter.
+// An unsupported version returns an error before file creation.
+func OpenWriterWithVersion(path string, version uint8) (*Writer, error) {
+	if err := ensureSupportedVersion(version); err != nil {
+		return nil, err
+	}
+
 	// O_EXCL returns an error if the file already exists.
 	//
 	// Note that os.Create() silently truncates an existing file,
@@ -42,7 +53,7 @@ func OpenWriter(path string) (*Writer, error) {
 		return nil, fmt.Errorf("transactionlog: error creating file: %w", err)
 	}
 
-	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, wandbStoreVersion)
+	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, version)
 
 	// Flush immediately to write the file's header.
 	if err := writer.Flush(); err != nil {

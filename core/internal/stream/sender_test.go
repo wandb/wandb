@@ -3,13 +3,16 @@ package stream_test
 import (
 	"bytes"
 	"context"
+	"math"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/simplejsonext"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -30,6 +33,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -218,43 +222,74 @@ func sendHistoryItems(x testFixtures, items ...*spb.HistoryItem) {
 	}, nil)
 }
 
-func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
+func TestSendHistoryUploadsTypedValuesFromVersion1Log(t *testing.T) {
 	fileStream := filestreamtest.NewFakeFileStream()
 	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
 
-	sendHistoryItems(x,
-		&spb.HistoryItem{Key: "null", Value: &spb.HistoryItem_None{}},
-		&spb.HistoryItem{
-			Key:   "false",
-			Value: &spb.HistoryItem_Boolean{Boolean: false},
-		},
-		&spb.HistoryItem{
-			Key:   "zero",
-			Value: &spb.HistoryItem_Integer{Integer: 0},
-		},
-		&spb.HistoryItem{
-			Key:   "float",
-			Value: &spb.HistoryItem_Number{Number: 1.0},
-		},
-		&spb.HistoryItem{
-			Key:   "empty",
-			Value: &spb.HistoryItem_Text{Text: ""},
-		},
-		&spb.HistoryItem{
-			NestedKey: []string{"nested", "object"},
-			Value:     &spb.HistoryItem_Json{Json: `{"a": 1, "b": {"c": true}}`},
-		},
-		&spb.HistoryItem{
-			NestedKey: []string{"nested", "array"},
-			Value:     &spb.HistoryItem_Json{Json: `[1, {"x": null}]`},
-		},
-	)
+	record := &spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{Item: []*spb.HistoryItem{
+			{Key: "null", Value: &spb.HistoryItem_None{}},
+			{Key: "large", Value: &spb.HistoryItem_Integer{Integer: math.MaxInt64}},
+			{Key: "numeric_text", Value: &spb.HistoryItem_Text{Text: "007"}},
+			{Key: "nan", Value: &spb.HistoryItem_Number{Number: math.NaN()}},
+			{Key: "positive_inf", Value: &spb.HistoryItem_Number{Number: math.Inf(1)}},
+			{Key: "negative_inf", Value: &spb.HistoryItem_Number{Number: math.Inf(-1)}},
+			{
+				Key:   "false",
+				Value: &spb.HistoryItem_Boolean{Boolean: false},
+			},
+			{
+				Key:   "zero",
+				Value: &spb.HistoryItem_Integer{Integer: 0},
+			},
+			{
+				Key:   "float",
+				Value: &spb.HistoryItem_Number{Number: 1.0},
+			},
+			{
+				Key:   "empty",
+				Value: &spb.HistoryItem_Text{Text: ""},
+			},
+			{
+				NestedKey: []string{"nested", "object"},
+				Value:     &spb.HistoryItem_Json{Json: `{"a": 1, "b": {"c": true}}`},
+			},
+			{
+				NestedKey: []string{"nested", "array"},
+				Value:     &spb.HistoryItem_Json{Json: `[1, {"x": null}]`},
+			},
+		}}},
+	}
+	path := filepath.Join(t.TempDir(), "typed.wandb")
+	writer, err := transactionlog.OpenWriterWithVersion(path, transactionlog.VersionTypedHistory)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(record))
+	require.NoError(t, writer.Close())
+	reader, err := transactionlog.OpenReader(path, x.Logger)
+	require.NoError(t, err)
+	defer reader.Close()
+	record, err = reader.Read()
+	require.NoError(t, err)
+	x.Sender.SendRecord(record, nil)
 
 	rows := fileStream.GetRequest(x.Settings).HistoryLines
 	require.Len(t, rows, 1)
+	values, err := simplejsonext.UnmarshalObject([]byte(rows[0]))
+	require.NoError(t, err)
+	assert.Equal(t, int64(math.MaxInt64), values["large"])
+	assert.True(t, math.IsNaN(values["nan"].(float64)))
+	assert.Equal(t, math.Inf(1), values["positive_inf"])
+	assert.Equal(t, math.Inf(-1), values["negative_inf"])
+	gotJSON, err := simplejsonext.Marshal(simplejsonext.WalkDeNaN(values))
+	require.NoError(t, err)
 	assert.JSONEq(t, `{
 		"_step": 0,
 		"null":  null,
+		"large": 9223372036854775807,
+		"numeric_text": "007",
+		"nan": "NaN",
+		"positive_inf": "Infinity",
+		"negative_inf": "-Infinity",
 		"false": false,
 		"zero":  0,
 		"float": 1,
@@ -263,7 +298,7 @@ func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
 			"object": {	"a": 1, "b": {"c": true}},
 			"array": [1, {"x": null}]
 		}
-	}`, rows[0])
+	}`, string(gotJSON))
 }
 
 func TestSendHistoryPrefersTypedValues(t *testing.T) {
