@@ -16,33 +16,73 @@ import (
 
 func WandbFile(t *testing.T, records ...*spb.Record) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "wandb-file.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
-	for _, record := range records {
-		require.NoError(t, w.Write(record))
-	}
+	w, path := NewWriter(t, &WriterOptions{Records: records})
 	require.NoError(t, w.Close())
-
 	return path
 }
 
 func WandbFileUnsupportedVersion(t *testing.T, version byte, records ...*spb.Record) string {
 	t.Helper()
 
-	path := WandbFile(t, records...)
-	contents, err := os.ReadFile(path)
-	require.NoError(t, err)
-	contents[6] = version
-	require.NoError(t, os.WriteFile(path, contents, 0o600))
+	w, path := NewWriter(t, &WriterOptions{
+		Records:                 records,
+		Version:                 version,
+		AllowUnsupportedVersion: true,
+	})
+	require.NoError(t, w.Close())
 	return path
 }
 
 func WandbFileVersion(t *testing.T, version byte, records ...*spb.Record) string {
 	t.Helper()
-	require.Equal(t, uint8(0), version)
-	return WandbFileUnsupportedVersion(t, version, records...)
+
+	w, path := NewWriter(t, &WriterOptions{Records: records, Version: version})
+	require.NoError(t, w.Close())
+	return path
+}
+
+type WriterOptions struct {
+	Version                 uint8
+	Records                 []*spb.Record
+	ParentDir               string
+	FileName                string
+	AllowUnsupportedVersion bool
+}
+
+func NewWriter(t *testing.T, options *WriterOptions) (*transactionlog.Writer, string) {
+	t.Helper()
+	if options.ParentDir == "" {
+		options.ParentDir = t.TempDir()
+	}
+	if options.FileName == "" {
+		options.FileName = "wandb-file.wandb"
+	}
+	path := filepath.Join(options.ParentDir, options.FileName)
+
+	var w *transactionlog.Writer
+	var err error
+	if options.AllowUnsupportedVersion {
+		w, err = transactionlog.OpenWriter(path)
+		require.NoError(t, err)
+		writeVersion(t, path, options.Version)
+	} else {
+		w, err = transactionlog.OpenWriter(path)
+		require.NoError(t, err)
+	}
+	for _, record := range options.Records {
+		require.NoError(t, w.Write(record))
+	}
+	return w, path
+}
+
+func writeVersion(t *testing.T, path string, version byte) {
+	t.Helper()
+	f, err := os.OpenFile(path, os.O_RDWR, 0o600)
+	require.NoError(t, err)
+	defer f.Close()
+	_, err = f.WriteAt([]byte{version}, 6)
+	require.NoError(t, err)
 }
 
 // ReaderWriter returns a reader and writer pair connected to the same file.
