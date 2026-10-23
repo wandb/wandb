@@ -178,6 +178,49 @@ def _resolve_version(
         raise ValueError(msg) from None
 
 
+def _paginate_membership_aliases(
+    service_api: ServiceApi,
+    membership: ArtifactMembershipFragment,
+    *,
+    error_context: str,
+) -> tuple[list[str], MembershipAliasesPaginator | None]:
+    """Split a membership's `aliasesConnection` into fetched + deferred pages.
+
+    Resumes continuation from the membership's own canonical
+    entity/project/collection and its version index (`collection:vN`),
+    rather than whatever name the caller originally looked it up by: an
+    alias like `:latest` can move to point at a different version between
+    this fetch and a later continuation fetch, which would otherwise
+    resume pagination against the wrong membership using a cursor from
+    this one.
+
+    Raises if the response is missing `aliasesConnection`, `versionIndex`,
+    or the collection/project info needed to build the continuation query.
+    """
+    from ._alias_paginator import split_membership_aliases
+
+    if (first_page := membership.aliases_connection) is None:
+        raise ValueError(f"Expected 'aliasesConnection' in {error_context}")
+
+    if (version_idx := membership.version_index) is None:
+        raise ValueError(f"Expected 'versionIndex' in {error_context}")
+
+    if not (
+        (collection := membership.artifact_collection)
+        and collection.name
+        and (proj := collection.project)
+    ):
+        raise ValueError(f"Missing artifact collection project in {error_context}")
+
+    return split_membership_aliases(
+        first_page,
+        service_api,
+        entity=proj.entity.name,
+        project=proj.name,
+        name=f"{collection.name}:v{version_idx}",
+    )
+
+
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
 
@@ -427,21 +470,13 @@ class Artifact:
         membership_aliases = None
         aliases_paginator = None
         if paginate_aliases:
-            from ._alias_paginator import split_membership_aliases
-
-            if (first_page := membership.aliases_connection) is None:
-                msg = f"Expected 'aliasesConnection' in response for {path.to_str()!r}"
-                raise ValueError(msg)
-
             # Only the first page is fetched now. Any remaining pages are
             # fetched lazily, the first time something actually reads
             # `.aliases` -- not every time an artifact is looked up.
-            membership_aliases, aliases_paginator = split_membership_aliases(
-                first_page,
+            membership_aliases, aliases_paginator = _paginate_membership_aliases(
                 service_api,
-                entity=path.prefix,
-                project=path.project,
-                name=path.name,
+                membership,
+                error_context=f"response for {path.to_str()!r}",
             )
 
         return cls._from_membership(
@@ -1107,8 +1142,13 @@ class Artifact:
         """
         if (paginator := self._aliases_paginator) is None:
             return
-        self._aliases_paginator = None
+        # Drain and merge before dropping the paginator: a transient error
+        # partway through iteration leaves `self._aliases_paginator` intact,
+        # so a retried call resumes from the paginator's last successful
+        # cursor instead of silently settling for only the pages already
+        # fetched.
         more = [alias for alias in paginator if not alias_is_version_index(alias)]
+        self._aliases_paginator = None
         self._aliases = self._aliases + more
         self._saved_aliases = copy(self._aliases)
 
