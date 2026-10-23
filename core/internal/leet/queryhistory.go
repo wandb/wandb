@@ -30,16 +30,16 @@ const (
 
 // HistoryQuery selects the metric series of a run for QueryHistory.
 type HistoryQuery struct {
-	Keys        []string      `json:"keys"`
-	XAxis       string        `json:"x_axis"`
-	Bins        int           `json:"bins"`
-	MinStep     *int64        `json:"min_step"`
-	MaxStep     *int64        `json:"max_step"`
-	Last        int           `json:"last"`
-	Limit       int           `json:"limit"`
-	After       string        `json:"after"`
-	Follow      bool          `json:"follow"`
-	IdleTimeout time.Duration `json:"idle_timeout"`
+	Keys        []string      `json:"keys"         doc:"Metric keys or globs with * and ? to return, e.g. train/loss or val/*. A glob never matches keys starting with _."`
+	XAxis       string        `json:"x_axis"       doc:"Key to use as the x axis of every metric instead of its own, e.g. _runtime. Rows without a finite value for it are left out."`
+	Bins        int           `json:"bins"         doc:"Aggregate each metric into this many equal-width bins over its x range instead of returning rows."`
+	MinStep     *int64        `json:"min_step"     doc:"First _step to include."`
+	MaxStep     *int64        `json:"max_step"     doc:"Last _step to include."`
+	Last        int           `json:"last"         doc:"Return only the last N rows."`
+	Limit       int           `json:"limit"        doc:"Rows per call (default 1000)."`
+	After       string        `json:"after"        doc:"The next_cursor of a previous call, to continue after the rows it returned."`
+	Follow      bool          `json:"follow"       doc:"Keep printing new rows as the run writes them, one JSON object per poll, until it exits."`
+	IdleTimeout time.Duration `json:"idle_timeout" doc:"With --follow, stop once the run's file has gone this long without a write. 0 waits forever."`
 }
 
 func (q HistoryQuery) validate() error {

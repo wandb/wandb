@@ -24,14 +24,11 @@ const systemKeyPrefix = "system."
 
 // SystemQuery selects the system metrics of a run for QuerySystem.
 type SystemQuery struct {
-	Keys []string `json:"keys"`
-	// Since keeps the samples taken at or after an RFC 3339 time, or within
-	// a duration of the last sample for a run that is not running and of
-	// now for a live one.
-	Since string `json:"since"`
-	Bins  int    `json:"bins"`
-	Last  int    `json:"last"`
-	Limit int    `json:"limit"`
+	Keys  []string `json:"keys"  doc:"System metric keys or globs with * and ? to return, e.g. system.gpu.*.gpu or system.memory*. Defaults to every key."`
+	Since string   `json:"since" doc:"Return only the samples taken at or after this RFC 3339 time, or within this duration (e.g. 10m) of the run's last sample, or of now while it runs."`
+	Bins  int      `json:"bins"  doc:"Aggregate each metric into this many equal-width bins over time instead of returning rows."`
+	Last  int      `json:"last"  doc:"Return only the last N samples."`
+	Limit int      `json:"limit" doc:"Samples to return (default 1000)."`
 }
 
 func (q SystemQuery) validate() error {
