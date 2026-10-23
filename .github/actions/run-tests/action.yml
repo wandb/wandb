@@ -55,12 +55,28 @@ runs:
       with:
         go-version-file: core/go.mod
         cache: false
+    # The cached .deb files only install cleanly on the runner image they were
+    # downloaded for, so the key includes the image version.
+    - name: Compute apt cache key
+      id: apt-cache-key
+      if: runner.os == 'Linux'
+      shell: bash
+      run: echo "key=apt-$ImageOS-$ImageVersion-ffmpeg-libsndfile1" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      id: apt-cache
+      if: runner.os == 'Linux'
+      with:
+        path: ~/apt-debs
+        key: ${{ steps.apt-cache-key.outputs.key }}
     - name: Install system dependencies
       if: runner.os == 'Linux'
       shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install --no-install-recommends -y ffmpeg libsndfile1
+      run: .github/scripts/install_apt_packages.sh ~/apt-debs ffmpeg libsndfile1
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      if: runner.os == 'Linux' && steps.apt-cache.outputs.cache-hit != 'true'
+      with:
+        path: ~/apt-debs
+        key: ${{ steps.apt-cache-key.outputs.key }}
     - name: Install system dependencies
       if: runner.os == 'macOS'
       shell: bash
