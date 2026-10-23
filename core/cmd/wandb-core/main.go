@@ -210,10 +210,13 @@ func serviceMain() int {
 // leetMain runs a LEET command.
 func leetMain(args []string) int {
 	cmd, opts, err := parseLeetArgs(args)
-	if err != nil {
-		if err == flag.ErrHelp {
-			return exitCodeSuccess
-		}
+	switch {
+	case errors.Is(err, flag.ErrHelp):
+		return exitCodeSuccess
+	case err != nil && cmd != nil && cmd.script:
+		leet.WriteQueryError(os.Stderr, &leet.QueryError{Code: "bad_request", Message: err.Error()})
+		return exitCodeErrorInternal
+	case err != nil:
 		return exitCodeErrorArgs
 	}
 
@@ -232,7 +235,11 @@ func leetMain(args []string) int {
 	})
 	defer stopTelemetry()
 
-	logger, closeLogger, err := newLeetLogger(opts.logLevel, recorder)
+	logLevel := opts.logLevel
+	if cmd.script {
+		logLevel = 0
+	}
+	logger, closeLogger, err := newLeetLogger(logLevel, recorder)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		return exitCodeErrorInternal
@@ -273,6 +280,10 @@ type leetOptions struct {
 	idleTimeout      time.Duration
 	wandbDir         string
 
+	// run selects a run in the wandb directory for the query commands.
+	run     string
+	history leet.HistoryQuery
+
 	// remoteURL is the W&B URL of the project or run to open
 	// (e.g. https://api.forge.coreweave.com/<entity>/<project> or
 	// https://api.forge.coreweave.com/<entity>/<project>/runs/<run-id>).
@@ -290,6 +301,10 @@ type leetCommand struct {
 	args  string // positional arguments for the usage line, if any
 	short string // one-line description for the command list
 	mode  string // launch mode reported in telemetry
+
+	// script marks a command for scripts and agents: its errors are JSON
+	// lines with exit code 1, and it never writes the debug log.
+	script bool
 
 	bindFlags func(fs *flag.FlagSet, opts *leetOptions)
 	validate  func(opts *leetOptions) error
@@ -315,6 +330,16 @@ var leetCommands = []*leetCommand{
 		bindFlags: bindLeetInspectFlags,
 		validate:  validateLeetInspectOptions,
 		run:       runLeetInspector,
+	},
+	{
+		name:      "history",
+		args:      "[<wandb-directory>]",
+		short:     "Print the metric series of a run as JSON",
+		mode:      "history",
+		script:    true,
+		bindFlags: bindLeetHistoryFlags,
+		validate:  validateLeetQuerySource,
+		run:       runLeetHistory,
 	},
 	{
 		name:      "symon",
@@ -356,15 +381,24 @@ func parseLeetArgs(args []string) (*leetCommand, *leetOptions, error) {
 		cmd.bindFlags(fs, opts)
 	}
 	fs.Usage = func() { printLeetCommandUsage(fs, cmd) }
+	if cmd.script {
+		fs.SetOutput(io.Discard)
+	}
 
 	if err := fs.Parse(args); err != nil {
-		return nil, nil, err
+		if cmd.script && errors.Is(err, flag.ErrHelp) {
+			fs.SetOutput(os.Stderr)
+			fs.Usage()
+		}
+		return cmd, nil, err
 	}
 
 	if err := validateLeetArgs(fs, cmd, opts); err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		fs.Usage()
-		return nil, nil, err
+		if !cmd.script {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			fs.Usage()
+		}
+		return cmd, nil, err
 	}
 
 	return cmd, opts, nil
@@ -404,7 +438,7 @@ Commands:
 }
 
 func printLeetCommandUsage(fs *flag.FlagSet, cmd *leetCommand) {
-	fmt.Fprintf(os.Stderr, "%s\n\nUsage:\n  %s\n\nFlags:\n", cmd.short,
+	fmt.Fprintf(fs.Output(), "%s\n\nUsage:\n  %s\n\nFlags:\n", cmd.short,
 		strings.TrimSpace("wandb-core leet "+cmd.name+" [flags] "+cmd.args))
 	fs.PrintDefaults()
 }
@@ -491,6 +525,65 @@ func bindLeetInspectFlags(fs *flag.FlagSet, opts *leetOptions) {
 	)
 }
 
+// bindLeetQueryFlags binds the flags that select the run of a query command.
+func bindLeetQueryFlags(fs *flag.FlagSet, opts *leetOptions) {
+	fs.StringVar(
+		&opts.runFile,
+		"run-file",
+		"",
+		"Path to the .wandb file to read."+
+			" Defaults to the newest run in the wandb directory.",
+	)
+	fs.StringVar(
+		&opts.run,
+		"run",
+		"",
+		"The run to read: its directory name, its ID or its display name."+
+			" Defaults to the newest run in the wandb directory.",
+	)
+}
+
+func bindLeetHistoryFlags(fs *flag.FlagSet, opts *leetOptions) {
+	bindLeetQueryFlags(fs, opts)
+	q := &opts.history
+	fs.Func("keys", "Comma-separated metric keys or globs with * and ? to return,"+
+		" e.g. 'train/loss,val/*'. A glob never matches keys starting with _.",
+		func(s string) error {
+			for _, k := range strings.Split(s, ",") {
+				if k = strings.TrimSpace(k); k != "" {
+					q.Keys = append(q.Keys, k)
+				}
+			}
+			return nil
+		})
+	fs.StringVar(&q.XAxis, "x-axis", "",
+		"Key to use as the x axis of every metric instead of its own,"+
+			" e.g. _runtime. Rows without a finite value for it are left out.")
+	fs.IntVar(&q.Bins, "bins", 0,
+		"Aggregate each metric into this many equal-width bins over its x range"+
+			" instead of returning rows.")
+	fs.Func("min-step", "First _step to include.", setInt64(&q.MinStep))
+	fs.Func("max-step", "Last _step to include.", setInt64(&q.MaxStep))
+	fs.IntVar(&q.Last, "last", 0, "Return only the last N rows.")
+	fs.IntVar(&q.Limit, "limit", 0, "Rows per call (default 1000).")
+	fs.StringVar(&q.After, "after", "",
+		"The next_cursor of a previous call, to continue after the rows it returned.")
+	fs.BoolVar(&q.Follow, "follow", false,
+		"Keep printing new rows as the run writes them, one JSON object per poll,"+
+			" until it exits.")
+	fs.DurationVar(&q.IdleTimeout, "idle-timeout", leet.RunCrashTimeout,
+		"With --follow, stop once the run's file has gone this long without"+
+			" a write. 0 waits forever.")
+}
+
+func setInt64(p **int64) func(string) error {
+	return func(s string) error {
+		v, err := strconv.ParseInt(s, 10, 64)
+		*p = &v
+		return err
+	}
+}
+
 func bindLeetSymonFlags(fs *flag.FlagSet, opts *leetOptions) {
 	fs.DurationVar(
 		&opts.symonInterval,
@@ -525,6 +618,17 @@ func validateLeetInspectOptions(opts *leetOptions) error {
 		return errors.New("--idle-timeout must be >= 0")
 	case opts.wandbDir == "" && opts.runFile == "":
 		return errors.New("wandb directory path or --run-file required")
+	default:
+		return nil
+	}
+}
+
+func validateLeetQuerySource(opts *leetOptions) error {
+	switch {
+	case opts.wandbDir == "" && opts.runFile == "":
+		return errors.New("wandb directory path or --run-file required")
+	case opts.runFile != "" && opts.run != "":
+		return errors.New("--run cannot be used with --run-file")
 	default:
 		return nil
 	}
@@ -602,6 +706,15 @@ func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+func runLeetHistory(opts *leetOptions, _ *observability.CoreLogger) int {
+	err := leet.QueryHistory(opts.wandbDir, opts.runFile, opts.run, opts.history, os.Stdout)
+	if err != nil {
+		leet.WriteQueryError(os.Stderr, err)
 		return exitCodeErrorInternal
 	}
 	return exitCodeSuccess
