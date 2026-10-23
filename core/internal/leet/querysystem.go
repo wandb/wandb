@@ -3,7 +3,6 @@ package leet
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"io"
 	"maps"
 	"math"
@@ -26,7 +25,7 @@ const systemKeyPrefix = "system."
 type SystemQuery struct {
 	Keys  []string `json:"keys"  doc:"System metric keys or globs with * and ? to return, e.g. system.gpu.*.gpu or system.memory*. Defaults to every key."`
 	Since string   `json:"since" doc:"Return only the samples taken at or after this RFC 3339 time, or within this duration (e.g. 10m) of the run's last sample, or of now while it runs."`
-	Bins  int      `json:"bins"  doc:"Aggregate each metric into this many equal-width bins over time instead of returning rows."`
+	Bins  int      `json:"bins"  doc:"Aggregate each metric into this many equal-width bins over time instead of returning rows. Required for a W&B URL, whose system metrics the server serves in bins only, choosing the bin edges itself so about this many come back."`
 	Last  int      `json:"last"  doc:"Return only the last N samples."`
 	Limit int      `json:"limit" doc:"Samples to return (default 1000)."`
 }
@@ -184,15 +183,7 @@ func (s *systemScan) envelope(state RunState, since time.Time) map[string]any {
 		requested = []string{}
 	}
 	warnings := append([]string{}, s.warnings...)
-	for _, pattern := range s.q.Keys {
-		matched := false
-		for key := range s.seen {
-			matched = matched || matchKey(pattern, key)
-		}
-		if !matched {
-			warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
-		}
-	}
+	warnings = append(warnings, unmatchedKeyWarnings(s.q.Keys, sortedKeys(s.seen))...)
 	out := map[string]any{
 		"schema": "leet.system/1",
 		"source": querySource(
@@ -288,15 +279,10 @@ func (s *systemScan) bins(out map[string]any) {
 		entry := map[string]any{
 			"key":    key,
 			"x_axis": "_timestamp",
-			"title":  nil,
-			"unit":   nil,
 			"count":  len(series[key].xs),
 			"bins":   bin(series[key].xs, series[key].ys, lo, hi, s.q.Bins),
 		}
-		if def := MatchMetricDef(strings.TrimPrefix(key, systemKeyPrefix)); def != nil {
-			entry["title"] = def.Name
-			entry["unit"] = orNil(strings.TrimPrefix(def.Unit.Format(1), "1"))
-		}
+		entry["title"], entry["unit"] = systemMetricTitleUnit(key)
 		list = append(list, entry)
 	}
 	out["series"] = list
@@ -305,4 +291,15 @@ func (s *systemScan) bins(out map[string]any) {
 		coverage := out["coverage"].(map[string]any)
 		coverage["first_x"], coverage["last_x"] = lo, hi
 	}
+}
+
+// systemMetricTitleUnit returns the title of a system metric and the unit
+// of its values as UnitFormatter prints 1 of them, when LEET knows the
+// metric, else nils.
+func systemMetricTitleUnit(key string) (title, unit any) {
+	def := MatchMetricDef(strings.TrimPrefix(key, systemKeyPrefix))
+	if def == nil {
+		return nil, nil
+	}
+	return def.Name, orNil(strings.TrimPrefix(def.Unit.Format(1), "1"))
 }

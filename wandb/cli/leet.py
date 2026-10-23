@@ -285,7 +285,8 @@ def runs(
     type=int,
     default=None,
     metavar="N",
-    help="Aggregate each metric into N equal-width bins instead of returning rows.",
+    help="Aggregate each metric into N equal-width bins instead of returning rows."
+    " For a URL the server chooses the bin edges and returns about N bins.",
 )
 @click.option(
     "--min-step", type=int, default=None, metavar="N", help="First _step to include."
@@ -294,7 +295,11 @@ def runs(
     "--max-step", type=int, default=None, metavar="N", help="Last _step to include."
 )
 @click.option(
-    "--last", type=int, default=None, metavar="N", help="Return only the last N rows."
+    "--last",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Return only the last N rows, or for a URL the rows of the last N steps.",
 )
 @click.option(
     "--limit",
@@ -313,7 +318,8 @@ def runs(
     "--follow",
     "-f",
     is_flag=True,
-    help="Keep printing new rows as the run writes them, one JSON object per poll.",
+    help="Keep printing new rows as the run writes them, one JSON object per poll."
+    " Local runs only.",
 )
 @click.option(
     "--idle-timeout",
@@ -351,10 +357,11 @@ def history(
         wandb leet history --keys train/loss --min-step 4000 --max-step 4400
         wandb leet history --keys train/loss --last 50 --follow
         wandb leet history ./wandb --run sim-unstable-L32 --keys 'eval/*'
+        wandb leet history --keys loss https://wandb.ai/<entity>/<project>/runs/<run-id>
 
-    PATH can be a .wandb file, a run directory containing one, or a
-    wandb directory. If PATH is not provided, the configured wandb
-    directory is used.
+    PATH can be a .wandb file, a run directory containing one, a wandb
+    directory, or the URL of a W&B run to read it from the server. If PATH
+    is not provided, the configured wandb directory is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
     launch_query(
         "history",
@@ -542,7 +549,8 @@ def console(
     default=None,
     metavar="N",
     help="Aggregate each metric into N equal-width bins over time instead of"
-    " returning rows.",
+    " returning rows. Required for a URL, whose system metrics the server serves"
+    " in bins only, choosing the bin edges itself.",
 )
 @click.option(
     "--last",
@@ -574,7 +582,7 @@ def system(
     system metrics (CPU, memory, GPU, disk, network) on _timestamp, or
     with --bins their min, max, average and last value per bin with each
     metric's title and unit. Keys carry the system. prefix, as the W&B UI
-    names them. Only local runs are read.
+    names them. A run read from a URL needs --bins.
 
     \b
     Examples:
@@ -582,10 +590,11 @@ def system(
         wandb leet system --keys 'system.gpu.*.gpu,system.memory*' --since 10m --bins 60
         wandb leet system --last 10
         wandb leet system ./wandb --run sim-unstable-L32 --keys 'system.gpu.*'
+        wandb leet system --bins 60 https://wandb.ai/<entity>/<project>/runs/<run-id>
 
-    PATH can be a .wandb file, a run directory containing one, or a
-    wandb directory. If PATH is not provided, the configured wandb
-    directory is used.
+    PATH can be a .wandb file, a run directory containing one, a wandb
+    directory, or the URL of a W&B run to read it from the server. If PATH
+    is not provided, the configured wandb directory is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
     launch_query(
         "system",
@@ -872,8 +881,6 @@ def launch_query(
     """
     env = None
     if path is not None and path.startswith(("https://", "http://")):
-        if command in ("history", "system"):
-            _fatal(f"`wandb leet {command}` requires a local .wandb file.")
         source_args, env = _remote_query_source(path, flags)
     else:
         source_args = _local_query_source(path)

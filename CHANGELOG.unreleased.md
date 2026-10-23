@@ -28,6 +28,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb mcp` runs an MCP server for local W&B runs over stdio, so an agent in an MCP host can list the runs of a wandb directory, read their metric series, summary, console output and system metrics, and steer the LEET a user has open, with the same JSON as the `wandb leet` commands (@dmitryduev in https://github.com/wandb/wandb/pull/13239)
 - In MCP hosts that render apps, the `leet_view` tool of `wandb mcp` shows LEET charts: a list of the runs of a wandb directory and a chart per metric for the selected runs, which you can toggle by clicking and which refresh every 15 seconds while a run is still running. The agent sees which runs and metrics you are looking at (@dmitryduev in https://github.com/wandb/wandb/pull/13240)
 - `wandb leet runs`, `wandb leet summary` and `wandb leet console` accept the URL of a W&B project or run and read it from the W&B server, so the same JSON works for local and remote runs, and the `wandb mcp` tools accept the same URLs for the server you are logged in to (@dmitryduev in https://github.com/wandb/wandb/pull/13241)
+- `wandb leet history` and `wandb leet system` accept the URL of a W&B run and read its metrics from the W&B server, as do the `wandb mcp` tools `leet_history` and `leet_system`; the system metrics of a remote run come in bins, so pass `--bins N` (@dmitryduev in https://github.com/wandb/wandb/pull/13242)
 
 ### Fixed
 

@@ -71,16 +71,16 @@ var tools = []tool{
 	},
 	{
 		name: "leet_history",
-		description: "The metric series of a run from its local .wandb file as JSON: the" +
-			" logged rows of the selected keys, or with bins their min, max, average and" +
-			" last value per equal-width bin. When more rows exist than one call returns," +
-			" pass next_cursor back as after. Local runs only; a W&B URL comes in the next" +
-			" release.",
+		description: "The metric series of a run as JSON, from a local file or a W&B run" +
+			" URL: the logged rows of the selected keys, or with bins their min, max," +
+			" average and last value per bin, equal-width locally and server-chosen for" +
+			" a URL. When more rows exist than one call returns, pass next_cursor back" +
+			" as after.",
 		options:  leet.HistoryQuery{},
 		perRun:   true,
 		required: []string{"keys"},
 		readOnly: true,
-		run:      perRun(leet.QueryHistory, nil),
+		run:      perRun(leet.QueryHistory, leet.QueryRemoteHistory),
 	},
 	{
 		name: "leet_summary",
@@ -105,13 +105,14 @@ var tools = []tool{
 	{
 		name: "leet_system",
 		description: "The system metrics of a run (CPU, memory, GPU, disk, network) as" +
-			" JSON: samples over time, or with bins their min, max, average and last value" +
-			" per bin with each metric's title and unit. Keys carry the system. prefix." +
-			" Local runs only; a W&B URL comes in the next release.",
+			" JSON, from a local file or a W&B run URL: samples over time, or with bins" +
+			" their min, max, average and last value per bin with each metric's title and" +
+			" unit. Keys carry the system. prefix. A W&B URL needs bins, whose edges the" +
+			" server chooses.",
 		options:  leet.SystemQuery{},
 		perRun:   true,
 		readOnly: true,
-		run:      perRun(leet.QuerySystem, nil),
+		run:      perRun(leet.QuerySystem, leet.QueryRemoteSystem),
 	},
 	{
 		name: "leet_view",
@@ -272,7 +273,7 @@ func badRequest(format string, args ...any) error {
 }
 
 // perRun adapts the local and remote queries of one run to a tool's run
-// function. A nil remote query rejects URLs.
+// function.
 func perRun[Q any](
 	local func(wandbDir, runFile, run string, q Q, w io.Writer) error,
 	remote func(params *leet.RemoteRunParams, q Q, w io.Writer) error,
@@ -283,10 +284,7 @@ func perRun[Q any](
 		if err != nil {
 			return err
 		}
-		switch {
-		case src.url != "" && remote == nil:
-			return leet.ErrRemoteNotAvailable
-		case src.url != "":
+		if src.url != "" {
 			params, err := s.remoteSource(src.url)
 			if err != nil {
 				return err

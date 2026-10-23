@@ -944,7 +944,7 @@ func runLeetRuns(opts *leetOptions, _ *observability.CoreLogger) int {
 
 func runLeetHistory(opts *leetOptions, _ *observability.CoreLogger) int {
 	if opts.remoteRun != nil {
-		return queryExit(leet.ErrRemoteNotAvailable)
+		return queryExit(leet.QueryRemoteHistory(opts.remoteRun, opts.history, os.Stdout))
 	}
 	return queryExit(
 		leet.QueryHistory(opts.wandbDir, opts.runFile, opts.run, opts.history, os.Stdout))
@@ -968,7 +968,7 @@ func runLeetConsole(opts *leetOptions, _ *observability.CoreLogger) int {
 
 func runLeetSystem(opts *leetOptions, _ *observability.CoreLogger) int {
 	if opts.remoteRun != nil {
-		return queryExit(leet.ErrRemoteNotAvailable)
+		return queryExit(leet.QueryRemoteSystem(opts.remoteRun, opts.system, os.Stdout))
 	}
 	return queryExit(
 		leet.QuerySystem(opts.wandbDir, opts.runFile, opts.run, opts.system, os.Stdout))

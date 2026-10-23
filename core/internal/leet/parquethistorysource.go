@@ -289,6 +289,9 @@ func InitializeParquetHistorySource(
 type remoteClients struct {
 	graphql graphql.Client
 	http    api.RetryableClient
+
+	// arrow reads parquet exports, loaded by the first history read.
+	arrow *ffi.RustArrowWrapper
 }
 
 // newRemoteClients authenticates with the API key passed by the Python wrapper.
@@ -324,7 +327,7 @@ func newRemoteClients(
 			RetryMax:        3,
 			RetryWaitMin:    1 * time.Second,
 			RetryWaitMax:    10 * time.Second,
-			NonRetryTimeout: 10 * time.Second,
+			NonRetryTimeout: 60 * time.Second,
 			Logger:          logger.Logger,
 			PreRetryLayers:  httplayers.LimitTo(apiURL, credentialProvider),
 		}),
