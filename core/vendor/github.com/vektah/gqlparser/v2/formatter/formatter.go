@@ -263,6 +263,7 @@ func (f *formatter) FormatSchemaDocument(doc *ast.SchemaDocument) {
 
 	f.FormatDefinitionList(doc.Definitions, false)
 	f.FormatDefinitionList(doc.Extensions, true)
+	f.FormatDirectiveExtensionList(doc.DirectiveExtensions)
 
 	// doc.Comment is end of file comment, so emit last
 	f.FormatCommentGroup(doc.Comment)
@@ -499,6 +500,8 @@ func (f *formatter) FormatDirectiveDefinition(def *ast.DirectiveDefinition) {
 		f.FormatArgumentDefinitionList(def.Arguments)
 	}
 
+	f.FormatDirectiveList(def.Directives)
+
 	if def.IsRepeatable {
 		f.WriteWord("repeatable")
 	}
@@ -514,6 +517,22 @@ func (f *formatter) FormatDirectiveDefinition(def *ast.DirectiveDefinition) {
 			}
 		}
 	}
+
+	f.WriteNewline()
+}
+
+func (f *formatter) FormatDirectiveExtensionList(exts ast.DirectiveDefinitionList) {
+	for _, ext := range exts {
+		f.FormatDirectiveExtension(ext)
+	}
+}
+
+func (f *formatter) FormatDirectiveExtension(ext *ast.DirectiveDefinition) {
+	f.FormatCommentGroup(ext.AfterDescriptionComment)
+
+	f.WriteWord("extend").WriteWord("directive").WriteString("@").WriteWord(ext.Name)
+
+	f.FormatDirectiveList(ext.Directives)
 
 	f.WriteNewline()
 }
@@ -626,6 +645,8 @@ func (f *formatter) FormatOperationList(lists ast.OperationList) {
 func (f *formatter) FormatOperationDefinition(def *ast.OperationDefinition) {
 	f.FormatCommentGroup(def.Comment)
 
+	f.WriteDescription(def.Description)
+
 	f.WriteWord(string(def.Operation))
 	if def.Name != "" {
 		f.WriteWord(def.Name)
@@ -688,6 +709,8 @@ func (f *formatter) FormatFragmentDefinitionList(lists ast.FragmentDefinitionLis
 func (f *formatter) FormatFragmentDefinition(def *ast.FragmentDefinition) {
 	f.FormatCommentGroup(def.Comment)
 
+	f.WriteDescription(def.Description)
+
 	f.WriteWord("fragment").WriteWord(def.Name)
 	f.FormatVariableDefinitionList(def.VariableDefinition)
 	f.WriteWord("on").WriteWord(def.TypeCondition)
@@ -708,7 +731,9 @@ func (f *formatter) FormatVariableDefinitionList(lists ast.VariableDefinitionLis
 	for idx, def := range lists {
 		f.FormatVariableDefinition(def)
 
-		if idx != len(lists)-1 {
+		// Skip emitting (insignificant) comma in case it is the
+		// last variable, or we printed a new line in its definition.
+		if idx != len(lists)-1 && (def.Description == "" || f.omitDescription) {
 			f.NoPadding().WriteWord(",")
 		}
 	}
@@ -718,12 +743,23 @@ func (f *formatter) FormatVariableDefinitionList(lists ast.VariableDefinitionLis
 func (f *formatter) FormatVariableDefinition(def *ast.VariableDefinition) {
 	f.FormatCommentGroup(def.Comment)
 
+	described := def.Description != "" && !f.omitDescription
+	if described {
+		f.WriteNewline().IncrementIndent()
+		f.WriteDescription(def.Description)
+	}
+
 	f.WriteString("$").WriteWord(def.Variable).NoPadding().WriteString(":").NeedPadding()
 	f.FormatType(def.Type)
 
 	if def.DefaultValue != nil {
 		f.WriteWord("=")
 		f.FormatValue(def.DefaultValue)
+	}
+
+	if described {
+		f.DecrementIndent()
+		f.WriteNewline()
 	}
 
 	// TODO https://github.com/vektah/gqlparser/v2/issues/102

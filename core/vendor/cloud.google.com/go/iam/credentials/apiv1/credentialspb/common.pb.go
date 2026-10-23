@@ -577,40 +577,40 @@ var File_google_iam_credentials_v1_common_proto protoreflect.FileDescriptor
 
 const file_google_iam_credentials_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"&google/iam/credentials/v1/common.proto\x12\x19google.iam.credentials.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x01\n" +
-	"\x1aGenerateAccessTokenRequest\x12=\n" +
-	"\x04name\x18\x01 \x01(\tB)\xe0A\x02\xfaA#\n" +
+	"&google/iam/credentials/v1/common.proto\x12\x19google.iam.credentials.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcd\x01\n" +
+	"\x1aGenerateAccessTokenRequest\x12>\n" +
+	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!iam.googleapis.com/ServiceAccountR\x04name\x12\x1c\n" +
-	"\tdelegates\x18\x02 \x03(\tR\tdelegates\x12\x19\n" +
-	"\x05scope\x18\x04 \x03(\tB\x03\xe0A\x02R\x05scope\x125\n" +
+	"\tdelegates\x18\x02 \x03(\tR\tdelegates\x12\x1a\n" +
+	"\x05scope\x18\x04 \x03(\tB\x04\xe2A\x01\x02R\x05scope\x125\n" +
 	"\blifetime\x18\a \x01(\v2\x19.google.protobuf.DurationR\blifetime\"}\n" +
 	"\x1bGenerateAccessTokenResponse\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12;\n" +
 	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime\"\x8d\x01\n" +
-	"\x0fSignBlobRequest\x12=\n" +
-	"\x04name\x18\x01 \x01(\tB)\xe0A\x02\xfaA#\n" +
+	"expireTime\"\x8f\x01\n" +
+	"\x0fSignBlobRequest\x12>\n" +
+	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!iam.googleapis.com/ServiceAccountR\x04name\x12\x1c\n" +
-	"\tdelegates\x18\x03 \x03(\tR\tdelegates\x12\x1d\n" +
-	"\apayload\x18\x05 \x01(\fB\x03\xe0A\x02R\apayload\"J\n" +
+	"\tdelegates\x18\x03 \x03(\tR\tdelegates\x12\x1e\n" +
+	"\apayload\x18\x05 \x01(\fB\x04\xe2A\x01\x02R\apayload\"J\n" +
 	"\x10SignBlobResponse\x12\x15\n" +
 	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12\x1f\n" +
 	"\vsigned_blob\x18\x04 \x01(\fR\n" +
-	"signedBlob\"\x8c\x01\n" +
-	"\x0eSignJwtRequest\x12=\n" +
-	"\x04name\x18\x01 \x01(\tB)\xe0A\x02\xfaA#\n" +
+	"signedBlob\"\x8e\x01\n" +
+	"\x0eSignJwtRequest\x12>\n" +
+	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!iam.googleapis.com/ServiceAccountR\x04name\x12\x1c\n" +
-	"\tdelegates\x18\x03 \x03(\tR\tdelegates\x12\x1d\n" +
-	"\apayload\x18\x05 \x01(\tB\x03\xe0A\x02R\apayload\"G\n" +
+	"\tdelegates\x18\x03 \x03(\tR\tdelegates\x12\x1e\n" +
+	"\apayload\x18\x05 \x01(\tB\x04\xe2A\x01\x02R\apayload\"G\n" +
 	"\x0fSignJwtResponse\x12\x15\n" +
 	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12\x1d\n" +
 	"\n" +
-	"signed_jwt\x18\x02 \x01(\tR\tsignedJwt\"\xbb\x01\n" +
-	"\x16GenerateIdTokenRequest\x12=\n" +
-	"\x04name\x18\x01 \x01(\tB)\xe0A\x02\xfaA#\n" +
+	"signed_jwt\x18\x02 \x01(\tR\tsignedJwt\"\xbd\x01\n" +
+	"\x16GenerateIdTokenRequest\x12>\n" +
+	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!iam.googleapis.com/ServiceAccountR\x04name\x12\x1c\n" +
-	"\tdelegates\x18\x02 \x03(\tR\tdelegates\x12\x1f\n" +
-	"\baudience\x18\x03 \x01(\tB\x03\xe0A\x02R\baudience\x12#\n" +
+	"\tdelegates\x18\x02 \x03(\tR\tdelegates\x12 \n" +
+	"\baudience\x18\x03 \x01(\tB\x04\xe2A\x01\x02R\baudience\x12#\n" +
 	"\rinclude_email\x18\x04 \x01(\bR\fincludeEmail\"/\n" +
 	"\x17GenerateIdTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05tokenB\xac\x02\xeaAY\n" +
