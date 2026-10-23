@@ -361,14 +361,49 @@ func (sm *SystemMonitor) Probe() {
 				),
 			)
 
+			resources := sm.probeResources()
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeResources()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(resources)),
 			)
+
+			if telemetry := sm.telemetry(resources.GetEnvironment()); telemetry != nil {
+				sm.extraWork.AddWorkOrCancel(
+					sm.ctx.Done(),
+					runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
+						RecordType: &spb.Record_Telemetry{Telemetry: telemetry},
+					})),
+				)
+			}
 		}()
 	}
+}
+
+// telemetry reports the hardware the sidecar monitors and the metric sources
+// the run is configured with, or nil if there is nothing to report.
+func (sm *SystemMonitor) telemetry(e *spb.EnvironmentRecord) *spb.TelemetryRecord {
+	telemetry := &spb.TelemetryRecord{}
+	env := &spb.Env{
+		AppleGpu:  e.GetApple() != nil,
+		NvidiaGpu: len(e.GetGpuNvidia()) > 0,
+		AmdGpu:    len(e.GetGpuAmd()) > 0,
+		Tpu:       e.GetTpu() != nil,
+		Trainium:  e.GetTrainium() != nil,
+	}
+	if proto.Size(env) > 0 {
+		telemetry.Env = env
+	}
+	feature := &spb.Feature{
+		OpenMetrics:  len(sm.settings.GetStatsOpenMetricsEndpoints()) > 0,
+		DcgmExporter: sm.settings.GetStatsDcgmExporter() != "",
+	}
+	if proto.Size(feature) > 0 {
+		telemetry.Feature = feature
+	}
+	if proto.Size(telemetry) == 0 {
+		return nil
+	}
+	return telemetry
 }
 
 // Pause temporarily stops the monitoring process.
