@@ -157,8 +157,12 @@ func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
 				}
 				history.Item = append(history.Item, item)
 			}
-			path := txnlogtest.WandbFile(
-				t,
+			version := transactionlog.VersionLegacy
+			if encoding == "typed" {
+				version = transactionlog.VersionTypedHistory
+			}
+			path := txnlogtest.WandbFileVersion(
+				t, version,
 				&spb.Record{RecordType: &spb.Record_History{History: history}},
 			)
 			var out bytes.Buffer
@@ -232,7 +236,7 @@ func TestDumpRecords_JSONHistoryInvalidTypedJSON(t *testing.T) {
 func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "run-follow.wandb")
-		w, err := transactionlog.OpenWriter(path)
+		w, err := transactionlog.OpenWriterWithVersion(path, transactionlog.VersionTypedHistory)
 		require.NoError(t, err)
 		require.NoError(t, w.Write(&spb.Record{
 			RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "live"}},
@@ -251,7 +255,9 @@ func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
 
 		require.NoError(t, w.Write(&spb.Record{
 			RecordType: &spb.Record_History{History: &spb.HistoryRecord{
-				Item: []*spb.HistoryItem{{Key: "loss", ValueJson: "0.5"}},
+				Item: []*spb.HistoryItem{
+					{Key: "loss", Value: &spb.HistoryItem_Number{Number: 0.5}},
+				},
 			}},
 		}))
 		require.NoError(t, w.Write(&spb.Record{

@@ -1,13 +1,12 @@
 // Package transactionlog implements reading and writing .wandb files.
 package transactionlog
 
-// wandbStoreVersion is written into .wandb file headers.
-//
-// Incrementing this prevents older SDKs from attempting to read .wandb
-// files in a new format. It may also prevent the next SDK version from reading
-// old .wandb files, depending on the implementation of ensureSupportedVersion.
-// Update the error messages below.
-const wandbStoreVersion = 0
+const (
+	// VersionLegacy permits readers that require JSON history values.
+	VersionLegacy uint8 = 0
+	// VersionTypedHistory requires a reader that supports typed history values.
+	VersionTypedHistory uint8 = 1
+)
 
 // UnsupportedVersionError reports a file version that this SDK cannot read.
 type UnsupportedVersionError struct {
@@ -17,17 +16,15 @@ type UnsupportedVersionError struct {
 // Error omits the package prefix because sync shows this message to users.
 // The file version does not identify which SDK version the reader needs.
 func (e *UnsupportedVersionError) Error() string {
-	if e.Version > wandbStoreVersion {
-		return "a newer wandb version is required to read this file"
-	}
-
-	return "an older wandb version is required to read this file"
+	return "a newer wandb version is required to read this file"
 }
 
 // ensureSupportedVersion returns an error for an unsupported version.
 func ensureSupportedVersion(version uint8) error {
-	if version != wandbStoreVersion {
+	switch version {
+	case VersionLegacy, VersionTypedHistory:
+		return nil
+	default:
 		return &UnsupportedVersionError{Version: version}
 	}
-	return nil
 }

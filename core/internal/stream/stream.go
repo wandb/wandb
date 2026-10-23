@@ -190,7 +190,11 @@ func (s *Stream) maybeSavingToTransactionLog(
 		return work
 	}
 
-	w, err := transactionlog.OpenWriter(s.settings.GetTransactionLogPath())
+	version := transactionlog.VersionLegacy
+	if s.settings.IsHistoryValueEncodingTyped() && !s.settings.IsHistoryValueEncodingJSON() {
+		version = transactionlog.VersionTypedHistory
+	}
+	w, err := transactionlog.OpenWriterWithVersion(s.settings.GetTransactionLogPath(), version)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf(
 			"stream: error opening transaction log for writing: %v", err))
