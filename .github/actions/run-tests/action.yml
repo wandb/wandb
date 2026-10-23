@@ -59,6 +59,12 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: |
+        # The Azure mirror can serve packages too slowly to finish within the job limit.
+        if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+          sudo sed -i '\|://azure\.archive\.ubuntu\.com/|d' /etc/apt/apt-mirrors.txt
+          cat /etc/apt/apt-mirrors.txt
+        fi
+
         sudo apt-get update
         sudo apt-get install --no-install-recommends -y ffmpeg libsndfile1
     - name: Install system dependencies
