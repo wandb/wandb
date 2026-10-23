@@ -78,6 +78,41 @@ type Series struct {
 	xMin, xMax   float64
 	yMin, yMax   float64
 	yMinPositive float64
+
+	// smooth caches the smoothed Y values for the chart's current weight.
+	smooth seriesSmoothing
+}
+
+// seriesSmoothing is the debiased exponential moving average of a series'
+// Y values for one weight, extended as samples arrive so a redraw only
+// smooths the new points.
+type seriesSmoothing struct {
+	weight       float64
+	y            []float64
+	last, debias float64
+}
+
+// plotY returns the Y values as plotted: the raw samples, or their
+// exponential moving average with the given weight. The average is debiased
+// so the first points are not pulled toward zero, and non-finite samples
+// pass through without moving it.
+func (s *Series) plotY(weight float64) []float64 {
+	if weight <= 0 {
+		return s.Y
+	}
+	sm := &s.smooth
+	if sm.weight != weight {
+		*sm = seriesSmoothing{weight: weight}
+	}
+	for _, y := range s.Y[len(sm.y):] {
+		if isFinite(y) {
+			sm.last = sm.last*weight + (1-weight)*y
+			sm.debias = sm.debias*weight + (1 - weight)
+			y = sm.last / sm.debias
+		}
+		sm.y = append(sm.y, y)
+	}
+	return sm.y
 }
 
 func NewSeries(name string, palette []AdaptiveColor) *Series {
@@ -213,6 +248,9 @@ type EpochLineChart struct {
 
 	// chartGuides controls the background guides rendered behind the series.
 	chartGuides string
+
+	// smoothing is the EMA weight applied to plotted values; 0 plots raw samples.
+	smoothing float64
 
 	// inspection holds crosshair overlay state for data inspection mode.
 	inspection ChartInspection
@@ -634,12 +672,32 @@ func (c *EpochLineChart) Draw() {
 	}
 	c.drawChartGuides(startX)
 
+	if c.smoothing > 0 {
+		// The raw values ghost under the smoothed lines. All ghosts go first
+		// so none paints over another series' smoothed line.
+		for _, key := range c.order {
+			s := c.data[key]
+			style := s.style.Load().(lipgloss.Style)
+			ghost := ghostStyle(&style)
+			c.drawSeries(s, s.Y, &ghost, startX)
+		}
+	}
 	for _, key := range c.order {
-		c.drawSeries(c.data[key], startX)
+		s := c.data[key]
+		style := s.style.Load().(lipgloss.Style)
+		c.drawSeries(s, s.plotY(c.smoothing), &style, startX)
 	}
 
 	c.drawInspectionOverlay(startX)
 	c.dirty = false
+}
+
+// ghostStyle dims a series style toward the terminal background for the raw
+// values drawn under a smoothed line.
+func ghostStyle(style *lipgloss.Style) lipgloss.Style {
+	r, g, b, _ := style.GetForeground().RGBA()
+	br, bg, bb := terminalBackgroundRGB()
+	return style.Foreground(blendRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8), br, bg, bb, 0.6))
 }
 
 // drawChartGuides renders the configured background guides inside the plot area.
@@ -691,8 +749,8 @@ func hasTopYTick(graphH, yStep int) bool {
 	return yStep > 0 && graphH%yStep >= (yStep+1)/2
 }
 
-// drawSeries renders a single series onto the canvas.
-func (c *EpochLineChart) drawSeries(s *Series, startX int) {
+// drawSeries renders ys, one value per X of the series, onto the canvas.
+func (c *EpochLineChart) drawSeries(s *Series, ys []float64, style *lipgloss.Style, startX int) {
 	if len(s.X) == 0 {
 		return
 	}
@@ -713,20 +771,22 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		0, float64(c.GraphHeight()),
 	)
 
-	c.rasterizeSeries(bGrid, s, lb, ub)
+	c.rasterizeSeries(bGrid, s.X, ys, lb, ub)
 
-	patterns := bGrid.BraillePatterns()
-	style := s.style.Load().(lipgloss.Style)
-
-	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+	drawBraillePatternsOccluded(
+		&c.Canvas,
+		canvas.Point{X: startX, Y: 0},
+		bGrid.BraillePatterns(),
+		style,
+	)
 }
 
-// rasterizeSeries plots the series window [lb, ub) onto the braille grid.
+// rasterizeSeries plots the sample window [lb, ub) onto the braille grid.
 // Samples sharing a braille column collapse into one vertical span and
 // columns connect with Bresenham, so the work is O(pixels), not O(points).
 func (c *EpochLineChart) rasterizeSeries(
 	bGrid *graph.BrailleGrid,
-	s *Series,
+	xs, ys []float64,
 	lb, ub int,
 ) {
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
@@ -748,14 +808,14 @@ func (c *EpochLineChart) rasterizeSeries(
 	}
 
 	for i := lb; i < ub; i++ {
-		yValue, ok := c.scaleYValue(s.Y[i])
+		yValue, ok := c.scaleYValue(ys[i])
 		if !ok {
 			flushColumn()
 			inSegment = false
 			continue
 		}
 
-		x := (s.X[i] - c.ViewMinX()) * xScale
+		x := (xs[i] - c.ViewMinX()) * xScale
 		y := (yValue - c.ViewMinY()) * yScale
 
 		if x < 0 || x > float64(c.GraphWidth()) || y < 0 || y > float64(c.GraphHeight()) {
@@ -851,7 +911,7 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 			continue
 		}
 
-		yVal := s.Y[idx]
+		yVal := s.plotY(c.smoothing)[idx]
 		label := c.formatInspectionLabel(key, s.X[idx], yVal)
 		labelRunes := []rune(label)
 		if lw := len(labelRunes); lw > maxLabelWidth {
@@ -1118,6 +1178,23 @@ func (c *EpochLineChart) SetChartGuides(guides string) {
 	c.dirty = true
 }
 
+// SetSmoothing sets the EMA weight for plotted values; 0 plots raw samples.
+func (c *EpochLineChart) SetSmoothing(weight float64) {
+	if weight < 0 || weight >= 1 || weight == c.smoothing {
+		return
+	}
+	c.smoothing = weight
+	// Drop the caches so turning smoothing off frees them; plotY rebuilds
+	// them for the new weight on the next draw.
+	for _, s := range c.data {
+		s.smooth = seriesSmoothing{}
+	}
+	c.dirty = true
+}
+
+// Smoothing returns the EMA weight for plotted values; 0 is off.
+func (c *EpochLineChart) Smoothing() float64 { return c.smoothing }
+
 // SetSeriesStyle sets the style for the named series, if present.
 func (c *EpochLineChart) SetSeriesStyle(key string, style *lipgloss.Style) {
 	if style == nil {
@@ -1230,7 +1307,7 @@ func (c *EpochLineChart) snapInspectionToDataX(targetX float64) {
 	}
 
 	c.inspection.DataX = s.X[idx]
-	c.inspection.DataY = s.Y[idx]
+	c.inspection.DataY = s.plotY(c.smoothing)[idx]
 
 	// Pixel snap to the exact dataX under current view.
 	mouseXFrac := (c.inspection.DataX - c.ViewMinX()) / xRange

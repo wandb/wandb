@@ -37,6 +37,29 @@ func TestEpochLineChart_Range(t *testing.T) {
 	require.LessOrEqual(t, math.Abs(c.ViewMaxX()-30), 1e-9)
 }
 
+func TestEpochLineChart_SmoothingExtendsIncrementally(t *testing.T) {
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(100, 10)
+	c.SetSmoothing(0.9)
+
+	c.AddData(m, leet.MetricData{X: []float64{0, 1, 2}, Y: []float64{1, 1, 1}})
+	require.Equal(t, []float64{1, 1, 1}, c.TestPlotY(m), "a constant series smooths to itself")
+
+	c.AddData(m, leet.MetricData{X: []float64{3, 4}, Y: []float64{0, 0}})
+	got := c.TestPlotY(m)
+	require.Greater(t, got[3], 0.0, "smoothed, not the raw 0")
+	require.Less(t, got[3], 1.0)
+
+	full := leet.NewEpochLineChart(m)
+	full.SetSmoothing(0.9)
+	full.AddData(m, leet.MetricData{X: []float64{0, 1, 2, 3, 4}, Y: []float64{1, 1, 1, 0, 0}})
+	require.Equal(t, full.TestPlotY(m), got, "appending smooths like recomputing from scratch")
+
+	c.SetSmoothing(0)
+	require.Equal(t, []float64{1, 1, 1, 0, 0}, c.TestPlotY(m))
+}
+
 func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
 	m := "loss"
 	c := leet.NewEpochLineChart(m)
