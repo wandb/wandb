@@ -1,3 +1,6 @@
+import json
+import math
+
 import pytest
 import torch
 import torch.nn as nn
@@ -103,3 +106,50 @@ def test_watch_bad_argument(mock_run):
         ValueError, match="log must be one of 'gradients', 'parameters', 'all', or None"
     ):
         run.watch(net, log="bad_argument")
+
+
+@pytest.mark.parametrize(
+    "constant_tensor, constant_value",
+    [
+        pytest.param(
+            torch.tensor([1.0], dtype=torch.float64),
+            1.0,
+            id="single_value",
+        ),
+        pytest.param(
+            torch.tensor([2.0, 2.0, 2.0], dtype=torch.float64),
+            2.0,
+            id="multiple_equal_values",
+        ),
+        pytest.param(
+            torch.sparse_coo_tensor(
+                torch.tensor([[0]]),
+                torch.tensor([0.0]),
+                (4,),
+                check_invariants=True,
+            ),
+            0.0,
+            id="sparse_tensor",
+        ),
+    ],
+)
+def test_constant_tensor_histogram_has_nonzero_width_bin(
+    mock_run,
+    parse_records,
+    record_q,
+    constant_tensor,
+    constant_value,
+):
+    mock_run()
+    wandb_torch.TorchHistory().log_tensor_stats(constant_tensor, "stats")
+
+    history = parse_records(record_q).partial_history
+    payload = json.loads(history[0]["stats"])
+    bins = payload["bins"]
+    values = payload["values"]
+
+    assert values == [constant_tensor.numel()]
+    assert len(bins) == 2
+    assert all(math.isfinite(edge) for edge in bins)
+    assert bins[0] < bins[1]
+    assert bins[0] <= constant_value <= bins[1]
