@@ -24,6 +24,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - `wandb.Api().artifact(...)` now fetches an artifact's collection membership aliases a 100-alias page at a time instead of all at once, fetching further pages lazily only if something reads `Artifact.aliases` (@ibindlish in https://github.com/wandb/wandb/pull/13183)
+- `Artifact.link()` now fetches the linked artifact's membership aliases a 100-alias page at a time instead of all at once, fetching further pages lazily only if something reads `Artifact.aliases` (@ibindlish in https://github.com/wandb/wandb/pull/13250)
 
 ### Fixed
 

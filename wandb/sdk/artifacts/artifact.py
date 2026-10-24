@@ -2668,6 +2668,31 @@ class Artifact:
             gql_op, variables={"input": gql_input.model_dump()}
         )
 
+    def _link_result_to_artifact(
+        self,
+        membership: ArtifactMembershipFragment,
+        *,
+        target: FullArtifactPath,
+        service_api: ServiceApi,
+    ) -> Artifact:
+        """Build the linked `Artifact` from a `LinkArtifact` response's membership."""
+        membership_aliases = None
+        aliases_paginator = None
+        if service_api.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION):
+            membership_aliases, aliases_paginator = _paginate_membership_aliases(
+                service_api,
+                membership,
+                error_context=f"link response for {target.to_str()!r}",
+            )
+
+        return self._from_membership(
+            membership,
+            target=target,
+            service_api=self._get_service_api(),
+            membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
+        )
+
     @normalize_exceptions
     def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
         """Link this artifact to a collection.
@@ -2761,10 +2786,8 @@ class Artifact:
 
         # Newer server versions can return artifactMembership directly in the response
         if (result := data.result) and (membership := result.artifact_membership):
-            return self._from_membership(
-                membership,
-                target=target,
-                service_api=self._get_service_api(),
+            return self._link_result_to_artifact(
+                membership, target=target, service_api=service_api
             )
 
         # Old behavior, which requires re-fetching the linked artifact to return it

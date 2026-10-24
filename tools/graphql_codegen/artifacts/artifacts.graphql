@@ -332,12 +332,24 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
 mutation LinkArtifact(
   $input: LinkArtifactInput!
   $includeAliases: Boolean = true
+  $perPage: Int = 100 # Only used to fetch the first page of membership.aliasesConnection
 ) {
   result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
       # Workaround: ensures generated pydantic field defaults to `None`
       ...ArtifactMembershipFragment
+      aliasesConnection(first: $perPage) @include(if: true) {
+        # Workaround: ensures generated pydantic field defaults to `None`
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
     }
   }
 }
