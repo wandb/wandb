@@ -283,6 +283,9 @@ func Test_Read_UnsupportedNewVersion(t *testing.T) {
 
 	assert.ErrorContains(t, err,
 		"a newer wandb version is required to read this file")
+	var versionErr *transactionlog.UnsupportedVersionError
+	require.ErrorAs(t, err, &versionErr)
+	assert.EqualValues(t, 1, versionErr.Version)
 }
 
 func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
