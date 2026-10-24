@@ -1570,13 +1570,15 @@ def sample_with_exponential_decay_weights(
     """
     xs_array = np.array(xs)
     ys_array = np.array(ys)
-    keys_array = np.array(keys) if keys else None
+    keys_array = np.array(keys) if keys is not None else None
     weights = np.exp(-np.arange(len(xs_array)) / len(xs_array))
     weights /= np.sum(weights)
     sampled_indices = np.random.choice(len(xs_array), size=sample_size, p=weights)
     sampled_xs = xs_array[sampled_indices].tolist()
     sampled_ys = ys_array[sampled_indices].tolist()
-    sampled_keys = keys_array[sampled_indices].tolist() if keys_array else None
+    sampled_keys = (
+        keys_array[sampled_indices].tolist() if keys_array is not None else None
+    )
 
     return sampled_xs, sampled_ys, sampled_keys
 

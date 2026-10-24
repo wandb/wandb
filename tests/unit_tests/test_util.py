@@ -676,6 +676,20 @@ def test_sampling_weights():
     assert np.mean(sampled_xs) < np.mean(xs)
 
 
+def test_sampling_weights_with_keys():
+    xs = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    ys = [[10, 20, 30], [40, 50, 60], [70, 80, 90]]
+    keys = ["a", "b", "c"]
+    sampled_xs, sampled_ys, sampled_keys = util.sample_with_exponential_decay_weights(
+        xs, ys, keys=keys, sample_size=10
+    )
+    assert len(sampled_keys) == 10
+    for x, y, key in zip(sampled_xs, sampled_ys, sampled_keys, strict=True):
+        i = keys.index(key)
+        assert x == xs[i]
+        assert y == ys[i]
+
+
 def test_json_dump_uncompressed_with_numpy_datatypes():
     import io
 
