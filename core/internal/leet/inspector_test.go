@@ -10,6 +10,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	txnlogtest "github.com/wandb/wandb/core/internal/transactionlogtest"
 )
 
 // newTestInspector builds an inspector over a small .wandb file with its
@@ -18,7 +19,7 @@ func newTestInspector(t *testing.T) *leet.Inspector {
 	t.Helper()
 
 	logger := observability.NewNoOpLogger()
-	path := writeWandbFile(t, inspectorTestRecords()...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 	ins := leet.NewInspector(leet.InspectorParams{
 		RunFile: path,
 		Config:  leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger),
@@ -108,7 +109,7 @@ func TestInspector_FilterNarrowsList(t *testing.T) {
 func TestInspector_DragResizesAndResetsListPane(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	path := writeWandbFile(t, inspectorTestRecords()...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 
 	ins := leet.NewInspector(leet.InspectorParams{
 		RunFile: path,
