@@ -7,7 +7,14 @@ import optuna
 import pytest
 import wandb
 from wandb.sdk.sweeps.run_state import RunState
-from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
+from wandb.sdk.sweeps.scheduler import optimizer as scheduler_optimizer
+from wandb.sdk.sweeps.scheduler.optimizer import (
+    Objective,
+    Run,
+    RunConfig,
+    RunWithMetrics,
+    sweep_objectives,
+)
 from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
@@ -15,6 +22,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
     build_optuna_optimizer,
     create_study_from_sweep_config,
     make_optimizer,
+    study_objectives,
     sweep_parameter_to_distribution,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -221,10 +229,12 @@ class TestBuildOptunaSchedulerOptimizer:
             "from wandb.sdk.sweeps.scheduler.optuna import sweep_directions\n"
             "\n"
             "def make_study(sweep):\n"
-            "    return optuna.create_study(\n"
+            "    study = optuna.create_study(\n"
             "        directions=sweep_directions(sweep.config),\n"
             "        sampler=optuna.samplers.RandomSampler(),\n"
-            "    )\n",
+            "    )\n"
+            "    study.set_metric_names(['loss', 'accuracy'])\n"
+            "    return study\n",
             encoding="utf-8",
         )
         config = {
@@ -288,6 +298,89 @@ class TestBuildOptunaSchedulerOptimizer:
         assert "returns a dict of parameter values" in str(error.value)
 
 
+class TestStudyObjectives:
+    def test_reads_the_study_metric_names_and_directions(self) -> None:
+        study = optuna.create_study(directions=["minimize", "maximize"])
+        study.set_metric_names(["loss", "accuracy"])
+
+        objectives = study_objectives(study)
+
+        assert objectives == [
+            Objective("loss", "minimize"),
+            Objective("accuracy", "maximize"),
+        ]
+
+    def test_rejects_a_study_without_metric_names(self) -> None:
+        study = optuna.create_study(direction="maximize")
+
+        with pytest.raises(ValueError, match="study.set_metric_names"):
+            study_objectives(study)
+
+    def test_the_default_study_names_the_sweep_metrics(self) -> None:
+        study = create_study_from_sweep_config(
+            {"metric": {"name": "accuracy", "goal": "maximize"}}
+        )
+
+        assert study_objectives(study) == [Objective("accuracy", "maximize")]
+
+    def test_builds_from_a_study_factory_without_a_sweep_metric(self, tmp_path) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "import optuna\n"
+            "\n"
+            "def make_study(sweep):\n"
+            "    study = optuna.create_study(direction='maximize')\n"
+            "    study.set_metric_names(['accuracy'])\n"
+            "    return study\n",
+            encoding="utf-8",
+        )
+        config = {
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "optimizer": "make_study",
+            },
+        }
+
+        optimizer = build_optuna_optimizer(make_scheduler_grid_sweep(config=config))
+
+        assert optimizer.metric_names() == ["accuracy"]
+        assert optimizer.metric_goals() == ["maximize"]
+
+    def test_rejects_a_study_factory_contradicting_the_sweep_metric(
+        self, tmp_path
+    ) -> None:
+        source = tmp_path / "optimizer.py"
+        source.write_text(
+            "import optuna\n"
+            "\n"
+            "def make_study(sweep):\n"
+            "    study = optuna.create_study(direction='maximize')\n"
+            "    study.set_metric_names(['accuracy'])\n"
+            "    return study\n",
+            encoding="utf-8",
+        )
+        config = {
+            "metric": {"name": "loss"},
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "optimizer": "make_study",
+            },
+        }
+
+        with pytest.raises(wandb.Error, match="does not match the sweep config"):
+            scheduler_optimizer.make_optimizer(make_scheduler_grid_sweep(config=config))
+
+    def test_the_default_study_needs_a_sweep_metric(self) -> None:
+        config = {"parameters": {"lr": {"min": 0.0, "max": 1.0}}}
+
+        with pytest.raises(wandb.Error, match="declares no metric or metrics"):
+            build_optuna_optimizer(make_scheduler_grid_sweep(config=config))
+
+
 class TestExhaustibleSampler:
     """A finite sampler must finish the sweep instead of re-running the grid.
 
@@ -313,7 +406,12 @@ class TestExhaustibleSampler:
             sampler=optuna.samplers.GridSampler({"x": [1, 2]}),
         )
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
-        return OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+        return OptunaDeclarativeOptimizer(
+            study,
+            self.DISTRIBUTIONS,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
 
     def finish(self, optimizer: OptunaDeclarativeOptimizer, suggestion) -> None:
         optimizer.tell_run(
@@ -368,7 +466,12 @@ class TestExhaustibleSampler:
 
         study = optuna.create_study(direction="minimize", sampler=BrokenSampler())
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
-        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+        optimizer = OptunaDeclarativeOptimizer(
+            study,
+            self.DISTRIBUTIONS,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
         with pytest.raises(RuntimeError, match="genuine sampler bug"):
@@ -390,7 +493,10 @@ class TestImperativeWarmStart:
         )
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
         return OptunaImperativeOptimizer(
-            study, lambda trial: {"x": trial.suggest_float("x", 0.0, 1.0)}, sweep
+            study,
+            lambda trial: {"x": trial.suggest_float("x", 0.0, 1.0)},
+            sweep,
+            objectives=sweep_objectives(sweep.config),
         )
 
     def finished(self, x: float, loss: float) -> RunWithMetrics:
@@ -421,7 +527,12 @@ class TestIntermediateReporting:
     def optimizer(self, sweep: SweepInfo) -> OptunaDeclarativeOptimizer:
         study = optuna.create_study(direction="minimize")
         distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
-        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+        return OptunaDeclarativeOptimizer(
+            study,
+            distributions,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
 
     def test_tell_run_rejects_history_missing_step(self, optimizer) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
@@ -445,7 +556,12 @@ class TestRouteLibraryLogs:
         self, study: optuna.Study, sweep: SweepInfo
     ) -> OptunaDeclarativeOptimizer:
         distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
-        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+        return OptunaDeclarativeOptimizer(
+            study,
+            distributions,
+            sweep,
+            objectives=sweep_objectives(sweep.config),
+        )
 
     def test_captures_study_creation(
         self,
