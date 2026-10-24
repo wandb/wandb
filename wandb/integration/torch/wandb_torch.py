@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import math
 from functools import reduce
 from operator import mul
 from typing import TYPE_CHECKING
@@ -226,7 +227,14 @@ class TorchHistory:
         if tmin == tmax:
             tensor = torch.Tensor([flat.numel()])
             tensor = tensor.cpu().clone().detach()
-            bins = torch.Tensor([tmin, tmax])
+            # When tmin == tmax, a single histogram bin is created, which doesn't
+            # display anything on the web app, so we expand the bin size to show the value.
+            padding = max(0.5, math.ulp(tmin))
+            limit = torch.finfo(torch.float64).max
+            bins = torch.tensor(
+                [max(-limit, tmin - padding), min(limit, tmax + padding)],
+                dtype=torch.float64,
+            )
         else:
             tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
             tensor = tensor.cpu().detach().clone()
