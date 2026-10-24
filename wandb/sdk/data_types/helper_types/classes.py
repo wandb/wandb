@@ -48,6 +48,9 @@ class Classes(Media):
         json_obj["class_set"] = self._class_set
         return json_obj
 
+    def _labels_by_id(self) -> dict[int | str, str]:
+        return {class_obj["id"]: class_obj["name"] for class_obj in self._class_set}
+
     def get_type(self) -> _ClassesIdType:
         return _ClassesIdType(self)
 
