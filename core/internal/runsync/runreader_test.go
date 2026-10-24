@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/streamtest"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	txnlogtest "github.com/wandb/wandb/core/internal/transactionlogtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -32,10 +33,26 @@ type testFixtures struct {
 }
 
 // setup creates a RunReader and test objects.
-func setup(t *testing.T) testFixtures {
+func setup(t *testing.T, records ...*spb.Record) testFixtures {
+	return setupVersion(t, transactionlog.VersionLegacy, records...)
+}
+
+func setupVersion(t *testing.T, version uint8, records ...*spb.Record) testFixtures {
 	t.Helper()
 
-	transactionLog := filepath.Join(t.TempDir(), "test-run.wandb")
+	var transactionLog string
+	switch version {
+	case transactionlog.VersionLegacy, transactionlog.VersionTypedHistory:
+		transactionLog = txnlogtest.WandbFileVersion(t, version, records...)
+	default:
+		transactionLog = txnlogtest.WandbFileUnsupportedVersion(t, version, records...)
+	}
+
+	return setupForFile(t, transactionLog)
+}
+
+func setupForFile(t *testing.T, transactionLog string) testFixtures {
+	t.Helper()
 
 	fakeRunWork := runworktest.New()
 
@@ -59,24 +76,6 @@ func setup(t *testing.T) testFixtures {
 		TransactionLog:   transactionLog,
 		FakeRunWork:      fakeRunWork,
 		MockRecordParser: mockRecordParser,
-	}
-}
-
-// wandbFileWithRecords writes a transaction log with the given records.
-func wandbFileWithRecords(
-	t *testing.T,
-	path string,
-	records ...*spb.Record,
-) {
-	t.Helper()
-
-	store, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, store.Close()) }()
-
-	for _, rec := range records {
-		err := store.Write(rec)
-		require.NoError(t, err)
 	}
 }
 
@@ -130,10 +129,8 @@ func isExitRecord(code int32) gomock.Matcher {
 }
 
 func Test_Extract_FindsInformation(t *testing.T) {
-	x := setup(t)
 	startTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	wandbFileWithRecords(t,
-		x.TransactionLog,
+	x := setup(t,
 		&spb.Record{RecordType: &spb.Record_Header{
 			Header: &spb.HeaderRecord{
 				VersionInfo: &spb.VersionInfo{
@@ -164,7 +161,6 @@ func Test_Extract_FindsInformation(t *testing.T) {
 
 func Test_Extract_ErrorIfNoRunRecord(t *testing.T) {
 	x := setup(t)
-	wandbFileWithRecords(t, x.TransactionLog)
 
 	runInfo, err := x.RunReader.ExtractRunInfo(context.Background())
 
@@ -173,7 +169,7 @@ func Test_Extract_ErrorIfNoRunRecord(t *testing.T) {
 }
 
 func Test_Extract_ErrorIfNoFile(t *testing.T) {
-	x := setup(t)
+	x := setupForFile(t, filepath.Join(t.TempDir(), "no-such-file.wandb"))
 
 	runInfo, err := x.RunReader.ExtractRunInfo(context.Background())
 
@@ -182,9 +178,7 @@ func Test_Extract_ErrorIfNoFile(t *testing.T) {
 }
 
 func Test_TurnsAllRecordsIntoWork(t *testing.T) {
-	x := setup(t)
-	wandbFileWithRecords(t,
-		x.TransactionLog,
+	x := setup(t,
 		&spb.Record{Num: 1},
 		&spb.Record{Num: 2},
 		exitRecord(0),
@@ -208,8 +202,7 @@ func Test_TurnsAllRecordsIntoWork(t *testing.T) {
 }
 
 func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
-	x := setup(t)
-	wandbFileWithRecords(t, x.TransactionLog, &spb.Record{Num: 1})
+	x := setup(t, &spb.Record{Num: 1})
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	work1 := &testWork{ID: 1}
 	exitWork := &testWork{ID: 2}
@@ -257,13 +250,10 @@ func Test_ParsesInitFailure(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			x := setup(t)
-			wandbFileWithRecords(t,
-				x.TransactionLog,
-				&spb.Record{
-					Num:        1,
-					RecordType: &spb.Record_Run{Run: &spb.RunRecord{}},
-				})
+			x := setup(t, &spb.Record{
+				Num:        1,
+				RecordType: &spb.Record_Run{Run: &spb.RunRecord{}},
+			})
 			x.FakeRunWork.QueueResponse(tc.Response)
 			x.MockRecordParser.EXPECT().
 				Parse(gomock.Any()).
@@ -278,9 +268,7 @@ func Test_ParsesInitFailure(t *testing.T) {
 }
 
 func Test_LaterRunRecordsDontWaitForResponse(t *testing.T) {
-	x := setup(t)
-	wandbFileWithRecords(t,
-		x.TransactionLog,
+	x := setup(t,
 		&spb.Record{
 			Num:        1,
 			RecordType: &spb.Record_Run{Run: &spb.RunRecord{}},
@@ -320,6 +308,7 @@ func Test_LaterRunRecordsDontWaitForResponse(t *testing.T) {
 
 func Test_FileNotFoundError(t *testing.T) {
 	x := setup(t)
+	require.NoError(t, os.Remove(x.TransactionLog))
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
 
@@ -334,7 +323,6 @@ func Test_FileNotFoundError(t *testing.T) {
 
 func Test_FilePermissionError(t *testing.T) {
 	x := setup(t)
-	wandbFileWithRecords(t, x.TransactionLog)
 	err := os.Chmod(x.TransactionLog, 0o200) // write-only
 	require.NoError(t, err)
 
@@ -352,8 +340,7 @@ func Test_FilePermissionError(t *testing.T) {
 }
 
 func Test_IncompleteRecordError(t *testing.T) {
-	x := setup(t)
-	wandbFileWithRecords(t, x.TransactionLog, &spb.Record{Num: 1})
+	x := setup(t, &spb.Record{Num: 1})
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
@@ -372,7 +359,6 @@ func Test_IncompleteRecordError(t *testing.T) {
 
 func Test_CorruptFileError(t *testing.T) {
 	x := setup(t)
-	wandbFileWithRecords(t, x.TransactionLog)
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
@@ -386,4 +372,15 @@ func Test_CorruptFileError(t *testing.T) {
 	err = x.RunReader.ProcessTransactionLog(context.Background())
 
 	assert.ErrorContains(t, err, "error getting next record")
+}
+
+func Test_UnsupportedVersionError(t *testing.T) {
+	x := setupVersion(t, 2)
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
+	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
+
+	err := x.RunReader.ProcessTransactionLog(context.Background())
+	var versionErr *transactionlog.UnsupportedVersionError
+	require.ErrorAs(t, err, &versionErr)
+	assert.Equal(t, uint8(2), versionErr.Version)
 }

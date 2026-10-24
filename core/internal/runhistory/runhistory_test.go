@@ -1,6 +1,7 @@
 package runhistory_test
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -197,26 +198,31 @@ func TestToRecords(t *testing.T) {
 }
 
 func TestToRecords_TypedValuesRoundTrip(t *testing.T) {
-	rh := runhistory.New()
-	rh.SetInt(pathtree.PathOf("integer"), 1)
-	rh.SetFloat(pathtree.PathOf("float"), 1.0)
+	// includeJSON should not matter, because typed values are preferred over JSON values.
+	for _, includeJSON := range []bool{true, false} {
+		t.Run(fmt.Sprint("includeJSON=", includeJSON), func(t *testing.T) {
+			rh := runhistory.New()
+			rh.SetInt(pathtree.PathOf("integer"), 1)
+			rh.SetFloat(pathtree.PathOf("float"), 1.0)
 
-	records, err := rh.ToRecords(true, true)
-	require.NoError(t, err)
+			records, err := rh.ToRecords(true, includeJSON)
+			require.NoError(t, err)
 
-	decoded := runhistory.New()
-	for _, record := range records {
-		require.NoError(t, decoded.SetFromRecord(record))
+			decoded := runhistory.New()
+			for _, record := range records {
+				require.NoError(t, decoded.SetFromRecord(record))
+			}
+
+			integer, ok := decoded.GetInt(pathtree.PathOf("integer"))
+			assert.True(t, ok)
+			assert.Equal(t, int64(1), integer)
+			_, ok = decoded.GetInt(pathtree.PathOf("float"))
+			assert.False(t, ok)
+			float, ok := decoded.GetNumber(pathtree.PathOf("float"))
+			assert.True(t, ok)
+			assert.Equal(t, 1.0, float)
+		})
 	}
-
-	integer, ok := decoded.GetInt(pathtree.PathOf("integer"))
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), integer)
-	_, ok = decoded.GetInt(pathtree.PathOf("float"))
-	assert.False(t, ok)
-	float, ok := decoded.GetNumber(pathtree.PathOf("float"))
-	assert.True(t, ok)
-	assert.Equal(t, 1.0, float)
 }
 
 func TestForEachNumber(t *testing.T) {

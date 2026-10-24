@@ -67,7 +67,7 @@ func NewWriter(t *testing.T, options *WriterOptions) (*transactionlog.Writer, st
 		require.NoError(t, err)
 		writeVersion(t, path, options.Version)
 	} else {
-		w, err = transactionlog.OpenWriter(path)
+		w, err = transactionlog.OpenWriterWithVersion(path, options.Version)
 		require.NoError(t, err)
 	}
 	for _, record := range options.Records {

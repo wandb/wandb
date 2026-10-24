@@ -97,9 +97,7 @@ func TestReadInspectorBatch_ScanAndReadAt(t *testing.T) {
 }
 
 func TestReadInspectorBatch_LiveAppend(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run-live.wandb")
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
+	w, path := txnlogtest.NewWriter(t, &txnlogtest.WriterOptions{})
 	defer func() { _ = w.Close() }()
 
 	require.NoError(t, w.Write(&spb.Record{
@@ -136,7 +134,7 @@ func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 		name    string
 		version byte
 	}{
-		{name: "next version", version: 1},
+		{name: "next version", version: 2},
 		{name: "maximum version", version: 255},
 	} {
 		t.Run(test.name, func(t *testing.T) {
