@@ -114,6 +114,7 @@ if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
     from wandb.apis.public.service_api import ServiceApi
 
+    from ._alias_paginator import MembershipAliasesPaginator
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
@@ -124,6 +125,100 @@ logger = logging.getLogger(__name__)
 _MB: Final[int] = 1024 * 1024
 _FILE_EXECUTOR_WORKERS = 32
 _MP_EXECUTOR_WORKERS = 32
+
+
+def _resolve_aliases(
+    src_art: ArtifactFragment,
+    *,
+    membership: ArtifactMembershipFragment | None,
+    membership_aliases: list[str] | None,
+    entity: str,
+    project: str,
+    collection: str,
+) -> list[str]:
+    """Return the artifact's aliases, preferring the most specific source available."""
+    if membership_aliases is not None:
+        return membership_aliases
+    if membership:
+        return [a.alias for a in (membership.aliases or [])]
+    if not src_art.aliases:
+        return []
+    return [
+        a.alias
+        for a in src_art.aliases
+        if (
+            (alias_coll := a.artifact_collection)
+            and (alias_proj := alias_coll.project)
+            and alias_proj.entity.name == entity
+            and alias_proj.name == project
+            and alias_coll.name == collection
+        )
+    ]
+
+
+def _resolve_version(
+    version_aliases: list[str],
+    *,
+    membership: ArtifactMembershipFragment | None,
+    src_art: ArtifactFragment,
+) -> str:
+    """Return the artifact's version string, e.g. "v3"."""
+    try:
+        return one(
+            version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
+        )
+    except TooFewItemsError:
+        # default to the membership version if passed to this method,
+        # otherwise fallback to the source version
+        if membership and (m_version_index := membership.version_index) is not None:
+            return f"v{m_version_index}"
+        return f"v{src_art.version_index}"
+    except TooManyItemsError:
+        msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
+        raise ValueError(msg) from None
+
+
+def _paginate_membership_aliases(
+    service_api: ServiceApi,
+    membership: ArtifactMembershipFragment,
+    *,
+    error_context: str,
+) -> tuple[list[str], MembershipAliasesPaginator | None]:
+    """Split a membership's `aliasesConnection` into fetched + deferred pages.
+
+    Resumes continuation from the membership's own canonical
+    entity/project/collection and its version index (`collection:vN`),
+    rather than whatever name the caller originally looked it up by: an
+    alias like `:latest` can move to point at a different version between
+    this fetch and a later continuation fetch, which would otherwise
+    resume pagination against the wrong membership using a cursor from
+    this one.
+
+    Raises if the response is missing `aliasesConnection`, `versionIndex`,
+    or the collection/project info needed to build the continuation query.
+    """
+    from ._alias_paginator import split_membership_aliases
+
+    if (first_page := membership.aliases_connection) is None:
+        raise ValueError(f"Expected 'aliasesConnection' in {error_context}")
+
+    if (version_idx := membership.version_index) is None:
+        raise ValueError(f"Expected 'versionIndex' in {error_context}")
+
+    if not (
+        (collection := membership.artifact_collection)
+        and collection.name
+        and (proj := collection.project)
+    ):
+        raise ValueError(f"Missing artifact collection project in {error_context}")
+
+    return split_membership_aliases(
+        first_page,
+        service_api,
+        entity=proj.entity.name,
+        project=proj.name,
+        name=f"{collection.name}:v{version_idx}",
+    )
 
 
 class Artifact:
@@ -233,6 +328,11 @@ class Artifact:
         self._ttl_changed: bool = False
         self._aliases: list[str] = []
         self._saved_aliases: list[str] = []
+        # Set when `._aliases` only reflects the first page of a paginated
+        # membership fetch. Resolved (and cleared) on first access to
+        # `.aliases`, so the remaining pages are only fetched if something
+        # actually reads them.
+        self._aliases_paginator: MembershipAliasesPaginator | None = None
         self._tags: list[str] = []
         self._saved_tags: list[str] = []
         self._distributed_id: str | None = None
@@ -331,11 +431,31 @@ class Artifact:
             ArtifactMembershipByName,
         )
 
+        # Newer server versions support fetching a membership's aliases as a
+        # paginated connection, instead of the unbounded flat `aliases` field.
+        # This avoids multi-second responses for memberships with many aliases.
+        paginate_aliases = service_api.feature_enabled(
+            pb.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+        )
+
+        omit_fields = omit_artifact_fields(service_api)
+        if paginate_aliases:
+            # Don't also fetch the unbounded flat `aliases` field now that we
+            # have a paginated alternative -- that would defeat the purpose.
+            # `includeAliases` only guards that field, so it'd otherwise be
+            # left declared but unused once the field is stripped.
+            omit_fields.add("aliases")
+            omit_variables = {"includeAliases"}
+        else:
+            omit_variables = {"perPage"}
+            omit_fields.add("aliasesConnection")
+
         result = service_api.execute_graphql(
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             {"entity": path.prefix, "project": path.project, "name": path.name},
             parse=ArtifactMembershipByName.model_validate_json,
-            omit_fields=omit_artifact_fields(service_api),
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
         )
 
         if not (project := result.project):
@@ -347,7 +467,25 @@ class Artifact:
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_membership(membership, target=path, service_api=service_api)
+        membership_aliases = None
+        aliases_paginator = None
+        if paginate_aliases:
+            # Only the first page is fetched now. Any remaining pages are
+            # fetched lazily, the first time something actually reads
+            # `.aliases` -- not every time an artifact is looked up.
+            membership_aliases, aliases_paginator = _paginate_membership_aliases(
+                service_api,
+                membership,
+                error_context=f"response for {path.to_str()!r}",
+            )
+
+        return cls._from_membership(
+            membership,
+            target=path,
+            service_api=service_api,
+            membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
+        )
 
     @classmethod
     def _from_membership(
@@ -355,6 +493,9 @@ class Artifact:
         membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
         service_api: ServiceApi,
+        *,
+        membership_aliases: list[str] | None = None,
+        aliases_paginator: MembershipAliasesPaginator | None = None,
     ) -> Artifact:
         from ._validators import is_artifact_registry_project
 
@@ -387,6 +528,8 @@ class Artifact:
             artifact,
             service_api,
             membership=membership,
+            membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
         )
 
     @classmethod
@@ -398,6 +541,8 @@ class Artifact:
         *,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
+        membership_aliases: list[str] | None = None,
+        aliases_paginator: MembershipAliasesPaginator | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -406,7 +551,12 @@ class Artifact:
         artifact._project = path.project
         artifact._name = path.name
 
-        artifact._assign_attrs(src_art, membership=membership)
+        artifact._assign_attrs(
+            src_art,
+            membership=membership,
+            membership_aliases=membership_aliases,
+            aliases_paginator=aliases_paginator,
+        )
 
         artifact.finalize()
 
@@ -423,6 +573,11 @@ class Artifact:
         *,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
+        # Overrides `membership.aliases` with a paginated alias list, if given
+        membership_aliases: list[str] | None = None,
+        # Remaining, not-yet-fetched alias pages, if `membership_aliases` is
+        # only the first page. Resolved lazily -- see `_resolve_pending_aliases`.
+        aliases_paginator: MembershipAliasesPaginator | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
@@ -458,49 +613,28 @@ class Artifact:
 
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
-        if membership:
-            aliases = [a.alias for a in membership.aliases]
-        elif src_art.aliases:
-            entity = self._entity
-            project = self._project
-            collection = self._name.split(":")[0]
-            aliases = [
-                a.alias
-                for a in src_art.aliases
-                if (
-                    (alias_coll := a.artifact_collection)
-                    and (alias_proj := alias_coll.project)
-                    and alias_proj.entity.name == entity
-                    and alias_proj.name == project
-                    and alias_coll.name == collection
-                )
-            ]
-        else:
-            aliases = []
+        aliases = _resolve_aliases(
+            src_art,
+            membership=membership,
+            membership_aliases=membership_aliases,
+            entity=self._entity,
+            project=self._project,
+            collection=self._name.split(":")[0],
+        )
 
         version_aliases = list(filter(alias_is_version_index, aliases))
         other_aliases = list(filterfalse(alias_is_version_index, aliases))
 
-        try:
-            version = one(
-                version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
-            )
-        except TooFewItemsError:
-            # default to the membership version if passed to this method,
-            # otherwise fallback to the source version
-            if membership and (m_version_index := membership.version_index) is not None:
-                version = f"v{m_version_index}"
-            else:
-                version = f"v{src_art.version_index}"
-        except TooManyItemsError:
-            msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
-            raise ValueError(msg) from None
+        version = _resolve_version(
+            version_aliases, membership=membership, src_art=src_art
+        )
 
         self._version = version
         self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
 
         self._aliases = copy(other_aliases)
         self._saved_aliases = copy(other_aliases)
+        self._aliases_paginator = aliases_paginator
 
         self._tags = [tag.name for tag in src_art.tags]
         self._saved_tags = copy(self._tags)
@@ -984,6 +1118,7 @@ class Artifact:
         See [Create new artifact versions](https://docs.wandb.ai/models/artifacts/create-a-new-artifact-version)
         for more information.
         """
+        self._resolve_pending_aliases()
         return self._aliases
 
     @aliases.setter
@@ -992,7 +1127,30 @@ class Artifact:
         """Set the aliases associated with this artifact."""
         from ._validators import validate_aliases
 
+        # Resolve the existing (server-side) aliases first: otherwise
+        # overwriting `_aliases` here would silently lose whatever was only
+        # on a later, not-yet-fetched page, and `_update()` couldn't tell
+        # the server to remove it.
+        self._resolve_pending_aliases()
         self._aliases = validate_aliases(aliases)
+
+    def _resolve_pending_aliases(self) -> None:
+        """Fetch any alias pages not yet fetched, merging them in.
+
+        A no-op once there's nothing left to fetch, including for artifacts
+        that were never paginated in the first place.
+        """
+        if (paginator := self._aliases_paginator) is None:
+            return
+        # Drain and merge before dropping the paginator: a transient error
+        # partway through iteration leaves `self._aliases_paginator` intact,
+        # so a retried call resumes from the paginator's last successful
+        # cursor instead of silently settling for only the pages already
+        # fetched.
+        more = [alias for alias in paginator if not alias_is_version_index(alias)]
+        self._aliases_paginator = None
+        self._aliases = self._aliases + more
+        self._saved_aliases = copy(self._aliases)
 
     @property
     @ensure_logged
@@ -1334,6 +1492,10 @@ class Artifact:
 
         entity, project, collection = self.entity, self.project, self.name.split(":")[0]
 
+        # Resolve any unfetched alias pages before diffing: otherwise a
+        # stale, first-page-only `_saved_aliases` could miss an alias that
+        # needs deleting, or re-add one that's already there.
+        self._resolve_pending_aliases()
         old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
         target = FullArtifactPath(prefix=entity, project=project, name=collection)
         self._add_aliases(new_aliases - old_aliases, target=target)
