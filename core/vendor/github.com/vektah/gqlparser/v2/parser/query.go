@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"slices"
+
 	. "github.com/vektah/gqlparser/v2/ast" //nolint:staticcheck // bad, yeah
 	"github.com/vektah/gqlparser/v2/lexer"
 )
@@ -28,18 +30,19 @@ func (p *parser) parseQueryDocument() *QueryDocument {
 			return &doc
 		}
 		doc.Position = p.peekPos()
+		description := p.parseDescription()
 		switch p.peek().Kind {
 		case lexer.Name:
 			switch p.peek().Value {
 			case "query", "mutation", "subscription":
-				doc.Operations = append(doc.Operations, p.parseOperationDefinition())
+				doc.Operations = append(doc.Operations, p.parseOperationDefinition(description))
 			case "fragment":
-				doc.Fragments = append(doc.Fragments, p.parseFragmentDefinition())
+				doc.Fragments = append(doc.Fragments, p.parseFragmentDefinition(description))
 			default:
 				p.unexpectedError()
 			}
 		case lexer.BraceL:
-			doc.Operations = append(doc.Operations, p.parseOperationDefinition())
+			doc.Operations = append(doc.Operations, p.parseOperationDefinition(description))
 		default:
 			p.unexpectedError()
 		}
@@ -48,8 +51,12 @@ func (p *parser) parseQueryDocument() *QueryDocument {
 	return &doc
 }
 
-func (p *parser) parseOperationDefinition() *OperationDefinition {
+func (p *parser) parseOperationDefinition(description descriptionWithComment) *OperationDefinition {
 	if p.peek().Kind == lexer.BraceL {
+		// The query shorthand takes no description.
+		if description.present {
+			p.unexpectedToken(p.prev)
+		}
 		return &OperationDefinition{
 			Position:     p.peekPos(),
 			Comment:      p.comment,
@@ -59,8 +66,9 @@ func (p *parser) parseOperationDefinition() *OperationDefinition {
 	}
 
 	var od OperationDefinition
+	od.Description = description.text
 	od.Position = p.peekPos()
-	od.Comment = p.comment
+	od.Comment = joinComments(description.comment, p.comment)
 	od.Operation = p.parseOperationType()
 
 	if p.peek().Kind == lexer.Name {
@@ -99,8 +107,10 @@ func (p *parser) parseVariableDefinitions() VariableDefinitionList {
 
 func (p *parser) parseVariableDefinition() *VariableDefinition {
 	var def VariableDefinition
+	description := p.parseDescription()
+	def.Description = description.text
 	def.Position = p.peekPos()
-	def.Comment = p.comment
+	def.Comment = joinComments(description.comment, p.comment)
 	def.Variable = p.parseVariable()
 
 	p.expect(lexer.Colon)
@@ -122,6 +132,11 @@ func (p *parser) parseVariable() string {
 }
 
 func (p *parser) parseOptionalSelectionSet() SelectionSet {
+	if !p.enterNested() {
+		return nil
+	}
+	defer p.leaveNested()
+
 	var selections []Selection
 	p.some(lexer.BraceL, lexer.BraceR, func() {
 		selections = append(selections, p.parseSelection())
@@ -135,13 +150,7 @@ func (p *parser) parseRequiredSelectionSet() SelectionSet {
 		p.error(p.peek(), "Expected %s, found %s", lexer.BraceL, p.peek().Kind.String())
 		return nil
 	}
-
-	var selections []Selection
-	p.some(lexer.BraceL, lexer.BraceR, func() {
-		selections = append(selections, p.parseSelection())
-	})
-
-	return selections
+	return p.parseOptionalSelectionSet()
 }
 
 func (p *parser) parseSelection() Selection {
@@ -218,10 +227,11 @@ func (p *parser) parseFragment() Selection {
 	return &def
 }
 
-func (p *parser) parseFragmentDefinition() *FragmentDefinition {
+func (p *parser) parseFragmentDefinition(description descriptionWithComment) *FragmentDefinition {
 	var def FragmentDefinition
+	def.Description = description.text
 	def.Position = p.peekPos()
-	def.Comment = p.comment
+	def.Comment = joinComments(description.comment, p.comment)
 	p.expectKeyword("fragment")
 
 	def.Name = p.parseFragmentName()
@@ -233,6 +243,19 @@ func (p *parser) parseFragmentDefinition() *FragmentDefinition {
 	def.Directives = p.parseDirectives(false)
 	def.SelectionSet = p.parseRequiredSelectionSet()
 	return &def
+}
+
+// joinComments returns the comments before a description followed by the
+// comments between the description and its definition, so a definition
+// with a description keeps both groups.
+func joinComments(before, after *CommentGroup) *CommentGroup {
+	switch {
+	case before == nil:
+		return after
+	case after == nil:
+		return before
+	}
+	return &CommentGroup{List: slices.Concat(before.List, after.List)}
 }
 
 func (p *parser) parseFragmentName() string {
@@ -292,6 +315,11 @@ func (p *parser) parseValueLiteral(isConst bool) *Value {
 }
 
 func (p *parser) parseList(isConst bool) *Value {
+	if !p.enterNested() {
+		return nil
+	}
+	defer p.leaveNested()
+
 	var values ChildValueList
 	pos := p.peekPos()
 	comment := p.comment
@@ -303,6 +331,11 @@ func (p *parser) parseList(isConst bool) *Value {
 }
 
 func (p *parser) parseObject(isConst bool) *Value {
+	if !p.enterNested() {
+		return nil
+	}
+	defer p.leaveNested()
+
 	var fields ChildValueList
 	pos := p.peekPos()
 	comment := p.comment
@@ -351,6 +384,11 @@ func (p *parser) parseTypeReference() *Type {
 	var typ Type
 
 	if p.skip(lexer.BracketL) {
+		if !p.enterNested() {
+			return nil
+		}
+		defer p.leaveNested()
+
 		typ.Position = p.peekPos()
 		typ.Elem = p.parseTypeReference()
 		p.expect(lexer.BracketR)
