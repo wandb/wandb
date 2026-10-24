@@ -19,6 +19,12 @@ class SweepRunState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SWEEP_RUN_STATE_CRASHED: _ClassVar[SweepRunState]
     SWEEP_RUN_STATE_KILLED: _ClassVar[SweepRunState]
     SWEEP_RUN_STATE_UNKNOWN: _ClassVar[SweepRunState]
+
+class SweepSchedulerGoal(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SWEEP_SCHEDULER_GOAL_UNSPECIFIED: _ClassVar[SweepSchedulerGoal]
+    SWEEP_SCHEDULER_GOAL_MINIMIZE: _ClassVar[SweepSchedulerGoal]
+    SWEEP_SCHEDULER_GOAL_MAXIMIZE: _ClassVar[SweepSchedulerGoal]
 SWEEP_RUN_STATE_UNSPECIFIED: SweepRunState
 SWEEP_RUN_STATE_RUNNING: SweepRunState
 SWEEP_RUN_STATE_PENDING: SweepRunState
@@ -29,22 +35,35 @@ SWEEP_RUN_STATE_FAILED: SweepRunState
 SWEEP_RUN_STATE_CRASHED: SweepRunState
 SWEEP_RUN_STATE_KILLED: SweepRunState
 SWEEP_RUN_STATE_UNKNOWN: SweepRunState
+SWEEP_SCHEDULER_GOAL_UNSPECIFIED: SweepSchedulerGoal
+SWEEP_SCHEDULER_GOAL_MINIMIZE: SweepSchedulerGoal
+SWEEP_SCHEDULER_GOAL_MAXIMIZE: SweepSchedulerGoal
 
 class SweepSchedulerClientInitRequest(_message.Message):
-    __slots__ = ("entity", "project", "sweep_id", "settings", "batch_size", "poll_interval_seconds")
+    __slots__ = ("entity", "project", "sweep_id", "settings", "batch_size", "poll_interval_seconds", "objectives")
     ENTITY_FIELD_NUMBER: _ClassVar[int]
     PROJECT_FIELD_NUMBER: _ClassVar[int]
     SWEEP_ID_FIELD_NUMBER: _ClassVar[int]
     SETTINGS_FIELD_NUMBER: _ClassVar[int]
     BATCH_SIZE_FIELD_NUMBER: _ClassVar[int]
     POLL_INTERVAL_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    OBJECTIVES_FIELD_NUMBER: _ClassVar[int]
     entity: str
     project: str
     sweep_id: str
     settings: _wandb_settings_pb2.Settings
     batch_size: int
     poll_interval_seconds: float
-    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., sweep_id: _Optional[str] = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., batch_size: _Optional[int] = ..., poll_interval_seconds: _Optional[float] = ...) -> None: ...
+    objectives: _containers.RepeatedCompositeFieldContainer[SweepSchedulerObjective]
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., sweep_id: _Optional[str] = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., batch_size: _Optional[int] = ..., poll_interval_seconds: _Optional[float] = ..., objectives: _Optional[_Iterable[_Union[SweepSchedulerObjective, _Mapping]]] = ...) -> None: ...
+
+class SweepSchedulerObjective(_message.Message):
+    __slots__ = ("metric_name", "goal")
+    METRIC_NAME_FIELD_NUMBER: _ClassVar[int]
+    GOAL_FIELD_NUMBER: _ClassVar[int]
+    metric_name: str
+    goal: SweepSchedulerGoal
+    def __init__(self, metric_name: _Optional[str] = ..., goal: _Optional[_Union[SweepSchedulerGoal, str]] = ...) -> None: ...
 
 class SweepSchedulerServerInitResponse(_message.Message):
     __slots__ = ("session_id", "sweep_config", "display_name", "controller_run_name")

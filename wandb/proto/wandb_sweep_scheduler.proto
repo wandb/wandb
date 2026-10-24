@@ -43,10 +43,10 @@ enum SweepRunState {
 
 // Starts a sweep-scheduling loop in wandb-core.
 //
-// The response carries the sweep's config so the client can build an
-// optimizer without its own backend access. Errors (sweep not found,
-// unsupported server, a live scheduler for the same sweep in this
-// process) are returned as a ServerErrorResponse.
+// The client builds its optimizer before init and sends the objectives it
+// searches over. Errors (sweep not found, unsupported server, a live
+// scheduler for the same sweep in this process) are returned as a
+// ServerErrorResponse.
 message SweepSchedulerClientInitRequest {
   string entity = 1;
   string project = 2;
@@ -62,6 +62,22 @@ message SweepSchedulerClientInitRequest {
 
   // Seconds between backend polls. Zero means the server default.
   double poll_interval_seconds = 6;
+
+  // The optimizer's objectives, in order; the scheduler samples their history.
+  repeated SweepSchedulerObjective objectives = 7;
+}
+
+// Whether an objective metric is minimized or maximized.
+enum SweepSchedulerGoal {
+  SWEEP_SCHEDULER_GOAL_UNSPECIFIED = 0;
+  SWEEP_SCHEDULER_GOAL_MINIMIZE = 1;
+  SWEEP_SCHEDULER_GOAL_MAXIMIZE = 2;
+}
+
+// One metric the optimizer searches over.
+message SweepSchedulerObjective {
+  string metric_name = 1;
+  SweepSchedulerGoal goal = 2;
 }
 
 // Identifies the started scheduler and describes its sweep.
