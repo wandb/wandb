@@ -2,7 +2,6 @@ from warnings import simplefilter
 
 import numpy as np
 from sklearn.metrics import silhouette_samples, silhouette_score
-from sklearn.preprocessing import LabelEncoder
 
 import wandb
 from wandb.integration.sklearn import utils
@@ -20,10 +19,6 @@ def silhouette(clusterer, X, cluster_labels, labels, metric, kmeans):  # noqa: N
     cluster_labels = np.asarray(cluster_labels)
     labels = np.asarray(labels)
 
-    le = LabelEncoder()
-    _ = le.fit_transform(cluster_labels)
-    n_clusters = len(np.unique(cluster_labels))
-
     # The silhouette_score gives the average value for all the samples.
     # This gives a perspective into the density and separation of the formed
     # clusters
@@ -35,7 +30,9 @@ def silhouette(clusterer, X, cluster_labels, labels, metric, kmeans):  # noqa: N
     x_sil, y_sil, color_sil = [], [], []
 
     count, y_lower = 0, 10
-    for i in range(n_clusters):
+    # Iterate over the labels themselves: they need not be 0..k-1 (DBSCAN noise
+    # is -1, and other clusterers may number them from 1).
+    for i in np.unique(cluster_labels).tolist():
         # Aggregate the silhouette scores for samples belonging to
         # cluster i, and sort them
         ith_cluster_silhouette_values = sample_silhouette_values[cluster_labels == i]
