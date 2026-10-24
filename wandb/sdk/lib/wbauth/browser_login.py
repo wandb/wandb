@@ -233,6 +233,28 @@ def clear_credentials(
         return existing
 
 
+def clear_identity_token_exchange(
+    credentials_file: str | pathlib.Path,
+    host: HostUrl,
+) -> bool:
+    """Remove the identity token exchange stored for a host.
+
+    wandb-core keeps these under ``credentials`` and exchanges the identity
+    token again the next time it needs one. The browser login, if any, is
+    left in place.
+
+    Returns:
+        Whether there was one to remove.
+    """
+    path = pathlib.Path(credentials_file)
+    with _credentials_lock(path):
+        contents = _read_file(path)
+        if contents["credentials"].pop(host.url, None) is None:
+            return False
+        _write_file(path, contents)
+        return True
+
+
 @contextlib.contextmanager
 def _credentials_lock(path: pathlib.Path) -> Iterator[None]:
     """Exclusive lock on ``<credentials file>.lock``.
