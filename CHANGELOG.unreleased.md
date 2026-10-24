@@ -30,3 +30,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
 - Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
+- `wandb.plot.roc_curve` and `wandb.plot.pr_curve` (and the `wandb.sklearn` plots that use them) no longer score a class with another class's column of `y_probas` when `y_true` is missing some classes (@David-Wu1119 in https://github.com/wandb/wandb/pull/13097)
