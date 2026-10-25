@@ -95,6 +95,57 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
+def _is_whole_number(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) or (isinstance(value, float) and value.is_integer())
+
+
+def int_uniform_bounds(name: str, parameter: dict[str, Any]) -> tuple[int, int]:
+    """Return an `int_uniform` spec's `min` and `max` as ints.
+
+    Raises:
+        ValueError: If `min` or `max` isn't a whole number.
+    """
+    lo, hi = parameter["min"], parameter["max"]
+    if not _is_whole_number(lo) or not _is_whole_number(hi):
+        raise ValueError(
+            f"Sweep parameter {name!r} uses int_uniform with min={lo!r}, "
+            f"max={hi!r}; set min and max to whole numbers, or use "
+            "distribution: uniform for a float range."
+        )
+    return int(lo), int(hi)
+
+
+def q_log_uniform_values_bounds(
+    name: str,
+    parameter: dict[str, Any],
+) -> tuple[int, int]:
+    """Return a `q_log_uniform_values` spec's bounds as a log-scale int range.
+
+    Optuna and Ax only support the log-scale int range W&B spells as
+    `q_log_uniform_values` with `q=1`.
+
+    Raises:
+        ValueError: If `q` isn't 1, or the bounds aren't whole numbers >= 1.
+    """
+    lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
+    if not _is_whole_number(q) or q != 1:
+        raise ValueError(
+            f"Sweep parameter {name!r} uses q_log_uniform_values with q={q!r}, "
+            "but a log scale can't be combined with a step. Remove q for a "
+            "log-scale int range, use log_uniform_values for a log-scale "
+            "float range, or use q_uniform for a stepped linear range."
+        )
+    if not _is_whole_number(lo) or not _is_whole_number(hi) or lo < 1:
+        raise ValueError(
+            f"Sweep parameter {name!r} uses q_log_uniform_values with "
+            f"min={lo!r}, max={hi!r}; set min and max to whole numbers of at "
+            "least 1, or use log_uniform_values for a log-scale float range."
+        )
+    return int(lo), int(hi)
+
+
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
