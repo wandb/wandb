@@ -7,11 +7,53 @@ import (
 	"math"
 	"slices"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 )
+
+// LiveDataReader reads unexported run history directly from the W&B backend.
+type LiveDataReader struct {
+	graphqlClient graphql.Client
+	entity        string
+	project       string
+	runId         string
+	keys          []string
+}
+
+// NewLiveDataReader returns a reader for unexported run history.
+func NewLiveDataReader(
+	entity string,
+	project string,
+	runId string,
+	graphqlClient graphql.Client,
+	keys []string,
+) *LiveDataReader {
+	return &LiveDataReader{
+		graphqlClient: graphqlClient,
+		entity:        entity,
+		project:       project,
+		runId:         runId,
+		keys:          slices.Clone(keys),
+	}
+}
+
+// GetHistorySteps gets live history rows in the given step range.
+func (r *LiveDataReader) GetHistorySteps(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, error) {
+	if len(r.keys) == 0 {
+		return r.getLiveDataForAllKeys(ctx, minStep, maxStep)
+	}
+	return r.getLiveDataForSpecificKeys(ctx, minStep, maxStep)
+}
+
+// Release implements the history reader interface.
+func (r *LiveDataReader) Release() {}
 
 // GetLiveData gets live data from the W&B backend for a run
 // which hasn't been written to parquet files yet.
@@ -19,7 +61,6 @@ func (h *HistoryReader) getLiveData(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
-	selectAllKeys bool,
 ) ([]parquet.KeyValueList, error) {
 	// A page must be served from the live endpoints when it extends past the
 	// boundary where exported parquet data ends. The fallback case covers runs
@@ -34,31 +75,10 @@ func (h *HistoryReader) getLiveData(
 		return []parquet.KeyValueList{}, nil
 	}
 
-	if selectAllKeys {
-		results, err := h.getLiveDataForAllKeys(
-			ctx,
-			minStep,
-			maxStep,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		return results, nil
-	} else {
-		results, err := h.getLiveDataForSpecificKeys(
-			ctx,
-			minStep,
-			maxStep,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return results, nil
-	}
+	return h.liveDataReader.GetHistorySteps(ctx, minStep, maxStep)
 }
 
-func (h *HistoryReader) getLiveDataForAllKeys(
+func (r *LiveDataReader) getLiveDataForAllKeys(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
@@ -66,10 +86,10 @@ func (h *HistoryReader) getLiveDataForAllKeys(
 	pageSize := maxStep - minStep
 	response, err := gql.HistoryPage(
 		ctx,
-		h.graphqlClient,
-		h.entity,
-		h.project,
-		h.runId,
+		r.graphqlClient,
+		r.entity,
+		r.project,
+		r.runId,
 		minStep,
 		maxStep,
 		int(pageSize),
@@ -79,7 +99,7 @@ func (h *HistoryReader) getLiveDataForAllKeys(
 	}
 
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no history found for run %s", h.runId)
+		return nil, fmt.Errorf("no history found for run %s", r.runId)
 	}
 
 	history := response.GetProject().GetRun().GetHistory()
@@ -95,12 +115,12 @@ func (h *HistoryReader) getLiveDataForAllKeys(
 	return results, nil
 }
 
-func (h *HistoryReader) getLiveDataForSpecificKeys(
+func (r *LiveDataReader) getLiveDataForSpecificKeys(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
-	keys := append(slices.Clone(h.keys), parquet.StepKey)
+	keys := append(slices.Clone(r.keys), parquet.StepKey)
 
 	spec := map[string]any{
 		"keys":    keys,
@@ -121,10 +141,10 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 
 	response, err := gql.SampledHistoryPage(
 		ctx,
-		h.graphqlClient,
-		h.entity,
-		h.project,
-		h.runId,
+		r.graphqlClient,
+		r.entity,
+		r.project,
+		r.runId,
 		specJSON,
 	)
 	if err != nil {
@@ -132,10 +152,8 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 		return nil, err
 	}
 
-	slog.Info("sampled history response", "response", response)
-
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no history found for run %s", h.runId)
+		return nil, fmt.Errorf("no history found for run %s", r.runId)
 	}
 
 	results := make(

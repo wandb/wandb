@@ -43,59 +43,76 @@ func ComputeDistance(a, b string) int {
 	}
 
 	// remove trailing identical runes.
-	for i := 0; i < len(s1); i++ {
-		if s1[len(s1)-1-i] != s2[len(s2)-1-i] {
-			s1 = s1[:len(s1)-i]
-			s2 = s2[:len(s2)-i]
-			break
-		}
-	}
+	s1, s2 = trimLongestCommonSuffix(s1, s2)
 
 	// Remove leading identical runes.
-	for i := 0; i < len(s1); i++ {
-		if s1[i] != s2[i] {
-			s1 = s1[i:]
-			s2 = s2[i:]
-			break
-		}
-	}
+	s1, s2 = trimLongestCommonPrefix(s1, s2)
 
+	// A uint16 row holds a distance through 65535. Longer strings use int.
+	if len(s2) > 65535 {
+		return distance[int](s1, s2)
+	}
+	return int(distance[uint16](s1, s2))
+}
+
+func distance[T uint16 | int](s1, s2 []rune) T {
 	lenS1 := len(s1)
 	lenS2 := len(s2)
 
 	// Init the row.
-	var x []uint16
+	var x []T
 	if lenS1+1 > minLengthThreshold {
-		x = make([]uint16, lenS1+1)
+		x = make([]T, lenS1+1)
 	} else {
 		// We make a small optimization here for small strings.
 		// Because a slice of constant length is effectively an array,
 		// it does not allocate. So we can re-slice it to the right length
 		// as long as it is below a desired threshold.
-		x = make([]uint16, minLengthThreshold)
+		x = make([]T, minLengthThreshold)
 		x = x[:lenS1+1]
 	}
 
 	// we start from 1 because index 0 is already 0.
 	for i := 1; i < len(x); i++ {
-		x[i] = uint16(i)
+		x[i] = T(i)
 	}
 
-	// make a dummy bounds check to prevent the 2 bounds check down below.
-	// The one inside the loop is particularly costly.
+	// hoist bounds checks out of the loops
 	_ = x[lenS1]
+	y := x[1:]
+	y = y[:lenS1]
 	// fill in the rest
-	for i := 1; i <= lenS2; i++ {
-		prev := uint16(i)
-		for j := 1; j <= lenS1; j++ {
-			current := x[j-1] // match
-			if s2[i-1] != s1[j-1] {
-				current = min(x[j-1]+1, prev+1, x[j]+1)
+	for i := 0; i < lenS2; i++ {
+		prev := T(i + 1)
+		for j := 0; j < lenS1; j++ {
+			current := x[j] // match
+			if s2[i] != s1[j] {
+				current = min(x[j], prev, y[j]) + 1
 			}
-			x[j-1] = prev
+			x[j] = prev
 			prev = current
 		}
 		x[lenS1] = prev
 	}
-	return int(x[lenS1])
+	return x[lenS1]
+}
+
+func trimLongestCommonSuffix(a, b []rune) ([]rune, []rune) {
+	m := min(len(a), len(b))
+	a2 := a[len(a)-m:]
+	b2 := b[len(b)-m:]
+	i := len(a2)
+	b2 = b2[:i] // hoist bounds checks out of the loop
+	for ; i > 0 && a2[i-1] == b2[i-1]; i-- {
+		// deliberately empty body
+	}
+	return a[:len(a)-len(a2)+i], b[:len(b)-len(b2)+i]
+}
+
+func trimLongestCommonPrefix(a, b []rune) ([]rune, []rune) {
+	var i int
+	for m := min(len(a), len(b)); i < m && a[i] == b[i]; i++ {
+		// deliberately empty body
+	}
+	return a[i:], b[i:]
 }

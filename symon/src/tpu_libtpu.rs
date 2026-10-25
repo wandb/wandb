@@ -167,10 +167,29 @@ impl Collector for TpuMonitor {
                 hbm_gib: self.chip.hbm_gib,
                 devices_per_chip: self.chip.devices_per_chip,
                 count: self.chip_count,
+                worker_id: env_u32("TPU_WORKER_ID"),
+                worker_count: env_list_len("TPU_WORKER_HOSTNAMES"),
+                slice_id: env_u32("MEGASCALE_SLICE_ID"),
+                num_slices: env_u32("MEGASCALE_NUM_SLICES"),
             }),
             ..Default::default()
         }
     }
+}
+
+/// The environment variable parsed as an integer, or 0.
+fn env_u32(name: &str) -> u32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// The number of comma-separated entries in the environment variable, or 0.
+fn env_list_len(name: &str) -> u32 {
+    std::env::var(name)
+        .map(|value| value.split(',').filter(|s| !s.trim().is_empty()).count() as u32)
+        .unwrap_or(0)
 }
 
 // ============================================================

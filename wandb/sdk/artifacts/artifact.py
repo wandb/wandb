@@ -70,6 +70,7 @@ from wandb.util import (
 from ._factories import make_storage_policy
 from ._generated.enums import ArtifactDigestAlgorithm
 from ._gqlutils import (
+    link_artifact_gql_options,
     omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
@@ -1355,16 +1356,25 @@ class Artifact:
                     {"tagName": t} for t in validate_tags(old_tags - new_tags)
                 ],
             )
+            # Newer server versions can return `artifactMembership` directly in
+            # the response, letting version/alias resolution use the single
+            # membership instead of fanning out across every collection this
+            # artifact belongs to (see Artifact.aliases vs
+            # ArtifactCollectionMembership.aliases).
+            omit_fields = omit_artifact_fields(client)
+            if not client.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD):
+                omit_fields.add("artifactMembership")
+
             data = client.execute_graphql(
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
-                omit_fields=omit_artifact_fields(client),
+                omit_fields=omit_fields,
             )
 
             if not ((result := data.result) and (artifact := result.artifact)):
                 raise ValueError("Unable to parse updateArtifact response")
-            self._assign_attrs(artifact)
+            self._assign_attrs(artifact, membership=result.artifact_membership)
 
             self._ttl_changed = False  # Reset after updating artifact
         else:
@@ -2577,18 +2587,12 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        omit_fields = omit_artifact_fields(service_api)
-        omit_variables = None
-        if not service_api.feature_enabled(
-            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
-        ):
-            omit_variables = {"includeAliases"}
-            omit_fields.add("artifactMembership")
+        omit_fields, omit_variables = link_artifact_gql_options(service_api, gql_vars)
 
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,
             variables=gql_vars,
-            omit_variables=omit_variables,
+            omit_variables=omit_variables or None,
             omit_fields=omit_fields,
             parse=LinkArtifact.model_validate_json,
         )

@@ -1,3 +1,16 @@
+# v0.4.19 (2026-10-22)
+
+* **Bug Fix**: Update smithy-go to v1.28.6
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.4.18 (2026-10-21)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.4.17 (2026-10-19)
+
+* **Bug Fix**: Fix the concurrent reader panic when buffer len is smaller than capacity
+
 # v0.4.16 (2026-10-09.2)
 
 * **Dependency Update**: Update to smithy-go v1.28.5.
