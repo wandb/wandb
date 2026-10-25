@@ -172,6 +172,27 @@ def test_agent_exception(wandb_agent_env):
     )
 
 
+def test_agent_respects_custom_exception_hook(wandb_agent_env):
+    error = ValueError("Unexpected error")
+    hook_calls = []
+
+    def train():
+        wandb.init(mode="disabled")
+        raise error
+
+    def exception_hook(exc_type, exc, tb):
+        hook_calls.append((exc_type, exc, tb))
+
+    wandb_agent_env.monkeypatch.setattr(sys, "excepthook", exception_hook)
+    api = wandb_agent_env.mock_api()
+    api.agent_heartbeat.side_effect = sequence_heartbeat_responses(
+        [heartbeat_run_command("run-exception-hook", {"a": {"value": 1}})]
+    )
+    wandb_agent_env.run_pyagent(api, train, mock_finish=False)
+
+    assert hook_calls == [(ValueError, error, error.__traceback__)]
+
+
 def test_agent_fails_fast_on_terminal_sweep_state(wandb_agent_env):
     """A 400 from register_agent (terminal sweep) propagates without retrying."""
     api = wandb_agent_env.mock_api()

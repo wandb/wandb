@@ -389,12 +389,10 @@ class Agent:
             except KeyboardInterrupt:
                 raise
             except Exception as e:
-                # Log the run's exceptions directly to stderr to match CLI case, and wrap so we
-                # can identify it as coming from the job later later. This will get automatically
-                # logged by console_capture.py. Exception handler below will also handle exceptions
-                # in setup code.
-                exc_repr = _format_exception_traceback(e)
-                print(exc_repr, file=sys.stderr)  # noqa: T201
+                # Respect custom error logging hooks. The default hook prints to stderr,
+                # where console_capture.py records it. Wrap the error to distinguish job
+                # failures from setup errors in the exception handler below.
+                sys.excepthook(type(e), e, e.__traceback__)
                 raise _JobError(f"Run threw exception: {str(e)}") from e
             wandb.finish()
         except KeyboardInterrupt:
