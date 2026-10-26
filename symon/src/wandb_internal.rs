@@ -3057,6 +3057,9 @@ pub enum ServerFeature {
     /// Indicates that the server supports returning artifactMembership on the
     /// createArtifact, updateArtifact, and commitArtifact mutation payloads.
     ArtifactMembershipOnArtifactPayload = 39,
+    /// Indicates that the server supports paginating
+    /// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+    ArtifactMembershipAliasesPagination = 40,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3129,6 +3132,9 @@ impl ServerFeature {
             Self::EvalTablesCes => "EVAL_TABLES_CES",
             Self::ArtifactMembershipOnArtifactPayload => {
                 "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD"
+            }
+            Self::ArtifactMembershipAliasesPagination => {
+                "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION"
             }
         }
     }
@@ -3207,6 +3213,9 @@ impl ServerFeature {
             "EVAL_TABLES_CES" => Some(Self::EvalTablesCes),
             "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD" => {
                 Some(Self::ArtifactMembershipOnArtifactPayload)
+            }
+            "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION" => {
+                Some(Self::ArtifactMembershipAliasesPagination)
             }
             _ => None,
         }

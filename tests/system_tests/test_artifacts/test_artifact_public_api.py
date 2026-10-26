@@ -760,6 +760,149 @@ def test_fetch_registry_artifact(
         assert mock_responder.total_calls == 0
 
 
+@mark.parametrize(
+    "pagination_enabled",
+    [True, False],
+    ids=["aliases_pagination_enabled", "aliases_pagination_disabled"],
+)
+def test_fetch_artifact_paginates_membership_aliases(
+    user,
+    wandb_backend_spy,
+    api,
+    mocker,
+    project_gql_id,
+    project_internal_gql_id,
+    pagination_enabled,
+):
+    """`Artifact._from_name()` should request only the first page of membership aliases.
+
+    Regression coverage for the `ArtifactMembershipByName` query fetching a
+    membership's complete, unbounded `aliases` list even when only the first
+    page is needed -- the root cause of multi-second responses for artifacts
+    with many aliases. Any further pages are fetched lazily, only once
+    something actually reads `Artifact.aliases` (covered separately in
+    `tests/unit_tests/test_artifacts/test_artifact_from_name.py`); merely
+    fetching the artifact must never request them.
+    """
+    from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
+
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
+
+    # The first (and, for old servers, only) `ServerFeaturesQuery` response
+    # answers the `ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION` check in
+    # `Artifact._from_name`.
+    server_features_responder = Constant(
+        content={
+            "data": {
+                "serverInfo": {
+                    "features": [
+                        {
+                            "name": "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
+                            "isEnabled": pagination_enabled,
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(
+        match=Matcher(operation="ServerFeaturesQuery"),
+        respond=server_features_responder,
+    )
+
+    mock_artifact_fragment_data = ArtifactFragment(
+        name="test-collection",
+        version_index=0,
+        artifact_type={"name": "model"},
+        artifact_sequence={
+            "name": "test-collection",
+            "project": {
+                "id": project_gql_id,
+                "internalId": project_internal_gql_id,
+                "name": "test-project",
+                "entity": {"name": "test-entity"},
+            },
+        },
+        id="PLACEHOLDER",
+        description="PLACEHOLDER",
+        tags=[],
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
+        metadata="{}",
+        state="COMMITTED",
+        size=0,
+        digest="FAKE_DIGEST",
+        file_count=0,
+        commit_hash="PLACEHOLDER",
+        created_at="PLACEHOLDER",
+        updated_at=None,
+        history_step=None,
+    ).model_dump()
+
+    mock_membership_fragment_data = ArtifactMembershipFragment(
+        id="PLACEHOLDER",
+        artifact=mock_artifact_fragment_data,
+        artifact_collection={
+            "__typename": "ArtifactPortfolio",
+            "name": "test-collection",
+            "project": {
+                "id": project_gql_id,
+                "internalId": project_internal_gql_id,
+                "name": "test-project",
+                "entity": {"name": "test-entity"},
+            },
+        },
+        version_index=1,
+        aliases=[{"id": "PLACEHOLDER", "alias": "flat-alias"}],
+        created_at="PLACEHOLDER",
+    ).model_dump()
+    mock_membership_fragment_data["aliasesConnection"] = {
+        "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
+        "edges": [{"node": {"id": "PLACEHOLDER", "alias": "v0"}}],
+    }
+
+    membership_by_name_responder = Constant(
+        content={
+            "data": {
+                "project": {
+                    "artifactCollectionMembership": mock_membership_fragment_data,
+                }
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(
+        match=Matcher(operation=nameof(ArtifactMembershipByName)),
+        respond=membership_by_name_responder,
+    )
+
+    membership_aliases_responder = Constant(
+        content={
+            "data": {
+                "project": {
+                    "artifactCollectionMembership": {
+                        "aliasesConnection": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "edges": [{"node": {"id": "PLACEHOLDER", "alias": "best"}}],
+                        }
+                    }
+                }
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(
+        match=Matcher(operation="ArtifactMembershipAliases"),
+        respond=membership_aliases_responder,
+    )
+
+    api.artifact("test-entity/test-project/test-collection:v0")
+
+    assert membership_by_name_responder.total_calls == 1
+    # Fetching the artifact never requests the continuation page on its own,
+    # whether or not pagination is enabled -- that's deferred until something
+    # reads `.aliases`, which this test never does.
+    assert membership_aliases_responder.total_calls == 0
+
+
 def test_log_artifact_ignores_wandb_project_env_var(
     user: str,
     api: Api,
