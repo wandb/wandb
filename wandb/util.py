@@ -1599,11 +1599,15 @@ def working_set() -> Iterable[InstalledDistribution]:
     from importlib.metadata import distributions
 
     for d in distributions():
-        with contextlib.suppress(KeyError, UnicodeDecodeError, TypeError):
+        with contextlib.suppress(
+            KeyError, UnicodeDecodeError, TypeError, FileNotFoundError
+        ):
             # In some distributions, the "Name" attribute may not be present,
             # or the metadata itself may be None or malformed, which can raise
             # KeyError, UnicodeDecodeError, or TypeError.
             # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
+            # Since Python 3.15, a distribution without a METADATA file raises
+            # importlib.metadata.MetadataNotFound, a subclass of FileNotFoundError.
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
 
 
