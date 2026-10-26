@@ -88,11 +88,11 @@ botocore==1.43.114
     #   moto
     #   s3transfer
     #   wandb
-cachetools==7.2.1
+cachetools==7.2.3
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   -r requirements/requirements_dev.txt
     #   httpcore
@@ -106,7 +106,7 @@ cffi==2.1.1
     #   argon2-cffi-bindings
     #   cryptography
     #   soundfile
-chardet==7.6.0
+chardet==7.7.0
     # via wandb
 charset-normalizer==3.5.2
     # via requests
@@ -258,9 +258,9 @@ google-cloud-aiplatform==1.115.0
     # via wandb
 google-cloud-artifact-registry==1.23.0
     # via wandb
-google-cloud-bigquery==3.46.1
+google-cloud-bigquery==3.46.2
     # via google-cloud-aiplatform
-google-cloud-compute==1.55.0
+google-cloud-compute==1.56.0
     # via wandb
 google-cloud-core==2.8.0
     # via
@@ -333,7 +333,7 @@ hf-xet==1.7.0
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
-httpcore2==2.13.1
+httpcore2==2.14.0
     # via httpx2
 httpx==0.27.2
     # via
@@ -341,7 +341,7 @@ httpx==0.27.2
     #   ariadne-codegen
     #   jupyterlab
     #   litellm
-httpx2==2.13.1
+httpx2==2.14.0
     # via
     #   huggingface-hub
     #   openai
@@ -424,11 +424,11 @@ jmespath==1.1.0
     #   botocore
 joblib==1.6.0
     # via scikit-learn
-json-repair==0.64.0
+json-repair==0.64.1
     # via dspy
 json5==0.17.3
     # via jupyterlab-server
-jsonpointer==3.2.1
+jsonpointer==3.4
     # via jsonschema
 jsonref==1.1.0
     # via sweeps
@@ -550,7 +550,7 @@ mdurl==0.1.2
     # via markdown-it-py
 metaflow==2.19.39
     # via -r requirements/requirements_dev.txt
-mistune==3.3.4
+mistune==3.4.0
     # via nbconvert
 ml-dtypes==0.5.4
     # via
@@ -646,7 +646,7 @@ oauthlib==4.0.0
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.31.0
+openai==3.35.1
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -747,7 +747,7 @@ plotly==7.1.0
     # via
     #   -r requirements/requirements_dev.txt
     #   catboost
-pluggy==1.6.0
+pluggy==1.7.0
     # via
     #   pytest
     #   pytest-cov
@@ -860,7 +860,7 @@ pytest-cov==7.1.0
     # via -r requirements/requirements_test.txt
 pytest-flakefinder==1.1.0
     # via -r requirements/requirements_test.txt
-pytest-mock==3.16.0
+pytest-mock==3.17.0
     # via -r requirements/requirements_test.txt
 pytest-split==0.10.0
     # via -r requirements/requirements_test.txt
@@ -1027,7 +1027,7 @@ soundfile==0.14.0
     # via -r requirements/requirements_dev.txt
 soupsieve==2.10
     # via beautifulsoup4
-sqlalchemy==2.0.54
+sqlalchemy==2.0.55
     # via
     #   alembic
     #   optuna
@@ -1237,7 +1237,7 @@ xgboost==3.2.0
     # via -r requirements/requirements_dev.txt
 xmltodict==1.0.4
     # via moto
-xxhash==4.0.1
+xxhash==4.0.2
     # via wandb
 xyzservices==2026.9.1
     # via bokeh

@@ -91,11 +91,11 @@ botocore==1.43.114
     #   wandb
 botorch==0.18.1
     # via ax-platform
-cachetools==7.2.1
+cachetools==7.2.3
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   -r requirements/requirements_dev.txt
     #   httpcore
@@ -110,7 +110,7 @@ cffi==2.1.1
     #   cryptography
     #   moocore
     #   soundfile
-chardet==7.6.0
+chardet==7.7.0
     # via wandb
 charset-normalizer==3.5.2
     # via requests
@@ -199,7 +199,7 @@ fastjsonschema==2.22.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==4.1.2
+filelock==4.2.4
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -251,9 +251,9 @@ google-cloud-aiplatform==1.115.0
     # via wandb
 google-cloud-artifact-registry==1.23.0
     # via wandb
-google-cloud-bigquery==3.46.1
+google-cloud-bigquery==3.46.2
     # via google-cloud-aiplatform
-google-cloud-compute==1.55.0
+google-cloud-compute==1.56.0
     # via wandb
 google-cloud-core==2.8.0
     # via
@@ -325,7 +325,7 @@ hf-xet==1.7.0
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
-httpcore2==2.13.1
+httpcore2==2.14.0
     # via httpx2
 httpx==0.27.2
     # via
@@ -333,13 +333,13 @@ httpx==0.27.2
     #   ariadne-codegen
     #   jupyterlab
     #   litellm
-httpx2==2.13.1
+httpx2==2.14.0
     # via
     #   huggingface-hub
     #   openai
 huggingface-hub==2.2.0
     # via tokenizers
-hypothesis==6.169.1
+hypothesis==6.170.2
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -395,9 +395,9 @@ isort==9.0.2
     # via ariadne-codegen
 itsdangerous==2.2.0
     # via flask
-jax==0.11.2
+jax==0.12.0
     # via -r requirements/requirements_dev.txt
-jaxlib==0.11.2
+jaxlib==0.12.0
     # via jax
 jedi==0.20.1
     # via ipython
@@ -421,11 +421,11 @@ jmespath==1.1.0
     #   botocore
 joblib==1.6.0
     # via scikit-learn
-json-repair==0.64.0
+json-repair==0.64.1
     # via dspy
 json5==0.17.3
     # via jupyterlab-server
-jsonpointer==3.2.1
+jsonpointer==3.4
     # via jsonschema
 jsonref==1.1.0
     # via sweeps
@@ -546,7 +546,7 @@ matplotlib-inline==0.2.2
     #   ipython
 metaflow==2.19.39
     # via -r requirements/requirements_dev.txt
-mistune==3.3.4
+mistune==3.4.0
     # via nbconvert
 ml-dtypes==0.6.0
     # via
@@ -649,7 +649,7 @@ oauthlib==4.0.0
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.31.0
+openai==3.35.1
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -735,7 +735,7 @@ pillow==13.0.0
     #   rdkit
     #   tensorboard
     #   torchvision
-platformdirs==4.13.0
+platformdirs==4.13.5
     # via
     #   black
     #   jupyter-core
@@ -746,7 +746,7 @@ plotly==7.1.0
     #   -r requirements/requirements_dev.txt
     #   ax-platform
     #   catboost
-pluggy==1.6.0
+pluggy==1.7.0
     # via
     #   pytest
     #   pytest-cov
@@ -869,7 +869,7 @@ pytest-cov==7.1.0
     # via -r requirements/requirements_test.txt
 pytest-flakefinder==1.1.0
     # via -r requirements/requirements_test.txt
-pytest-mock==3.16.0
+pytest-mock==3.17.0
     # via -r requirements/requirements_test.txt
 pytest-split==0.10.0
     # via -r requirements/requirements_test.txt
@@ -1028,7 +1028,7 @@ soundfile==0.14.0
     # via -r requirements/requirements_dev.txt
 soupsieve==3.0.3
     # via beautifulsoup4
-sqlalchemy==2.1.4
+sqlalchemy==2.1.5
     # via
     #   alembic
     #   optuna
@@ -1218,7 +1218,7 @@ xgboost==3.4.1
     # via -r requirements/requirements_dev.txt
 xmltodict==1.0.4
     # via moto
-xxhash==4.0.1
+xxhash==4.0.2
     # via wandb
 xyzservices==2026.9.1
     # via bokeh
