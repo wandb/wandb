@@ -65,9 +65,10 @@ if not os.path.exists(_wandb_dir) or not os.access(_wandb_dir, os.W_OK):
 
 try:
     _username = getpass.getuser()
-except KeyError:
-    # getuser() could raise KeyError in restricted environments like
-    # chroot jails or docker containers. Return user id in these cases.
+except (KeyError, OSError):
+    # getuser() could raise KeyError (OSError since Python 3.13) in restricted
+    # environments like chroot jails or docker containers. Return user id in
+    # these cases.
     _username = str(os.getuid())
 
 _wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
