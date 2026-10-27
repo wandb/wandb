@@ -136,6 +136,32 @@ class AuthIdentityTokenFile(Auth):
             raise AuthenticationError(problems)
 
 
+@final
+class AuthBrowserLogin(Auth):
+    """A browser login in the credentials file. wandb-core refreshes it."""
+
+    @override
+    def __init__(self, *, host: str | HostUrl, credentials_file: str) -> None:
+        super().__init__(host=host)
+
+        # Absolute so wandb-core, which may have another cwd, finds the same file.
+        self._credentials_path = pathlib.Path(credentials_file).absolute()
+
+    @property
+    def credentials_path(self) -> pathlib.Path:
+        """Path to the file holding the stored login."""
+        return self._credentials_path
+
+    @override
+    def verify(self) -> None:
+        """Verify the credentials against the W&B server."""
+        if problems := validation.check_browser_login_validity(
+            host=self.host,
+            credentials_file=self._credentials_path,
+        ):
+            raise AuthenticationError(problems)
+
+
 @dataclasses.dataclass(frozen=True)
 class AuthWithSource:
     """Credentials with information about where they came from."""
