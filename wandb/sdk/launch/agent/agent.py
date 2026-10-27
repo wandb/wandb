@@ -545,7 +545,10 @@ class LaunchAgent:
 
     def _assert_secure(self, launch_spec: dict[str, Any]) -> None:
         """Reject unsafe resource args and enforce secure-mode-only locks."""
-        validate_launch_resource_args(launch_spec.get("resource_args", {}))
+        validate_launch_resource_args(
+            launch_spec.get("resource_args", {}),
+            secure_mode=self._secure_mode,
+        )
         if not self._secure_mode:
             return
         k8s_config = launch_spec.get("resource_args", {}).get("kubernetes", {})

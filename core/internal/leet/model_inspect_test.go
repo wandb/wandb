@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	txnlogtest "github.com/wandb/wandb/core/internal/transactionlogtest"
 )
 
 // drainCmds executes a command tree synchronously, feeding the resulting
@@ -39,7 +40,7 @@ func drainCmds(m *leet.Model, cmd tea.Cmd) {
 func TestModel_InspectFromRunView(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	path := writeWandbFile(t, inspectorTestRecords()...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 
 	m := leet.NewModel(leet.ModelParams{
 		RunParams: &leet.RunParams{RunFile: path},
