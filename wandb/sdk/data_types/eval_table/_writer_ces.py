@@ -52,9 +52,8 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
 # Server request-body limit.
 _MAX_REQUEST_BODY_BYTES = 16 << 20
 _MAX_REQUEST_BODY_SIZE = "16 MiB"
-# These two shape each `rows-{i}` body. If either changes, bump the idempotency-key
-# version so retries of partially uploaded tables cannot reuse keys across layouts.
-# The byte target leaves headroom below the hard request limit.
+# The byte target leaves headroom below the hard request limit. See
+# `_idempotency_key` for when a change here requires a key-version bump.
 _TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
 _MAX_ROWS_PER_BATCH = 10_000
 # Evaluations request-schema limits.
@@ -133,6 +132,28 @@ def _ces_base_url(wandb_base_url: str) -> str:
 
 # Bytes in a row-add body other than encoded rows and their separating commas.
 _ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
+
+
+def _ces_row(
+    *,
+    row_index: int,
+    inputs: dict[str, Any],
+    output: dict[str, Any] | None,
+    scores: dict[str, Any],
+) -> _CESRow:
+    """Build a row-add row, keying a row without inputs by position.
+
+    CES derives the example key of a row with inputs from a hash of its whole
+    input, so comparisons match rows with equal inputs.
+    """
+    if inputs:
+        return {"input": inputs, "output": output, "scores": scores}
+    return {
+        "input": None,
+        "output": output,
+        "scores": scores,
+        "example_key": str(row_index + 1),
+    }
 
 
 def _iter_row_batches(
@@ -384,7 +405,12 @@ class CESWriter:
                 order=scorer_order,
             )
             normalized_rows.append(
-                {"input": inputs, "output": output, "scores": scores}
+                _ces_row(
+                    row_index=row_index,
+                    inputs=inputs,
+                    output=output,
+                    scores=scores,
+                )
             )
 
         missing_fields = [
@@ -757,5 +783,9 @@ class CESWriter:
         return client
 
     def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
-        """Derive an operation-specific retry key from the bound log location."""
-        return f"wandb-eval-table-v1-{bound_run.idempotency_scope}-{operation}"
+        """Derive an operation-specific retry key from the bound log location.
+
+        Bump the version when a request body changes for the same table, since
+        CES rejects a reused key whose request body differs.
+        """
+        return f"wandb-eval-table-v2-{bound_run.idempotency_scope}-{operation}"
