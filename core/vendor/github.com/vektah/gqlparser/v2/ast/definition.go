@@ -100,10 +100,13 @@ type EnumValueDefinition struct {
 	AfterDescriptionComment  *CommentGroup
 }
 
+// DirectiveDefinition is a directive definition. Directive extensions are also
+// represented by this same struct, with only a name and directives.
 type DirectiveDefinition struct {
 	Description  string
 	Name         string
 	Arguments    ArgumentDefinitionList
+	Directives   DirectiveList
 	Locations    []DirectiveLocation
 	IsRepeatable bool
 	Position     *Position `dump:"-" json:"-"`
