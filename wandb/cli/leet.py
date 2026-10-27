@@ -84,6 +84,7 @@ def leet() -> None:
         wandb leet history --keys K   Print a run's metric series as JSON
         wandb leet summary [PATH]     Print a run's state, metrics and console as JSON
         wandb leet console --last 50  Print the last console lines of a run as JSON
+        wandb leet system --bins 60   Print a run's system metrics as JSON
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -504,6 +505,92 @@ def console(
         after=after,
         follow=follow,
         idle_timeout=idle_timeout,
+    )
+
+
+@leet.command(cls=ScriptCommand)
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.option(
+    "--run",
+    default="",
+    metavar="RUN",
+    help="The run to read: its directory name, its ID or its display name."
+    " Defaults to the newest run.",
+)
+@click.option(
+    "--keys",
+    default="",
+    metavar="KEYS",
+    help="Comma-separated system metric keys or globs with * and ?,"
+    " e.g. 'system.gpu.*.gpu,system.memory*'. Defaults to every key.",
+)
+@click.option(
+    "--since",
+    default="",
+    metavar="T",
+    help="Return only the samples taken at or after this RFC 3339 time, or within"
+    " this duration (e.g. 10m) of the run's last sample, or of now while it runs.",
+)
+@click.option(
+    "--bins",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Aggregate each metric into N equal-width bins over time instead of"
+    " returning rows.",
+)
+@click.option(
+    "--last",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Return only the last N samples.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Samples to return. Defaults to 1000.",
+)
+@click.help_option("-h", "--help")
+def system(
+    path: str | None = None,
+    run: str = "",
+    keys: str = "",
+    since: str = "",
+    bins: int | None = None,
+    last: int | None = None,
+    limit: int | None = None,
+) -> None:
+    """Print the system metrics of a run as JSON.
+
+    Prints one JSON object with the run's state and the samples of its
+    system metrics (CPU, memory, GPU, disk, network) on _timestamp, or
+    with --bins their min, max, average and last value per bin with each
+    metric's title and unit. Keys carry the system. prefix, as the W&B UI
+    names them. Only local runs are read.
+
+    \b
+    Examples:
+        wandb leet system --bins 60
+        wandb leet system --keys 'system.gpu.*.gpu,system.memory*' --since 10m --bins 60
+        wandb leet system --last 10
+        wandb leet system ./wandb --run sim-unstable-L32 --keys 'system.gpu.*'
+
+    PATH can be a .wandb file, a run directory containing one, or a
+    wandb directory. If PATH is not provided, the configured wandb
+    directory is used.
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    launch_query(
+        "system",
+        path,
+        run=run,
+        keys=keys,
+        since=since,
+        bins=bins,
+        last=last,
+        limit=limit,
     )
 
 
