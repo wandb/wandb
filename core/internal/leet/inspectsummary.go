@@ -59,7 +59,7 @@ func PrintSummary(runFile, wandbDir string, w io.Writer, asJSON bool) error {
 
 // SummaryQuery selects what QuerySummary reports about a run.
 type SummaryQuery struct {
-	Keys []string `json:"keys"`
+	Keys []string `json:"keys" doc:"Summary and history keys or globs with * and ? to report, e.g. val/* or train/loss. A glob never matches keys starting with _."`
 }
 
 // QuerySummary writes an overview of a run as one JSON object with the

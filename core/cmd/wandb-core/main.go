@@ -1,11 +1,13 @@
-// Command wandb-core provides the W&B SDK core service and the "leet" terminal UI
-// in a single binary. The default mode runs the core service; the `leet` subcommand
-// launches the local TUI for inspecting a run.
+// Command wandb-core provides the W&B SDK core service, the "leet" terminal UI
+// and the "mcp" server in a single binary. The default mode runs the core
+// service; the `leet` subcommand launches the local TUI for inspecting a run
+// and the `mcp` subcommand serves local runs to an MCP client over stdio.
 //
 // Usage:
 //
 //	wandb-core [service flags]
 //	wandb-core leet [<command>] [flags] [<wandb-directory>]
+//	wandb-core mcp [flags]
 //
 // Service flags: see `wandb-core -h`.
 // Leet commands: see `wandb-core leet -h`.
@@ -13,6 +15,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,6 +23,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +36,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/leetmcp"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -62,8 +68,13 @@ func main() {
 }
 
 func run(args []string) int {
-	if len(args) > 0 && args[0] == "leet" {
-		return leetMain(args[1:])
+	if len(args) > 0 {
+		switch args[0] {
+		case "leet":
+			return leetMain(args[1:])
+		case "mcp":
+			return mcpMain(args[1:])
+		}
 	}
 	return serviceMain()
 }
@@ -239,7 +250,7 @@ func leetMain(args []string) int {
 	if cmd.script {
 		logLevel = 0
 	}
-	logger, closeLogger, err := newLeetLogger(logLevel, recorder)
+	logger, closeLogger, err := newLeetLogger(logLevel, recorder, leet.DebugLogPath())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		return exitCodeErrorInternal
@@ -265,6 +276,73 @@ func leetMain(args []string) int {
 	sessionAttributes["exit_code"] = strconv.Itoa(exitCode)
 	logger.RecordTelemetry("leet_session", sessionAttributes)
 	return exitCode
+}
+
+// mcpMain serves the wandb leet query verbs as MCP tools on stdin and
+// stdout until stdin ends.
+func mcpMain(args []string) int {
+	opts := &leetOptions{}
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	bindLeetCommonFlags(fs, opts)
+	printTools := fs.Bool("print-tools", false,
+		"Print the tools as the result of tools/list and exit.")
+	fs.Usage = func() {
+		fmt.Fprint(fs.Output(), "Serve local W&B runs to an MCP client over stdio.\n\n"+
+			"Usage:\n  wandb-core mcp [flags]\n\nFlags:\n")
+		fs.PrintDefaults()
+	}
+	switch err := fs.Parse(args); {
+	case errors.Is(err, flag.ErrHelp):
+		return exitCodeSuccess
+	case err != nil:
+		return exitCodeErrorArgs
+	case fs.NArg() > 0:
+		fmt.Fprintf(os.Stderr, "Error: unexpected argument %q\n", fs.Arg(0))
+		fs.Usage()
+		return exitCodeErrorArgs
+	}
+
+	if *printTools {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(leetmcp.ListTools()); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			return exitCodeErrorInternal
+		}
+		return exitCodeSuccess
+	}
+
+	pprofStop, err := startLeetPprof(opts.pprofAddr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pprof:", err)
+		return exitCodeErrorArgs
+	}
+	defer stopLeetPprof(pprofStop)
+
+	recorder, stopTelemetry := leet.ConfigureTelemetry(leet.TelemetryParams{
+		Disabled: opts.disableAnalytics,
+		Mode:     "mcp",
+		Commit:   commit,
+		BaseURL:  opts.baseURL,
+	})
+	defer stopTelemetry()
+
+	logger, closeLogger, err := newLeetLogger(opts.logLevel, recorder,
+		filepath.Join(filepath.Dir(leet.DebugLogPath()), "wandb-mcp.debug.log"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorInternal
+	}
+	defer closeLogger()
+	analytics.ConfigureOTelErrorHandler(logger.Logger)
+	slog.SetDefault(logger.Logger)
+
+	if err := leetmcp.Serve(os.Stdin, os.Stdout, os.Stderr); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
 }
 
 type leetOptions struct {
@@ -510,7 +588,7 @@ func bindLeetCommonFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"log-level",
 		0,
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error."+
-			" Debug logs are written to wandb-leet.debug.log next to the LEET config file.",
+			" Debug logs are written next to the LEET config file.",
 	)
 	fs.BoolVar(
 		&opts.disableAnalytics,
@@ -595,99 +673,63 @@ func bindLeetQueryFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"Path to the .wandb file to read."+
 			" Defaults to the newest run in the wandb directory.",
 	)
-	fs.StringVar(
-		&opts.run,
-		"run",
-		"",
-		"The run to read: its directory name, its ID or its display name."+
-			" Defaults to the newest run in the wandb directory.",
-	)
+	fs.StringVar(&opts.run, "run", "", leet.RunDoc)
 }
 
 func bindLeetRunsFlags(fs *flag.FlagSet, opts *leetOptions) {
-	q := &opts.runs
 	fs.StringVar(&opts.runFile, "run-file", "", "Path to a .wandb file, to list only its run.")
-	fs.StringVar(&q.Filter, "filter", "",
-		"List only the runs matching this filter, in the language of the LEET runs"+
-			" sidebar, e.g. 'name:resnet cfg.lr>=0.001'.")
-	fs.BoolVar(&q.Glob, "glob", false,
-		"Match the patterns of --filter as globs instead of regexes.")
-	fs.Func("summary-keys", "Comma-separated summary keys or globs with * and ? to return"+
-		" per run, e.g. 'val/loss,train/*', as updated in the last 2 MiB of the file."+
-		" A glob never matches keys starting with _.",
-		appendKeys(&q.SummaryKeys))
-	fs.IntVar(&q.Limit, "limit", 0, "Runs to return, 0 for the default of 200.")
+	bindQueryOptions(fs, &opts.runs)
 }
 
 func bindLeetHistoryFlags(fs *flag.FlagSet, opts *leetOptions) {
 	bindLeetQueryFlags(fs, opts)
-	q := &opts.history
-	fs.Func("keys", "Comma-separated metric keys or globs with * and ? to return,"+
-		" e.g. 'train/loss,val/*'. A glob never matches keys starting with _.",
-		appendKeys(&q.Keys))
-	fs.StringVar(&q.XAxis, "x-axis", "",
-		"Key to use as the x axis of every metric instead of its own,"+
-			" e.g. _runtime. Rows without a finite value for it are left out.")
-	fs.IntVar(&q.Bins, "bins", 0,
-		"Aggregate each metric into this many equal-width bins over its x range"+
-			" instead of returning rows.")
-	fs.Func("min-step", "First _step to include.", setInt64(&q.MinStep))
-	fs.Func("max-step", "Last _step to include.", setInt64(&q.MaxStep))
-	fs.IntVar(&q.Last, "last", 0, "Return only the last N rows.")
-	fs.IntVar(&q.Limit, "limit", 0, "Rows per call (default 1000).")
-	fs.StringVar(&q.After, "after", "",
-		"The next_cursor of a previous call, to continue after the rows it returned.")
-	fs.BoolVar(&q.Follow, "follow", false,
-		"Keep printing new rows as the run writes them, one JSON object per poll,"+
-			" until it exits.")
-	fs.DurationVar(&q.IdleTimeout, "idle-timeout", leet.RunCrashTimeout,
-		"With --follow, stop once the run's file has gone this long without"+
-			" a write. 0 waits forever.")
+	opts.history.IdleTimeout = leet.RunCrashTimeout
+	bindQueryOptions(fs, &opts.history)
 }
 
 func bindLeetSummaryFlags(fs *flag.FlagSet, opts *leetOptions) {
 	bindLeetQueryFlags(fs, opts)
-	fs.Func("keys", "Comma-separated summary and history keys or globs with * and ? to"+
-		" report, e.g. 'val/*,train/loss'. A glob never matches keys starting with _.",
-		appendKeys(&opts.summaryQuery.Keys))
+	bindQueryOptions(fs, &opts.summaryQuery)
 }
 
 func bindLeetConsoleFlags(fs *flag.FlagSet, opts *leetOptions) {
 	bindLeetQueryFlags(fs, opts)
-	q := &opts.console
-	fs.IntVar(&q.Last, "last", 0, "Return only the last N matching lines (default 200).")
-	fs.StringVar(&q.Grep, "grep", "",
-		"Return only the lines matching this regular expression.")
-	fs.StringVar(&q.Since, "since", "",
-		"Return only the lines logged at or after this RFC 3339 time, or within this"+
-			" duration (e.g. 10m) of the run's last write, or of now while it runs."+
-			" A line redrawn in place keeps the time it was first written.")
-	fs.IntVar(&q.Limit, "limit", 0, "Lines per call when paging from the start or"+
-		" from --after (default 1000). --last is ignored.")
-	fs.StringVar(&q.After, "after", "",
-		"The next_cursor of a previous call, to continue after the lines it returned.")
-	fs.BoolVar(&q.Follow, "follow", false,
-		"Keep printing new lines as the run writes them, one JSON object per poll,"+
-			" until it exits.")
-	fs.DurationVar(&q.IdleTimeout, "idle-timeout", leet.RunCrashTimeout,
-		"With --follow, stop once the run's file has gone this long without"+
-			" a write. 0 waits forever.")
+	opts.console.IdleTimeout = leet.RunCrashTimeout
+	bindQueryOptions(fs, &opts.console)
 }
 
 func bindLeetSystemFlags(fs *flag.FlagSet, opts *leetOptions) {
 	bindLeetQueryFlags(fs, opts)
-	q := &opts.system
-	fs.Func("keys", "Comma-separated system metric keys or globs with * and ? to return,"+
-		" e.g. 'system.gpu.*.gpu,system.memory*'. Defaults to every key.",
-		appendKeys(&q.Keys))
-	fs.StringVar(&q.Since, "since", "",
-		"Return only the samples taken at or after this RFC 3339 time, or within this"+
-			" duration (e.g. 10m) of the run's last sample, or of now while it runs.")
-	fs.IntVar(&q.Bins, "bins", 0,
-		"Aggregate each metric into this many equal-width bins over time"+
-			" instead of returning rows.")
-	fs.IntVar(&q.Last, "last", 0, "Return only the last N samples.")
-	fs.IntVar(&q.Limit, "limit", 0, "Samples to return (default 1000).")
+	bindQueryOptions(fs, &opts.system)
+}
+
+// bindQueryOptions binds a flag to each field of the query options struct
+// q points to, named after the field's json name with dashes for
+// underscores, documented by its doc tag and defaulting to its value.
+func bindQueryOptions(fs *flag.FlagSet, q any) {
+	v := reflect.ValueOf(q).Elem()
+	for i := range v.NumField() {
+		f := v.Type().Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		name = strings.ReplaceAll(name, "_", "-")
+		doc := f.Tag.Get("doc")
+		switch p := v.Field(i).Addr().Interface().(type) {
+		case *string:
+			fs.StringVar(p, name, *p, doc)
+		case *bool:
+			fs.BoolVar(p, name, *p, doc)
+		case *int:
+			fs.IntVar(p, name, *p, doc)
+		case *time.Duration:
+			fs.DurationVar(p, name, *p, doc)
+		case *[]string:
+			fs.Func(name, doc+" Comma-separated.", appendKeys(p))
+		case **int64:
+			fs.Func(name, doc, setInt64(p))
+		default:
+			panic(fmt.Sprintf("no flag for %s %s", f.Name, f.Type))
+		}
+	}
 }
 
 // appendKeys returns a flag function that appends the comma-separated keys
@@ -798,9 +840,12 @@ func stopLeetPprof(pprofStop func(context.Context) error) {
 	_ = pprofStop(ctx)
 }
 
+// newLeetLogger returns a logger that writes to the file at debugLogPath
+// with --log-level -4 and discards its logs otherwise.
 func newLeetLogger(
 	logLevel int,
 	recorder *analytics.TelemetryRecorder,
+	debugLogPath string,
 ) (*observability.CoreLogger, func(), error) {
 	logWriter := io.Discard
 	closeLogWriter := func() {}
@@ -808,7 +853,7 @@ func newLeetLogger(
 	// TODO: Create a log file not only if debug logging is requested.
 	if logLevel == -4 {
 		loggerFile, err := os.OpenFile(
-			leet.DebugLogPath(),
+			debugLogPath,
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 			0o644,
 		)
