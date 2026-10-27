@@ -27,6 +27,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- `run.config` no longer keeps a value it rejects as not JSON serializable, which made later `log_artifact` and table logging calls fail with the same error (@RitiGrover in https://github.com/wandb/wandb/pull/13122)
 - Launch agents in secure mode now reject jobs with SageMaker or Vertex resource arguments (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13202)
 - In LEET, a remote run opened before it logged any history did not update its state, summary or system metrics while it was running (@dmitryduev in https://github.com/wandb/wandb/pull/13221)
 - `wandb leet symon` scaled the GPU PCIe and NVLink throughput charts and the Trainium memory charts by 1024³ on top of the bytes that the monitor reports, so their y-axis labels read like `7.67e+09GB/s` instead of `7.67GB/s` (@dmitryduev in https://github.com/wandb/wandb/pull/13191)
