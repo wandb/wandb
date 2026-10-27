@@ -24,10 +24,6 @@ const (
 	// unless told otherwise.
 	defaultHistoryLimit = 1000
 
-	// queryTailBytes is how far from the end of a .wandb file readExitRecord
-	// starts reading.
-	queryTailBytes = 64 * 1024
-
 	// maxHistoryBins bounds HistoryQuery.Bins.
 	maxHistoryBins = 100_000
 )
@@ -99,7 +95,7 @@ func QueryHistory(wandbDir, runFile, run string, q HistoryQuery, w io.Writer) er
 		reader:     reader,
 		metrics:    runmetric.New(),
 		run:        readRunRecord(path),
-		exit:       readExitRecord(path, stat.Size()),
+		exit:       readRunTail(path, stat.Size()).exit,
 		values:     make(map[string]float64),
 		axes:       make(map[string]string),
 		nonNumeric: make(map[string]bool),
