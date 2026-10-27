@@ -142,6 +142,18 @@ func (mg *MetricsGrid) SetChartGuides(guides string) {
 	mg.drawVisible()
 }
 
+// SetSmoothing applies the EMA weight to all charts and redraws the
+// visible ones.
+func (mg *MetricsGrid) SetSmoothing(weight float64) {
+	mg.mu.Lock()
+	for _, chart := range mg.all {
+		chart.SetSmoothing(weight)
+	}
+	mg.mu.Unlock()
+
+	mg.drawVisible()
+}
+
 // ChartCount returns the total number of metrics charts.
 func (mg *MetricsGrid) ChartCount() int {
 	mg.mu.RLock()
@@ -175,6 +187,9 @@ func (mg *MetricsGrid) focusedChartLabels() string {
 	}
 	if m := chart.XAxisMetric(); m != "" {
 		labels += " [x: " + m + "]"
+	}
+	if w := chart.Smoothing(); w > 0 {
+		labels += fmt.Sprintf(" [smooth %g]", w)
 	}
 	return labels
 }
@@ -230,6 +245,7 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 		if !exists {
 			chart = NewEpochLineChart(name)
 			chart.SetChartGuides(mg.config.ChartGuides())
+			chart.SetSmoothing(mg.config.Smoothing())
 			chart.SetPalette(mg.palette)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart

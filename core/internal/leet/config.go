@@ -64,6 +64,9 @@ const (
 	ChartGuidesHorizontal = "horizontal"
 	DefaultChartGuides    = ChartGuidesOff
 
+	// DefaultSmoothing plots raw metric values; the m key cycles the presets.
+	DefaultSmoothing = 0.0
+
 	DefaultMediaGridRows          = 1
 	DefaultMediaGridCols          = 2
 	DefaultWorkspaceMediaGridRows = 1
@@ -86,6 +89,11 @@ type Config struct {
 
 	// ChartGuides controls the background guides drawn behind line charts.
 	ChartGuides string `json:"chart_guides" leet:"label=Chart guides,desc=Background guides for metrics and system charts.,options=chartGuides"`
+
+	// Smoothing is the weight of the exponential moving average plotted on
+	// metrics charts, in [0, 1); 0 plots the raw values. The m key cycles
+	// it; the config editor has no float fields.
+	Smoothing float64 `json:"smoothing" leet:"-"`
 
 	// MetricsGrid is the dimensions for the metrics chart guides in single-run mode.
 	MetricsGrid GridConfig `json:"metrics_grid" leet:"desc=main metrics grid"`
@@ -260,6 +268,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			SymonSidebarVisible:           true,
 			StartupMode:                   DefaultStartupMode,
 			ChartGuides:                   DefaultChartGuides,
+			Smoothing:                     DefaultSmoothing,
 			ColorScheme:                   DefaultColorScheme,
 			PerPlotColorScheme:            DefaultPerPlotColorScheme,
 			TagColorScheme:                DefaultTagColorScheme,
@@ -387,6 +396,10 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.ChartGuides = DefaultChartGuides
 	}
 
+	if !isSmoothing(cm.config.Smoothing) {
+		cm.config.Smoothing = DefaultSmoothing
+	}
+
 	normalizeLayoutOverrides(&cm.config.RunLayout)
 	normalizeLayoutOverrides(&cm.config.WorkspaceLayout)
 	normalizeLayoutOverrides(&cm.config.InspectorLayout)
@@ -408,6 +421,25 @@ func nextChartGuides(guides string) string {
 	default:
 		return ChartGuidesOff
 	}
+}
+
+// smoothingPresets are the weights the m key cycles through before
+// returning to off.
+var smoothingPresets = []float64{0.6, 0.9, 0.99}
+
+// isSmoothing reports whether weight is a usable EMA weight; NaN is not.
+func isSmoothing(weight float64) bool {
+	return weight >= 0 && weight < 1
+}
+
+// nextSmoothing returns the first preset above weight, or off after the last.
+func nextSmoothing(weight float64) float64 {
+	for _, preset := range smoothingPresets {
+		if preset > weight {
+			return preset
+		}
+	}
+	return 0
 }
 
 // normalizeLayoutOverrides clamps set (non-zero) fractions to a sane range.
@@ -714,6 +746,21 @@ func (cm *ConfigManager) SetChartGuides(guides string) error {
 		return fmt.Errorf("invalid chart guides: %q", guides)
 	}
 	return cm.set(func(c *Config) { c.ChartGuides = guides })
+}
+
+// Smoothing returns the EMA weight plotted on metrics charts; 0 is off.
+func (cm *ConfigManager) Smoothing() float64 {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.Smoothing
+}
+
+// SetSmoothing sets the EMA weight plotted on metrics charts.
+func (cm *ConfigManager) SetSmoothing(weight float64) error {
+	if !isSmoothing(weight) {
+		return fmt.Errorf("smoothing must be in [0, 1), got %v", weight)
+	}
+	return cm.set(func(c *Config) { c.Smoothing = weight })
 }
 
 // ColorScheme returns the current color scheme.

@@ -643,6 +643,15 @@ func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleCycleSmoothing(tea.KeyPressMsg) tea.Cmd {
+	weight := nextSmoothing(r.config.Smoothing())
+	if err := r.config.SetSmoothing(weight); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save smoothing: %v", err))
+	}
+	r.metricsGrid.SetSmoothing(weight)
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	if r.focusMgr.Current() == FocusTargetConsoleLogs {
 		r.consoleLogsPane.EnterFilterMode()

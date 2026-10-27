@@ -133,6 +133,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleCycleChartGuides,
 				},
 				{
+					Keys:        []string{"m"},
+					Description: "Cycle metrics smoothing (off / 0.6 / 0.9 / 0.99)",
+					Handler:     (*Run).handleCycleSmoothing,
+				},
+				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern (console logs when the logs pane is focused)",
 					Handler:     (*Run).handleEnterMetricsFilter,
@@ -363,6 +368,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"g"},
 					Description: "Cycle chart guides (off / dots / horizontal)",
 					Handler:     (*Workspace).handleCycleChartGuides,
+				},
+				{
+					Keys:        []string{"m"},
+					Description: "Cycle metrics smoothing (off / 0.6 / 0.9 / 0.99)",
+					Handler:     (*Workspace).handleCycleSmoothing,
 				},
 				{
 					Keys:        []string{"/"},
