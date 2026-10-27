@@ -208,6 +208,9 @@ class Video(BatchableMedia):
         )
 
         tensor = self._prepare_video(self.data)
+        if tensor.shape[-1] == 1:
+            # The encoders expect RGB frames, not a single grayscale channel.
+            tensor = tensor.repeat(3, axis=-1)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
