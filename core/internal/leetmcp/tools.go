@@ -35,6 +35,10 @@ type tool struct {
 	// annotation.
 	readOnly bool
 
+	// ui is the URI of the MCP App that renders the tool's result, named
+	// in _meta.ui for a client that renders apps.
+	ui string
+
 	// run writes the tool's JSON object to w, or returns the error to
 	// report as a leet.error/1 object.
 	run func(args json.RawMessage, w io.Writer) error
@@ -101,6 +105,18 @@ var tools = []tool{
 		run:      perRun(leet.QuerySystem),
 	},
 	{
+		name: "leet_view",
+		description: "Show LEET charts: in a host that renders apps, opens the LEET panel" +
+			" with the runs of a wandb directory and one chart per key for the selected" +
+			" runs, else the newest three, which the user can toggle; the panel refreshes" +
+			" running runs every 15 s. Returns the runs as leet_runs lists them with the" +
+			" view to show. Without a panel, read the series with leet_history.",
+		options:  viewOptions{},
+		readOnly: true,
+		ui:       panelURI,
+		run:      runView,
+	},
+	{
 		name: "leet_session",
 		description: "Steer the LEET a user has open on a wandb directory: select, pin or" +
 			" open runs, set a filter, focus a chart, put the crosshair on a step, press a" +
@@ -128,6 +144,14 @@ type controlMethod string
 type sessionOptions struct {
 	Method controlMethod   `json:"method" doc:"What LEET should do or report."`
 	Params json.RawMessage `json:"params" doc:"The parameters of the method as an object, e.g. {\"filter\": \"cfg.lr>=0.001\"} for runs.select."`
+}
+
+// viewOptions are the inputs of leet_view besides path.
+type viewOptions struct {
+	Filter string   `json:"filter" doc:"List only the runs matching this filter, in the language of the LEET runs sidebar, e.g. 'name:resnet cfg.lr>=0.001'."`
+	Glob   bool     `json:"glob"   doc:"Match the patterns of the filter as globs instead of regexes."`
+	Keys   []string `json:"keys"   doc:"Metric keys or globs with * and ? to chart, e.g. train/loss or train/*. Empty or a glob charts the first three matching keys of the first charted run."`
+	Bins   int      `json:"bins"   doc:"Bins per chart when the panel cannot measure its width, 0 for the default of 200."`
 }
 
 // source is the run a tool call reads: the path of its wandb directory, run
@@ -261,11 +285,42 @@ func runSession(args json.RawMessage, w io.Writer) error {
 	return err
 }
 
-// ListTools returns the result of tools/list.
-func ListTools() map[string]any {
+// runView writes the leet.view/1 object: the view the LEET panel shows,
+// with the defaults filled in, and the runs of the path as leet_runs lists
+// them.
+func runView(args json.RawMessage, w io.Writer) error {
+	var o viewOptions
+	src, err := decodeArguments(args, &o, false)
+	if err != nil {
+		return err
+	}
+	if o.Bins < 0 {
+		return badRequest("bins must be >= 0")
+	}
+	var runs bytes.Buffer
+	err = leet.ListRuns(src.path, "", leet.RunsQuery{Filter: o.Filter, Glob: o.Glob}, &runs)
+	if err != nil {
+		return err
+	}
+	return writeJSON(w, map[string]any{
+		"schema": "leet.view/1",
+		"view": map[string]any{
+			"filter": o.Filter,
+			"glob":   o.Glob,
+			"keys":   append([]string{}, o.Keys...),
+			"x_axis": "_step",
+			"bins":   cmp.Or(o.Bins, 200),
+		},
+		"runs": json.RawMessage(runs.Bytes()),
+	})
+}
+
+// ListTools returns the result of tools/list, naming the app that renders
+// a tool's result in its _meta.ui when the client renders apps.
+func ListTools(apps bool) map[string]any {
 	list := make([]any, 0, len(tools))
 	for _, t := range tools {
-		list = append(list, map[string]any{
+		entry := map[string]any{
 			"name":        t.name,
 			"description": t.description,
 			"inputSchema": inputSchema(t),
@@ -274,7 +329,11 @@ func ListTools() map[string]any {
 				"destructiveHint": false,
 				"openWorldHint":   false,
 			},
-		})
+		}
+		if apps && t.ui != "" {
+			entry["_meta"] = map[string]any{"ui": map[string]any{"resourceUri": t.ui}}
+		}
+		list = append(list, entry)
 	}
 	return map[string]any{"tools": list}
 }
