@@ -253,7 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 80
+/// Next ID: 81
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -485,7 +485,11 @@ pub struct Feature {
     /// User logged an incremental wandb.Table via run.log()
     #[prost(bool, tag = "79")]
     pub incremental_table: bool,
+    /// Consuming GPU metrics from a DCGM exporter
+    #[prost(bool, tag = "80")]
+    pub dcgm_exporter: bool,
 }
+/// Next ID: 19
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Env {
     /// jupyter env detected
@@ -497,10 +501,7 @@ pub struct Env {
     /// windows detected
     #[prost(bool, tag = "3")]
     pub windows: bool,
-    /// apple silicon M1 gpu found
-    #[prost(bool, tag = "4")]
-    pub m1_gpu: bool,
-    /// AWS Trainium env detected
+    /// AWS Trainium monitored
     #[prost(bool, tag = "10")]
     pub trainium: bool,
     /// pex env detected
@@ -515,9 +516,18 @@ pub struct Env {
     /// running in AWS Lambda
     #[prost(bool, tag = "14")]
     pub aws_lambda: bool,
-    /// AMD GPU detected
+    /// AMD GPU monitored
     #[prost(bool, tag = "15")]
     pub amd_gpu: bool,
+    /// Apple Silicon GPU monitored
+    #[prost(bool, tag = "16")]
+    pub apple_gpu: bool,
+    /// NVIDIA GPU monitored, locally or through a DCGM exporter
+    #[prost(bool, tag = "17")]
+    pub nvidia_gpu: bool,
+    /// Google TPU monitored
+    #[prost(bool, tag = "18")]
+    pub tpu: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Labels {
