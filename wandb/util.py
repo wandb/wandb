@@ -437,6 +437,13 @@ def is_pandas_data_frame(obj: Any) -> bool:
         return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
+def is_pandas_na(obj: Any) -> bool:
+    """Returns whether obj is `pandas.NA`, the missing value of nullable dtypes."""
+    # pandas.NA can only exist if pandas is already imported.
+    pd = sys.modules.get("pandas")
+    return pd is not None and obj is getattr(pd, "NA", None)
+
+
 def ensure_matplotlib_figure(obj: Any) -> Any:
     """Extract the current figure from a matplotlib object.
 
@@ -607,6 +614,8 @@ def json_friendly(  # noqa: C901
             else str(obj)
         )
     elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif is_pandas_na(obj):
         obj = None
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)

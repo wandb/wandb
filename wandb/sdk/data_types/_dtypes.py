@@ -9,6 +9,7 @@ from wandb.util import (
     _is_artifact_version_weave_dict,
     get_module,
     is_numpy_array,
+    is_pandas_na,
 )
 
 np = get_module("numpy")  # intentionally not required
@@ -59,6 +60,11 @@ class TypeRegistry:
         # mypy does not trust that py_obj is a float by the time it is
         # passed to isnan.
         if py_obj.__class__ is float and math.isnan(py_obj):  # type: ignore
+            return NoneType()
+
+        # pandas.NA is the missing value of nullable dtypes like "Int64" and
+        # "string", so it is a None for the same reason as np.nan above.
+        if is_pandas_na(py_obj):
             return NoneType()
 
         # TODO: generalize this to handle other config input types
