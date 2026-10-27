@@ -21,13 +21,6 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ErrRemoteNotAvailable is the error of a query that does not read W&B
-// URLs yet.
-var ErrRemoteNotAvailable = &QueryError{
-	Code:    "not_available",
-	Message: "remote runs come in the next release",
-}
-
 // ListRemoteRuns writes the runs of the W&B project params names, newest
 // first, as the leet.runs/1 object of ListRuns read from the W&B server.
 func ListRemoteRuns(params *RemoteRunParams, q RunsQuery, w io.Writer) error {
@@ -60,6 +53,13 @@ func QueryRemoteConsole(params *RemoteRunParams, q ConsoleQuery, w io.Writer) er
 
 func remoteContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 60*time.Second)
+}
+
+// errRemoteFollow is the error of --follow on a remote run.
+var errRemoteFollow = &QueryError{
+	Code: "not_available",
+	Message: "follow is not available for remote runs;" +
+		" call again with --after <next_cursor>",
 }
 
 // remoteURL returns the canonical URL of the project, or of the run when
@@ -286,11 +286,7 @@ func queryRemoteConsole(
 ) error {
 	switch {
 	case q.Follow:
-		return &QueryError{
-			Code: "not_available",
-			Message: "follow is not available for remote runs;" +
-				" call again with --after <next_cursor>",
-		}
+		return errRemoteFollow
 	case q.Last < 0, q.Limit < 0:
 		return badRequest("last and limit must be >= 0")
 	case q.Last > math.MaxInt32, q.Limit > math.MaxInt32:

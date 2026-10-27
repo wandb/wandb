@@ -32,13 +32,13 @@ const (
 type HistoryQuery struct {
 	Keys        []string      `json:"keys"         doc:"Metric keys or globs with * and ? to return, e.g. train/loss or val/*. A glob never matches keys starting with _."`
 	XAxis       string        `json:"x_axis"       doc:"Key to use as the x axis of every metric instead of its own, e.g. _runtime. Rows without a finite value for it are left out."`
-	Bins        int           `json:"bins"         doc:"Aggregate each metric into this many equal-width bins over its x range instead of returning rows."`
+	Bins        int           `json:"bins"         doc:"Aggregate each metric into this many equal-width bins over its x range instead of returning rows. For a W&B URL the server chooses the bin edges, so about this many bins come back, each with x0 and x1 the first and last x it observed."`
 	MinStep     *int64        `json:"min_step"     doc:"First _step to include."`
 	MaxStep     *int64        `json:"max_step"     doc:"Last _step to include."`
-	Last        int           `json:"last"         doc:"Return only the last N rows."`
+	Last        int           `json:"last"         doc:"Return only the last N rows, or for a W&B URL the rows of the last N steps."`
 	Limit       int           `json:"limit"        doc:"Rows per call (default 1000)."`
 	After       string        `json:"after"        doc:"The next_cursor of a previous call, to continue after the rows it returned."`
-	Follow      bool          `json:"follow"       doc:"Keep printing new rows as the run writes them, one JSON object per poll, until it exits."`
+	Follow      bool          `json:"follow"       doc:"Keep printing new rows as the run writes them, one JSON object per poll, until it exits. Local runs only."`
 	IdleTimeout time.Duration `json:"idle_timeout" doc:"With --follow, stop once the run's file has gone this long without a write. 0 waits forever."`
 }
 
@@ -396,8 +396,7 @@ func (s *historyScan) envelope(warnings []string) (map[string]any, error) {
 		return nil, err
 	}
 
-	keys := slices.AppendSeq(make([]string, 0, len(s.axes)), maps.Keys(s.axes))
-	slices.Sort(keys)
+	keys := sortedKeys(s.axes)
 	skipped := make(map[string]any)
 	for key := range s.nonNumeric {
 		if _, ok := s.axes[key]; !ok {
@@ -409,18 +408,8 @@ func (s *historyScan) envelope(warnings []string) (map[string]any, error) {
 		warnings = append(warnings,
 			fmt.Sprintf("x axis %q was not found in any row", s.q.XAxis))
 	}
-	for _, pattern := range s.q.Keys {
-		matched := false
-		for key := range s.axes {
-			matched = matched || matchKey(pattern, key)
-		}
-		for key := range s.nonNumeric {
-			matched = matched || matchKey(pattern, key)
-		}
-		if !matched {
-			warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
-		}
-	}
+	seen := slices.AppendSeq(slices.Clone(keys), maps.Keys(s.nonNumeric))
+	warnings = append(warnings, unmatchedKeyWarnings(s.q.Keys, seen)...)
 	out := map[string]any{
 		"schema": "leet.history/1",
 		"source": querySource(s.path, s.run.GetEntity(), s.run.GetProject(), s.run.GetRunId()),
