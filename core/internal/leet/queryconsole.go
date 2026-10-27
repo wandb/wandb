@@ -30,7 +30,7 @@ const (
 
 // ConsoleQuery selects the console lines of a run for QueryConsole.
 type ConsoleQuery struct {
-	Last        int           `json:"last"         doc:"Return only the last N matching lines (default 200)."`
+	Last        int           `json:"last"         doc:"Return only the last N matching lines (default 200). For a W&B URL, grep and since filter only the last N lines the server returns."`
 	Grep        string        `json:"grep"         doc:"Return only the lines matching this regular expression."`
 	Since       string        `json:"since"        doc:"Return only the lines logged at or after this RFC 3339 time, or within this duration (e.g. 10m) of the run's last write, or of now while it runs. A line redrawn in place keeps the time it was first written."`
 	Limit       int           `json:"limit"        doc:"Lines per call when paging from the start or from after (default 1000); last is ignored."`

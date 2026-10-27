@@ -21,7 +21,7 @@ const defaultRunsLimit = 200
 type RunsQuery struct {
 	Filter      string   `json:"filter"       doc:"List only the runs matching this filter, in the language of the LEET runs sidebar, e.g. 'name:resnet cfg.lr>=0.001'."`
 	Glob        bool     `json:"glob"         doc:"Match the patterns of the filter as globs instead of regexes."`
-	SummaryKeys []string `json:"summary_keys" doc:"Summary keys or globs with * and ? to return per run, e.g. val/loss or train/*, as updated in the last 2 MiB of the file. A glob never matches keys starting with _."`
+	SummaryKeys []string `json:"summary_keys" doc:"Summary keys or globs with * and ? to return per run, e.g. val/loss or train/*, as updated in the last 2 MiB of the file. A glob never matches keys starting with _. Local paths only; for a W&B URL read the run's summary instead."`
 	Limit       int      `json:"limit"        doc:"Runs to return, 0 for the default of 200."`
 }
 

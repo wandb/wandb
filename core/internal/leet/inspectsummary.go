@@ -339,16 +339,7 @@ func (d *runDigest) writeJSON(w io.Writer) error {
 func (d *runDigest) writeQueryJSON(w io.Writer, keys []string) error {
 	out, detail := d.jsonFields()
 
-	matched := make([]bool, len(keys))
-	selected := func(key string) bool {
-		hit := len(keys) == 0
-		for i, p := range keys {
-			if matchKey(p, key) {
-				matched[i], hit = true, true
-			}
-		}
-		return hit
-	}
+	selected, unmatched := keySelector(keys)
 	out["summary"] = selectTree(out["summary"].(map[string]any), "", selected)
 	historyKeys := make(map[string]any, len(d.historyKeys))
 	for key, hk := range d.historyKeys {
@@ -360,12 +351,7 @@ func (d *runDigest) writeQueryJSON(w io.Writer, keys []string) error {
 			}
 		}
 	}
-	warnings := []string{}
-	for i, pattern := range keys {
-		if !matched[i] {
-			warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
-		}
-	}
+	warnings := unmatched()
 
 	tail, total := d.consoleTail(summaryQueryConsoleLines)
 	console := make([]any, 0, len(tail))
@@ -385,6 +371,32 @@ func (d *runDigest) writeQueryJSON(w io.Writer, keys []string) error {
 	out["next_cursor"] = nil
 
 	return encodeJSON(w, out, "")
+}
+
+// keySelector returns a function reporting whether keys, keys or globs,
+// select a key, every key when keys is empty, and one returning a warning
+// for each pattern that has selected nothing so far.
+func keySelector(keys []string) (selected func(string) bool, unmatched func() []string) {
+	matched := make([]bool, len(keys))
+	selected = func(key string) bool {
+		hit := len(keys) == 0
+		for i, p := range keys {
+			if matchKey(p, key) {
+				matched[i], hit = true, true
+			}
+		}
+		return hit
+	}
+	unmatched = func() []string {
+		warnings := []string{}
+		for i, pattern := range keys {
+			if !matched[i] {
+				warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
+			}
+		}
+		return warnings
+	}
+	return selected, unmatched
 }
 
 // selectTree returns the entries of tree, a nested map whose dotted paths
