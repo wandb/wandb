@@ -281,9 +281,11 @@ type leetOptions struct {
 	wandbDir         string
 
 	// run selects a run in the wandb directory for the query commands.
-	run     string
-	runs    leet.RunsQuery
-	history leet.HistoryQuery
+	run          string
+	runs         leet.RunsQuery
+	history      leet.HistoryQuery
+	summaryQuery leet.SummaryQuery
+	console      leet.ConsoleQuery
 
 	// remoteURL is the W&B URL of the project or run to open
 	// (e.g. https://api.forge.coreweave.com/<entity>/<project> or
@@ -351,6 +353,26 @@ var leetCommands = []*leetCommand{
 		bindFlags: bindLeetHistoryFlags,
 		validate:  validateLeetQuerySource,
 		run:       runLeetHistory,
+	},
+	{
+		name:      "summary",
+		args:      "[<wandb-directory>]",
+		short:     "Print a run's state, latest metrics, config and console tail as JSON",
+		mode:      "summary",
+		script:    true,
+		bindFlags: bindLeetSummaryFlags,
+		validate:  validateLeetQuerySource,
+		run:       runLeetSummary,
+	},
+	{
+		name:      "console",
+		args:      "[<wandb-directory>]",
+		short:     "Print the console output of a run as JSON",
+		mode:      "console",
+		script:    true,
+		bindFlags: bindLeetConsoleFlags,
+		validate:  validateLeetQuerySource,
+		run:       runLeetConsole,
 	},
 	{
 		name:      "symon",
@@ -595,6 +617,35 @@ func bindLeetHistoryFlags(fs *flag.FlagSet, opts *leetOptions) {
 			" a write. 0 waits forever.")
 }
 
+func bindLeetSummaryFlags(fs *flag.FlagSet, opts *leetOptions) {
+	bindLeetQueryFlags(fs, opts)
+	fs.Func("keys", "Comma-separated summary and history keys or globs with * and ? to"+
+		" report, e.g. 'val/*,train/loss'. A glob never matches keys starting with _.",
+		appendKeys(&opts.summaryQuery.Keys))
+}
+
+func bindLeetConsoleFlags(fs *flag.FlagSet, opts *leetOptions) {
+	bindLeetQueryFlags(fs, opts)
+	q := &opts.console
+	fs.IntVar(&q.Last, "last", 0, "Return only the last N matching lines (default 200).")
+	fs.StringVar(&q.Grep, "grep", "",
+		"Return only the lines matching this regular expression.")
+	fs.StringVar(&q.Since, "since", "",
+		"Return only the lines logged at or after this RFC 3339 time, or within this"+
+			" duration (e.g. 10m) of the run's last write, or of now while it runs."+
+			" A line redrawn in place keeps the time it was first written.")
+	fs.IntVar(&q.Limit, "limit", 0, "Lines per call when paging from the start or"+
+		" from --after (default 1000). --last is ignored.")
+	fs.StringVar(&q.After, "after", "",
+		"The next_cursor of a previous call, to continue after the lines it returned.")
+	fs.BoolVar(&q.Follow, "follow", false,
+		"Keep printing new lines as the run writes them, one JSON object per poll,"+
+			" until it exits.")
+	fs.DurationVar(&q.IdleTimeout, "idle-timeout", leet.RunCrashTimeout,
+		"With --follow, stop once the run's file has gone this long without"+
+			" a write. 0 waits forever.")
+}
+
 // appendKeys returns a flag function that appends the comma-separated keys
 // in its argument to keys.
 func appendKeys(keys *[]string) func(string) error {
@@ -754,6 +805,24 @@ func runLeetRuns(opts *leetOptions, _ *observability.CoreLogger) int {
 
 func runLeetHistory(opts *leetOptions, _ *observability.CoreLogger) int {
 	err := leet.QueryHistory(opts.wandbDir, opts.runFile, opts.run, opts.history, os.Stdout)
+	if err != nil {
+		leet.WriteQueryError(os.Stderr, err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+func runLeetSummary(opts *leetOptions, _ *observability.CoreLogger) int {
+	err := leet.QuerySummary(opts.wandbDir, opts.runFile, opts.run, opts.summaryQuery, os.Stdout)
+	if err != nil {
+		leet.WriteQueryError(os.Stderr, err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+func runLeetConsole(opts *leetOptions, _ *observability.CoreLogger) int {
+	err := leet.QueryConsole(opts.wandbDir, opts.runFile, opts.run, opts.console, os.Stdout)
 	if err != nil {
 		leet.WriteQueryError(os.Stderr, err)
 		return exitCodeErrorInternal

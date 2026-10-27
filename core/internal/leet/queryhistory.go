@@ -102,8 +102,8 @@ func QueryHistory(wandbDir, runFile, run string, q HistoryQuery, w io.Writer) er
 		maxStep:    -1,
 	}
 	if q.After != "" {
-		c, err := decodeCursor(q.After)
-		if err != nil {
+		var c historyCursor
+		if err := decodeCursor(q.After, &c); err != nil {
 			return err
 		}
 		switch {
@@ -423,14 +423,7 @@ func (s *historyScan) envelope(warnings []string) (map[string]any, error) {
 	}
 	out := map[string]any{
 		"schema": "leet.history/1",
-		"source": map[string]any{
-			"kind":    "local",
-			"path":    s.path,
-			"url":     nil,
-			"entity":  orNil(s.run.GetEntity()),
-			"project": orNil(s.run.GetProject()),
-			"run_id":  orNil(s.run.GetRunId()),
-		},
+		"source": querySource(s.path, s.run.GetEntity(), s.run.GetProject(), s.run.GetRunId()),
 		"state": strings.ToLower(
 			runState(s.exit, s.run != nil, stat.ModTime()).String(),
 		),
