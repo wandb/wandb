@@ -340,7 +340,7 @@ github.com/aws/smithy-go/waiter
 ## explicit; go 1.24
 github.com/aymanbagabas/go-udiff
 github.com/aymanbagabas/go-udiff/lcs
-# github.com/bmatcuk/doublestar/v4 v4.10.3
+# github.com/bmatcuk/doublestar/v4 v4.10.4
 ## explicit; go 1.16
 github.com/bmatcuk/doublestar/v4
 # github.com/cenkalti/backoff/v5 v5.0.3
@@ -363,7 +363,7 @@ github.com/charmbracelet/x/ansi/parser
 # github.com/charmbracelet/x/exp/golden v0.1.0
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/exp/golden
-# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261018003744-cb897cb4ed72
+# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261025003702-835ad0048169
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/exp/teatest/v2
 # github.com/charmbracelet/x/term v0.2.2
@@ -894,7 +894,7 @@ golang.org/x/tools/internal/versions
 ## explicit; go 1.18
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
-# google.golang.org/api v0.308.0
+# google.golang.org/api v0.309.0
 ## explicit; go 1.26.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
