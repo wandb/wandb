@@ -731,3 +731,19 @@ def test_image_id_from_k8s_removes_only_the_scheme(monkeypatch):
         mock.patch("urllib.request.urlopen", return_value=response),
     ):
         assert util.image_id_from_k8s() == image_id
+
+
+def test_working_set_skips_distribution_without_metadata(tmp_path, monkeypatch):
+    # An interrupted install or uninstall can leave a *.dist-info folder
+    # without a METADATA file behind.
+    (tmp_path / "broken_pkg-1.0.dist-info").mkdir()
+    good = tmp_path / "good_pkg-2.0.dist-info"
+    good.mkdir()
+    (good / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: good-pkg\nVersion: 2.0\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    installed = {d.key: d.version for d in util.working_set()}
+
+    assert installed["good-pkg"] == "2.0"
