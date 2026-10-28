@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	"github.com/wandb/wandb/core/internal/transactionlogtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -27,6 +28,14 @@ func emptyWandbFile(t *testing.T) string {
 	require.NoError(t, writer.Close())
 
 	return path
+}
+
+func assertUnsupportedVersion(t *testing.T, err error, version byte) {
+	t.Helper()
+	var versionErr *transactionlog.UnsupportedVersionError
+	require.ErrorAs(t, err, &versionErr)
+	assert.Equal(t, version, versionErr.Version)
+	assert.EqualError(t, err, "a newer wandb version is required to read this file")
 }
 
 func Test_ReadAfterWrite(t *testing.T) {
@@ -273,26 +282,53 @@ func Test_Read_VerifiesHeader(t *testing.T) {
 
 func Test_Read_UnsupportedNewVersion(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	// The file version is the 0x01 byte at the end.
-	require.NoError(t, os.WriteFile(path, []byte(":W&B\xE1\xBE\x01"), 0o644))
+	// The file version is the 0x02 byte at the end.
+	require.NoError(t, os.WriteFile(path, []byte(":W&B\xE1\xBE\x02"), 0o644))
 
 	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
 	require.NoError(t, err)
 	_, err = reader.Read()
 	reader.Close()
 
-	assert.ErrorContains(t, err,
-		"a newer wandb version is required to read this file")
-	var versionErr *transactionlog.UnsupportedVersionError
-	require.ErrorAs(t, err, &versionErr)
-	assert.EqualValues(t, 1, versionErr.Version)
+	assertUnsupportedVersion(t, err, 2)
 }
 
-func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
+func TestOpenWriterWithVersion_Unsupported(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	w, err := transactionlog.OpenWriterWithVersion(path, 2)
+	require.Error(t, err)
+	assert.Nil(t, w)
+	_, err = os.Stat(path)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestOpenWriterWithVersion_Supported(t *testing.T) {
+	version := byte(1)
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	w, err := transactionlog.OpenWriterWithVersion(path, version)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, append([]byte(":W&B\xE1\xBE"), version), data)
+
+}
+func TestOpenWriterWithVersion_Exists(t *testing.T) {
+	version := byte(1)
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	w1, err := transactionlog.OpenWriterWithVersion(path, version)
+	require.NoError(t, err)
+	require.NoError(t, w1.Close())
+	w2, err := transactionlog.OpenWriterWithVersion(path, version)
+	assert.Nil(t, w2)
+	assert.ErrorIs(t, err, os.ErrExist)
+}
+
+func Test_ReadAfterSeek_VerifiesHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
 	// Write an invalid 32KiB block followed by a valid empty chunk.
-	// The first 32KiB should be ignored after seeking past them.
+	// A seek must not bypass the invalid header.
 	data := make([]byte, 32*1024+7)
 	for i := range 32 * 1024 {
 		data[i] = byte(i % 256)
@@ -312,6 +348,38 @@ func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
 	require.NoError(t, reader.SeekRecord(32*1024))
 	record, err := reader.Read()
 
-	assert.NoError(t, err)
-	assert.EqualExportedValues(t, &spb.Record{}, record)
+	assert.ErrorContains(t, err, "invalid W&B identifier")
+	assert.Nil(t, record)
+}
+
+func TestRead_SeekChecksHeaderAndPreservesOffset(t *testing.T) {
+	version := byte(2)
+	records := []*spb.Record{
+		{RecordType: &spb.Record_OutputRaw{
+			OutputRaw: &spb.OutputRawRecord{
+				Line: strings.Repeat("x", 32*1024),
+			},
+		}},
+		{Num: 123},
+	}
+	w, path := transactionlogtest.NewWriter(t, &transactionlogtest.WriterOptions{
+		Version: version, Records: records,
+		AllowUnsupportedVersion: true,
+	})
+
+	offset, err := w.LastRecordOffset()
+	require.NoError(t, err)
+	require.Greater(t, offset, int64(32*1024))
+	require.NoError(t, w.Close())
+
+	r, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer r.Close()
+	require.NoError(t, r.SeekRecord(offset))
+	_, err = r.Read()
+	assertUnsupportedVersion(t, err, version)
+	require.NoError(t, r.ResetLastRead())
+	assert.Equal(t, offset, r.NextRecordOffset())
+	_, err = r.Read()
+	assertUnsupportedVersion(t, err, version)
 }
