@@ -10,6 +10,14 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// Repository overrides that take precedence over cmd.Dir. Keep this in sync
+// with _GIT_REPO_OVERRIDE_ENV in wandb/sdk/lib/gitlib.py.
+var gitRepoOverrideEnv = map[string]struct{}{
+	"GIT_DIR":        {},
+	"GIT_INDEX_FILE": {},
+	"GIT_WORK_TREE":  {},
+}
+
 func runCommand(command []string, dir, outFile string) error {
 	output, err := runCommandWithOutput(command, dir)
 	if err != nil {
@@ -34,7 +42,20 @@ func runCommand(command []string, dir, outFile string) error {
 func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Dir = dir
+	cmd.Env = gitEnv()
 	return cmd.CombinedOutput()
+}
+
+func gitEnv() []string {
+	environ := os.Environ()
+	env := make([]string, 0, len(environ))
+	for _, value := range environ {
+		name, _, _ := strings.Cut(value, "=")
+		if _, isOverride := gitRepoOverrideEnv[name]; !isOverride {
+			env = append(env, value)
+		}
+	}
+	return env
 }
 
 type Git struct {
