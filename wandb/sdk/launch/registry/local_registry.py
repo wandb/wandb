@@ -31,7 +31,6 @@ class LocalRegistry(AbstractRegistry):
 
         Arguments:
             config (dict): The config. This is ignored.
-            environment (AbstractEnvironment): The environment. This is ignored.
 
         Returns:
             LocalRegistry: The local registry.

@@ -170,7 +170,7 @@ class Media(WBValue):
         wandb.Run then `self.bind_to_run()` must have been previously been called.
 
         Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which
+            run (wandb.Run | wandb.Artifact): the Run or Artifact for which
                 this object should be generating JSON for - this is useful to store
                 additional data if needed.
 
