@@ -34,4 +34,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
 - Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
-- The `wandb` command failed on Python 3.13+ when the current user had no passwd entry and `USER`/`LOGNAME` were unset, as in containers run with an arbitrary UID (@b84330808 in https://github.com/wandb/wandb/pull/PR_NUMBER)
+- The `wandb` command failed on Python 3.13+ when the current user had no passwd entry and `USER`/`LOGNAME` were unset, as in containers run with an arbitrary UID (@b84330808 in https://github.com/wandb/wandb/pull/13273)
