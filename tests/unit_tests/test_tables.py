@@ -1,4 +1,5 @@
 import datetime
+import inspect
 import json
 
 import numpy as np
@@ -265,6 +266,14 @@ def test_table_logging_mode_validation():
     """Test that invalid logging modes raise an error."""
     with pytest.raises(AssertionError):
         wandb.Table(log_mode="INVALID_MODE")
+
+
+def test_table_logging_mode_none_is_rejected():
+    """log_mode's annotation no longer advertises None as an accepted value."""
+    signature = inspect.signature(wandb.Table.__init__)
+    assert signature.parameters["log_mode"].annotation == "LogMode"
+    with pytest.raises(AssertionError):
+        wandb.Table(log_mode=None)
 
 
 def _logged_tables(parse_records, record_q):
