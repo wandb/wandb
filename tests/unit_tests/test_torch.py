@@ -153,3 +153,24 @@ def test_constant_tensor_histogram_has_nonzero_width_bin(
     assert all(math.isfinite(edge) for edge in bins)
     assert bins[0] < bins[1]
     assert bins[0] <= constant_value <= bins[1]
+
+
+def test_nonconstant_tensor_histogram_preserves_bin_counts(
+    mock_run,
+    parse_records,
+    record_q,
+):
+    tensor = torch.tensor([0.0, 1.0, 2.0], dtype=torch.float64)
+    mock_run()
+    wandb_torch.TorchHistory().log_tensor_stats(tensor, "stats")
+
+    history = parse_records(record_q).partial_history
+    payload = json.loads(history[0]["stats"])
+    bins = payload["bins"]
+    values = payload["values"]
+
+    assert len(values) > 1
+    assert len(bins) == len(values) + 1
+    assert sum(values) == tensor.numel()
+    assert bins[0] == 0.0
+    assert bins[-1] == 2.0
