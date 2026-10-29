@@ -621,6 +621,22 @@ def test_cli_debug_log_scoping(runner, test_settings):
                 assert cli._wandb_log_path.endswith(f"debug-cli.{test_user}.log")
 
 
+def test_cli_debug_log_without_username(runner, test_settings):
+    # Since Python 3.13, getuser() raises OSError instead of KeyError when
+    # the UID has no passwd entry, e.g. in a container run with a random UID.
+    with runner.isolated_filesystem():
+        with (
+            mock.patch(
+                "getpass.getuser",
+                side_effect=OSError("No username set in the environment"),
+            ),
+            mock.patch("os.getuid", return_value=1234, create=True),
+        ):
+            importlib.reload(cli)
+            assert cli._username == "1234"
+            assert cli._wandb_log_path.endswith("debug-cli.1234.log")
+
+
 @pytest.mark.parametrize(
     "file_age_seconds,age_threshold,should_delete",
     [
