@@ -634,6 +634,11 @@ func (c *iamCredentialsRESTClient) GenerateAccessToken(ctx context.Context, req 
 	if err != nil {
 		return nil, err
 	}
+	if err = gax.ValidatePathExpressions(
+		req.GetName(),
+	); err != nil {
+		return nil, err
+	}
 	baseUrl.Path += fmt.Sprintf("/v1/%v:generateAccessToken", req.GetName())
 
 	params := url.Values{}
@@ -692,6 +697,11 @@ func (c *iamCredentialsRESTClient) GenerateIdToken(ctx context.Context, req *cre
 
 	baseUrl, err := url.Parse(c.endpoint)
 	if err != nil {
+		return nil, err
+	}
+	if err = gax.ValidatePathExpressions(
+		req.GetName(),
+	); err != nil {
 		return nil, err
 	}
 	baseUrl.Path += fmt.Sprintf("/v1/%v:generateIdToken", req.GetName())
@@ -754,6 +764,11 @@ func (c *iamCredentialsRESTClient) SignBlob(ctx context.Context, req *credential
 	if err != nil {
 		return nil, err
 	}
+	if err = gax.ValidatePathExpressions(
+		req.GetName(),
+	); err != nil {
+		return nil, err
+	}
 	baseUrl.Path += fmt.Sprintf("/v1/%v:signBlob", req.GetName())
 
 	params := url.Values{}
@@ -812,6 +827,11 @@ func (c *iamCredentialsRESTClient) SignJwt(ctx context.Context, req *credentials
 
 	baseUrl, err := url.Parse(c.endpoint)
 	if err != nil {
+		return nil, err
+	}
+	if err = gax.ValidatePathExpressions(
+		req.GetName(),
+	); err != nil {
 		return nil, err
 	}
 	baseUrl.Path += fmt.Sprintf("/v1/%v:signJwt", req.GetName())

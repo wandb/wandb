@@ -19,12 +19,10 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"strings"
 	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/NimbleMarkets/ntcharts/v2/internal/kittyshm"
-	"github.com/NimbleMarkets/pixterm/pkg/ansimage"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -108,6 +106,10 @@ type Config struct {
 	// browser-WASM with ghostty-web), or when matching the perceived
 	// fidelity of Glyph mode is desirable. Out-of-range values clamp
 	// to 1.0.
+	// For a source already at display resolution, use
+	// sourceWidth / (cols * CellPixelWidth). For example, a 240 px image
+	// shown in 240 cells with 8 px cells uses 0.125, reducing a roughly
+	// 2 megapixel encode to 33 kilopixels per frame.
 	KittyResolutionFactor float64
 
 	// KittyFormat selects how Kitty frames are transmitted: PNG (default;
@@ -134,6 +136,8 @@ type Model struct {
 
 	glyphCache string
 	glyphKey   string
+	glyphFit   fitScratch
+	glyphBuf   []byte
 
 	kittyGrid string
 
@@ -223,6 +227,11 @@ func NewWithConfig(cfg Config) Model {
 // previously placed and is now being cleared, or nil otherwise. Clearing also
 // releases pending shared-memory objects; call SetImage(nil) when disposing
 // a model, even if the returned terminal cleanup command will not be run.
+//
+// Do not call SetImage in response to picture's own messages: use
+// IsPictureMsg to skip them when choosing when to supply a new image.
+// Calling it on every tea.Msg re-encodes on every KittyFrameMsg forever.
+// Continue forwarding those messages to Update.
 //
 // In Kitty mode with a non-nil new image, the previous placeholder grid is
 // preserved until the new KittyFrameMsg arrives. The grid is a pure function
@@ -580,7 +589,8 @@ func RequestCellSize() tea.Cmd {
 // blank window during the mode switch.
 //
 // The Model never renders user-facing loading or error text; layers above
-// (e.g. pictureurl) own that.
+// (e.g. pictureurl) own that. View mutates caches and scratch buffers and is
+// not safe for concurrent use with View or other Model methods.
 func (m *Model) View() tea.View {
 	if m.img == nil || m.cols <= 0 || m.rows <= 0 {
 		return tea.NewView("")
@@ -599,34 +609,13 @@ func (m *Model) View() tea.View {
 		return tea.NewView(m.glyphCache)
 	}
 
-	rendered := prepareSource(m.img, m.fit, m.cols, m.rows, m.cellPixelW, m.cellPixelH, m.background, m.anchor)
-	if rendered == nil {
-		return tea.NewView("")
-	}
-	// ScaleModeResize (not Fit): prepareSource already applied the chosen
-	// FitMode against the actual cell pixel dimensions, producing a bitmap
-	// whose AR matches the cell rect. ansimage's job here is "render into
-	// the half-block grid at exactly (cols, rows*2)", not "preserve AR
-	// again" — pixterm hardcodes a 1:2 cell assumption that disagrees
-	// with the prepared bitmap on terminals reporting non-1:2 cell ratios
-	// (line-spacing, retina cells), causing Glyph to letterbox while Kitty
-	// fills. Resize keeps the two backends consistent.
-	ascii, err := ansimage.NewScaledFromImage(
-		rendered,
-		m.rows*2,
-		m.cols,
-		m.background,
-		ansimage.ScaleModeResize,
-		ansimage.NoDithering,
-	)
-	if err != nil {
-		return tea.NewView("")
-	}
-
-	// pixterm/ansimage appends \n after every row including the last; the
-	// Kitty path does not. Strip so both modes report the same shape to
-	// newline-aware layout code (lipgloss.JoinVertical, etc.).
-	out := strings.TrimRight(ascii.RenderExt(false, false), "\n")
+	// Half-blocks can display only one horizontal and two vertical pixels
+	// per cell. Fit at that resolution instead of scaling to Kitty pixels
+	// and immediately downsampling again.
+	rendered := prepareSourceWithScratch(m.img, m.fit, m.cols, m.rows, 1, 2, m.background, m.anchor, &m.glyphFit)
+	m.glyphBuf = appendGlyph(m.glyphBuf[:0], rendered)
+	// Copy: previously returned Views must remain immutable when scratch is reused.
+	out := string(m.glyphBuf)
 	m.glyphCache = out
 	m.glyphKey = key
 	return tea.NewView(out)

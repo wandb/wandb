@@ -2,6 +2,8 @@ package transfermanager
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -281,56 +283,101 @@ func (d *directoryDownloader) downloadSingleObject(ctx context.Context, data obj
 	if d.in.Callback != nil {
 		d.in.Callback.UpdateRequest(input)
 	}
-	out, err := d.c.GetObject(ctx, input)
-	if err != nil {
-		err = d.failurePolicy.OnDownloadFailed(d.in, input, err)
-		if err != nil {
-			d.setErr(fmt.Errorf("error when heading info of object %s: %v", data.key, err))
-			return
-		}
-		d.objectsFailed.Add(1)
-		return
-	}
 
 	d.progressOnce.Do(func() {
 		d.emitter.Start(ctx, d.in)
 	})
 
-	err = os.MkdirAll(filepath.Dir(data.path), 0755)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(data.path), 0755); err != nil {
 		d.setErr(fmt.Errorf("error when creating directory for file %s: %v", data.path, err))
 		return
 	}
 
-	file, err := createFileFn(data.path)
+	// The object is written to a temporary file that replaces data.path only
+	// once the download succeeds, so a failed download leaves an existing file
+	// at data.path as it was.
+	tmpPath, err := tempFilePath(data.path)
+	if err != nil {
+		d.setErr(err)
+		return
+	}
+	file, err := createFileFn(tmpPath)
 	if err != nil {
 		d.setErr(fmt.Errorf("error when creating file %s: %v", data.path, err))
 		return
 	}
-	var fileCopyFail bool
+	var renamed bool
 	defer func() {
-		if err := file.Close(); err != nil {
-			d.setErr(fmt.Errorf("error when closing file %s: %v", data.path, err))
-		}
-		if fileCopyFail {
-			os.Remove(data.path) // only remove the file if the copy failed
+		if !renamed {
+			os.Remove(tmpPath)
 		}
 	}()
-	n, err := io.Copy(file, out.Body)
+
+	// Options are not forwarded here: d.options.Concurrency is the object worker
+	// count, and reusing it for parts would put workers^2 requests in flight.
+	out, err := d.c.DownloadObject(ctx, mapDownloadObjectInput(input, file))
+	closeErr := file.Close()
+	if closeErr != nil {
+		d.setErr(fmt.Errorf("error when closing file %s: %v", data.path, closeErr))
+	}
 	if err != nil {
-		fileCopyFail = true
-		// where s3.GetObject is really called, must be handled by failure policy
 		err = d.failurePolicy.OnDownloadFailed(d.in, input, err)
 		if err != nil {
-			d.setErr(fmt.Errorf("error when getting object and writing to local file %s: %v", data.path, err))
+			d.setErr(fmt.Errorf("error when downloading object %s to local file %s: %v", data.key, data.path, err))
 			return
 		}
 		d.objectsFailed.Add(1)
 		return
 	}
+	if closeErr != nil {
+		return
+	}
+	if err := os.Rename(tmpPath, data.path); err != nil {
+		d.setErr(fmt.Errorf("error when moving downloaded file to %s: %v", data.path, err))
+		return
+	}
+	renamed = true
 
 	d.objectsDownloaded.Add(1)
-	d.emitter.ObjectsTransferred(ctx, n)
+	// DownloadObject sets ContentLength to the number of bytes it wrote.
+	d.emitter.ObjectsTransferred(ctx, aws.ToInt64(out.ContentLength))
+}
+
+// tempFilePath returns a random file name next to path. It has to be in path's
+// directory so the rename that replaces path stays on one file system.
+func tempFilePath(path string) (string, error) {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("error when generating a temporary file name for %s: %v", path, err)
+	}
+	return fmt.Sprintf("%s.%s.tmp", path, hex.EncodeToString(b[:])), nil
+}
+
+// mapDownloadObjectInput returns the DownloadObjectInput equivalent of in, writing to w.
+func mapDownloadObjectInput(in *GetObjectInput, w io.WriterAt) *DownloadObjectInput {
+	return &DownloadObjectInput{
+		WriterAt:                   w,
+		Bucket:                     in.Bucket,
+		Key:                        in.Key,
+		ChecksumMode:               in.ChecksumMode,
+		ExpectedBucketOwner:        in.ExpectedBucketOwner,
+		IfMatch:                    in.IfMatch,
+		IfModifiedSince:            in.IfModifiedSince,
+		IfNoneMatch:                in.IfNoneMatch,
+		IfUnmodifiedSince:          in.IfUnmodifiedSince,
+		Range:                      in.Range,
+		RequestPayer:               in.RequestPayer,
+		ResponseCacheControl:       in.ResponseCacheControl,
+		ResponseContentDisposition: in.ResponseContentDisposition,
+		ResponseContentEncoding:    in.ResponseContentEncoding,
+		ResponseContentLanguage:    in.ResponseContentLanguage,
+		ResponseContentType:        in.ResponseContentType,
+		ResponseExpires:            in.ResponseExpires,
+		SSECustomerAlgorithm:       in.SSECustomerAlgorithm,
+		SSECustomerKey:             in.SSECustomerKey,
+		SSECustomerKeyMD5:          in.SSECustomerKeyMD5,
+		VersionID:                  in.VersionID,
+	}
 }
 
 func (d *directoryDownloader) freshContext(ctx context.Context) (context.Context, context.CancelFunc) {
