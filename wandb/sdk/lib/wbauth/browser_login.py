@@ -1,12 +1,8 @@
 """Browser login: authorization code with PKCE on a loopback redirect.
 
-W&B is the authorization server, so SAML, OIDC, and password logins all work
-the same way.
-
 Tokens are saved under ``user_credentials`` in the credentials file, apart from
-the identity token exchanges wandb-core keeps under ``credentials``. wandb-core
-refreshes them; this module never does, so a refresh token is never rotated
-from two places.
+the identity token exchanges wandb-core keeps under ``credentials``. Only
+wandb-core refreshes them, so a refresh token is never rotated from two places.
 """
 
 from __future__ import annotations
@@ -36,8 +32,7 @@ from wandb.errors import AuthenticationError, term
 
 from .host_url import HostUrl
 
-# The public OAuth client ID. Must match CLIClientID in wandb-core, which uses
-# it to refresh these tokens.
+# Must match CLIClientID in wandb-core.
 CLI_CLIENT_ID = "wandb-cli"
 CALLBACK_PATH = "/callback"
 
@@ -47,10 +42,9 @@ LOGIN_TIMEOUT_SECONDS = 300.0
 _SUCCESS_PATH = "/cli-login-success"
 _CANCELLED_PATH = "/cli-login-cancelled"
 
-# The credentials file map that wandb-core also reads for user logins.
 _USER_CREDENTIALS_KEY = "user_credentials"
 
-# The credentials file timestamp format. wandb-core parses it as UTC.
+# wandb-core parses this as UTC.
 _EXPIRES_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -343,8 +337,8 @@ def _read_file(path: pathlib.Path, *, strict: bool = False) -> dict[str, Any]:
     """Reads the credentials file, keeping entries this module does not own.
 
     A missing file is treated as empty. So is an unreadable one, unless
-    `strict` is set, which callers that write the file back must do so that
-    a bad read never replaces other logins with an empty file.
+    `strict` is set; callers that write the file back must set it so a bad
+    read never replaces other logins with an empty file.
 
     Raises:
         AuthenticationError: If `strict` and the file exists but can't be
@@ -437,7 +431,6 @@ def _authorize_url(
 
 
 def _open_browser(url: str) -> bool:
-    """Tries to open a URL in a local browser."""
     try:
         return webbrowser.open(url)
     except webbrowser.Error:
@@ -468,11 +461,11 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
 
         self.server.callback_params = params
 
-        denied = params.get("error") == ["access_denied"]
+        succeeded = bool(_first(params, "code")) and not _first(params, "error")
         self.send_response(302)
         self.send_header(
             "Location",
-            self.server.cancelled_url if denied else self.server.success_url,
+            self.server.success_url if succeeded else self.server.cancelled_url,
         )
         # The request URL carries an authorization code.
         self.send_header("Cache-Control", "no-store")
@@ -538,7 +531,6 @@ def _exchange_code(
     timeout: float = 30.0,
     verify: bool | str = True,
 ) -> TokenSet:
-    """Trades the authorization code for tokens."""
     try:
         response = requests.post(
             f"{host.url}/oidc/token",

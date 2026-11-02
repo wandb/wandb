@@ -177,6 +177,37 @@ def test_loopback_hands_a_denied_login_off_to_the_cancelled_page(
     assert redirect_target["location"] == f"{HOST.app_url}/cli-login-cancelled"
 
 
+@pytest.mark.parametrize(
+    "query, message",
+    [
+        ({"error": "server_error", "error_description": "Oops."}, "Oops."),
+        ({"error": "invalid_scope"}, "invalid_scope"),
+        ({"foo": "bar"}, "did not include an authorization code"),
+    ],
+)
+def test_loopback_hands_a_failed_login_off_to_the_cancelled_page(
+    monkeypatch: pytest.MonkeyPatch,
+    token_endpoint: list[dict],
+    query: dict[str, str],
+    message: str,
+):
+    redirect_target: dict[str, str] = {}
+    responded = threading.Event()
+    complete_login_in_browser(
+        monkeypatch,
+        query=query,
+        redirect_target=redirect_target,
+        responded=responded,
+    )
+
+    with pytest.raises(AuthenticationError, match=message):
+        browser_login.login(host=HOST, timeout=10)
+
+    assert responded.wait(timeout=10)
+    assert redirect_target["location"] == f"{HOST.app_url}/cli-login-cancelled"
+    assert token_endpoint == []
+
+
 def test_login_opens_the_consent_page_with_a_pkce_challenge(
     monkeypatch: pytest.MonkeyPatch,
     token_endpoint: list[dict],
