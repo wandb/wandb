@@ -38,7 +38,6 @@ from .host_url import HostUrl
 CLI_CLIENT_ID = "wandb-cli"
 _CALLBACK_PATH = "/callback"
 
-# Covers SSO and MFA.
 LOGIN_TIMEOUT_SECONDS = 300.0
 
 _SUCCESS_PATH = "/cli-login-success"
