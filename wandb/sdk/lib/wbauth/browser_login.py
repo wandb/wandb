@@ -22,19 +22,21 @@ import tempfile
 import time
 import urllib.parse
 import webbrowser
-from collections.abc import Callable, Iterator
-from typing import Any
+from collections.abc import Callable, Generator
+from typing import Any, cast
 
 import requests
-from typing_extensions import override
+from typing_extensions import final, override
 
+from wandb import util
 from wandb.errors import AuthenticationError, term
+from wandb.sdk.lib import ipython
 
 from .host_url import HostUrl
 
 # Must match CLIClientID in wandb-core.
 CLI_CLIENT_ID = "wandb-cli"
-CALLBACK_PATH = "/callback"
+_CALLBACK_PATH = "/callback"
 
 # Covers SSO and MFA.
 LOGIN_TIMEOUT_SECONDS = 300.0
@@ -48,6 +50,7 @@ _USER_CREDENTIALS_KEY = "user_credentials"
 _EXPIRES_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
+@final
 @dataclasses.dataclass(frozen=True)
 class TokenSet:
     """An access token and the refresh token that replaces it."""
@@ -155,10 +158,6 @@ def revoke(
 
 def can_open_browser() -> bool:
     """Returns whether a local browser can complete the loopback redirect."""
-    # Imported here to avoid a circular import.
-    from wandb import util
-    from wandb.sdk.lib import ipython
-
     if os.getenv("SSH_CONNECTION") or os.getenv("SSH_TTY"):
         return False
 
@@ -254,7 +253,7 @@ def clear_credentials(
 
 
 @contextlib.contextmanager
-def _credentials_lock(path: pathlib.Path) -> Iterator[None]:
+def _credentials_lock(path: pathlib.Path) -> Generator[None]:
     """Locks ``<credentials file>.lock``, which wandb-core also locks.
 
     Like wandb-core, proceeds without the lock if it cannot be taken.
@@ -448,34 +447,37 @@ def _open_browser(url: str) -> bool:
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
     """Receives the authorization server's redirect."""
 
-    server: _CallbackServer
-
     # Idle connections, like browser preconnects, must not stall the login.
     timeout = 5.0
 
+    @property
+    def _login_server(self) -> _CallbackServer:
+        return cast("_CallbackServer", self.server)
+
     def do_GET(self) -> None:
         url = urllib.parse.urlparse(self.path)
-        if url.path != CALLBACK_PATH:
+        if url.path != _CALLBACK_PATH:
             self.send_error(404)
             return
 
         params = urllib.parse.parse_qs(url.query)
+        server = self._login_server
 
         # Other requests to the loopback port must not end the login.
         state = _first(params, "state") or ""
-        if not secrets.compare_digest(state.encode(), self.server.state.encode()):
+        if not secrets.compare_digest(state.encode(), server.state.encode()):
             self.send_error(400)
             return
 
         # Reply after the exchange so a failed login never shows the success page.
         try:
-            self.server.result = self.server.exchange(params)
+            server.result = server.exchange(params)
         except Exception as e:
-            self.server.result = e
+            server.result = e
 
-        location = self.server.success_url
-        if isinstance(self.server.result, Exception):
-            location = self.server.cancelled_url
+        location = server.success_url
+        if isinstance(server.result, Exception):
+            location = server.cancelled_url
 
         self.send_response(302)
         self.send_header("Location", location)
@@ -501,7 +503,7 @@ class _CallbackServer(http.server.HTTPServer):
         super().__init__(("127.0.0.1", 0), _CallbackHandler)
         self.state = state
         self.exchange = exchange
-        self.redirect_uri = f"http://127.0.0.1:{self.server_port}{CALLBACK_PATH}"
+        self.redirect_uri = f"http://127.0.0.1:{self.server_port}{_CALLBACK_PATH}"
         self.success_url = f"{host.app_url}{_SUCCESS_PATH}"
         self.cancelled_url = f"{host.app_url}{_CANCELLED_PATH}"
 
