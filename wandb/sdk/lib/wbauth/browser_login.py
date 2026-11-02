@@ -22,7 +22,7 @@ import tempfile
 import time
 import urllib.parse
 import webbrowser
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import requests
@@ -88,11 +88,19 @@ def login(
     verifier, challenge = _pkce_pair()
     state = secrets.token_urlsafe(24)
 
-    with _CallbackServer(host, state) as server:
-        redirect_uri = f"http://127.0.0.1:{server.server_port}{CALLBACK_PATH}"
+    def exchange(params: dict[str, list[str]]) -> TokenSet:
+        return _exchange_code(
+            host,
+            code=_authorization_code(params),
+            redirect_uri=server.redirect_uri,
+            verifier=verifier,
+            verify=verify,
+        )
+
+    with _CallbackServer(host, state, exchange) as server:
         authorize_url = _authorize_url(
             host,
-            redirect_uri=redirect_uri,
+            redirect_uri=server.redirect_uri,
             state=state,
             challenge=challenge,
         )
@@ -102,15 +110,7 @@ def login(
         else:
             term.termlog(f"Open this URL to log in:\n{authorize_url}")
 
-        params = _wait_for_callback(server, timeout=timeout)
-
-    return _exchange_code(
-        host,
-        code=_authorization_code(params),
-        redirect_uri=redirect_uri,
-        verifier=verifier,
-        verify=verify,
-    )
+        return _wait_for_login(server, timeout=timeout)
 
 
 def revoke(
@@ -313,7 +313,7 @@ def _win_lock(fd: int, *, exclusive: bool) -> None:
             ctypes.c_void_p,
         ]
         kernel32.LockFileEx.restype = ctypes.c_int
-        # LOCKFILE_EXCLUSIVE_LOCK on the whole file. Blocks until available.
+        # LOCKFILE_EXCLUSIVE_LOCK over the whole file; blocks until available.
         ok = kernel32.LockFileEx(
             handle, 0x2, 0, 0xFFFFFFFF, 0xFFFFFFFF, ctypes.byref(overlapped)
         )
@@ -344,16 +344,16 @@ def _read_file(path: pathlib.Path, *, strict: bool = False) -> dict[str, Any]:
         AuthenticationError: If `strict` and the file exists but can't be
             read or parsed.
     """
+    contents: Any = {}
     try:
         contents = json.loads(path.read_text())
     except FileNotFoundError:
-        contents = None
+        pass
     except (OSError, ValueError) as e:
         if strict:
             raise AuthenticationError(
                 f"Could not read the credentials file {path}: {e}"
             ) from e
-        contents = None
 
     if not isinstance(contents, dict):
         if strict and contents is not None:
@@ -381,25 +381,33 @@ def _write_file(path: pathlib.Path, contents: dict[str, Any]) -> None:
     """Replaces the credentials file atomically.
 
     A partial write would lose a refresh token that cannot be recovered.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
 
-    handle, temp_path = tempfile.mkstemp(
-        dir=str(path.parent),
-        prefix=".credentials-",
-        suffix=".json",
-    )
+    Raises:
+        AuthenticationError: If the file can't be written.
+    """
+    temp_path = None
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle, temp_path = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=".credentials-",
+            suffix=".json",
+        )
         with os.fdopen(handle, "w") as file:
             json.dump(contents, file, indent=2)
             file.flush()
             os.fsync(file.fileno())
         os.chmod(temp_path, 0o600)
         os.replace(temp_path, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(temp_path)
-        raise
+    except OSError as e:
+        raise AuthenticationError(
+            f"Could not write the credentials file {path}: {e}"
+        ) from e
+    finally:
+        # Gone already after a successful replace.
+        if temp_path:
+            with contextlib.suppress(OSError):
+                os.unlink(temp_path)
 
 
 def _pkce_pair() -> tuple[str, str]:
@@ -459,14 +467,18 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
             self.send_error(400)
             return
 
-        self.server.callback_params = params
+        # Reply after the exchange so a failed login never shows the success page.
+        try:
+            self.server.result = self.server.exchange(params)
+        except Exception as e:
+            self.server.result = e
 
-        succeeded = bool(_first(params, "code")) and not _first(params, "error")
+        location = self.server.success_url
+        if isinstance(self.server.result, Exception):
+            location = self.server.cancelled_url
+
         self.send_response(302)
-        self.send_header(
-            "Location",
-            self.server.success_url if succeeded else self.server.cancelled_url,
-        )
+        self.send_header("Location", location)
         # The request URL carries an authorization code.
         self.send_header("Cache-Control", "no-store")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -480,23 +492,28 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
 class _CallbackServer(http.server.HTTPServer):
     """A server on an ephemeral loopback port that receives the redirect."""
 
-    def __init__(self, host: HostUrl, state: str) -> None:
+    def __init__(
+        self,
+        host: HostUrl,
+        state: str,
+        exchange: Callable[[dict[str, list[str]]], TokenSet],
+    ) -> None:
         super().__init__(("127.0.0.1", 0), _CallbackHandler)
         self.state = state
+        self.exchange = exchange
+        self.redirect_uri = f"http://127.0.0.1:{self.server_port}{CALLBACK_PATH}"
         self.success_url = f"{host.app_url}{_SUCCESS_PATH}"
         self.cancelled_url = f"{host.app_url}{_CANCELLED_PATH}"
-        self.callback_params: dict[str, list[str]] | None = None
+
+        # The tokens or the error, once the redirect has been handled.
+        self.result: TokenSet | Exception | None = None
 
 
-def _wait_for_callback(
-    server: _CallbackServer,
-    *,
-    timeout: float,
-) -> dict[str, list[str]]:
-    """Blocks until a redirect with the expected state arrives."""
+def _wait_for_login(server: _CallbackServer, *, timeout: float) -> TokenSet:
+    """Blocks until a redirect with the expected state has been handled."""
     deadline = time.monotonic() + timeout
 
-    while server.callback_params is None:
+    while server.result is None:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError(
@@ -505,11 +522,12 @@ def _wait_for_callback(
         server.timeout = remaining
         server.handle_request()
 
-    return server.callback_params
+    if isinstance(server.result, Exception):
+        raise server.result
+    return server.result
 
 
 def _authorization_code(params: dict[str, list[str]]) -> str:
-    """Returns the authorization code in the redirect's query."""
     if error := _first(params, "error"):
         description = _first(params, "error_description")
         raise AuthenticationError(f"Login was not completed: {description or error}")

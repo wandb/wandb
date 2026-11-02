@@ -154,32 +154,13 @@ def test_loopback_hands_the_tab_off_to_the_success_page(
     assert redirect_target["location"] == f"{HOST.app_url}/cli-login-success"
 
 
-def test_loopback_hands_a_denied_login_off_to_the_cancelled_page(
-    monkeypatch: pytest.MonkeyPatch,
-    token_endpoint: list[dict],
-):
-    redirect_target: dict[str, str] = {}
-    responded = threading.Event()
-    complete_login_in_browser(
-        monkeypatch,
-        query={
-            "error": "access_denied",
-            "error_description": "You cancelled the login.",
-        },
-        redirect_target=redirect_target,
-        responded=responded,
-    )
-
-    with pytest.raises(AuthenticationError, match="You cancelled the login."):
-        browser_login.login(host=HOST, timeout=10)
-
-    assert responded.wait(timeout=10)
-    assert redirect_target["location"] == f"{HOST.app_url}/cli-login-cancelled"
-
-
 @pytest.mark.parametrize(
     "query, message",
     [
+        (
+            {"error": "access_denied", "error_description": "You cancelled."},
+            "You cancelled.",
+        ),
         ({"error": "server_error", "error_description": "Oops."}, "Oops."),
         ({"error": "invalid_scope"}, "invalid_scope"),
         ({"foo": "bar"}, "did not include an authorization code"),
@@ -208,6 +189,30 @@ def test_loopback_hands_a_failed_login_off_to_the_cancelled_page(
     assert token_endpoint == []
 
 
+def test_loopback_hands_a_failed_exchange_off_to_the_cancelled_page(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    redirect_target: dict[str, str] = {}
+    responded = threading.Event()
+    complete_login_in_browser(
+        monkeypatch, redirect_target=redirect_target, responded=responded
+    )
+    monkeypatch.setattr(
+        browser_login.requests,
+        "post",
+        lambda *a, **k: FakeResponse(
+            status_code=400,
+            body={"error": "invalid_grant", "error_description": "Code expired."},
+        ),
+    )
+
+    with pytest.raises(AuthenticationError, match="Code expired."):
+        browser_login.login(host=HOST, timeout=10)
+
+    assert responded.wait(timeout=10)
+    assert redirect_target["location"] == f"{HOST.app_url}/cli-login-cancelled"
+
+
 def test_login_opens_the_consent_page_with_a_pkce_challenge(
     monkeypatch: pytest.MonkeyPatch,
     token_endpoint: list[dict],
@@ -217,24 +222,12 @@ def test_login_opens_the_consent_page_with_a_pkce_challenge(
     browser_login.login(host=HOST, timeout=10)
 
     assert captured["path"] == "/cli-login"
+    assert urllib.parse.urlparse(captured["redirect_uri"]).hostname == "127.0.0.1"
     assert captured["response_type"] == "code"
     assert captured["code_challenge_method"] == "S256"
     assert captured["code_challenge"]
     assert "code_verifier" not in captured
     assert token_endpoint[0]["data"]["code_verifier"]
-
-
-def test_login_redirects_to_loopback_only(
-    monkeypatch: pytest.MonkeyPatch,
-    token_endpoint: list[dict],
-):
-    captured = complete_login_in_browser(monkeypatch)
-
-    browser_login.login(host=HOST, timeout=10)
-
-    redirect = urllib.parse.urlparse(captured["redirect_uri"])
-    assert redirect.hostname == "127.0.0.1"
-    assert redirect.path == browser_login.CALLBACK_PATH
 
 
 def test_login_ignores_a_callback_with_the_wrong_state(
@@ -288,26 +281,6 @@ def test_login_rejects_a_response_without_a_refresh_token(
     )
 
     with pytest.raises(AuthenticationError, match="incomplete token response"):
-        browser_login.login(host=HOST, timeout=10)
-
-
-def test_login_surfaces_the_servers_error(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    complete_login_in_browser(monkeypatch)
-    monkeypatch.setattr(
-        browser_login.requests,
-        "post",
-        lambda *a, **k: FakeResponse(
-            status_code=400,
-            body={
-                "error": "invalid_grant",
-                "error_description": "The code expired.",
-            },
-        ),
-    )
-
-    with pytest.raises(AuthenticationError, match="The code expired."):
         browser_login.login(host=HOST, timeout=10)
 
 
@@ -422,6 +395,22 @@ def test_save_waits_for_the_core_credentials_lock(tmp_path: pathlib.Path):
         thread.join(timeout=2)
 
     assert browser_login.load_credentials(path, HOST).refresh_token == "wb_rt_stored"
+
+
+def test_saving_reports_a_file_that_cannot_be_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    def deny(*args: object, **kwargs: object) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(os, "replace", deny)
+
+    with pytest.raises(AuthenticationError, match="Could not write"):
+        browser_login.save_credentials(
+            tmp_path / "credentials.json", HOST, some_tokens()
+        )
+
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".credentials-")]
 
 
 def test_credentials_are_not_world_readable(tmp_path: pathlib.Path):
