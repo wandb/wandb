@@ -1,12 +1,12 @@
-"""Browser login: authorization code with PKCE, on a loopback redirect.
+"""Browser login: authorization code with PKCE on a loopback redirect.
 
-W&B is the authorization server. The browser session is the proof of identity,
-so SAML, OIDC, and password logins work the same way.
+W&B is the authorization server, so SAML, OIDC, and password logins all work
+the same way.
 
-Tokens go to the credentials file, under ``user_credentials`` so they never
-collide with the identity token exchanges wandb-core keeps under
-``credentials``. wandb-core refreshes them. This module does not, so a
-refresh token is never rotated from two places.
+Tokens are saved under ``user_credentials`` in the credentials file, apart from
+the identity token exchanges wandb-core keeps under ``credentials``. wandb-core
+refreshes them; this module never does, so a refresh token is never rotated
+from two places.
 """
 
 from __future__ import annotations
@@ -30,31 +30,26 @@ from collections.abc import Iterator
 from typing import Any
 
 import requests
+from typing_extensions import override
 
 from wandb.errors import AuthenticationError, term
 
 from .host_url import HostUrl
 
 CLI_CLIENT_ID = "wandb-cli"
-"""Public OAuth client id. PKCE proves the request, not this string."""
-
 CALLBACK_PATH = "/callback"
-"""Loopback redirect path. The port is ephemeral; the path is fixed."""
+
+# Covers SSO and MFA.
+LOGIN_TIMEOUT_SECONDS = 300.0
 
 _SUCCESS_PATH = "/cli-login-success"
-"""App page shown after the loopback server receives the code."""
-
 _CANCELLED_PATH = "/cli-login-cancelled"
-"""App page shown when the user denies the login."""
 
-LOGIN_TIMEOUT_SECONDS = 300.0
-"""How long to wait for the browser. Covers SSO and MFA."""
-
-_EXPIRES_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
-"""Credentials-file timestamp. wandb-core parses this as UTC."""
-
+# The credentials file map that wandb-core also reads for user logins.
 _USER_CREDENTIALS_KEY = "user_credentials"
-"""Credentials-file map holding user logins. wandb-core reads the same key."""
+
+# The credentials file timestamp format. wandb-core parses it as UTC.
+_EXPIRES_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,16 +75,26 @@ def login(
     timeout: float = LOGIN_TIMEOUT_SECONDS,
     verify: bool | str = True,
 ) -> TokenSet:
-    """Run a browser login and return the tokens it produced.
+    """Run a browser login.
+
+    Args:
+        host: The W&B server to log in to.
+        client_id: The public OAuth client ID.
+        timeout: How long to wait for the browser, in seconds.
+        verify: Passed to `requests` to control TLS verification.
+
+    Returns:
+        The tokens issued for the login.
 
     Raises:
-        AuthenticationError: The login was denied or the response was malformed.
-        TimeoutError: The browser did not come back in time.
+        AuthenticationError: If the login was denied or the server's
+            response was malformed.
+        TimeoutError: If the browser did not complete the login in time.
     """
     verifier, challenge = _pkce_pair()
     state = secrets.token_urlsafe(24)
 
-    with _callback_server(host) as server:
+    with _CallbackServer(host, state) as server:
         redirect_uri = f"http://127.0.0.1:{server.server_port}{CALLBACK_PATH}"
         authorize_url = _authorize_url(
             host,
@@ -106,12 +111,10 @@ def login(
 
         params = _wait_for_callback(server, timeout=timeout)
 
-    code = _authorization_code(params, expected_state=state)
-
     return _exchange_code(
         host,
         client_id=client_id,
-        code=code,
+        code=_authorization_code(params),
         redirect_uri=redirect_uri,
         verifier=verifier,
         verify=verify,
@@ -128,9 +131,17 @@ def revoke(
 ) -> None:
     """Revoke a refresh token (RFC 7009), which ends the login.
 
+    Revoking an unknown token succeeds, so it can be retried.
+
+    Args:
+        host: The W&B server that issued the token.
+        refresh_token: The refresh token to revoke.
+        client_id: The public OAuth client ID.
+        timeout: How long to wait for the server, in seconds.
+        verify: Passed to `requests` to control TLS verification.
+
     Raises:
-        AuthenticationError: The server refused. An unknown token is success,
-            so revoking can be retried.
+        AuthenticationError: If the server refused.
     """
     response = requests.post(
         f"{host.url}/oidc/revoke",
@@ -149,8 +160,8 @@ def revoke(
 
 
 def can_open_browser() -> bool:
-    """Whether a browser on this machine can complete the loopback redirect."""
-    # Lazy import to avoid a circular import through wandb.sdk.lib.
+    """Returns whether a local browser can complete the loopback redirect."""
+    # Imported here to avoid a circular import.
     from wandb import util
     from wandb.sdk.lib import ipython
 
@@ -160,11 +171,11 @@ def can_open_browser() -> bool:
     if ipython.in_jupyter() or util._is_databricks():
         return False
 
-    # Non-interactive processes, including most of CI, should not wait.
+    # Non-interactive processes, including most CI, should not wait.
     if not (sys.stdin.isatty() and sys.stderr.isatty()):
         return False
 
-    # webbrowser can pick a terminal browser the user cannot act on.
+    # Without a display, webbrowser may pick a terminal browser.
     if sys.platform not in ("darwin", "win32") and not (
         os.getenv("DISPLAY") or os.getenv("WAYLAND_DISPLAY")
     ):
@@ -182,7 +193,12 @@ def load_credentials(
     credentials_file: str | pathlib.Path,
     host: HostUrl,
 ) -> TokenSet | None:
-    """Return the browser login stored for a host, if there is one."""
+    """Returns the browser login stored for a host, if there is one.
+
+    Args:
+        credentials_file: The path to the credentials file.
+        host: The W&B server the login is for.
+    """
     contents = _read_file(pathlib.Path(credentials_file))
     entry = _user_credentials(contents).get(host.url)
     if not isinstance(entry, dict) or not entry.get("refresh_token"):
@@ -193,7 +209,7 @@ def load_credentials(
             entry.get("expires_at", ""), _EXPIRES_AT_FORMAT
         ).replace(tzinfo=datetime.timezone.utc)
     except ValueError:
-        # Unreadable timestamp counts as expired. The refresh token still works.
+        # Treat an unreadable timestamp as expired; the refresh token still works.
         expires_at = datetime.datetime.now(datetime.timezone.utc)
 
     return TokenSet(
@@ -208,7 +224,13 @@ def save_credentials(
     host: HostUrl,
     tokens: TokenSet,
 ) -> None:
-    """Store a browser login, leaving every other entry in the file alone."""
+    """Stores a browser login, leaving every other entry in the file alone.
+
+    Args:
+        credentials_file: The path to the credentials file.
+        host: The W&B server the login is for.
+        tokens: The tokens to store.
+    """
     path = pathlib.Path(credentials_file)
     with _credentials_lock(path):
         contents = _read_file(path)
@@ -220,9 +242,13 @@ def clear_credentials(
     credentials_file: str | pathlib.Path,
     host: HostUrl,
 ) -> TokenSet | None:
-    """Remove the stored login for a host and return what was removed.
+    """Removes the stored login for a host and returns what was removed.
 
     An identity token exchange for the same host is left in place.
+
+    Args:
+        credentials_file: The path to the credentials file.
+        host: The W&B server the login is for.
     """
     path = pathlib.Path(credentials_file)
     with _credentials_lock(path):
@@ -235,10 +261,9 @@ def clear_credentials(
 
 @contextlib.contextmanager
 def _credentials_lock(path: pathlib.Path) -> Iterator[None]:
-    """Exclusive lock on ``<credentials file>.lock``.
+    """Locks ``<credentials file>.lock``, which wandb-core also locks.
 
-    wandb-core locks that same file around a refresh. Failing to lock is not
-    fatal there, and it is not fatal here.
+    Like wandb-core, proceeds without the lock if it cannot be taken.
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -247,52 +272,42 @@ def _credentials_lock(path: pathlib.Path) -> Iterator[None]:
         yield
         return
 
-    try:
-        try:
+    with contextlib.ExitStack() as stack:
+        stack.callback(os.close, fd)
+        with contextlib.suppress(OSError):
             _lock_fd(fd)
-        except OSError:
-            yield
-            return
-        try:
-            yield
-        finally:
-            _unlock_fd(fd)
-    finally:
-        os.close(fd)
+            stack.callback(_unlock_fd, fd)
+        yield
 
 
 def _lock_fd(fd: int) -> None:
     if sys.platform == "win32":
         _win_lock(fd, exclusive=True)
         return
+
     import fcntl
 
-    while True:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-        except InterruptedError:
-            continue
-        else:
-            return
+    fcntl.flock(fd, fcntl.LOCK_EX)
 
 
 def _unlock_fd(fd: int) -> None:
     if sys.platform == "win32":
         _win_lock(fd, exclusive=False)
         return
+
     import fcntl
 
     fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 def _win_lock(fd: int, *, exclusive: bool) -> None:
-    """LockFileEx / UnlockFileEx, the same calls wandb-core uses on Windows."""
+    """Calls LockFileEx or UnlockFileEx, as wandb-core does on Windows."""
     import ctypes
     import msvcrt
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     handle = msvcrt.get_osfhandle(fd)
-    # Zeroed OVERLAPPED: lock the file from offset 0. Kept alive for the call.
+    # A zeroed OVERLAPPED locks from offset 0.
     overlapped = (ctypes.c_char * 32)()
     if exclusive:
         kernel32.LockFileEx.argtypes = [
@@ -304,7 +319,7 @@ def _win_lock(fd: int, *, exclusive: bool) -> None:
             ctypes.c_void_p,
         ]
         kernel32.LockFileEx.restype = ctypes.c_int
-        # LOCKFILE_EXCLUSIVE_LOCK, whole file. Blocks until the lock is free.
+        # LOCKFILE_EXCLUSIVE_LOCK on the whole file. Blocks until available.
         ok = kernel32.LockFileEx(
             handle, 0x2, 0, 0xFFFFFFFF, 0xFFFFFFFF, ctypes.byref(overlapped)
         )
@@ -325,10 +340,9 @@ def _win_lock(fd: int, *, exclusive: bool) -> None:
 
 
 def _read_file(path: pathlib.Path) -> dict[str, Any]:
-    """Read the whole credentials file. Missing or unreadable contents are empty.
+    """Reads the credentials file, keeping entries this module does not own.
 
-    Everything is kept, including entries this module does not understand, so
-    that writing the file back loses nothing wandb-core stored.
+    Missing or unreadable contents are treated as empty.
     """
     try:
         contents = json.loads(path.read_text())
@@ -337,6 +351,7 @@ def _read_file(path: pathlib.Path) -> dict[str, Any]:
 
     if not isinstance(contents, dict):
         contents = {}
+
     # Older readers expect this map to be present.
     if not isinstance(contents.get("credentials"), dict):
         contents["credentials"] = {}
@@ -344,7 +359,7 @@ def _read_file(path: pathlib.Path) -> dict[str, Any]:
 
 
 def _user_credentials(contents: dict[str, Any]) -> dict[str, Any]:
-    """The user-login map inside the file, created if absent."""
+    """Returns the user login map in the file contents, creating it if absent."""
     credentials = contents.get(_USER_CREDENTIALS_KEY)
     if not isinstance(credentials, dict):
         credentials = {}
@@ -353,9 +368,9 @@ def _user_credentials(contents: dict[str, Any]) -> dict[str, Any]:
 
 
 def _write_file(path: pathlib.Path, contents: dict[str, Any]) -> None:
-    """Replace the credentials file atomically.
+    """Replaces the credentials file atomically.
 
-    A partial write would drop a refresh token that nothing can recover.
+    A partial write would lose a refresh token that cannot be recovered.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -378,7 +393,7 @@ def _write_file(path: pathlib.Path, contents: dict[str, Any]) -> None:
 
 
 def _pkce_pair() -> tuple[str, str]:
-    """Return a (verifier, challenge) pair per RFC 7636 section 4."""
+    """Returns a (verifier, challenge) pair per RFC 7636 section 4."""
     verifier = secrets.token_urlsafe(64)
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
@@ -393,7 +408,7 @@ def _authorize_url(
     state: str,
     challenge: str,
 ) -> str:
-    """Consent-page URL. The page posts the authorization request itself."""
+    """Returns the consent page URL, which posts the authorization request."""
     query = {
         "client_id": client_id,
         "response_type": "code",
@@ -407,7 +422,7 @@ def _authorize_url(
 
 
 def _open_browser(url: str) -> bool:
-    """Try to open a URL in a local browser."""
+    """Tries to open a URL in a local browser."""
     try:
         return webbrowser.open(url)
     except webbrowser.Error:
@@ -415,55 +430,65 @@ def _open_browser(url: str) -> bool:
 
 
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
-    """Receive the authorization server's redirect."""
+    """Receives the authorization server's redirect."""
+
+    server: _CallbackServer
+
+    # Idle connections, like browser preconnects, must not stall the login.
+    timeout = 5.0
 
     def do_GET(self) -> None:
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path != CALLBACK_PATH:
-            self.send_response(404)
-            self.end_headers()
+        url = urllib.parse.urlparse(self.path)
+        if url.path != CALLBACK_PATH:
+            self.send_error(404)
             return
 
-        callback_params = urllib.parse.parse_qs(parsed.query)
-        self.server.callback_params = callback_params  # type: ignore[attr-defined]
+        params = urllib.parse.parse_qs(url.query)
 
-        redirect_url = self.server.success_redirect_url  # type: ignore[attr-defined]
-        if callback_params.get("error") == ["access_denied"]:
-            redirect_url = self.server.cancelled_redirect_url  # type: ignore[attr-defined]
+        # Other requests to the loopback port must not end the login.
+        state = _first(params, "state") or ""
+        if not secrets.compare_digest(state.encode(), self.server.state.encode()):
+            self.send_error(400)
+            return
 
+        self.server.callback_params = params
+
+        denied = params.get("error") == ["access_denied"]
         self.send_response(302)
-        self.send_header("Location", redirect_url)
-        # The query string is an OAuth response.
+        self.send_header(
+            "Location",
+            self.server.cancelled_url if denied else self.server.success_url,
+        )
+        # The request URL carries an authorization code.
         self.send_header("Cache-Control", "no-store")
         self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
 
+    @override
     def log_message(self, format: str, *args: Any) -> None:
-        """Silence the default logging to stderr."""
+        """Silences the default logging to stderr."""
 
 
-@contextlib.contextmanager
-def _callback_server(host: HostUrl) -> Iterator[http.server.HTTPServer]:
-    """Loopback redirect on an ephemeral port. Bound to 127.0.0.1 only."""
-    server = http.server.HTTPServer(("127.0.0.1", 0), _CallbackHandler)
-    server.callback_params = None  # type: ignore[attr-defined]
-    server.success_redirect_url = f"{host.app_url}{_SUCCESS_PATH}"  # type: ignore[attr-defined]
-    server.cancelled_redirect_url = f"{host.app_url}{_CANCELLED_PATH}"  # type: ignore[attr-defined]
-    try:
-        yield server
-    finally:
-        server.server_close()
+class _CallbackServer(http.server.HTTPServer):
+    """A server on an ephemeral loopback port that receives the redirect."""
+
+    def __init__(self, host: HostUrl, state: str) -> None:
+        super().__init__(("127.0.0.1", 0), _CallbackHandler)
+        self.state = state
+        self.success_url = f"{host.app_url}{_SUCCESS_PATH}"
+        self.cancelled_url = f"{host.app_url}{_CANCELLED_PATH}"
+        self.callback_params: dict[str, list[str]] | None = None
 
 
 def _wait_for_callback(
-    server: http.server.HTTPServer,
+    server: _CallbackServer,
     *,
     timeout: float,
 ) -> dict[str, list[str]]:
-    """Block until the redirect arrives. A request to another path does not end the wait."""
+    """Blocks until a redirect with the expected state arrives."""
     deadline = time.monotonic() + timeout
 
-    while getattr(server, "callback_params", None) is None:
+    while server.callback_params is None:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError(
@@ -472,28 +497,16 @@ def _wait_for_callback(
         server.timeout = remaining
         server.handle_request()
 
-    return server.callback_params  # type: ignore[attr-defined]
+    return server.callback_params
 
 
-def _authorization_code(
-    params: dict[str, list[str]],
-    *,
-    expected_state: str,
-) -> str:
-    """Pull the authorization code out of the redirect."""
+def _authorization_code(params: dict[str, list[str]]) -> str:
+    """Returns the authorization code in the redirect's query."""
     if error := _first(params, "error"):
         description = _first(params, "error_description")
         raise AuthenticationError(f"Login was not completed: {description or error}")
 
-    state = _first(params, "state")
-    # A mismatched state means this redirect is not from the login we started.
-    if not state or not secrets.compare_digest(state, expected_state):
-        raise AuthenticationError(
-            "Login response did not match the request. Run `wandb login` again."
-        )
-
-    code = _first(params, "code")
-    if not code:
+    if not (code := _first(params, "code")):
         raise AuthenticationError(
             "Login response did not include an authorization code."
         )
@@ -511,7 +524,7 @@ def _exchange_code(
     timeout: float = 30.0,
     verify: bool | str = True,
 ) -> TokenSet:
-    """Trade the authorization code for tokens. The verifier binds it to this login."""
+    """Trades the authorization code for tokens."""
     response = requests.post(
         f"{host.url}/oidc/token",
         data={
@@ -559,7 +572,7 @@ def _first(params: dict[str, list[str]], name: str) -> str | None:
 
 
 def _error_detail(response: requests.Response) -> str:
-    """The server's error_description, or the HTTP status."""
+    """Returns the server's error description, or the HTTP status."""
     try:
         body = response.json()
     except ValueError:

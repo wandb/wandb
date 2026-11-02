@@ -6,10 +6,13 @@ import datetime
 import json
 import os
 import pathlib
+import socket
 import sys
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 
 import pytest
 from wandb.errors import AuthenticationError
@@ -61,14 +64,15 @@ def complete_login_in_browser(
     monkeypatch: pytest.MonkeyPatch,
     *,
     query: dict[str, str] | None = None,
-    state: str | None = None,
     redirect_target: dict[str, str] | None = None,
     responded: threading.Event | None = None,
+    before_redirect: Callable[[str], None] | None = None,
 ) -> dict[str, str]:
     """Hit the loopback redirect in place of a browser.
 
     Returns the query the CLI put on the authorization URL. Pass
-    redirect_target to record where the loopback response sends the browser.
+    redirect_target to record where the loopback response sends the browser,
+    and before_redirect to act on the redirect URI first.
     """
     captured: dict[str, str] = {}
 
@@ -79,11 +83,13 @@ def complete_login_in_browser(
         captured["path"] = parsed.path
 
         callback = dict(query or {"code": "auth-code"})
-        callback.setdefault("state", state or params["state"])
+        callback.setdefault("state", params["state"])
         redirect = f"{params['redirect_uri']}?{urllib.parse.urlencode(callback)}"
 
         def hit_loopback() -> None:
             try:
+                if before_redirect is not None:
+                    before_redirect(params["redirect_uri"])
                 if redirect_target is None:
                     urllib.request.urlopen(redirect).read()
                 else:
@@ -182,7 +188,6 @@ def test_login_opens_the_consent_page_with_a_pkce_challenge(
     assert captured["path"] == "/cli-login"
     assert captured["response_type"] == "code"
     assert captured["code_challenge_method"] == "S256"
-    # The verifier stays here. The URL only carries the challenge.
     assert captured["code_challenge"]
     assert "code_verifier" not in captured
     assert token_endpoint[0]["data"]["code_verifier"]
@@ -201,16 +206,44 @@ def test_login_redirects_to_loopback_only(
     assert redirect.path == browser_login.CALLBACK_PATH
 
 
-def test_login_rejects_a_mismatched_state(
+def test_login_ignores_a_callback_with_the_wrong_state(
     monkeypatch: pytest.MonkeyPatch,
     token_endpoint: list[dict],
 ):
-    complete_login_in_browser(monkeypatch, state="not-the-state-we-sent")
+    def send_stray_callbacks(redirect_uri: str) -> None:
+        for state in ("not-the-state-we-sent", "\u00e9", ""):
+            query = urllib.parse.urlencode({"code": "stray-code", "state": state})
+            with pytest.raises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(f"{redirect_uri}?{query}")
+            assert error.value.code == 400
 
-    with pytest.raises(AuthenticationError, match="did not match the request"):
-        browser_login.login(host=HOST, timeout=10)
+    complete_login_in_browser(monkeypatch, before_redirect=send_stray_callbacks)
 
-    assert token_endpoint == []
+    browser_login.login(host=HOST, timeout=10)
+
+    assert [request["data"]["code"] for request in token_endpoint] == ["auth-code"]
+
+
+def test_login_is_not_stalled_by_an_idle_connection(
+    monkeypatch: pytest.MonkeyPatch,
+    token_endpoint: list[dict],
+):
+    monkeypatch.setattr(browser_login._CallbackHandler, "timeout", 0.1)
+    idle_connections: list[socket.socket] = []
+
+    def connect_and_stay_silent(redirect_uri: str) -> None:
+        port = urllib.parse.urlparse(redirect_uri).port
+        idle_connections.append(socket.create_connection(("127.0.0.1", port)))
+
+    complete_login_in_browser(monkeypatch, before_redirect=connect_and_stay_silent)
+
+    try:
+        tokens = browser_login.login(host=HOST, timeout=10)
+    finally:
+        for connection in idle_connections:
+            connection.close()
+
+    assert tokens.refresh_token == "wb_rt_new"
 
 
 def test_login_rejects_a_response_without_a_refresh_token(
@@ -301,7 +334,6 @@ def test_credentials_are_written_where_core_can_read_them(tmp_path: pathlib.Path
 
 
 def test_saving_leaves_an_identity_token_exchange_alone(tmp_path: pathlib.Path):
-    """A host can hold one user login and one identity token exchange."""
     path = tmp_path / "credentials.json"
     workload = {
         "expires_at": "2030-01-01 00:00:00",
@@ -319,7 +351,6 @@ def test_saving_leaves_an_identity_token_exchange_alone(tmp_path: pathlib.Path):
 
 
 def test_save_waits_for_the_core_credentials_lock(tmp_path: pathlib.Path):
-    """Writers share the ``credentials.json.lock`` file wandb-core flocks."""
     if sys.platform == "win32":
         pytest.skip("this test takes the lock with flock")
 
@@ -385,7 +416,6 @@ def test_loading_a_corrupt_file(tmp_path: pathlib.Path):
 
 
 def test_loading_ignores_an_identity_token_entry(tmp_path: pathlib.Path):
-    """An identity token exchange is not a browser login, even with a refresh token."""
     path = tmp_path / "credentials.json"
     path.write_text(
         json.dumps(
@@ -419,7 +449,6 @@ def test_clearing_when_not_logged_in(tmp_path: pathlib.Path):
 
 
 def test_can_open_browser_rejects_a_remote_shell(monkeypatch: pytest.MonkeyPatch):
-    """SSH would open the browser on the wrong machine."""
     monkeypatch.setenv("SSH_CONNECTION", "10.0.0.1 22 10.0.0.2 22")
 
     assert browser_login.can_open_browser() is False
