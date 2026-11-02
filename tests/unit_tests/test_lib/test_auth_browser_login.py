@@ -333,6 +333,21 @@ def test_credentials_are_written_where_core_can_read_them(tmp_path: pathlib.Path
     }
 
 
+@pytest.mark.parametrize("contents", ["{not json", "[]"])
+def test_saving_and_clearing_do_not_overwrite_a_corrupt_file(
+    tmp_path: pathlib.Path, contents: str
+):
+    path = tmp_path / "credentials.json"
+    path.write_text(contents)
+
+    with pytest.raises(AuthenticationError):
+        browser_login.save_credentials(path, HOST, some_tokens())
+    with pytest.raises(AuthenticationError):
+        browser_login.clear_credentials(path, HOST)
+
+    assert path.read_text() == contents
+
+
 def test_saving_leaves_an_identity_token_exchange_alone(tmp_path: pathlib.Path):
     path = tmp_path / "credentials.json"
     workload = {

@@ -233,7 +233,7 @@ def save_credentials(
     """
     path = pathlib.Path(credentials_file)
     with _credentials_lock(path):
-        contents = _read_file(path)
+        contents = _read_file(path, strict=True)
         _user_credentials(contents)[host.url] = tokens.to_json()
         _write_file(path, contents)
 
@@ -252,8 +252,8 @@ def clear_credentials(
     """
     path = pathlib.Path(credentials_file)
     with _credentials_lock(path):
+        contents = _read_file(path, strict=True)
         existing = load_credentials(path, host)
-        contents = _read_file(path)
         if _user_credentials(contents).pop(host.url, None) is not None:
             _write_file(path, contents)
         return existing
@@ -339,17 +339,33 @@ def _win_lock(fd: int, *, exclusive: bool) -> None:
         raise OSError(ctypes.get_last_error())
 
 
-def _read_file(path: pathlib.Path) -> dict[str, Any]:
+def _read_file(path: pathlib.Path, *, strict: bool = False) -> dict[str, Any]:
     """Reads the credentials file, keeping entries this module does not own.
 
-    Missing or unreadable contents are treated as empty.
+    A missing file is treated as empty. So is an unreadable one, unless
+    `strict` is set, which callers that write the file back must do so that
+    a bad read never replaces other logins with an empty file.
+
+    Raises:
+        AuthenticationError: If `strict` and the file exists but can't be
+            read or parsed.
     """
     try:
         contents = json.loads(path.read_text())
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        contents = None
+    except (OSError, ValueError) as e:
+        if strict:
+            raise AuthenticationError(
+                f"Could not read the credentials file {path}: {e}"
+            ) from e
         contents = None
 
     if not isinstance(contents, dict):
+        if strict and contents is not None:
+            raise AuthenticationError(
+                f"The credentials file {path} is not a JSON object."
+            )
         contents = {}
 
     # Older readers expect this map to be present.
