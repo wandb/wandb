@@ -36,6 +36,8 @@ from wandb.errors import AuthenticationError, term
 
 from .host_url import HostUrl
 
+# The public OAuth client ID. Must match CLIClientID in wandb-core, which uses
+# it to refresh these tokens.
 CLI_CLIENT_ID = "wandb-cli"
 CALLBACK_PATH = "/callback"
 
@@ -71,7 +73,6 @@ class TokenSet:
 def login(
     *,
     host: HostUrl,
-    client_id: str = CLI_CLIENT_ID,
     timeout: float = LOGIN_TIMEOUT_SECONDS,
     verify: bool | str = True,
 ) -> TokenSet:
@@ -79,7 +80,6 @@ def login(
 
     Args:
         host: The W&B server to log in to.
-        client_id: The public OAuth client ID.
         timeout: How long to wait for the browser, in seconds.
         verify: Passed to `requests` to control TLS verification.
 
@@ -98,7 +98,6 @@ def login(
         redirect_uri = f"http://127.0.0.1:{server.server_port}{CALLBACK_PATH}"
         authorize_url = _authorize_url(
             host,
-            client_id=client_id,
             redirect_uri=redirect_uri,
             state=state,
             challenge=challenge,
@@ -113,7 +112,6 @@ def login(
 
     return _exchange_code(
         host,
-        client_id=client_id,
         code=_authorization_code(params),
         redirect_uri=redirect_uri,
         verifier=verifier,
@@ -125,7 +123,6 @@ def revoke(
     *,
     host: HostUrl,
     refresh_token: str,
-    client_id: str = CLI_CLIENT_ID,
     timeout: float = 30.0,
     verify: bool | str = True,
 ) -> None:
@@ -136,23 +133,26 @@ def revoke(
     Args:
         host: The W&B server that issued the token.
         refresh_token: The refresh token to revoke.
-        client_id: The public OAuth client ID.
         timeout: How long to wait for the server, in seconds.
         verify: Passed to `requests` to control TLS verification.
 
     Raises:
         AuthenticationError: If the server refused.
     """
-    response = requests.post(
-        f"{host.url}/oidc/revoke",
-        data={
-            "client_id": client_id,
-            "token": refresh_token,
-            "token_type_hint": "refresh_token",
-        },
-        timeout=timeout,
-        verify=verify,
-    )
+    try:
+        response = requests.post(
+            f"{host.url}/oidc/revoke",
+            data={
+                "client_id": CLI_CLIENT_ID,
+                "token": refresh_token,
+                "token_type_hint": "refresh_token",
+            },
+            timeout=timeout,
+            verify=verify,
+        )
+    except requests.RequestException as e:
+        raise AuthenticationError(f"Could not reach {host} to log out: {e}") from e
+
     if not response.ok:
         raise AuthenticationError(
             f"Failed to log out of {host}: {_error_detail(response)}"
@@ -208,7 +208,7 @@ def load_credentials(
         expires_at = datetime.datetime.strptime(
             entry.get("expires_at", ""), _EXPIRES_AT_FORMAT
         ).replace(tzinfo=datetime.timezone.utc)
-    except ValueError:
+    except (TypeError, ValueError):
         # Treat an unreadable timestamp as expired; the refresh token still works.
         expires_at = datetime.datetime.now(datetime.timezone.utc)
 
@@ -403,14 +403,13 @@ def _pkce_pair() -> tuple[str, str]:
 def _authorize_url(
     host: HostUrl,
     *,
-    client_id: str,
     redirect_uri: str,
     state: str,
     challenge: str,
 ) -> str:
     """Returns the consent page URL, which posts the authorization request."""
     query = {
-        "client_id": client_id,
+        "client_id": CLI_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "state": state,
@@ -517,7 +516,6 @@ def _authorization_code(params: dict[str, list[str]]) -> str:
 def _exchange_code(
     host: HostUrl,
     *,
-    client_id: str,
     code: str,
     redirect_uri: str,
     verifier: str,
@@ -525,18 +523,22 @@ def _exchange_code(
     verify: bool | str = True,
 ) -> TokenSet:
     """Trades the authorization code for tokens."""
-    response = requests.post(
-        f"{host.url}/oidc/token",
-        data={
-            "grant_type": "authorization_code",
-            "client_id": client_id,
-            "code": code,
-            "redirect_uri": redirect_uri,
-            "code_verifier": verifier,
-        },
-        timeout=timeout,
-        verify=verify,
-    )
+    try:
+        response = requests.post(
+            f"{host.url}/oidc/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": CLI_CLIENT_ID,
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "code_verifier": verifier,
+            },
+            timeout=timeout,
+            verify=verify,
+        )
+    except requests.RequestException as e:
+        raise AuthenticationError(f"Could not reach {host} to log in: {e}") from e
+
     if not response.ok:
         raise AuthenticationError(
             f"Failed to complete login with {host}: {_error_detail(response)}"
@@ -549,15 +551,20 @@ def _exchange_code(
             f"{host} returned a token response that was not JSON."
         ) from None
 
+    if not isinstance(body, dict):
+        raise AuthenticationError(f"{host} returned an incomplete token response.")
+
     access_token = body.get("access_token")
     refresh_token = body.get("refresh_token")
     if not access_token or not refresh_token:
         raise AuthenticationError(f"{host} returned an incomplete token response.")
 
-    expires_in = body.get("expires_in")
-    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
-        seconds=int(expires_in) if isinstance(expires_in, (int, float, str)) else 0
-    )
+    try:
+        lifetime = datetime.timedelta(seconds=int(body.get("expires_in") or 0))
+    except (TypeError, ValueError, OverflowError):
+        # Treat an unreadable lifetime as already expired; wandb-core refreshes.
+        lifetime = datetime.timedelta(0)
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + lifetime
 
     return TokenSet(
         access_token=access_token,
