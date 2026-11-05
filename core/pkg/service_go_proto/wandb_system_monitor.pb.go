@@ -262,8 +262,10 @@ func (x *OpenMetricsFilter) GetLabelRegexes() map[string]string {
 
 type SubscribeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// System metrics.
+	// System metrics that are not in `sample` yet, as a legacy StatsRecord.
 	Record *Record `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	// System metrics.
+	Sample *SystemMetricsRecord `protobuf:"bytes,3,opt,name=sample,proto3" json:"sample,omitempty"`
 	// Every process on the host, for subscribers that asked for host_details.
 	Processes     []*ProcessStats `protobuf:"bytes,2,rep,name=processes,proto3" json:"processes,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -303,6 +305,13 @@ func (*SubscribeResponse) Descriptor() ([]byte, []int) {
 func (x *SubscribeResponse) GetRecord() *Record {
 	if x != nil {
 		return x.Record
+	}
+	return nil
+}
+
+func (x *SubscribeResponse) GetSample() *SystemMetricsRecord {
+	if x != nil {
+		return x.Sample
 	}
 	return nil
 }
@@ -567,7 +576,7 @@ var File_wandb_proto_wandb_system_monitor_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\n" +
-	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\x86\a\n" +
+	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a&wandb/proto/wandb_system_metrics.proto\"\x86\a\n" +
 	"\x10SubscribeRequest\x12)\n" +
 	"\x10interval_seconds\x18\x01 \x01(\x01R\x0fintervalSeconds\x12\x10\n" +
 	"\x03pid\x18\x02 \x01(\x05R\x03pid\x12$\n" +
@@ -597,9 +606,10 @@ const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\rlabel_regexes\x18\x02 \x03(\v23.wandb_internal.OpenMetricsFilter.LabelRegexesEntryR\flabelRegexes\x1a?\n" +
 	"\x11LabelRegexesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x7f\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbc\x01\n" +
 	"\x11SubscribeResponse\x12.\n" +
-	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\x12:\n" +
+	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\x12;\n" +
+	"\x06sample\x18\x03 \x01(\v2#.wandb_internal.SystemMetricsRecordR\x06sample\x12:\n" +
 	"\tprocesses\x18\x02 \x03(\v2\x1c.wandb_internal.ProcessStatsR\tprocesses\"r\n" +
 	"\fProcessStats\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
@@ -651,6 +661,7 @@ var file_wandb_proto_wandb_system_monitor_proto_goTypes = []any{
 	nil,                         // 10: wandb_internal.OpenMetricsFilter.LabelRegexesEntry
 	nil,                         // 11: wandb_internal.GetMetadataRequest.OpenMetricsHttpHeadersEntry
 	(*Record)(nil),              // 12: wandb_internal.Record
+	(*SystemMetricsRecord)(nil), // 13: wandb_internal.SystemMetricsRecord
 }
 var file_wandb_proto_wandb_system_monitor_proto_depIdxs = []int32{
 	8,  // 0: wandb_internal.SubscribeRequest.open_metrics_endpoints:type_name -> wandb_internal.SubscribeRequest.OpenMetricsEndpointsEntry
@@ -658,20 +669,21 @@ var file_wandb_proto_wandb_system_monitor_proto_depIdxs = []int32{
 	9,  // 2: wandb_internal.SubscribeRequest.open_metrics_http_headers:type_name -> wandb_internal.SubscribeRequest.OpenMetricsHttpHeadersEntry
 	10, // 3: wandb_internal.OpenMetricsFilter.label_regexes:type_name -> wandb_internal.OpenMetricsFilter.LabelRegexesEntry
 	12, // 4: wandb_internal.SubscribeResponse.record:type_name -> wandb_internal.Record
-	3,  // 5: wandb_internal.SubscribeResponse.processes:type_name -> wandb_internal.ProcessStats
-	11, // 6: wandb_internal.GetMetadataRequest.open_metrics_http_headers:type_name -> wandb_internal.GetMetadataRequest.OpenMetricsHttpHeadersEntry
-	12, // 7: wandb_internal.GetMetadataResponse.record:type_name -> wandb_internal.Record
-	0,  // 8: wandb_internal.SystemMonitorService.Subscribe:input_type -> wandb_internal.SubscribeRequest
-	4,  // 9: wandb_internal.SystemMonitorService.GetMetadata:input_type -> wandb_internal.GetMetadataRequest
-	6,  // 10: wandb_internal.SystemMonitorService.TearDown:input_type -> wandb_internal.TearDownRequest
-	2,  // 11: wandb_internal.SystemMonitorService.Subscribe:output_type -> wandb_internal.SubscribeResponse
-	5,  // 12: wandb_internal.SystemMonitorService.GetMetadata:output_type -> wandb_internal.GetMetadataResponse
-	7,  // 13: wandb_internal.SystemMonitorService.TearDown:output_type -> wandb_internal.TearDownResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	13, // 5: wandb_internal.SubscribeResponse.sample:type_name -> wandb_internal.SystemMetricsRecord
+	3,  // 6: wandb_internal.SubscribeResponse.processes:type_name -> wandb_internal.ProcessStats
+	11, // 7: wandb_internal.GetMetadataRequest.open_metrics_http_headers:type_name -> wandb_internal.GetMetadataRequest.OpenMetricsHttpHeadersEntry
+	12, // 8: wandb_internal.GetMetadataResponse.record:type_name -> wandb_internal.Record
+	0,  // 9: wandb_internal.SystemMonitorService.Subscribe:input_type -> wandb_internal.SubscribeRequest
+	4,  // 10: wandb_internal.SystemMonitorService.GetMetadata:input_type -> wandb_internal.GetMetadataRequest
+	6,  // 11: wandb_internal.SystemMonitorService.TearDown:input_type -> wandb_internal.TearDownRequest
+	2,  // 12: wandb_internal.SystemMonitorService.Subscribe:output_type -> wandb_internal.SubscribeResponse
+	5,  // 13: wandb_internal.SystemMonitorService.GetMetadata:output_type -> wandb_internal.GetMetadataResponse
+	7,  // 14: wandb_internal.SystemMonitorService.TearDown:output_type -> wandb_internal.TearDownResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_system_monitor_proto_init() }
@@ -680,6 +692,7 @@ func file_wandb_proto_wandb_system_monitor_proto_init() {
 		return
 	}
 	file_wandb_proto_wandb_internal_proto_init()
+	file_wandb_proto_wandb_system_metrics_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

@@ -272,6 +272,7 @@ impl Subscriptions {
             };
             let response = SubscribeResponse {
                 record: Some(record),
+                sample: None,
                 processes: if sub.scope.host_details {
                     sample.processes.clone()
                 } else {
