@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-use crate::metrics::MetricValue;
+use crate::metrics::NvidiaRate;
 
 // --- DCGM Constants ---
 
@@ -46,7 +46,6 @@ const DCGM_FE_VGPU: u32 = 1;
 /// DCGM Field Value types.
 const DCGM_FT_DOUBLE: u32 = 0;
 const DCGM_FT_INT64: u32 = 1;
-const DCGM_FT_STRING: u32 = 2;
 const DCGM_FT_TIMESTAMP: u32 = 3;
 const DCGM_FT_DOUBLE_BLANK: u32 = 100;
 
@@ -740,7 +739,11 @@ impl DcgmLib {
 }
 
 /// Alias for the result type of getting metrics.
-type DcgmMetricsResult = Result<Vec<(String, MetricValue)>, String>;
+/// A DCGM profiling reading: the GPU's DCGM ID, the field and its value, as
+/// a percent for ratios and in bytes per second for throughput.
+pub type DcgmReading = (u32, NvidiaRate, f64);
+
+type DcgmMetricsResult = Result<Vec<DcgmReading>, String>;
 
 /// Commands sent from the [`DcgmClient`] to the [`DcgmWorker`] thread.
 enum DcgmCommand {
@@ -960,7 +963,7 @@ impl DcgmClient {
     /// Sends a [`DcgmCommand::GetMetrics`] message to the worker thread and awaits the response.
     ///
     /// # Returns
-    /// * `Ok(Vec<(String, MetricValue)>)` containing the latest metrics on success.
+    /// * `Ok(Vec<DcgmReading>)` containing the latest metrics on success.
     /// * `Err(String)` if the worker thread has shut down or communication fails.
     pub async fn get_metrics(&self) -> DcgmMetricsResult {
         let (tx, rx) = oneshot::channel();
@@ -997,7 +1000,7 @@ impl DcgmClient {
 /// * `entity_id`: Index of the specific GPU.
 /// * `values`: Pointer to an array of `DcgmFieldValueV1` containing metrics for this GPU.
 /// * `values_count`: Number of valid entries in the `values` array.
-/// * `user_data`: Opaque pointer passed from `get_latest_values`, cast back to `&mut Vec<(String, MetricValue)>`.
+/// * `user_data`: Opaque pointer passed from `get_latest_values`, cast back to `&mut Vec<DcgmReading>`.
 ///
 /// # Returns
 /// * `0` to indicate success and continue processing. Non-zero would stop DCGM's iteration.
@@ -1013,7 +1016,7 @@ extern "C" fn field_value_callback(
     entity_id: DcgmFieldEidT,
     values: *mut DcgmFieldValueV1,
     values_count: c_int,
-    user_data: *mut c_void, // This will point to a `&mut Vec<(String, MetricValue)>`
+    user_data: *mut c_void, // This will point to a `&mut Vec<DcgmReading>`
 ) -> c_int {
     // Wrap the entire body to catch potential panics
     let result = std::panic::catch_unwind(|| {
@@ -1025,14 +1028,13 @@ extern "C" fn field_value_callback(
 
         // Cast user_data back to the mutable vector reference.
         // This is unsafe, relying on the caller (`collect_metrics`) providing the correct pointer
-        let metrics_vec: &mut Vec<(String, MetricValue)> =
-            unsafe { &mut *(user_data as *mut Vec<(String, MetricValue)>) };
+        let metrics_vec: &mut Vec<DcgmReading> =
+            unsafe { &mut *(user_data as *mut Vec<DcgmReading>) };
 
-        let entity_type = match entity_group_id {
-            DCGM_FE_GPU => "gpu",
-            DCGM_FE_VGPU => "gpu", // TODO: Handle the distinction if needed.
-            _ => "unknown",
-        };
+        // vGPUs report like GPUs; other entities are not watched.
+        if entity_group_id != DCGM_FE_GPU && entity_group_id != DCGM_FE_VGPU {
+            return 0;
+        }
 
         unsafe {
             let values_slice = std::slice::from_raw_parts(values, values_count as usize);
@@ -1043,72 +1045,38 @@ extern "C" fn field_value_callback(
                     continue;
                 }
 
-                let field_id = value.field_id;
-                let field_type = value.field_type;
-
-                let metric_value_opt: Option<MetricValue> = match field_type as u32 {
+                // DCGM uses large negative numbers or huge values for N/A.
+                let reading = match value.field_type as u32 {
                     DCGM_FT_DOUBLE | DCGM_FT_DOUBLE_BLANK => {
                         let dbl = value.value.dbl;
-                        // DCGM often uses large negative numbers or specific patterns for N/A.
-                        // Adjust this condition based on observed DCGM behavior for blank values.
-                        if value.status == DCGM_ST_OK && !dbl.is_nan() && dbl.abs() < 1e19 {
-                            // Check status and avoid huge numbers.
-                            Some(MetricValue::Float(dbl))
-                        } else {
-                            None // Treat as unavailable.
-                        }
+                        (!dbl.is_nan() && dbl.abs() < 1e19).then_some(dbl)
                     }
                     DCGM_FT_INT64 | DCGM_FT_TIMESTAMP => {
                         let i64_val = value.value.i64;
-                        // DCGM often uses large negative numbers or specific patterns for N/A.
-                        if value.status == DCGM_ST_OK && i64_val > -1_000_000_000_000 {
-                            // Check status and avoid specific large negative numbers.
-                            Some(MetricValue::Int(i64_val))
-                        } else {
-                            None // Treat as unavailable.
-                        }
+                        (i64_val > -1_000_000_000_000).then_some(i64_val as f64)
                     }
-                    DCGM_FT_STRING => {
-                        if value.status == DCGM_ST_OK && value.value.str[0] != 0 {
-                            let c_str = CStr::from_ptr(value.value.str.as_ptr());
-                            Some(MetricValue::String(c_str.to_string_lossy().into_owned()))
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None, // Unknown type.
+                    _ => None,
+                };
+                let Some(reading) = reading else {
+                    continue;
                 };
 
-                if let Some(metric_value) = metric_value_opt {
-                    let base_name = match field_id {
-                        DCGM_FI_PROF_SM_ACTIVE => "smActive",
-                        DCGM_FI_PROF_SM_OCCUPANCY => "smOccupancy",
-                        DCGM_FI_PROF_PIPE_TENSOR_ACTIVE => "pipeTensorActive",
-                        DCGM_FI_PROF_DRAM_ACTIVE => "dramActive",
-                        DCGM_FI_PROF_PIPE_FP64_ACTIVE => "pipeFp64Active",
-                        DCGM_FI_PROF_PIPE_FP32_ACTIVE => "pipeFp32Active",
-                        DCGM_FI_PROF_PIPE_FP16_ACTIVE => "pipeFp16Active",
-                        DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE => "pipeTensorHmmaActive",
-                        DCGM_FI_PROF_PCIE_TX_BYTES => "pcieTxBytes",
-                        DCGM_FI_PROF_PCIE_RX_BYTES => "pcieRxBytes",
-                        DCGM_FI_PROF_NVLINK_TX_BYTES => "nvlinkTxBytes",
-                        DCGM_FI_PROF_NVLINK_RX_BYTES => "nvlinkRxBytes",
-                        _ => &format!("dcgm_field_{}", field_id),
-                    };
-                    // Create a unique key per GPU per metric: e.g., "gpu.0.smActive".
-                    let metric_key = format!("{}.{}.{}", entity_type, entity_id, base_name);
-                    // Convert values from ratios [0, 1] to percentage [0, 100%].
-                    let metric_value = if base_name.ends_with("Bytes") {
-                        metric_value
-                    } else {
-                        match metric_value {
-                            MetricValue::Float(f) => MetricValue::Float(f * 100.0),
-                            MetricValue::Int(i) => MetricValue::Int(i * 100),
-                            _ => metric_value,
-                        }
-                    };
-                    metrics_vec.push((metric_key, metric_value));
-                }
+                let rate = match value.field_id {
+                    DCGM_FI_PROF_SM_ACTIVE => NvidiaRate::SmActive,
+                    DCGM_FI_PROF_SM_OCCUPANCY => NvidiaRate::SmOccupancy,
+                    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE => NvidiaRate::PipeTensorActive,
+                    DCGM_FI_PROF_DRAM_ACTIVE => NvidiaRate::DramActive,
+                    DCGM_FI_PROF_PIPE_FP64_ACTIVE => NvidiaRate::PipeFp64Active,
+                    DCGM_FI_PROF_PIPE_FP32_ACTIVE => NvidiaRate::PipeFp32Active,
+                    DCGM_FI_PROF_PIPE_FP16_ACTIVE => NvidiaRate::PipeFp16Active,
+                    DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE => NvidiaRate::PipeTensorHmmaActive,
+                    DCGM_FI_PROF_PCIE_TX_BYTES => NvidiaRate::PcieTx,
+                    DCGM_FI_PROF_PCIE_RX_BYTES => NvidiaRate::PcieRx,
+                    DCGM_FI_PROF_NVLINK_TX_BYTES => NvidiaRate::NvlinkTx,
+                    DCGM_FI_PROF_NVLINK_RX_BYTES => NvidiaRate::NvlinkRx,
+                    _ => continue,
+                };
+                metrics_vec.push((entity_id, rate, reading));
             }
         }
         0 // Indicate success.
@@ -1197,7 +1165,7 @@ impl DcgmWorker {
     /// can occur normally before the first watch interval completes.
     ///
     /// # Returns
-    /// * `Ok(Vec<(String, MetricValue)>)` containing the collected metrics.
+    /// * `Ok(Vec<DcgmReading>)` containing the collected metrics.
     /// * `Err(String)` if the `dcgmGetLatestValues_v2` call fails with an error
     ///   other than `DCGM_ST_NO_DATA`.
     fn collect_metrics(&self) -> DcgmMetricsResult {
@@ -1207,7 +1175,7 @@ impl DcgmWorker {
             log::warn!("DCGM update_all_fields failed: {}", e);
         }
 
-        let mut metrics: Vec<(String, MetricValue)> = Vec::new();
+        let mut metrics: Vec<DcgmReading> = Vec::new();
         let result = self.dcgm.get_latest_values(
             self.group_id,
             self.field_group_id,
@@ -1241,7 +1209,7 @@ mod tests {
         supported_ids: Option<Result<HashSet<u16>, String>>,
         latest_values_result: Option<Result<(), String>>,
         // Store captured values if needed, e.g., metrics passed to callback
-        collected_metrics_output: Arc<Mutex<Vec<(String, MetricValue)>>>,
+        collected_metrics_output: Arc<Mutex<Vec<DcgmReading>>>,
         update_all_fields_result: Option<Result<(), String>>,
         // Add fields for other trait methods if needed for specific tests
         create_field_group_result: Option<Result<DcgmFieldGrpT, String>>,
@@ -1255,7 +1223,7 @@ mod tests {
         }
 
         // Simulate callback populating the vector
-        fn set_collected_metrics_output(&mut self, metrics: Vec<(String, MetricValue)>) {
+        fn set_collected_metrics_output(&mut self, metrics: Vec<DcgmReading>) {
             let mut lock = self.collected_metrics_output.lock().unwrap();
             *lock = metrics;
         }
@@ -1312,8 +1280,8 @@ mod tests {
                     // Simulate the callback populating the user_data vector
                     if !user_data.is_null() {
                         let expected_output = self.collected_metrics_output.lock().unwrap();
-                        let metrics_vec: &mut Vec<(String, MetricValue)> =
-                            unsafe { &mut *(user_data as *mut Vec<(String, MetricValue)>) };
+                        let metrics_vec: &mut Vec<DcgmReading> =
+                            unsafe { &mut *(user_data as *mut Vec<DcgmReading>) };
                         metrics_vec.extend(expected_output.clone()); // Populate with mock data
                     }
                     Ok(())
@@ -1330,8 +1298,8 @@ mod tests {
         // Arrange
         let mut mock_lib = MockDcgmLib::default();
         let expected_metrics = vec![
-            ("gpu.0.smActive".to_string(), MetricValue::Float(55.5)),
-            ("gpu.0.dramActive".to_string(), MetricValue::Float(30.1)),
+            (0, NvidiaRate::SmActive, 0.555),
+            (0, NvidiaRate::DramActive, 0.301),
         ];
         mock_lib.expect_update_all_fields(Ok(())); // Assume update_all_fields is called and succeeds
         mock_lib.expect_get_latest_values(Ok(())); // Simulate get_latest_values succeeding
