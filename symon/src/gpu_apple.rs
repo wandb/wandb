@@ -27,7 +27,10 @@ use crate::gpu_apple_sources::{
     IOHIDSensors, IOReport, SMC, SocInfo, cfio_get_residencies, cfio_watts, libc_ram, libc_swap,
 };
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{AppleInfo, EnvironmentRecord};
+use crate::wandb_internal::{
+    AcceleratorMetrics, AcceleratorType, AppleHostMetrics, AppleInfo, CpuMetrics,
+    EnvironmentRecord, HostMetrics, SwapMetrics, SystemMetricsRecord,
+};
 use core_foundation::dictionary::CFDictionaryRef;
 use log::warn;
 use serde::Serialize;
@@ -431,27 +434,13 @@ impl ThreadSafeSampler {
             .map_err(|e| Box::new(SamplerError(e.to_string())) as Box<dyn std::error::Error>)
     }
 
-    pub fn metrics_to_vec(
+    /// The static facts of a sample, under `_` keys for the metadata.
+    pub fn metadata_metrics(
         &self,
         metrics: Metrics,
         soc_info: SocInfo,
     ) -> Vec<(String, MetricValue)> {
         let mut result = Vec::new();
-
-        // Helper function to safely add metrics
-        fn add_finite_float(vec: &mut Vec<(String, MetricValue)>, key: String, value: f64) {
-            // Only add non-NaN, non-infinite values
-            if value.is_finite() {
-                vec.push((key, MetricValue::Float(value)));
-            }
-        }
-
-        // Helper function for optional integer metrics
-        fn add_optional_int(vec: &mut Vec<(String, MetricValue)>, key: String, value: u64) {
-            if value > 0 {
-                add_finite_float(vec, key, value as f64);
-            }
-        }
 
         // Static metadata.
         result.push((
@@ -489,113 +478,61 @@ impl ThreadSafeSampler {
             MetricValue::Int(metrics.memory.ram_total as i64),
         ));
 
-        // Temperature metrics
-        if metrics.temp.cpu_temp_avg.is_finite() {
-            add_finite_float(
-                &mut result,
-                "cpu.avg_temp".to_string(),
-                metrics.temp.cpu_temp_avg as f64,
-            );
-        }
-        if metrics.temp.gpu_temp_avg.is_finite() {
-            add_finite_float(
-                &mut result,
-                "gpu.0.temp".to_string(),
-                metrics.temp.gpu_temp_avg as f64,
-            );
-        }
-
-        // Memory metrics
-        add_optional_int(
-            &mut result,
-            "memory.used".to_string(),
-            metrics.memory.ram_usage,
-        );
-        add_finite_float(
-            &mut result,
-            "memory.used_percent".to_string(),
-            (metrics.memory.ram_usage as f64 / metrics.memory.ram_total as f64) * 100.0,
-        );
-        add_optional_int(
-            &mut result,
-            "swap.used".to_string(),
-            metrics.memory.swap_usage,
-        );
-        add_finite_float(
-            &mut result,
-            "swap.used_percent".to_string(),
-            (metrics.memory.swap_usage as f64 / metrics.memory.swap_total as f64) * 100.0,
-        );
-
-        // CPU metrics
-        let (ecpu_freq, ecpu_percent) = metrics.ecpu_usage;
-        if ecpu_freq > 0 {
-            add_finite_float(&mut result, "cpu.ecpu_freq".to_string(), ecpu_freq as f64);
-        }
-        if ecpu_percent.is_finite() {
-            add_finite_float(
-                &mut result,
-                "cpu.ecpu_percent".to_string(),
-                (ecpu_percent as f64) * 100.0,
-            );
-        }
-
-        let (pcpu_freq, pcpu_percent) = metrics.pcpu_usage;
-        if pcpu_freq > 0 {
-            add_finite_float(&mut result, "cpu.pcpu_freq".to_string(), pcpu_freq as f64);
-        }
-        if pcpu_percent.is_finite() {
-            add_finite_float(
-                &mut result,
-                "cpu.pcpu_percent".to_string(),
-                (pcpu_percent as f64) * 100.0,
-            );
-        }
-
-        // GPU metrics
-        let (gpu_freq, gpu_percent) = metrics.gpu_usage;
-        if gpu_freq > 0 {
-            add_finite_float(&mut result, "gpu.0.freq".to_string(), gpu_freq as f64);
-        }
-        if gpu_percent.is_finite() {
-            add_finite_float(
-                &mut result,
-                "gpu.0.gpu".to_string(),
-                (gpu_percent as f64) * 100.0,
-            );
-        }
-
-        // Power metrics
-        if metrics.cpu_power.is_finite() {
-            add_finite_float(
-                &mut result,
-                "cpu.powerWatts".to_string(),
-                metrics.cpu_power as f64,
-            );
-        }
-        if metrics.gpu_power.is_finite() {
-            add_finite_float(
-                &mut result,
-                "gpu.0.powerWatts".to_string(),
-                metrics.gpu_power as f64,
-            );
-        }
-        if metrics.ane_power.is_finite() {
-            add_finite_float(
-                &mut result,
-                "ane.power".to_string(),
-                metrics.ane_power as f64,
-            );
-        }
-        if metrics.sys_power.is_finite() {
-            add_finite_float(
-                &mut result,
-                "system.powerWatts".to_string(),
-                metrics.sys_power as f64,
-            );
-        }
-
         result
+    }
+
+    /// The readings of a sample as typed record fields. A reading that is not
+    /// finite is left out, and so are memory and swap use of zero.
+    pub fn record(&self, metrics: &Metrics) -> SystemMetricsRecord {
+        let finite = |value: f64| value.is_finite().then_some(value);
+        let nonzero = |value: u64| (value > 0).then_some(value);
+        let ratio = |part: u64, total: u64| finite(part as f64 / total as f64);
+        let (ecpu_freq, ecpu_ratio) = metrics.ecpu_usage;
+        let (pcpu_freq, pcpu_ratio) = metrics.pcpu_usage;
+        let (gpu_freq, gpu_ratio) = metrics.gpu_usage;
+        let memory = &metrics.memory;
+
+        SystemMetricsRecord {
+            host: Some(HostMetrics {
+                cpu: Some(CpuMetrics {
+                    temperature_c: finite(metrics.temp.cpu_temp_avg as f64),
+                    ..Default::default()
+                }),
+                swap: Some(SwapMetrics {
+                    used_bytes: nonzero(memory.swap_usage),
+                    used_ratio: ratio(memory.swap_usage, memory.swap_total),
+                }),
+                apple: Some(AppleHostMetrics {
+                    memory_used_bytes: nonzero(memory.ram_usage),
+                    memory_used_ratio: ratio(memory.ram_usage, memory.ram_total),
+                    ecpu_utilization_ratio: finite(ecpu_ratio as f64),
+                    ecpu_frequency_hz: (ecpu_freq > 0).then_some(ecpu_freq as f64 * 1e6),
+                    pcpu_utilization_ratio: finite(pcpu_ratio as f64),
+                    pcpu_frequency_hz: (pcpu_freq > 0).then_some(pcpu_freq as f64 * 1e6),
+                    cpu_power_w: finite(metrics.cpu_power as f64),
+                    system_power_w: finite(metrics.sys_power as f64),
+                }),
+                ..Default::default()
+            }),
+            accelerators: vec![
+                AcceleratorMetrics {
+                    r#type: AcceleratorType::AppleGpu as i32,
+                    source: "ioreport".to_string(),
+                    utilization_ratio: finite(gpu_ratio as f64),
+                    temperature_c: finite(metrics.temp.gpu_temp_avg as f64),
+                    power_w: finite(metrics.gpu_power as f64),
+                    clock_hz: (gpu_freq > 0).then_some(gpu_freq as f64 * 1e6),
+                    ..Default::default()
+                },
+                AcceleratorMetrics {
+                    r#type: AcceleratorType::AppleAne as i32,
+                    source: "ioreport".to_string(),
+                    power_w: finite(metrics.ane_power as f64),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        }
     }
 
     pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> EnvironmentRecord {
