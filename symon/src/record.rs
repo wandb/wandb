@@ -35,6 +35,9 @@ pub fn typed_record(
 ) -> SystemMetricsRecord {
     let gpus_in_use = gpus_in_use(sample, pids);
     let mut record = sample.record.clone();
+    for (field, value) in values {
+        field.set(&mut record, *value);
+    }
     record.accelerators.retain(|device| {
         let gpu = matches!(
             device.r#type(),
@@ -42,8 +45,9 @@ pub fn typed_record(
         );
         !gpu || gpu_device_ids.is_empty() || gpu_device_ids.contains(&(device.index as i32))
     });
+    // Only NVML lists the processes on a device.
     for device in &mut record.accelerators {
-        if sample.gpu_pids.contains_key(&device.index) {
+        if device.source == "nvml" && sample.gpu_pids.contains_key(&device.index) {
             device.set_binding(if gpus_in_use.contains(&device.index) {
                 Binding::Process
             } else {
@@ -51,11 +55,9 @@ pub fn typed_record(
             });
         }
     }
+    // After the device filter, which does not apply to scoped readings.
     if let Some(readings) = scoped {
         metrics::merge(&mut record, &readings.record);
-    }
-    for (field, value) in values {
-        field.set(&mut record, *value);
     }
     record
 }
@@ -132,7 +134,44 @@ fn gpu_key(key: &str) -> Option<(u32, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metrics::MetricValue;
+    use crate::metrics::{MetricValue, NvidiaRate};
+    use crate::wandb_internal::AcceleratorMetrics;
+
+    #[test]
+    fn typed_record_sets_averages_filters_gpus_and_binds_them() {
+        let gpu = |index| AcceleratorMetrics {
+            r#type: AcceleratorType::NvidiaGpu as i32,
+            index,
+            source: "nvml".to_string(),
+            ..Default::default()
+        };
+        let sample = Sample {
+            record: SystemMetricsRecord {
+                accelerators: vec![gpu(0), gpu(1)],
+                ..Default::default()
+            },
+            gpu_pids: [(0, vec![42]), (1, vec![7])].into(),
+            ..Default::default()
+        };
+        let values = [
+            (Field::Nvidia("nvml", 0, NvidiaRate::SmActive), 0.5),
+            (Field::Nvidia("nvml", 1, NvidiaRate::SmActive), 0.51),
+        ];
+
+        let record = typed_record(&sample, None, &values, &[42], &[0]);
+
+        let [device] = record.accelerators.as_slice() else {
+            panic!("expected one GPU: {:?}", record.accelerators);
+        };
+        assert_eq!(device.index, 0);
+        assert_eq!(device.binding(), Binding::Process);
+        let Some(crate::wandb_internal::accelerator_metrics::Vendor::Nvidia(nvidia)) =
+            &device.vendor
+        else {
+            panic!("no NVIDIA fields");
+        };
+        assert_eq!(nvidia.sm_active_ratio, Some(0.5));
+    }
 
     fn keys(items: &[StatsItem]) -> Vec<&str> {
         items.iter().map(|item| item.key.as_str()).collect()
