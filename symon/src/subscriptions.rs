@@ -17,12 +17,12 @@ use prost_types::Timestamp;
 use tokio::sync::{Notify, mpsc};
 use tonic::Status;
 
-use crate::metrics::{Sample, Scope};
+use crate::metrics::{Key, Sample, Scope};
 use crate::monitors::Collectors;
 use crate::record;
 use crate::wandb_internal::{
-    Record, StatsItem, StatsRecord, SubscribeRequest, SubscribeResponse, record::RecordType,
-    stats_record::StatsType,
+    Record, StatsItem, StatsRecord, SubscribeRequest, SubscribeResponse, SystemMetricsRecord,
+    record::RecordType, stats_record::StatsType,
 };
 
 /// Intervals are rounded to multiples of this.
@@ -52,7 +52,9 @@ struct Subscription {
     last_delivery: Option<Instant>,
     /// Weighted sum and total weight of each averaged reading since the
     /// last delivery.
-    sums: HashMap<String, (f64, f64)>,
+    sums: HashMap<Key, (f64, f64)>,
+    /// Samples dropped since the last one delivered.
+    dropped: u32,
 }
 
 impl Subscription {
@@ -74,7 +76,7 @@ enum BaselineKey {
 /// The first value of each counter a subscriber saw.
 #[derive(Default)]
 struct Baseline {
-    counters: HashMap<String, f64>,
+    counters: HashMap<Key, f64>,
     /// When the subscriber's last stream closed, if it is not live.
     closed: Option<Instant>,
 }
@@ -138,6 +140,7 @@ impl Subscriptions {
             tx,
             last_delivery: None,
             sums: HashMap::new(),
+            dropped: 0,
         });
         self.changed.notify_one();
         Ok(rx)
@@ -226,7 +229,7 @@ impl Subscriptions {
             }
             sub.last_delivery = Some(at);
 
-            let mut values: Vec<(String, f64)> = sub
+            let mut values: Vec<(Key, f64)> = sub
                 .sums
                 .drain()
                 .filter(|(_, (_, total))| *total > 0.0)
@@ -246,7 +249,16 @@ impl Subscriptions {
                 Some(readings) if !readings.pids.is_empty() => readings.pids.as_slice(),
                 _ => std::slice::from_ref(&sub.scope.pid),
             };
-            let mut items = record::stats_items(sample, &values, pids, &sub.gpu_device_ids);
+            let (mut legacy, mut fields) = (Vec::new(), Vec::new());
+            for (key, value) in values {
+                match key {
+                    Key::Legacy(key) => legacy.push((key, value)),
+                    Key::Field(field) => fields.push((field, value)),
+                }
+            }
+            let mut typed =
+                record::typed_record(sample, scoped, &fields, pids, &sub.gpu_device_ids);
+            let mut items = record::stats_items(sample, &legacy, pids, &sub.gpu_device_ids);
             // A scope's own readings, such as its host metrics or the GPUs of
             // a remote DCGM exporter, are not subject to the device filter.
             for (key, value) in scoped.into_iter().flat_map(|readings| &readings.metrics) {
@@ -257,22 +269,30 @@ impl Subscriptions {
                     });
                 }
             }
-            if items.is_empty() {
+            let has_typed = typed != SystemMetricsRecord::default();
+            if items.is_empty() && !has_typed {
                 continue;
             }
 
-            let record = Record {
+            let timestamp = current_timestamp();
+            let record = (!items.is_empty()).then(|| Record {
                 record_type: Some(RecordType::Stats(StatsRecord {
-                    timestamp: Some(current_timestamp()),
+                    timestamp: Some(timestamp),
                     stats_type: StatsType::System as i32,
                     item: items,
                     ..Default::default()
                 })),
                 ..Default::default()
-            };
+            });
+            let typed = has_typed.then(|| {
+                typed.timestamp = Some(timestamp);
+                typed.interval_ms = sub.interval.as_millis() as u32;
+                typed.dropped_samples = sub.dropped;
+                typed
+            });
             let response = SubscribeResponse {
-                record: Some(record),
-                sample: None,
+                record,
+                sample: typed,
                 processes: if sub.scope.host_details {
                     sample.processes.clone()
                 } else {
@@ -281,6 +301,9 @@ impl Subscriptions {
             };
             if sub.tx.try_send(Ok(response)).is_err() {
                 debug!("Subscriber is not reading its samples; dropping one");
+                sub.dropped += 1;
+            } else {
+                sub.dropped = 0;
             }
         }
     }
@@ -386,7 +409,7 @@ mod tests {
         let start = Instant::now();
         let deliver = |secs: u64, value: f64| {
             let sample = Sample {
-                averages: vec![("gpu.0.smActive".to_string(), value)],
+                averages: vec![("gpu.0.smActive".into(), value)],
                 ..Default::default()
             };
             subscriptions.deliver(&sample, start + Duration::from_secs(secs), 1.0);
@@ -421,7 +444,7 @@ mod tests {
         let start = Instant::now();
         let deliver = |secs: u64, value: f64| {
             let sample = Sample {
-                counters: vec![("network.sent".to_string(), value)],
+                counters: vec![("network.sent".into(), value)],
                 ..Default::default()
             };
             subscriptions.deliver(&sample, start + Duration::from_secs(secs), 1.0);
