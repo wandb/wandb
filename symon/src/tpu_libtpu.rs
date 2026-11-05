@@ -10,12 +10,17 @@
 use crate::metrics::{MetricValue, Sample, Scope};
 use crate::monitors::Collector;
 use crate::tpu_runtime as proto;
-use crate::wandb_internal::{EnvironmentRecord, TpuInfo};
+use crate::wandb_internal::{
+    AcceleratorMetrics, AcceleratorType, EnvironmentRecord, SystemMetricsRecord, TpuInfo,
+    TpuMetrics, TpuRuntimeMetrics,
+    accelerator_metrics::Vendor,
+    tpu_runtime_metrics::{Distribution, DistributionKind, QueueSize},
+};
 
 use async_trait::async_trait;
 use libloading::{Library, Symbol};
 use log::{debug, warn};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::{CStr, CString, c_void};
 use std::fs;
 use std::net::{SocketAddr, TcpStream};
@@ -78,8 +83,8 @@ impl TpuMonitor {
         })
     }
 
-    async fn collect_tpu_metrics(&self) -> Vec<(String, MetricValue)> {
-        let mut metrics = Vec::new();
+    async fn collect_tpu_metrics(&self) -> SystemMetricsRecord {
+        let mut metrics = TpuOut::default();
         let mut sdk_failures: Vec<&MetricSpec> = Vec::new();
         let dpc = self.chip.duty_cycle_fanout;
 
@@ -90,9 +95,9 @@ impl TpuMonitor {
                 if let Some(actual_name) = sdk.resolve_metric_name(spec) {
                     match sdk.read_metric(&actual_name) {
                         Ok(data) => {
-                            let before = metrics.len();
+                            let before = metrics.values;
                             spec.format_sdk(&data, dpc, &mut metrics);
-                            if metrics.len() > before {
+                            if metrics.values > before {
                                 continue;
                             }
                             debug!(
@@ -133,10 +138,7 @@ impl TpuMonitor {
             }
         }
 
-        // Compute HBM memory usage percentage from total and usage.
-        compute_hbm_percentage(&mut metrics);
-
-        metrics
+        metrics.record()
     }
 
     fn get_grpc_client(&self) -> GrpcClient {
@@ -152,7 +154,7 @@ impl Collector for TpuMonitor {
         _scopes: &[Scope],
     ) -> Result<Sample, Box<dyn std::error::Error>> {
         Ok(Sample {
-            metrics: self.collect_tpu_metrics().await,
+            record: self.collect_tpu_metrics().await,
             ..Default::default()
         })
     }
@@ -199,7 +201,7 @@ fn env_list_len(name: &str) -> u32 {
 /// How to interpret the raw values from SDK or gRPC.
 #[derive(Clone, Copy, PartialEq)]
 enum MetricShape {
-    /// Per-device float gauge. Output key: `tpu.{device}.{suffix}`.
+    /// Per-device float gauge.
     Gauge,
     /// Per-chip duty cycle, fanned out to devices on multi-device chips.
     DutyCycle,
@@ -216,21 +218,38 @@ struct MetricSpec {
     sdk_names: &'static [&'static str],
     /// gRPC metric name (None = SDK-only, no fallback).
     grpc_name: Option<&'static str>,
-    /// Output key prefix (e.g. "tpu.hloExecTiming").
-    /// For Gauge/DutyCycle, use `{}` for the device index: "tpu.{}.dutyCycle".
-    key: &'static str,
-    /// Unit suffix appended to stat names (e.g. "Us", "Mbps", "").
-    unit: &'static str,
+    /// The record field the values go to.
+    target: Target,
     /// How to parse and emit the values.
     shape: MetricShape,
+}
+
+/// The record field a metric's values go to.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Target {
+    Device(Gauge),
+    Distribution(DistributionKind),
+    QueueSize,
+}
+
+/// The per-device TPU fields.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Gauge {
+    TensorcoreUtilization,
+    TensorcoreIdleDuration,
+    DutyCycle,
+    HbmCapacityTotal,
+    HbmCapacityUsage,
+    RuntimeHbmUtilization,
+    IciLinkHealth,
+    ThrottleScore,
 }
 
 const METRICS: &[MetricSpec] = &[
     MetricSpec {
         sdk_names: &["tensorcore_util", "tensorcore_utilization"],
         grpc_name: None,
-        key: "tpu.{}.tensorcoreUtilization",
-        unit: "",
+        target: Target::Device(Gauge::TensorcoreUtilization),
         shape: MetricShape::Gauge,
     },
     // TODO(dima): Re-check the libtpu SDK aliases for the metrics added in
@@ -239,43 +258,37 @@ const METRICS: &[MetricSpec] = &[
     MetricSpec {
         sdk_names: &[],
         grpc_name: Some("tpu.runtime.tensorcore.idle_duration.seconds"),
-        key: "tpu.{}.tensorcoreIdleDuration",
-        unit: "",
+        target: Target::Device(Gauge::TensorcoreIdleDuration),
         shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["duty_cycle_pct"],
         grpc_name: Some("tpu.runtime.tensorcore.dutycycle.percent"),
-        key: "tpu.{}.dutyCycle",
-        unit: "",
+        target: Target::Device(Gauge::DutyCycle),
         shape: MetricShape::DutyCycle,
     },
     MetricSpec {
         sdk_names: &["hbm_capacity_total"],
         grpc_name: Some("tpu.runtime.hbm.memory.total.bytes"),
-        key: "tpu.{}.hbmCapacityTotal",
-        unit: "",
+        target: Target::Device(Gauge::HbmCapacityTotal),
         shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["hbm_capacity_usage"],
         grpc_name: Some("tpu.runtime.hbm.memory.usage.bytes"),
-        key: "tpu.{}.hbmCapacityUsage",
-        unit: "",
+        target: Target::Device(Gauge::HbmCapacityUsage),
         shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &[],
         grpc_name: Some("tpu.runtime.hbm.utilization.percent"),
-        key: "tpu.{}.runtimeHbmUtilization",
-        unit: "",
+        target: Target::Device(Gauge::RuntimeHbmUtilization),
         shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["buffer_transfer_latency"],
         grpc_name: Some("megascale.dcn_transfer_latencies.microsecond.cumulative.distribution"),
-        key: "tpu.bufferTransferLatency",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::BufferTransferLatency),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
@@ -283,8 +296,7 @@ const METRICS: &[MetricSpec] = &[
         grpc_name: Some(
             "megascale.dcn_inbound_transfer_latencies.microsecond.cumulative.distribution",
         ),
-        key: "tpu.inboundBufferTransferLatency",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::InboundBufferTransferLatency),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
@@ -292,8 +304,7 @@ const METRICS: &[MetricSpec] = &[
         grpc_name: Some(
             "megascale.host_to_device_transfer_latencies.microsecond.cumulative.distribution",
         ),
-        key: "tpu.hostToDeviceTransferLatency",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::HostToDeviceTransferLatency),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
@@ -301,8 +312,7 @@ const METRICS: &[MetricSpec] = &[
         grpc_name: Some(
             "megascale.device_to_host_transfer_latencies.microsecond.cumulative.distribution",
         ),
-        key: "tpu.deviceToHostTransferLatency",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::DeviceToHostTransferLatency),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
@@ -310,15 +320,13 @@ const METRICS: &[MetricSpec] = &[
         grpc_name: Some(
             "megascale.collective_end_to_end_latencies.microsecond.cumulative.distribution",
         ),
-        key: "tpu.collectiveE2ELatency",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::CollectiveE2eLatency),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["host_compute_latency"],
         grpc_name: Some("megascale.mxla_compute_latencies.microsecond.cumulative.distribution"),
-        key: "tpu.hostComputeLatency",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::HostComputeLatency),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
@@ -328,8 +336,7 @@ const METRICS: &[MetricSpec] = &[
             "grpc_tcp_min_round_trip_times",
         ],
         grpc_name: Some("megascale.grpc_tcp_min_rtt.microsecond.cumulative.distribution"),
-        key: "tpu.grpcTcpMinRtt",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::GrpcTcpMinRtt),
         shape: MetricShape::FlatDist,
     },
     MetricSpec {
@@ -339,36 +346,31 @@ const METRICS: &[MetricSpec] = &[
             "grpc_tcp_delivery_rates",
         ],
         grpc_name: Some("megascale.grpc_tcp_delivery_rate.Mbps.cumulative.distribution"),
-        key: "tpu.grpcTcpDeliveryRate",
-        unit: "Mbps",
+        target: Target::Distribution(DistributionKind::GrpcTcpDeliveryRate),
         shape: MetricShape::FlatDist,
     },
     MetricSpec {
         sdk_names: &["hlo_execution_timing", "hlo_exec_timing"],
         grpc_name: Some("hlo.execution.timing.distribution.microseconds"),
-        key: "tpu.hloExecTiming",
-        unit: "Us",
+        target: Target::Distribution(DistributionKind::HloExecTiming),
         shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["hlo_queue_size"],
         grpc_name: Some("hlo.queue.size.gauge"),
-        key: "tpu.hloQueueSize",
-        unit: "",
+        target: Target::QueueSize,
         shape: MetricShape::ColonKeyed,
     },
     MetricSpec {
         sdk_names: &["ici_link_health"],
         grpc_name: None,
-        key: "tpu.{}.iciLinkHealth",
-        unit: "",
+        target: Target::Device(Gauge::IciLinkHealth),
         shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["tpu_throttle_score"],
         grpc_name: None,
-        key: "tpu.{}.throttleScore",
-        unit: "",
+        target: Target::Device(Gauge::ThrottleScore),
         shape: MetricShape::Gauge,
     },
 ];
@@ -450,7 +452,7 @@ struct SdkClient {
     _lib: Library,
     api_ptr: *const u8,
     client: *mut c_void,
-    resolved: HashMap<String, String>,
+    resolved: HashMap<&'static str, String>,
 }
 
 // SAFETY: `SdkClient` owns a libloading handle and an opaque SDK client pointer.
@@ -523,7 +525,8 @@ impl SdkClient {
     }
 
     fn resolve_metric_name(&mut self, spec: &MetricSpec) -> Option<String> {
-        let cache_key = spec.key;
+        // The first alias names the spec.
+        let cache_key = *spec.sdk_names.first()?;
         if let Some(resolved) = self.resolved.get(cache_key) {
             return Some(resolved.clone());
         }
@@ -534,7 +537,7 @@ impl SdkClient {
                     continue; // handle exists but no data; try next alias
                 }
                 let alias = (*alias).to_string();
-                self.resolved.insert(cache_key.to_string(), alias.clone());
+                self.resolved.insert(cache_key, alias.clone());
                 return Some(alias);
             }
         }
@@ -781,45 +784,140 @@ async fn is_grpc_available() -> bool {
 // Metric formatting — driven by MetricSpec
 // ============================================================
 
-impl MetricSpec {
-    /// Format SDK metric data into output key-value pairs.
-    fn format_sdk(
-        &self,
-        data: &SdkMetricData,
-        duty_cycle_fanout: u32,
-        out: &mut Vec<(String, MetricValue)>,
-    ) {
-        match self.shape {
-            MetricShape::Gauge => emit_per_device(out, self.key, &data.values, 1),
-            MetricShape::DutyCycle => {
-                emit_per_device(out, self.key, &data.values, duty_cycle_fanout)
-            }
-            MetricShape::LabeledDist => {
-                emit_labeled_dist(out, self.key, self.unit, &data.description, &data.values)
-            }
-            MetricShape::FlatDist => {
-                emit_flat_dist(out, self.key, self.unit, &data.description, &data.values)
-            }
-            MetricShape::ColonKeyed => emit_colon_keyed(out, self.key, &data.values),
+/// The readings of one collection, as typed record fields.
+#[derive(Default)]
+struct TpuOut {
+    devices: BTreeMap<u32, AcceleratorMetrics>,
+    distributions: Vec<Distribution>,
+    queues: Vec<QueueSize>,
+    /// The number of values read so far.
+    values: usize,
+}
+
+impl TpuOut {
+    fn device(&mut self, index: u32) -> &mut AcceleratorMetrics {
+        self.devices
+            .entry(index)
+            .or_insert_with(|| AcceleratorMetrics {
+                r#type: AcceleratorType::GoogleTpu as i32,
+                index,
+                source: "libtpu".to_string(),
+                vendor: Some(Vendor::Tpu(TpuMetrics::default())),
+                ..Default::default()
+            })
+    }
+
+    fn gauge(&mut self, gauge: Gauge, index: u32, value: f64) {
+        self.values += 1;
+        let device = self.device(index);
+        let Some(Vendor::Tpu(tpu)) = &mut device.vendor else {
+            return;
+        };
+        let ratio = Some(value / 100.0);
+        match gauge {
+            Gauge::TensorcoreUtilization => device.utilization_ratio = ratio,
+            Gauge::TensorcoreIdleDuration => tpu.tensorcore_idle_duration_s = Some(value),
+            Gauge::DutyCycle => tpu.duty_cycle_ratio = ratio,
+            Gauge::HbmCapacityTotal => device.memory_total_bytes = Some(value as u64),
+            Gauge::HbmCapacityUsage => device.memory_used_bytes = Some(value as u64),
+            Gauge::RuntimeHbmUtilization => tpu.runtime_hbm_utilization_ratio = ratio,
+            Gauge::IciLinkHealth => tpu.ici_link_health = Some(value),
+            Gauge::ThrottleScore => tpu.throttle_score = Some(value),
         }
     }
 
-    /// Format gRPC proto metric into output key-value pairs.
-    fn format_grpc(
-        &self,
-        tpu_metric: &proto::TpuMetric,
-        duty_cycle_fanout: u32,
-        out: &mut Vec<(String, MetricValue)>,
-    ) {
+    /// Sets the statistic named `stat`, such as "p50", of a distribution.
+    /// Statistics other than the mean and the percentiles are dropped.
+    ///
+    /// libtpu reports microseconds and megabits per second; the record has
+    /// seconds and bits per second.
+    fn stat(&mut self, kind: DistributionKind, label: &str, stat: &str, value: f64) {
+        self.values += 1;
+        let value = match kind {
+            DistributionKind::GrpcTcpDeliveryRate => value * 1e6,
+            _ => value / 1e6,
+        };
+        let position = self
+            .distributions
+            .iter()
+            .position(|d| d.kind() == kind && d.label == label);
+        let distribution = match position {
+            Some(position) => &mut self.distributions[position],
+            None => {
+                self.distributions.push(Distribution {
+                    kind: kind as i32,
+                    label: label.to_string(),
+                    ..Default::default()
+                });
+                self.distributions.last_mut().expect("just pushed")
+            }
+        };
+        let field = match stat {
+            "mean" => &mut distribution.mean,
+            "p50" => &mut distribution.p50,
+            "p90" => &mut distribution.p90,
+            "p95" => &mut distribution.p95,
+            "p99" => &mut distribution.p99,
+            "p999" => &mut distribution.p999,
+            _ => return,
+        };
+        *field = Some(value);
+    }
+
+    fn queue(&mut self, label: String, value: f64) {
+        self.values += 1;
+        self.queues.push(QueueSize {
+            label,
+            size: Some(value),
+        });
+    }
+
+    /// The typed record, with each device's HBM use as a ratio of its
+    /// capacity.
+    fn record(mut self) -> SystemMetricsRecord {
+        for device in self.devices.values_mut() {
+            if let (Some(usage), Some(total)) =
+                (device.memory_used_bytes, device.memory_total_bytes)
+                && total > 0
+            {
+                device.memory_used_ratio = Some(usage as f64 / total as f64);
+            }
+        }
+        let runtime = TpuRuntimeMetrics {
+            distributions: self.distributions,
+            hlo_queue_sizes: self.queues,
+        };
+        SystemMetricsRecord {
+            accelerators: self.devices.into_values().collect(),
+            tpu_runtime: (runtime != TpuRuntimeMetrics::default()).then_some(runtime),
+            ..Default::default()
+        }
+    }
+}
+
+impl MetricSpec {
+    /// Reads SDK metric data into `out`.
+    fn format_sdk(&self, data: &SdkMetricData, duty_cycle_fanout: u32, out: &mut TpuOut) {
+        match (self.target, self.shape) {
+            (Target::Device(gauge), MetricShape::DutyCycle) => {
+                emit_per_device(out, gauge, &data.values, duty_cycle_fanout)
+            }
+            (Target::Device(gauge), _) => emit_per_device(out, gauge, &data.values, 1),
+            (Target::Distribution(kind), MetricShape::FlatDist) => {
+                emit_flat_dist(out, kind, &data.description, &data.values)
+            }
+            (Target::Distribution(kind), _) => {
+                emit_labeled_dist(out, kind, &data.description, &data.values)
+            }
+            (Target::QueueSize, _) => emit_colon_keyed(out, &data.values),
+        }
+    }
+
+    /// Reads a gRPC proto metric into `out`.
+    fn format_grpc(&self, tpu_metric: &proto::TpuMetric, duty_cycle_fanout: u32, out: &mut TpuOut) {
         let dpc = duty_cycle_fanout.max(1) as i64;
-        match self.shape {
-            MetricShape::Gauge | MetricShape::DutyCycle => {
-                // key contains `{}` for device index; extract suffix after last `.{}`.
-                let suffix = self
-                    .key
-                    .rsplit_once(".{}.")
-                    .map(|(_, s)| s)
-                    .unwrap_or(self.key);
+        match self.target {
+            Target::Device(gauge) => {
                 let fanout = if self.shape == MetricShape::DutyCycle {
                     dpc
                 } else {
@@ -829,56 +927,43 @@ impl MetricSpec {
                     let chip_id = grpc_device_id(m);
                     if let Some(v) = grpc_gauge_value(m) {
                         for d in 0..fanout {
-                            let dev = chip_id * dpc + d;
-                            out.push((format!("tpu.{dev}.{suffix}"), MetricValue::Float(v)));
+                            out.gauge(gauge, (chip_id * dpc + d) as u32, v);
                         }
                     }
                 }
             }
-            MetricShape::ColonKeyed => {
+            Target::QueueSize => {
                 for (idx, m) in tpu_metric.metrics.iter().enumerate() {
                     let label = grpc_label(m).unwrap_or_else(|| format!("item_{idx}"));
                     if let Some(v) = grpc_gauge_value(m) {
-                        out.push((format!("{}.{label}", self.key), MetricValue::Float(v)));
+                        out.queue(label, v);
                     }
                 }
             }
-            MetricShape::LabeledDist | MetricShape::FlatDist => {
+            Target::Distribution(kind) => {
                 for (idx, m) in tpu_metric.metrics.iter().enumerate() {
                     let label = grpc_label(m).unwrap_or_else(|| format!("item_{idx}"));
-                    emit_grpc_dist_metric(m, self.key, &label, self.unit, out);
+                    emit_grpc_dist_metric(m, kind, &label, out);
                 }
             }
         }
     }
 }
 
-/// Emit per-device float values. `key` contains `{}` replaced by device index.
-/// `devices_per_chip` > 1 fans out each value to multiple device indices.
-fn emit_per_device(
-    out: &mut Vec<(String, MetricValue)>,
-    key: &str,
-    values: &[String],
-    devices_per_chip: u32,
-) {
+/// Reads per-device float values. `devices_per_chip` > 1 fans out each value
+/// to multiple device indices.
+fn emit_per_device(out: &mut TpuOut, gauge: Gauge, values: &[String], devices_per_chip: u32) {
     let dpc = devices_per_chip.max(1) as usize;
     for (chip_idx, raw) in values.iter().enumerate() {
         if let Ok(v) = raw.trim().parse::<f64>() {
             for d in 0..dpc {
-                let dev = chip_idx * dpc + d;
-                out.push((key.replace("{}", &dev.to_string()), MetricValue::Float(v)));
+                out.gauge(gauge, (chip_idx * dpc + d) as u32, v);
             }
         }
     }
 }
 
-fn emit_labeled_dist(
-    out: &mut Vec<(String, MetricValue)>,
-    base: &str,
-    unit: &str,
-    desc: &str,
-    data: &[String],
-) {
+fn emit_labeled_dist(out: &mut TpuOut, kind: DistributionKind, desc: &str, data: &[String]) {
     for raw in data {
         let parts = split_csv(raw);
         if parts.len() < 2 {
@@ -891,22 +976,15 @@ fn emit_labeled_dist(
                 break;
             }
             if let Ok(v) = val.trim().parse::<f64>() {
-                out.push((
-                    format!("{base}.{label}.{}{unit}", names[i]),
-                    MetricValue::Float(v),
-                ));
+                out.stat(kind, &label, &names[i], v);
             }
         }
     }
 }
 
-fn emit_flat_dist(
-    out: &mut Vec<(String, MetricValue)>,
-    base: &str,
-    unit: &str,
-    desc: &str,
-    data: &[String],
-) {
+/// Reads a distribution without labels; its legacy keys have no label
+/// segment.
+fn emit_flat_dist(out: &mut TpuOut, kind: DistributionKind, desc: &str, data: &[String]) {
     let vals: Vec<String> = if data.len() == 1 {
         let p = split_csv(&data[0]);
         if p.len() > 1 { p } else { data.to_vec() }
@@ -919,57 +997,39 @@ fn emit_flat_dist(
             break;
         }
         if let Ok(v) = raw.trim().parse::<f64>() {
-            out.push((format!("{base}.{}{unit}", names[i]), MetricValue::Float(v)));
+            out.stat(kind, "", &names[i], v);
         }
     }
 }
 
-fn emit_colon_keyed(out: &mut Vec<(String, MetricValue)>, base: &str, data: &[String]) {
+fn emit_colon_keyed(out: &mut TpuOut, data: &[String]) {
     for (i, raw) in data.iter().enumerate() {
         let (label, val) = raw
             .split_once(':')
             .map(|(l, r)| (sanitize(l), r.to_string()))
             .unwrap_or_else(|| (format!("item_{i}"), raw.clone()));
         if let Ok(v) = val.trim().parse::<f64>() {
-            out.push((format!("{base}.{label}"), MetricValue::Float(v)));
+            out.queue(label, v);
         }
     }
 }
 
-fn emit_grpc_dist_metric(
-    m: &proto::Metric,
-    base: &str,
-    label: &str,
-    unit: &str,
-    out: &mut Vec<(String, MetricValue)>,
-) {
+fn emit_grpc_dist_metric(m: &proto::Metric, kind: DistributionKind, label: &str, out: &mut TpuOut) {
     if let Some(proto::metric::Measure::Summary(ref s)) = m.measure {
         if s.sample_count > 0 {
-            out.push((
-                format!("{base}.{label}.mean{unit}"),
-                MetricValue::Float(s.sample_sum / s.sample_count as f64),
-            ));
+            out.stat(kind, label, "mean", s.sample_sum / s.sample_count as f64);
         }
         for q in &s.quantile {
             if let Some(name) = quantile_name(q.quantile) {
-                out.push((
-                    format!("{base}.{label}.{name}{unit}"),
-                    MetricValue::Float(q.value),
-                ));
+                out.stat(kind, label, name, q.value);
             }
         }
-    } else if let Some(proto::metric::Measure::Distribution(ref d)) = m.measure {
-        if d.count > 0 {
-            out.push((
-                format!("{base}.{label}.mean{unit}"),
-                MetricValue::Float(d.mean),
-            ));
-            for (name, val) in distribution_percentiles(d) {
-                out.push((
-                    format!("{base}.{label}.{name}{unit}"),
-                    MetricValue::Float(val),
-                ));
-            }
+    } else if let Some(proto::metric::Measure::Distribution(ref d)) = m.measure
+        && d.count > 0
+    {
+        out.stat(kind, label, "mean", d.mean);
+        for (name, val) in distribution_percentiles(d) {
+            out.stat(kind, label, name, val);
         }
     }
 }
@@ -1086,42 +1146,6 @@ fn bucket_range(bounds: &[f64], index: usize) -> (f64, f64) {
         _ => {
             let last = bounds.last().copied().unwrap_or(0.0);
             (last, last)
-        }
-    }
-}
-
-// ============================================================
-// Derived metrics
-// ============================================================
-
-fn compute_hbm_percentage(metrics: &mut Vec<(String, MetricValue)>) {
-    // Collect per-device total and usage, keyed by device index.
-    let mut totals: HashMap<String, f64> = HashMap::new();
-    let mut usages: HashMap<String, f64> = HashMap::new();
-
-    for (key, val) in metrics.iter() {
-        let MetricValue::Float(v) = val else { continue };
-        if let Some(idx) = key
-            .strip_prefix("tpu.")
-            .and_then(|s| s.strip_suffix(".hbmCapacityTotal"))
-        {
-            totals.insert(idx.to_string(), *v);
-        } else if let Some(idx) = key
-            .strip_prefix("tpu.")
-            .and_then(|s| s.strip_suffix(".hbmCapacityUsage"))
-        {
-            usages.insert(idx.to_string(), *v);
-        }
-    }
-
-    for (idx, total) in &totals {
-        if let Some(usage) = usages.get(idx) {
-            if *total > 0.0 {
-                metrics.push((
-                    format!("tpu.{idx}.hbmMemoryUsage"),
-                    MetricValue::Float(usage / total * 100.0),
-                ));
-            }
         }
     }
 }
@@ -1366,12 +1390,24 @@ mod tests {
 
     // ---- helpers ----
 
-    fn metrics_map(v: &[(String, MetricValue)]) -> HashMap<String, f64> {
-        v.iter()
-            .filter_map(|(k, v)| match v {
-                MetricValue::Float(f) => Some((k.clone(), *f)),
-                _ => None,
-            })
+    fn tpu(out: &TpuOut, index: u32) -> &TpuMetrics {
+        match &out.devices[&index].vendor {
+            Some(Vendor::Tpu(tpu)) => tpu,
+            _ => panic!("no TPU fields"),
+        }
+    }
+
+    fn distribution<'a>(out: &'a TpuOut, kind: DistributionKind, label: &str) -> &'a Distribution {
+        out.distributions
+            .iter()
+            .find(|d| d.kind() == kind && d.label == label)
+            .unwrap()
+    }
+
+    fn queues(out: &TpuOut) -> Vec<(&str, f64)> {
+        out.queues
+            .iter()
+            .map(|q| (q.label.as_str(), q.size.unwrap()))
             .collect()
     }
 
@@ -1424,42 +1460,39 @@ mod tests {
 
     #[test]
     fn test_labeled_dist() {
-        let mut out = Vec::new();
+        let mut out = TpuOut::default();
         emit_labeled_dist(
             &mut out,
-            "tpu.hloExecTiming",
-            "Us",
+            DistributionKind::HloExecTiming,
             "mean, p50, p90, p95, p999",
             &["program_main, 100.0, 50.0, 90.0, 95.0, 999.0".into()],
         );
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.hloExecTiming.program_main.meanUs"), Some(&100.0));
-        assert_eq!(m.get("tpu.hloExecTiming.program_main.p50Us"), Some(&50.0));
-        assert_eq!(m.get("tpu.hloExecTiming.program_main.p999Us"), Some(&999.0));
+        let d = distribution(&out, DistributionKind::HloExecTiming, "program_main");
+        assert_eq!(d.mean, Some(100.0 / 1e6));
+        assert_eq!(d.p50, Some(50.0 / 1e6));
+        assert_eq!(d.p999, Some(999.0 / 1e6));
     }
 
     #[test]
     fn test_flat_dist() {
-        let mut out = Vec::new();
+        let mut out = TpuOut::default();
         emit_flat_dist(
             &mut out,
-            "tpu.grpcTcpMinRtt",
-            "Us",
+            DistributionKind::GrpcTcpMinRtt,
             "mean, p50, p90, p95, p999",
             &["10.0, 20.0, 30.0, 40.0, 50.0".into()],
         );
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.grpcTcpMinRtt.meanUs"), Some(&10.0));
-        assert_eq!(m.get("tpu.grpcTcpMinRtt.p999Us"), Some(&50.0));
+        let d = distribution(&out, DistributionKind::GrpcTcpMinRtt, "");
+        assert_eq!(d.mean, Some(10.0 / 1e6));
+        assert_eq!(d.p999, Some(50.0 / 1e6));
     }
 
     #[test]
     fn test_flat_dist_multiline() {
-        let mut out = Vec::new();
+        let mut out = TpuOut::default();
         emit_flat_dist(
             &mut out,
-            "tpu.grpcTcpDeliveryRate",
-            "Mbps",
+            DistributionKind::GrpcTcpDeliveryRate,
             "p50, p90, p95, p999",
             &[
                 "100.0".into(),
@@ -1468,36 +1501,44 @@ mod tests {
                 "400.0".into(),
             ],
         );
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.grpcTcpDeliveryRate.p50Mbps"), Some(&100.0));
-        assert_eq!(m.get("tpu.grpcTcpDeliveryRate.p999Mbps"), Some(&400.0));
+        let d = distribution(&out, DistributionKind::GrpcTcpDeliveryRate, "");
+        assert_eq!(d.p50, Some(100e6));
+        assert_eq!(d.p999, Some(400e6));
     }
 
     #[test]
     fn test_colon_values() {
-        let mut out = Vec::new();
+        let mut out = TpuOut::default();
         emit_colon_keyed(
             &mut out,
-            "tpu.hloQueueSize",
             &["tensor_core-0: 5".into(), "tensor_core-1: 12".into()],
         );
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_0"), Some(&5.0));
-        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_1"), Some(&12.0));
+        assert_eq!(
+            queues(&out),
+            [("tensor_core_0", 5.0), ("tensor_core_1", 12.0)]
+        );
     }
 
     #[test]
     fn test_colon_values_no_colon() {
-        let mut out = Vec::new();
-        emit_colon_keyed(&mut out, "tpu.x", &["42".into()]);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.x.item_0"), Some(&42.0));
+        let mut out = TpuOut::default();
+        emit_colon_keyed(&mut out, &["42".into()]);
+        assert_eq!(queues(&out), [("item_0", 42.0)]);
+    }
+
+    #[test]
+    fn test_hbm_usage_percentage() {
+        let mut out = TpuOut::default();
+        out.gauge(Gauge::HbmCapacityTotal, 0, 200.0);
+        out.gauge(Gauge::HbmCapacityUsage, 0, 50.0);
+        let record = out.record();
+        assert_eq!(record.accelerators[0].memory_used_ratio, Some(0.25));
     }
 
     // ---- format_sdk (MetricSpec integration) ----
 
-    fn spec_by_key(key: &str) -> &'static MetricSpec {
-        METRICS.iter().find(|s| s.key == key).unwrap()
+    fn spec(target: Target) -> &'static MetricSpec {
+        METRICS.iter().find(|s| s.target == target).unwrap()
     }
 
     fn grpc_gauge_metric(device_id: i64, value: f64) -> proto::Metric {
@@ -1518,11 +1559,11 @@ mod tests {
 
     #[test]
     fn test_new_google_metric_specs_registered() {
-        let hbm = spec_by_key("tpu.{}.runtimeHbmUtilization");
+        let hbm = spec(Target::Device(Gauge::RuntimeHbmUtilization));
         assert_eq!(hbm.grpc_name, Some("tpu.runtime.hbm.utilization.percent"));
         assert!(hbm.sdk_names.is_empty());
 
-        let idle = spec_by_key("tpu.{}.tensorcoreIdleDuration");
+        let idle = spec(Target::Device(Gauge::TensorcoreIdleDuration));
         assert_eq!(
             idle.grpc_name,
             Some("tpu.runtime.tensorcore.idle_duration.seconds")
@@ -1536,11 +1577,10 @@ mod tests {
             description: String::new(),
             values: vec!["75.5".into(), "80.2".into()],
         };
-        let mut out = Vec::new();
-        spec_by_key("tpu.{}.tensorcoreUtilization").format_sdk(&data, 1, &mut out);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.0.tensorcoreUtilization"), Some(&75.5));
-        assert_eq!(m.get("tpu.1.tensorcoreUtilization"), Some(&80.2));
+        let mut out = TpuOut::default();
+        spec(Target::Device(Gauge::TensorcoreUtilization)).format_sdk(&data, 1, &mut out);
+        assert_eq!(out.devices[&0].utilization_ratio, Some(75.5 / 100.0));
+        assert_eq!(out.devices[&1].utilization_ratio, Some(80.2 / 100.0));
     }
 
     #[test]
@@ -1550,11 +1590,10 @@ mod tests {
             description: String::new(),
             metrics: vec![grpc_gauge_metric(0, 61.5), grpc_gauge_metric(1, 72.25)],
         };
-        let mut out = Vec::new();
-        spec_by_key("tpu.{}.runtimeHbmUtilization").format_grpc(&tpu_metric, 1, &mut out);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.0.runtimeHbmUtilization"), Some(&61.5));
-        assert_eq!(m.get("tpu.1.runtimeHbmUtilization"), Some(&72.25));
+        let mut out = TpuOut::default();
+        spec(Target::Device(Gauge::RuntimeHbmUtilization)).format_grpc(&tpu_metric, 1, &mut out);
+        assert_eq!(tpu(&out, 0).runtime_hbm_utilization_ratio, Some(0.615));
+        assert_eq!(tpu(&out, 1).runtime_hbm_utilization_ratio, Some(0.7225));
     }
 
     #[test]
@@ -1564,11 +1603,10 @@ mod tests {
             description: String::new(),
             metrics: vec![grpc_gauge_metric(0, 1.25), grpc_gauge_metric(1, 2.5)],
         };
-        let mut out = Vec::new();
-        spec_by_key("tpu.{}.tensorcoreIdleDuration").format_grpc(&tpu_metric, 1, &mut out);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.0.tensorcoreIdleDuration"), Some(&1.25));
-        assert_eq!(m.get("tpu.1.tensorcoreIdleDuration"), Some(&2.5));
+        let mut out = TpuOut::default();
+        spec(Target::Device(Gauge::TensorcoreIdleDuration)).format_grpc(&tpu_metric, 1, &mut out);
+        assert_eq!(tpu(&out, 0).tensorcore_idle_duration_s, Some(1.25));
+        assert_eq!(tpu(&out, 1).tensorcore_idle_duration_s, Some(2.5));
     }
 
     #[test]
@@ -1577,10 +1615,9 @@ mod tests {
             description: String::new(),
             values: vec!["42.0".into()],
         };
-        let mut out = Vec::new();
-        spec_by_key("tpu.{}.dutyCycle").format_sdk(&data, 1, &mut out);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.0.dutyCycle"), Some(&42.0));
+        let mut out = TpuOut::default();
+        spec(Target::Device(Gauge::DutyCycle)).format_sdk(&data, 1, &mut out);
+        assert_eq!(tpu(&out, 0).duty_cycle_ratio, Some(0.42));
     }
 
     #[test]
@@ -1589,14 +1626,14 @@ mod tests {
             description: String::new(),
             values: vec!["42.0".into(), "80.0".into()],
         };
-        let mut out = Vec::new();
+        let mut out = TpuOut::default();
         // v3 (2 devices per chip): chip 0 → devices 0,1; chip 1 → devices 2,3
-        spec_by_key("tpu.{}.dutyCycle").format_sdk(&data, 2, &mut out);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.0.dutyCycle"), Some(&42.0));
-        assert_eq!(m.get("tpu.1.dutyCycle"), Some(&42.0));
-        assert_eq!(m.get("tpu.2.dutyCycle"), Some(&80.0));
-        assert_eq!(m.get("tpu.3.dutyCycle"), Some(&80.0));
+        spec(Target::Device(Gauge::DutyCycle)).format_sdk(&data, 2, &mut out);
+        let duty = |index| tpu(&out, index).duty_cycle_ratio;
+        assert_eq!(
+            [duty(0), duty(1), duty(2), duty(3)],
+            [Some(0.42), Some(0.42), Some(0.8), Some(0.8)]
+        );
     }
 
     #[test]
@@ -1605,11 +1642,12 @@ mod tests {
             description: String::new(),
             values: vec!["tensor_core-0: 3".into(), "tensor_core-1: 7".into()],
         };
-        let mut out = Vec::new();
-        spec_by_key("tpu.hloQueueSize").format_sdk(&data, 1, &mut out);
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_0"), Some(&3.0));
-        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_1"), Some(&7.0));
+        let mut out = TpuOut::default();
+        spec(Target::QueueSize).format_sdk(&data, 1, &mut out);
+        assert_eq!(
+            queues(&out),
+            [("tensor_core_0", 3.0), ("tensor_core_1", 7.0)]
+        );
     }
 
     // ---- distribution percentile calculation ----
