@@ -50,6 +50,9 @@ const GPM_METRICS: &[(GpmMetricId, NvidiaRate, f64)] = &[
 
 const MIB: f64 = 1024.0 * 1024.0;
 
+/// `MigMode.current` of a GPU in MIG mode (NVML's `NVML_DEVICE_MIG_ENABLE`).
+const NVML_DEVICE_MIG_ENABLE: u32 = 1;
+
 /// The source of the accelerators this collector reports.
 const NVML: &str = "nvml";
 
@@ -85,6 +88,7 @@ struct GpuMetricAvailability {
     fan_speed: bool,
     pcie_throughput: bool,
     gpm: bool,
+    mig: bool,
 }
 
 impl Default for GpuMetricAvailability {
@@ -103,6 +107,7 @@ impl Default for GpuMetricAvailability {
             fan_speed: true,
             pcie_throughput: true,
             gpm: false,
+            mig: true,
         }
     }
 }
@@ -245,6 +250,54 @@ impl NvidiaGpu {
         })
     }
 
+    /// The MIG instances of a GPU in MIG mode, with the processes on each.
+    ///
+    /// An instance's share of the GPU is its number of compute slices over
+    /// the most instances the GPU supports, 7 on an A100 or H100. Its profile
+    /// follows NVIDIA's naming: `<slices>g.<memory>gb`, or
+    /// `<compute slices>c.<slices>g.<memory>gb` for a compute instance that
+    /// holds part of a GPU instance.
+    fn mig_instances(
+        device: &Device,
+        index: u32,
+        info: &GpuStaticInfo,
+    ) -> Vec<(AcceleratorMetrics, Vec<u32>)> {
+        let slots = device.mig_device_count().unwrap_or(0);
+        (0..slots)
+            .filter_map(|slot| device.mig_device_by_index(slot).ok())
+            .map(|mig| {
+                let mut instance = AcceleratorMetrics {
+                    r#type: AcceleratorType::NvidiaGpu as i32,
+                    index,
+                    uuid: mig.uuid().unwrap_or_default(),
+                    source: NVML.to_string(),
+                    pci_bus_id: info.pci_bus_id.clone(),
+                    model: info.name.clone(),
+                    parent_uuid: info.uuid.clone(),
+                    ..Default::default()
+                };
+                if let Ok(attributes) = mig.attributes() {
+                    let gpu_slices = attributes.gpu_instance_slice_count;
+                    let slices = attributes.compute_instance_slice_count;
+                    let memory = (attributes.memory_size_mb as f64 / 1024.0).ceil();
+                    instance.share = Some(slices as f64 / slots as f64);
+                    instance.profile = if slices < gpu_slices {
+                        format!("{slices}c.{gpu_slices}g.{memory}gb")
+                    } else {
+                        format!("{gpu_slices}g.{memory}gb")
+                    };
+                }
+                if let Ok(memory) = mig.memory_info()
+                    && memory.total > 0
+                {
+                    instance.memory_used_bytes = Some(memory.used);
+                    instance.memory_used_ratio = Some(memory.used as f64 / memory.total as f64);
+                }
+                (instance, Self::device_pids(&mig))
+            })
+            .collect()
+    }
+
     /// The PIDs of the processes running on a GPU.
     fn device_pids(device: &Device) -> Vec<u32> {
         device
@@ -321,7 +374,9 @@ impl NvidiaGpu {
                 ));
             }
 
-            sample.gpu_pids.insert(di, Self::device_pids(&device));
+            sample
+                .gpu_pids
+                .insert(info.uuid.clone(), Self::device_pids(&device));
 
             let mut gpu = AcceleratorMetrics {
                 r#type: AcceleratorType::NvidiaGpu as i32,
@@ -483,6 +538,20 @@ impl NvidiaGpu {
 
             gpu.vendor = Some(Vendor::Nvidia(nvidia));
             sample.record.accelerators.push(gpu);
+
+            if availability.mig {
+                match device.mig_mode() {
+                    Ok(mode) if mode.current == NVML_DEVICE_MIG_ENABLE => {
+                        let instances = Self::mig_instances(&device, di, info);
+                        for (instance, pids) in instances {
+                            sample.gpu_pids.insert(instance.uuid.clone(), pids);
+                            sample.record.accelerators.push(instance);
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(_) => availability.mig = false,
+                }
+            }
         }
 
         Ok(sample)

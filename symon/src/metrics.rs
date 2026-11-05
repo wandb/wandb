@@ -295,8 +295,8 @@ pub struct Sample {
     /// The host readings that depend on the subscriber, by scope.
     pub scoped: HashMap<Scope, Readings>,
 
-    /// PIDs of the processes using each GPU, by device index.
-    pub gpu_pids: HashMap<u32, Vec<u32>>,
+    /// PIDs of the processes using each GPU or GPU partition, by its uuid.
+    pub gpu_pids: HashMap<String, Vec<u32>>,
 
     /// Every process on the host, read when a scope asks for host details.
     pub processes: Vec<ProcessStats>,
