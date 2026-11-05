@@ -198,7 +198,8 @@ impl Collector for AppleGpuMonitor {
         let stats = self.sampler.get_metrics().await?;
         let soc_info = self.sampler.get_soc_info().await?;
         Ok(Sample {
-            metrics: self.sampler.metrics_to_vec(stats, soc_info),
+            record: self.sampler.record(&stats),
+            metrics: self.sampler.metadata_metrics(stats, soc_info),
             ..Default::default()
         })
     }
