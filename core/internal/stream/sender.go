@@ -1435,3 +1435,12 @@ func (s *Sender) logCalledAfterExit(method string) {
 		fmt.Errorf("sender: %s called after exit", method),
 	)
 }
+
+// FileStreamError returns the upload failure after Do has finished.
+// A nil result does not establish success for file or artifact uploads.
+func (s *Sender) FileStreamError() error {
+	if s.fileStream == nil {
+		return nil
+	}
+	return s.fileStream.Err()
+}

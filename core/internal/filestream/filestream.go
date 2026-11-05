@@ -85,6 +85,10 @@ type FileStream interface {
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
 
+	// Err returns the first fatal upload error, or nil. Read it after Finish
+	// to determine whether filestream completed successfully.
+	Err() error
+
 	// IsStopped returns whether the run has been requested to stop.
 	//
 	// This happens if the user pressed the Stop button in the UI.
@@ -134,6 +138,8 @@ type fileStream struct {
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
+	errMu        sync.Mutex
+	fatalErr     error
 
 	// stopState is the last-known stopped status as reported by the backend.
 	//
@@ -287,6 +293,9 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 		fmt.Errorf("filestream: fatal error: %v", err),
 	)
 	fs.deadChanOnce.Do(func() {
+		fs.errMu.Lock()
+		fs.fatalErr = err
+		fs.errMu.Unlock()
 		close(fs.deadChan)
 		fs.printer.Errorf(
 			"Fatal error while uploading data. Some run data will" +
@@ -304,4 +313,11 @@ func (fs *fileStream) isDead() bool {
 	default:
 		return false
 	}
+}
+
+// Err implements FileStream.Err.
+func (fs *fileStream) Err() error {
+	fs.errMu.Lock()
+	defer fs.errMu.Unlock()
+	return fs.fatalErr
 }
