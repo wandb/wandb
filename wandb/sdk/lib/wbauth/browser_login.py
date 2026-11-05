@@ -39,6 +39,7 @@ CLI_CLIENT_ID = "wandb-cli"
 _CALLBACK_PATH = "/callback"
 
 LOGIN_TIMEOUT_SECONDS = 300.0
+_EXCHANGE_TIMEOUT_SECONDS = 30.0
 
 _SUCCESS_PATH = "/cli-login-success"
 _CANCELLED_PATH = "/cli-login-cancelled"
@@ -96,6 +97,8 @@ def login(
             code=_authorization_code(params),
             redirect_uri=server.redirect_uri,
             verifier=verifier,
+            # The code has already been sent, so allow at least a moment.
+            timeout=min(_EXCHANGE_TIMEOUT_SECONDS, max(server.remaining(), 1.0)),
             verify=verify,
         )
 
@@ -193,8 +196,17 @@ def load_credentials(
     """
     contents = _read_file(pathlib.Path(credentials_file))
     entry = _user_credentials(contents).get(host.url)
-    if not isinstance(entry, dict) or not entry.get("refresh_token"):
+    if not isinstance(entry, dict):
         return None
+
+    refresh_token = entry.get("refresh_token")
+    if not isinstance(refresh_token, str) or not refresh_token:
+        return None
+
+    # An unusable access token is replaced on the next refresh.
+    access_token = entry.get("access_token")
+    if not isinstance(access_token, str):
+        access_token = ""
 
     try:
         expires_at = datetime.datetime.strptime(
@@ -205,8 +217,8 @@ def load_credentials(
         expires_at = datetime.datetime.now(datetime.timezone.utc)
 
     return TokenSet(
-        access_token=entry.get("access_token", ""),
-        refresh_token=entry["refresh_token"],
+        access_token=access_token,
+        refresh_token=refresh_token,
         expires_at=expires_at,
     )
 
@@ -446,12 +458,24 @@ def _open_browser(url: str) -> bool:
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
     """Receives the authorization server's redirect."""
 
-    # Idle connections, like browser preconnects, must not stall the login.
+    # StreamRequestHandler.setup() makes this the socket timeout, so an idle
+    # connection, like a browser preconnect, can't stall the login.
     timeout = 5.0
 
     @property
     def _login_server(self) -> _CallbackServer:
         return cast("_CallbackServer", self.server)
+
+    @override
+    def setup(self) -> None:
+        super().setup()
+
+        # One connection must not hold the server past the login's deadline.
+        limit = self._login_server.remaining()
+        if self.timeout is not None:
+            limit = min(limit, self.timeout)
+        # A timeout of zero would make the socket non-blocking instead.
+        self.connection.settimeout(max(limit, 0.001))
 
     def do_GET(self) -> None:
         url = urllib.parse.urlparse(self.path)
@@ -509,13 +533,20 @@ class _CallbackServer(http.server.HTTPServer):
         # The tokens or the error, once the redirect has been handled.
         self.result: TokenSet | Exception | None = None
 
+        # When the login gives up; set by _wait_for_login.
+        self.deadline = float("inf")
+
+    def remaining(self) -> float:
+        """Returns the seconds left before the deadline."""
+        return self.deadline - time.monotonic()
+
 
 def _wait_for_login(server: _CallbackServer, *, timeout: float) -> TokenSet:
     """Blocks until a redirect with the expected state has been handled."""
-    deadline = time.monotonic() + timeout
+    server.deadline = time.monotonic() + timeout
 
     while server.result is None:
-        remaining = deadline - time.monotonic()
+        remaining = server.remaining()
         if remaining <= 0:
             raise TimeoutError(
                 "Timed out waiting for the login to complete in the browser."
@@ -547,7 +578,7 @@ def _exchange_code(
     code: str,
     redirect_uri: str,
     verifier: str,
-    timeout: float = 30.0,
+    timeout: float = _EXCHANGE_TIMEOUT_SECONDS,
     verify: bool | str = True,
 ) -> TokenSet:
     try:
@@ -583,7 +614,13 @@ def _exchange_code(
 
     access_token = body.get("access_token")
     refresh_token = body.get("refresh_token")
-    if not access_token or not refresh_token:
+    # wandb-core can't read a file with a non-string token, and drops all of it.
+    if (
+        not isinstance(access_token, str)
+        or not isinstance(refresh_token, str)
+        or not access_token
+        or not refresh_token
+    ):
         raise AuthenticationError(f"{host} returned an incomplete token response.")
 
     try:
