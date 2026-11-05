@@ -767,3 +767,24 @@ def test_prints_status_updates(
         ]
 
     singleton.asyncer.run(do_test)
+
+
+def test_failed_filestream_does_not_mark_synced(wandb_backend_spy, runner):
+    with wandb.init(mode="offline") as run:
+        run.log({"sync_recovery_value": 123})
+
+    marker = pathlib.Path(run.settings.sync_file + ".synced")
+    wandb_backend_spy.stub_filestream("upload rejected", status=403, n_times=1)
+    failed = runner.invoke(cli.beta, f"sync {run.sync_dir}")
+    assert not marker.exists()
+    assert "Finished syncing" not in failed.output
+    with wandb_backend_spy.freeze() as snapshot:
+        assert len(snapshot.history(run_id=run.id)) == 0
+
+    recovered = runner.invoke(cli.beta, f"sync {run.sync_dir}")
+    assert recovered.exit_code == 0, recovered.output
+    assert marker.exists()
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 1
+        assert history[0]["sync_recovery_value"] == 123

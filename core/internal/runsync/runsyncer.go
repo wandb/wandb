@@ -52,9 +52,21 @@ type RunSyncer struct {
 	operations *wboperation.WandbOperations
 	printer    *observability.Printer
 	runHandle  *runhandle.RunHandle
-	runReader  *RunReader
+	runReader  syncReader
 	runWork    runwork.RunWork
-	sender     *stream.Sender
+	sender     syncSender
+}
+
+// The reader and sender report independent failures: reading the local log
+// successfully does not mean its records reached the server.
+type syncReader interface {
+	ExtractRunInfo(context.Context) (*RunInfo, error)
+	ProcessTransactionLog(context.Context) error
+}
+
+type syncSender interface {
+	Do(<-chan runwork.Work)
+	FileStreamError() error
 }
 
 // New initializes a sync operation without starting it.
@@ -162,6 +174,9 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 	// This ends after an Exit record is emitted and RunWork is closed.
 	g.Go(func() error {
 		rs.sender.Do(rs.runWork.Chan())
+		if err := rs.sender.FileStreamError(); err != nil {
+			return fmt.Errorf("runsync: filestream upload failed: %w", err)
+		}
 		return nil
 	})
 
@@ -170,24 +185,25 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 		return err
 	}
 
-	// NOTE: The Sender may fail to upload a run, but we still mark it synced.
-	// This is not the desired behavior; we just lack an error propagation
-	// mechanism.
-	rs.markSynced()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := rs.markSynced(); err != nil {
+		return err
+	}
 
 	rs.printer.Infof("Finished syncing %s", rs.displayPath)
 	return nil
 }
 
 // markSynced creates the .synced file to mark the run as successfully synced.
-func (rs *RunSyncer) markSynced() {
+func (rs *RunSyncer) markSynced() error {
 	// 666 = read-writable by all (the umask generally turns this into 644)
 	err := os.WriteFile(rs.path+".synced", nil, 0o666)
 	if err != nil {
-		rs.logger.Error(
-			"runsync: couldn't create .synced file",
-			"error", err)
+		return fmt.Errorf("runsync: could not create .synced file: %w", err)
 	}
+	return nil
 }
 
 // printRunURL prints the URL for viewing the run.
