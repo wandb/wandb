@@ -2,9 +2,10 @@
 //!
 //! `neuron-monitor -c <config>` prints one JSON report per period on its
 //! stdout. The latest report is kept, and each subscriber gets the
-//! `neuron_runtime_data` entry of its process flattened into `trn.*` metrics.
+//! `neuron_runtime_data` entry of its process as typed NeuronCores and host
+//! memory.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -17,7 +18,10 @@ use tokio::process::{Child, Command};
 
 use crate::metrics::{MetricValue, Readings, Sample, Scope};
 use crate::monitors::Collector;
-use crate::wandb_internal::{EnvironmentRecord, TrainiumInfo};
+use crate::wandb_internal::{
+    AcceleratorMetrics, AcceleratorType, EnvironmentRecord, SystemMetricsRecord,
+    TrainiumHostMetrics, TrainiumInfo, TrainiumMetrics, accelerator_metrics::Vendor,
+};
 
 const DEFAULT_BINARY: &str = "/opt/aws/neuron/bin/neuron-monitor";
 
@@ -153,12 +157,12 @@ impl Collector for Trainium {
             let Some(entry) = entry else {
                 continue;
             };
-            let metrics = flatten(&entry["report"], local_rank.as_deref());
-            if !metrics.is_empty() {
+            let record = record(&entry["report"], local_rank.as_deref());
+            if record != SystemMetricsRecord::default() {
                 sample.scoped.insert(
                     scope.clone(),
                     Readings {
-                        metrics,
+                        record,
                         ..Default::default()
                     },
                 );
@@ -201,41 +205,67 @@ impl Collector for Trainium {
     }
 }
 
-/// Flattens a `neuron_runtime_data` report into `trn.*` metrics. With
-/// `local_rank` set, only that NeuronCore is reported.
-fn flatten(report: &Value, local_rank: Option<&str>) -> Vec<(String, f64)> {
+/// The typed record of a `neuron_runtime_data` report: an accelerator per
+/// NeuronCore and the host memory. With `local_rank` set, only that
+/// NeuronCore is reported.
+fn record(report: &Value, local_rank: Option<&str>) -> SystemMetricsRecord {
     let keep = |core: &str| local_rank.is_none_or(|rank| rank == core);
-    let mut metrics = Vec::new();
-    let mut push = |key: String, value: &Value| {
-        if let Some(value) = value.as_f64() {
-            metrics.push((format!("trn.{key}"), value));
-        }
-    };
-    for (core, counters) in fields(&report["neuroncore_counters"]["neuroncores_in_use"]) {
-        if keep(core) {
-            push(
-                format!("{core}.neuroncore_utilization"),
-                &counters["neuroncore_utilization"],
-            );
+    let bytes = |value: &Value| value.as_f64().map(|value| value as u64);
+    let mut cores: BTreeMap<u32, AcceleratorMetrics> = BTreeMap::new();
+
+    for (name, counters) in fields(&report["neuroncore_counters"]["neuroncores_in_use"]) {
+        if keep(name)
+            && let Some(device) = neuroncore(&mut cores, name)
+        {
+            device.utilization_ratio = counters["neuroncore_utilization"]
+                .as_f64()
+                .map(|percent| percent / 100.0);
         }
     }
     let used = &report["memory_used"]["neuron_runtime_used_bytes"];
-    push("host_total_memory_usage".to_string(), &used["host"]);
-    push(
-        "neuron_device_total_memory_usage".to_string(),
-        &used["neuron_device"],
-    );
-    for (field, value) in fields(&used["usage_breakdown"]["host"]) {
-        push(format!("host_memory_usage.{field}"), value);
-    }
-    for (core, usage) in fields(&used["usage_breakdown"]["neuroncore_memory_usage"]) {
-        if keep(core) {
-            for (field, value) in fields(usage) {
-                push(format!("{core}.neuroncore_memory_usage.{field}"), value);
-            }
+    for (name, usage) in fields(&used["usage_breakdown"]["neuroncore_memory_usage"]) {
+        if keep(name)
+            && let Some(device) = neuroncore(&mut cores, name)
+            && let Some(Vendor::Trainium(trainium)) = &mut device.vendor
+        {
+            trainium.memory_constants_bytes = bytes(&usage["constants"]);
+            trainium.memory_model_code_bytes = bytes(&usage["model_code"]);
+            trainium.memory_model_shared_scratchpad_bytes =
+                bytes(&usage["model_shared_scratchpad"]);
+            trainium.memory_runtime_bytes = bytes(&usage["runtime_memory"]);
+            trainium.memory_tensors_bytes = bytes(&usage["tensors"]);
         }
     }
-    metrics
+
+    let host = &used["usage_breakdown"]["host"];
+    let trainium_host = TrainiumHostMetrics {
+        host_memory_bytes: bytes(&used["host"]),
+        device_memory_bytes: bytes(&used["neuron_device"]),
+        host_memory_application_bytes: bytes(&host["application_memory"]),
+        host_memory_constants_bytes: bytes(&host["constants"]),
+        host_memory_dma_buffers_bytes: bytes(&host["dma_buffers"]),
+        host_memory_tensors_bytes: bytes(&host["tensors"]),
+    };
+    SystemMetricsRecord {
+        accelerators: cores.into_values().collect(),
+        trainium_host: (trainium_host != TrainiumHostMetrics::default()).then_some(trainium_host),
+        ..Default::default()
+    }
+}
+
+/// The accelerator of the NeuronCore named `name`, added if missing.
+fn neuroncore<'a>(
+    cores: &'a mut BTreeMap<u32, AcceleratorMetrics>,
+    name: &str,
+) -> Option<&'a mut AcceleratorMetrics> {
+    let index = name.parse().ok()?;
+    Some(cores.entry(index).or_insert_with(|| AcceleratorMetrics {
+        r#type: AcceleratorType::AwsTrainium as i32,
+        index,
+        source: "neuron-monitor".to_string(),
+        vendor: Some(Vendor::Trainium(TrainiumMetrics::default())),
+        ..Default::default()
+    }))
 }
 
 /// The fields of a JSON object; none for any other value.
@@ -252,7 +282,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn flattens_a_report_into_trn_metrics() {
+    fn reads_a_report_into_neuroncores_and_host_memory() {
         let report = serde_json::json!({
             "neuroncore_counters": {
                 "neuroncores_in_use": {"0": {"neuroncore_utilization": 1.3631567613356375}}
@@ -282,14 +312,19 @@ mod tests {
             }
         });
 
-        let metrics: HashMap<String, f64> = flatten(&report, Some("0")).into_iter().collect();
+        let record = record(&report, Some("0"));
 
-        assert_eq!(metrics["trn.host_total_memory_usage"], 610705408.0);
-        assert_eq!(metrics["trn.neuron_device_total_memory_usage"], 102298328.0);
-        assert_eq!(
-            metrics["trn.host_memory_usage.application_memory"],
-            609656832.0
-        );
-        assert!(metrics.keys().all(|key| key.starts_with("trn.")));
+        let host = record.trainium_host.unwrap();
+        assert_eq!(host.host_memory_bytes, Some(610705408));
+        assert_eq!(host.device_memory_bytes, Some(102298328));
+        assert_eq!(host.host_memory_application_bytes, Some(609656832));
+        let [core] = record.accelerators.as_slice() else {
+            panic!("expected one NeuronCore");
+        };
+        assert_eq!(core.utilization_ratio, Some(1.3631567613356375 / 100.0));
+        let Some(Vendor::Trainium(memory)) = &core.vendor else {
+            panic!("no Trainium fields");
+        };
+        assert_eq!(memory.memory_model_code_bytes, Some(101125344));
     }
 }
