@@ -272,19 +272,19 @@ def _unused_exchange(params: dict[str, list[str]]) -> browser_login.TokenSet:
 
 
 @pytest.mark.parametrize(
-    ("app_url", "consent", "result_pages"),
+    ("app_url", "consent", "root"),
     [
-        # Forge serves the app under a path, and the result pages at the root.
+        # Forge serves the app under a path, and the login pages at the root.
         (
             "https://forge.coreweave.com/wandb",
-            "https://forge.coreweave.com/wandb/cli-login",
+            "https://forge.coreweave.com/cli-login",
             "https://forge.coreweave.com",
         ),
         ("https://test-app", "https://test-app/cli-login", "https://test-app"),
     ],
 )
-def test_result_pages_are_served_from_the_host_root(
-    app_url: str, consent: str, result_pages: str
+def test_login_pages_are_served_from_the_host_root(
+    app_url: str, consent: str, root: str
 ):
     host = HostUrl("https://test-host", app_url=app_url)
 
@@ -292,8 +292,8 @@ def test_result_pages_are_served_from_the_host_root(
         host, redirect_uri="http://127.0.0.1/callback", state="s", challenge="c"
     )
     with browser_login._CallbackServer(host, "s", _unused_exchange) as server:
-        assert server.success_url == f"{result_pages}/cli-login-success"
-        assert server.cancelled_url == f"{result_pages}/cli-login-cancelled"
+        assert server.success_url == f"{root}/cli-login-success"
+        assert server.cancelled_url == f"{root}/cli-login-cancelled"
     assert authorize_url.startswith(f"{consent}?")
 
 

@@ -41,6 +41,7 @@ _CALLBACK_PATH = "/callback"
 LOGIN_TIMEOUT_SECONDS = 300.0
 _EXCHANGE_TIMEOUT_SECONDS = 30.0
 
+_CONSENT_PATH = "/cli-login"
 _SUCCESS_PATH = "/cli-login-success"
 _CANCELLED_PATH = "/cli-login-cancelled"
 
@@ -428,10 +429,10 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def _origin(url: str) -> str:
-    """Returns the scheme and host of a URL, without its path."""
-    parts = urllib.parse.urlsplit(url)
-    return f"{parts.scheme}://{parts.netloc}"
+def _page_url(host: HostUrl, path: str) -> str:
+    """Returns the URL of a login page, which is at the root of the host."""
+    parts = urllib.parse.urlsplit(host.app_url)
+    return f"{parts.scheme}://{parts.netloc}{path}"
 
 
 def _authorize_url(
@@ -451,7 +452,7 @@ def _authorize_url(
         "code_challenge_method": "S256",
     }
 
-    return f"{host.app_url}/cli-login?{urllib.parse.urlencode(query)}"
+    return f"{_page_url(host, _CONSENT_PATH)}?{urllib.parse.urlencode(query)}"
 
 
 def _open_browser(url: str) -> bool:
@@ -533,9 +534,8 @@ class _CallbackServer(http.server.HTTPServer):
         self.state = state
         self.exchange = exchange
         self.redirect_uri = f"http://127.0.0.1:{self.server_port}{_CALLBACK_PATH}"
-        # These pages are served from the host's root, outside the app path.
-        self.success_url = f"{_origin(host.app_url)}{_SUCCESS_PATH}"
-        self.cancelled_url = f"{_origin(host.app_url)}{_CANCELLED_PATH}"
+        self.success_url = _page_url(host, _SUCCESS_PATH)
+        self.cancelled_url = _page_url(host, _CANCELLED_PATH)
 
         # The tokens or the error, once the redirect has been handled.
         self.result: TokenSet | Exception | None = None
