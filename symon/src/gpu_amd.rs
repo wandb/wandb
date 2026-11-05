@@ -7,9 +7,9 @@ use std::ffi::{CStr, c_char};
 use libloading::{Library, Symbol};
 use log::{debug, warn};
 
-use crate::{
-    metrics::MetricValue,
-    wandb_internal::{EnvironmentRecord, GpuAmdInfo},
+use crate::wandb_internal::{
+    AcceleratorMetrics, AcceleratorType, AmdMetrics, EnvironmentRecord, GpuAmdInfo,
+    accelerator_metrics::Vendor,
 };
 
 const LIBRARY_PATHS: &[&str] = &["librocm_smi64.so", "/opt/rocm/lib/librocm_smi64.so"];
@@ -106,52 +106,55 @@ impl GpuAmd {
         Some(GpuAmd { lib, device_count })
     }
 
-    /// Metrics for every device, keyed as `gpu.<index>.<name>`. Readings a device
-    /// does not provide are left out.
-    pub fn get_metrics(&self) -> Vec<(String, MetricValue)> {
-        let mut metrics = Vec::new();
-        let mut push = |device: u32, name: &str, value: f64| {
-            metrics.push((format!("gpu.{device}.{name}"), MetricValue::Float(value)));
-        };
-
-        for device in 0..self.device_count {
-            if let Some(v) = self.get_u32(b"rsmi_dev_busy_percent_get\0", device) {
-                push(device, "gpu", v as f64);
-            }
-            if let (Some(used), Some(total)) = (
-                self.get_u64_indexed(b"rsmi_dev_memory_usage_get\0", device, RSMI_MEM_TYPE_VRAM),
-                self.get_u64_indexed(b"rsmi_dev_memory_total_get\0", device, RSMI_MEM_TYPE_VRAM),
-            ) && total > 0
-            {
-                push(
-                    device,
-                    "memoryAllocated",
-                    used as f64 / total as f64 * 100.0,
-                );
-            }
-            if let Some(v) = self.get_u32(b"rsmi_dev_memory_busy_percent_get\0", device) {
-                push(device, "memoryReadWriteActivity", v as f64);
-            }
-            if let Some(v) = self.get_u32(b"rsmi_dev_mem_overdrive_level_get\0", device) {
-                push(device, "memoryOverDrive", v as f64);
-            }
-            if let Some(v) = self.temperature_celsius(device) {
-                push(device, "temp", v);
-            }
-            if let Some(joules) = self.energy_joules(device) {
-                push(device, "energyJoules", joules);
-            }
-            if let Some(watts) = self.power_watts(device) {
-                push(device, "powerWatts", watts);
-                if let Some(cap) = self.power_cap_watts(device)
-                    && cap > 0.0
-                {
-                    push(device, "powerPercent", watts / cap * 100.0);
+    /// A typed accelerator for every device. Readings a device does not
+    /// provide are left out.
+    pub fn get_metrics(&self) -> Vec<AcceleratorMetrics> {
+        (0..self.device_count)
+            .map(|device| {
+                let memory = match (
+                    self.get_u64_indexed(
+                        b"rsmi_dev_memory_usage_get\0",
+                        device,
+                        RSMI_MEM_TYPE_VRAM,
+                    ),
+                    self.get_u64_indexed(
+                        b"rsmi_dev_memory_total_get\0",
+                        device,
+                        RSMI_MEM_TYPE_VRAM,
+                    ),
+                ) {
+                    (Some(used), Some(total)) if total > 0 => Some(used as f64 / total as f64),
+                    _ => None,
+                };
+                let ratio = |percent: u32| f64::from(percent) / 100.0;
+                let watts = self.power_watts(device);
+                let cap = watts
+                    .and_then(|_| self.power_cap_watts(device))
+                    .filter(|cap| *cap > 0.0);
+                AcceleratorMetrics {
+                    r#type: AcceleratorType::AmdGpu as i32,
+                    index: device,
+                    source: "rocm-smi".to_string(),
+                    utilization_ratio: self
+                        .get_u32(b"rsmi_dev_busy_percent_get\0", device)
+                        .map(ratio),
+                    memory_used_ratio: memory,
+                    memory_activity_ratio: self
+                        .get_u32(b"rsmi_dev_memory_busy_percent_get\0", device)
+                        .map(ratio),
+                    temperature_c: self.temperature_celsius(device),
+                    energy_j: self.energy_joules(device),
+                    power_w: watts,
+                    power_ratio: watts.zip(cap).map(|(watts, cap)| watts / cap),
+                    vendor: Some(Vendor::Amd(AmdMetrics {
+                        memory_overdrive_ratio: self
+                            .get_u32(b"rsmi_dev_mem_overdrive_level_get\0", device)
+                            .map(ratio),
+                    })),
+                    ..Default::default()
                 }
-            }
-        }
-
-        metrics
+            })
+            .collect()
     }
 
     /// Static information about every device.

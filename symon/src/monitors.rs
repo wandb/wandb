@@ -370,7 +370,10 @@ impl Collector for AmdGpuMonitor {
         _scopes: &[Scope],
     ) -> Result<Sample, Box<dyn std::error::Error>> {
         Ok(Sample {
-            metrics: self.gpu.lock().await.get_metrics(),
+            record: crate::wandb_internal::SystemMetricsRecord {
+                accelerators: self.gpu.lock().await.get_metrics(),
+                ..Default::default()
+            },
             ..Default::default()
         })
     }
