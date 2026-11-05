@@ -122,6 +122,15 @@ func TestItems_LegacyKeys(t *testing.T) {
 					MemoryOverdriveRatio: f(0.01),
 				}},
 			},
+			{
+				Type:            spb.AcceleratorType_NVIDIA_GPU,
+				Index:           2,
+				Uuid:            "MIG-1",
+				ParentUuid:      "GPU-2",
+				Profile:         "3g.40gb",
+				Share:           f(3.0 / 7),
+				MemoryUsedBytes: u(1),
+			},
 			{Type: spb.AcceleratorType_APPLE_GPU, Index: 0, ClockHz: f(1e6)},
 			{Type: spb.AcceleratorType_APPLE_ANE, Index: 0, PowerW: f(1)},
 			{

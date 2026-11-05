@@ -963,6 +963,16 @@ pub struct AcceleratorMetrics {
     /// Product name, such as "NVIDIA H100 80GB HBM3".
     #[prost(string, tag = "8")]
     pub model: ::prost::alloc::string::String,
+    /// For a partition of a physical device, such as a MIG instance: the uuid
+    /// of the physical device, the partition's profile, such as "3g.40gb", and
+    /// its share of the physical device, such as 3/7 of the compute slices.
+    /// Partitions have no legacy keys.
+    #[prost(string, tag = "9")]
+    pub parent_uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "10")]
+    pub profile: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "11")]
+    pub share: ::core::option::Option<f64>,
     /// Fraction of time the compute units were busy, as each vendor defines it.
     #[prost(double, optional, tag = "20")]
     pub utilization_ratio: ::core::option::Option<f64>,

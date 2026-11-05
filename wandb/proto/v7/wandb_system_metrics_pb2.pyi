@@ -291,7 +291,7 @@ class SdkMetrics(_message.Message):
     def __init__(self, cpu_ratio: _Optional[float] = ..., rss_bytes: _Optional[int] = ..., cpu_user_ratio: _Optional[float] = ..., cpu_system_ratio: _Optional[float] = ...) -> None: ...
 
 class AcceleratorMetrics(_message.Message):
-    __slots__ = ("type", "index", "uuid", "host", "source", "binding", "pci_bus_id", "model", "utilization_ratio", "memory_activity_ratio", "memory_used_ratio", "memory_used_bytes", "memory_total_bytes", "temperature_c", "power_w", "power_ratio", "power_limit_w", "clock_hz", "fan_speed_ratio", "energy_j", "nvidia", "amd", "tpu", "trainium")
+    __slots__ = ("type", "index", "uuid", "host", "source", "binding", "pci_bus_id", "model", "parent_uuid", "profile", "share", "utilization_ratio", "memory_activity_ratio", "memory_used_ratio", "memory_used_bytes", "memory_total_bytes", "temperature_c", "power_w", "power_ratio", "power_limit_w", "clock_hz", "fan_speed_ratio", "energy_j", "nvidia", "amd", "tpu", "trainium")
     TYPE_FIELD_NUMBER: _ClassVar[int]
     INDEX_FIELD_NUMBER: _ClassVar[int]
     UUID_FIELD_NUMBER: _ClassVar[int]
@@ -300,6 +300,9 @@ class AcceleratorMetrics(_message.Message):
     BINDING_FIELD_NUMBER: _ClassVar[int]
     PCI_BUS_ID_FIELD_NUMBER: _ClassVar[int]
     MODEL_FIELD_NUMBER: _ClassVar[int]
+    PARENT_UUID_FIELD_NUMBER: _ClassVar[int]
+    PROFILE_FIELD_NUMBER: _ClassVar[int]
+    SHARE_FIELD_NUMBER: _ClassVar[int]
     UTILIZATION_RATIO_FIELD_NUMBER: _ClassVar[int]
     MEMORY_ACTIVITY_RATIO_FIELD_NUMBER: _ClassVar[int]
     MEMORY_USED_RATIO_FIELD_NUMBER: _ClassVar[int]
@@ -324,6 +327,9 @@ class AcceleratorMetrics(_message.Message):
     binding: Binding
     pci_bus_id: str
     model: str
+    parent_uuid: str
+    profile: str
+    share: float
     utilization_ratio: float
     memory_activity_ratio: float
     memory_used_ratio: float
@@ -340,7 +346,7 @@ class AcceleratorMetrics(_message.Message):
     amd: AmdMetrics
     tpu: TpuMetrics
     trainium: TrainiumMetrics
-    def __init__(self, type: _Optional[_Union[AcceleratorType, str]] = ..., index: _Optional[int] = ..., uuid: _Optional[str] = ..., host: _Optional[str] = ..., source: _Optional[str] = ..., binding: _Optional[_Union[Binding, str]] = ..., pci_bus_id: _Optional[str] = ..., model: _Optional[str] = ..., utilization_ratio: _Optional[float] = ..., memory_activity_ratio: _Optional[float] = ..., memory_used_ratio: _Optional[float] = ..., memory_used_bytes: _Optional[int] = ..., memory_total_bytes: _Optional[int] = ..., temperature_c: _Optional[float] = ..., power_w: _Optional[float] = ..., power_ratio: _Optional[float] = ..., power_limit_w: _Optional[float] = ..., clock_hz: _Optional[float] = ..., fan_speed_ratio: _Optional[float] = ..., energy_j: _Optional[float] = ..., nvidia: _Optional[_Union[NvidiaMetrics, _Mapping]] = ..., amd: _Optional[_Union[AmdMetrics, _Mapping]] = ..., tpu: _Optional[_Union[TpuMetrics, _Mapping]] = ..., trainium: _Optional[_Union[TrainiumMetrics, _Mapping]] = ...) -> None: ...
+    def __init__(self, type: _Optional[_Union[AcceleratorType, str]] = ..., index: _Optional[int] = ..., uuid: _Optional[str] = ..., host: _Optional[str] = ..., source: _Optional[str] = ..., binding: _Optional[_Union[Binding, str]] = ..., pci_bus_id: _Optional[str] = ..., model: _Optional[str] = ..., parent_uuid: _Optional[str] = ..., profile: _Optional[str] = ..., share: _Optional[float] = ..., utilization_ratio: _Optional[float] = ..., memory_activity_ratio: _Optional[float] = ..., memory_used_ratio: _Optional[float] = ..., memory_used_bytes: _Optional[int] = ..., memory_total_bytes: _Optional[int] = ..., temperature_c: _Optional[float] = ..., power_w: _Optional[float] = ..., power_ratio: _Optional[float] = ..., power_limit_w: _Optional[float] = ..., clock_hz: _Optional[float] = ..., fan_speed_ratio: _Optional[float] = ..., energy_j: _Optional[float] = ..., nvidia: _Optional[_Union[NvidiaMetrics, _Mapping]] = ..., amd: _Optional[_Union[AmdMetrics, _Mapping]] = ..., tpu: _Optional[_Union[TpuMetrics, _Mapping]] = ..., trainium: _Optional[_Union[TrainiumMetrics, _Mapping]] = ...) -> None: ...
 
 class NvidiaMetrics(_message.Message):
     __slots__ = ("sm_clock_hz", "memory_clock_hz", "corrected_memory_errors", "uncorrected_memory_errors", "pcie_tx_bytes_per_s", "pcie_rx_bytes_per_s", "nvlink_tx_bytes_per_s", "nvlink_rx_bytes_per_s", "sm_active_ratio", "sm_occupancy_ratio", "dram_active_ratio", "pipe_tensor_active_ratio", "pipe_tensor_hmma_active_ratio", "pipe_fp64_active_ratio", "pipe_fp32_active_ratio", "pipe_fp16_active_ratio", "memory_temperature_c", "max_operating_temperature_c", "memory_max_operating_temperature_c", "memory_free_bytes")
