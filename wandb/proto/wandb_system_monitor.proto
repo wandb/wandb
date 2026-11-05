@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_system_metrics.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -96,8 +97,11 @@ message OpenMetricsFilter {
 }
 
 message SubscribeResponse {
-  // System metrics.
+  // System metrics that are not in `sample` yet, as a legacy StatsRecord.
   Record record = 1;
+
+  // System metrics.
+  SystemMetricsRecord sample = 3;
 
   // Every process on the host, for subscribers that asked for host_details.
   repeated ProcessStats processes = 2;
