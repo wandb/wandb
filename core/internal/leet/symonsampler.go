@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -113,7 +114,7 @@ func (s *SymonSampler) Sample() SymonSampleMsg {
 // store keeps a sidecar sample for the next Sample call, with its I/O
 // rates derived from the sample before it.
 func (s *SymonSampler) store(_ context.Context, response *spb.SubscribeResponse) {
-	record := response.GetRecord().GetStats()
+	record := systemmetrics.StatsRecord(response)
 	msg, ok := ParseStats("", record).(StatsMsg)
 	if !ok {
 		return
