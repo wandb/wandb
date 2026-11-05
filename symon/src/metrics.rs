@@ -2,7 +2,12 @@ use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
-use crate::wandb_internal::{ProcessStats, SubscribeRequest};
+use prost::Message;
+
+use crate::wandb_internal::{
+    DiskIoMetrics, HostMetrics, NetworkMetrics, ProcessMetrics, ProcessStats, SdkMetrics,
+    SubscribeRequest, SystemMetricsRecord,
+};
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(untagged)] // This makes the enum serialize to just the inner value without the variant name
@@ -86,31 +91,139 @@ impl From<&SubscribeRequest> for Scope {
     }
 }
 
+/// A reading that a subscriber averages over its interval or counts from its
+/// first sample: a typed record field, or a legacy metric name for the
+/// collectors that do not fill the typed record yet.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Key {
+    Legacy(String),
+    Field(Field),
+}
+
+impl From<&str> for Key {
+    fn from(key: &str) -> Self {
+        Key::Legacy(key.to_string())
+    }
+}
+
+impl From<String> for Key {
+    fn from(key: String) -> Self {
+        Key::Legacy(key)
+    }
+}
+
+impl From<Field> for Key {
+    fn from(field: Field) -> Self {
+        Key::Field(field)
+    }
+}
+
+/// The typed record fields that are averaged or counted.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Field {
+    ProcessCpu,
+    ProcessCpuUser,
+    ProcessCpuSystem,
+    ProcessCgroupCpuThrottled,
+    ProcessCgroupOomKills,
+    SdkCpu,
+    SdkCpuUser,
+    SdkCpuSystem,
+    DiskRead(String),
+    DiskWrite(String),
+    NetworkSent,
+    NetworkRecv,
+    NetworkTcpRetransmits,
+}
+
+impl Field {
+    /// Sets this field of `record` to `value`.
+    pub fn set(&self, record: &mut SystemMetricsRecord, value: f64) {
+        let count = value.max(0.0) as u64;
+        match self {
+            Field::ProcessCpu => process(record).cpu_ratio = Some(value),
+            Field::ProcessCpuUser => process(record).cpu_user_ratio = Some(value),
+            Field::ProcessCpuSystem => process(record).cpu_system_ratio = Some(value),
+            Field::ProcessCgroupCpuThrottled => {
+                process(record).cgroup_cpu_throttled_ratio = Some(value)
+            }
+            Field::ProcessCgroupOomKills => process(record).cgroup_oom_kills = Some(count),
+            Field::SdkCpu => sdk(record).cpu_ratio = Some(value),
+            Field::SdkCpuUser => sdk(record).cpu_user_ratio = Some(value),
+            Field::SdkCpuSystem => sdk(record).cpu_system_ratio = Some(value),
+            Field::DiskRead(device) | Field::DiskWrite(device) => {
+                let disk_io = &mut record.host.get_or_insert_with(HostMetrics::default).disk_io;
+                let index = match disk_io.iter().position(|io| io.device == *device) {
+                    Some(index) => index,
+                    None => {
+                        disk_io.push(DiskIoMetrics {
+                            device: device.clone(),
+                            ..Default::default()
+                        });
+                        disk_io.len() - 1
+                    }
+                };
+                if matches!(self, Field::DiskRead(_)) {
+                    disk_io[index].read_bytes = Some(count);
+                } else {
+                    disk_io[index].write_bytes = Some(count);
+                }
+            }
+            Field::NetworkSent => network(record).sent_bytes = Some(count),
+            Field::NetworkRecv => network(record).recv_bytes = Some(count),
+            Field::NetworkTcpRetransmits => network(record).tcp_retransmits = Some(count),
+        }
+    }
+}
+
+fn process(record: &mut SystemMetricsRecord) -> &mut ProcessMetrics {
+    record.process.get_or_insert_with(ProcessMetrics::default)
+}
+
+fn sdk(record: &mut SystemMetricsRecord) -> &mut SdkMetrics {
+    record.sdk.get_or_insert_with(SdkMetrics::default)
+}
+
+fn network(record: &mut SystemMetricsRecord) -> &mut NetworkMetrics {
+    record
+        .host
+        .get_or_insert_with(HostMetrics::default)
+        .network
+        .get_or_insert_with(NetworkMetrics::default)
+}
+
+/// Merges `other` into `record` with protobuf merge semantics: set fields
+/// replace, repeated fields append and messages merge.
+pub fn merge(record: &mut SystemMetricsRecord, other: &SystemMetricsRecord) {
+    if *other != SystemMetricsRecord::default() {
+        // Decoding what prost just encoded cannot fail.
+        let _ = record.merge(other.encode_to_vec().as_slice());
+    }
+}
+
 /// The host readings for one scope, in their reported units.
 #[derive(Debug, Default)]
 pub struct Readings {
+    /// Point-in-time readings in the typed record.
+    pub record: SystemMetricsRecord,
     /// Point-in-time readings keyed by metric name.
     pub metrics: Vec<(String, f64)>,
     /// Readings that describe the time since the previous sample.
-    pub averages: Vec<(String, f64)>,
+    pub averages: Vec<(Key, f64)>,
     /// Counters that only grow. A subscriber receives their increase since
     /// its first sample.
-    pub counters: Vec<(String, f64)>,
+    pub counters: Vec<(Key, f64)>,
     /// The monitored process and its descendants, whose use of a GPU is
     /// reported under `gpu.process.<i>.*`.
     pub pids: Vec<u32>,
 }
 
 impl Readings {
-    pub fn metric(&mut self, key: impl Into<String>, value: f64) {
-        self.metrics.push((key.into(), value));
-    }
-
-    pub fn average(&mut self, key: impl Into<String>, value: f64) {
+    pub fn average(&mut self, key: impl Into<Key>, value: f64) {
         self.averages.push((key.into(), value));
     }
 
-    pub fn counter(&mut self, key: impl Into<String>, value: f64) {
+    pub fn counter(&mut self, key: impl Into<Key>, value: f64) {
         self.counters.push((key.into(), value));
     }
 }
@@ -118,17 +231,20 @@ impl Readings {
 /// One pass over every collector.
 #[derive(Debug, Default)]
 pub struct Sample {
+    /// Point-in-time readings in the typed record.
+    pub record: SystemMetricsRecord,
+
     /// Point-in-time readings keyed by metric name. Keys starting with `_`
     /// are static facts used for metadata and are not reported as metrics.
     pub metrics: Vec<(String, MetricValue)>,
 
     /// Readings that describe the time since the previous sample, such as
     /// GPM utilization. A subscriber receives their mean over its interval.
-    pub averages: Vec<(String, f64)>,
+    pub averages: Vec<(Key, f64)>,
 
     /// Host-wide counters that only grow, such as bytes sent over the
     /// network. A subscriber receives their increase since its first sample.
-    pub counters: Vec<(String, f64)>,
+    pub counters: Vec<(Key, f64)>,
 
     /// The host readings that depend on the subscriber, by scope.
     pub scoped: HashMap<Scope, Readings>,
@@ -143,6 +259,7 @@ pub struct Sample {
 impl Sample {
     /// Adds another collector's readings to this sample.
     pub fn merge(&mut self, other: Sample) {
+        merge(&mut self.record, &other.record);
         self.metrics.extend(other.metrics);
         self.averages.extend(other.averages);
         self.counters.extend(other.counters);
@@ -150,6 +267,7 @@ impl Sample {
         self.processes.extend(other.processes);
         for (scope, readings) in other.scoped {
             let mine = self.scoped.entry(scope).or_default();
+            merge(&mut mine.record, &readings.record);
             mine.metrics.extend(readings.metrics);
             mine.averages.extend(readings.averages);
             mine.counters.extend(readings.counters);

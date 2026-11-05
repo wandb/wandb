@@ -316,8 +316,8 @@ impl Collector for DcgmGpuMonitor {
             .await?
             .into_iter()
             .filter_map(|(key, value)| match value {
-                metrics::MetricValue::Float(value) => Some((key, value)),
-                metrics::MetricValue::Int(value) => Some((key, value as f64)),
+                metrics::MetricValue::Float(value) => Some((key.into(), value)),
+                metrics::MetricValue::Int(value) => Some((key.into(), value as f64)),
                 metrics::MetricValue::String(_) => None,
             })
             .collect();

@@ -1,13 +1,13 @@
 //! Builds the metrics one client receives from a [`Sample`].
 //!
 //! A sample covers every device and every process. A client sees only the
-//! GPUs it asked for, and gets `gpu.process.<i>.*` copies of the metrics of
-//! the GPUs its process uses.
+//! GPUs it asked for. In its typed record the GPUs its process uses have the
+//! PROCESS binding; in its legacy items they get `gpu.process.<i>.*` copies.
 
 use std::collections::HashSet;
 
-use crate::metrics::Sample;
-use crate::wandb_internal::StatsItem;
+use crate::metrics::{self, Field, Readings, Sample};
+use crate::wandb_internal::{Binding, StatsItem, SystemMetricsRecord};
 
 /// Metrics repeated under `gpu.process.<i>.` when the monitored process uses GPU `i`.
 const PROCESS_METRICS: &[&str] = &[
@@ -21,6 +21,51 @@ const PROCESS_METRICS: &[&str] = &[
     "powerPercent",
 ];
 
+/// The typed record for a client monitoring the processes in `pids`.
+///
+/// `scoped` holds the readings specific to this client and `values` its
+/// averages and its counters since their baselines. An empty
+/// `gpu_device_ids` selects every GPU.
+pub fn typed_record(
+    sample: &Sample,
+    scoped: Option<&Readings>,
+    values: &[(Field, f64)],
+    pids: &[u32],
+    gpu_device_ids: &[i32],
+) -> SystemMetricsRecord {
+    let gpus_in_use = gpus_in_use(sample, pids);
+    let mut record = sample.record.clone();
+    record.accelerators.retain(|device| {
+        gpu_device_ids.is_empty() || gpu_device_ids.contains(&(device.index as i32))
+    });
+    for device in &mut record.accelerators {
+        if sample.gpu_pids.contains_key(&device.index) {
+            device.set_binding(if gpus_in_use.contains(&device.index) {
+                Binding::Process
+            } else {
+                Binding::Visible
+            });
+        }
+    }
+    if let Some(readings) = scoped {
+        metrics::merge(&mut record, &readings.record);
+    }
+    for (field, value) in values {
+        field.set(&mut record, *value);
+    }
+    record
+}
+
+/// The GPUs any of the processes in `pids` use, by device index.
+fn gpus_in_use(sample: &Sample, pids: &[u32]) -> HashSet<u32> {
+    sample
+        .gpu_pids
+        .iter()
+        .filter(|(_, users)| users.iter().any(|pid| pids.contains(pid)))
+        .map(|(device, _)| *device)
+        .collect()
+}
+
 /// The stats items for a client monitoring the processes in `pids`.
 ///
 /// `values` are the readings specific to this client: its averages, its
@@ -32,12 +77,7 @@ pub fn stats_items(
     pids: &[u32],
     gpu_device_ids: &[i32],
 ) -> Vec<StatsItem> {
-    let gpus_in_use: HashSet<u32> = sample
-        .gpu_pids
-        .iter()
-        .filter(|(_, users)| users.iter().any(|pid| pids.contains(pid)))
-        .map(|(device, _)| *device)
-        .collect();
+    let gpus_in_use = gpus_in_use(sample, pids);
 
     let mut items = Vec::new();
     let mut push = |key: &str, value_json: String| {
@@ -107,15 +147,15 @@ mod tests {
                 ("gpu.1.temp".to_string(), MetricValue::Float(61.0)),
                 ("tpu.0.dutyCycle".to_string(), MetricValue::Float(0.5)),
             ],
-            averages: vec![
-                ("gpu.0.smActive".to_string(), 50.0),
-                ("gpu.1.smActive".to_string(), 51.0),
-            ],
             gpu_pids: [(0, vec![42]), (1, vec![42])].into(),
             ..Default::default()
         };
+        let averages = [
+            ("gpu.0.smActive".to_string(), 50.0),
+            ("gpu.1.smActive".to_string(), 51.0),
+        ];
 
-        let items = stats_items(&sample, &sample.averages, &[7, 42], &[0]);
+        let items = stats_items(&sample, &averages, &[7, 42], &[0]);
         assert_eq!(
             keys(&items),
             [
@@ -128,7 +168,7 @@ mod tests {
         );
         assert_eq!(items[1].value_json, "60.0");
 
-        let items = stats_items(&sample, &sample.averages, &[], &[]);
+        let items = stats_items(&sample, &averages, &[], &[]);
         assert_eq!(
             keys(&items),
             [
