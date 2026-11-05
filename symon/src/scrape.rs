@@ -15,7 +15,11 @@ use serde::Deserialize;
 
 use crate::metrics::{self, Filter, Sample, Scope};
 use crate::monitors::Collector;
-use crate::wandb_internal::{EnvironmentRecord, GetMetadataRequest, GpuNvidiaInfo};
+use crate::wandb_internal::{
+    AcceleratorMetrics, AcceleratorType, EnvironmentRecord, GenericMetric, GetMetadataRequest,
+    GpuNvidiaInfo, MetricLabel, NvidiaMetrics, SystemMetricsRecord, accelerator_metrics::Vendor,
+    metric_info::Kind,
+};
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -86,27 +90,38 @@ impl EndpointState {
             })
     }
 
-    /// The gauges and counters in one scrape of endpoint `name`, keyed
-    /// `openmetrics.<name>.<metric>.<index>`.
-    fn metrics(&mut self, name: &str, text: &str) -> Vec<(String, f64)> {
+    /// The gauges and counters in one scrape of endpoint `name`. Each label
+    /// set of a metric is numbered in the order it was first seen.
+    fn metrics(&mut self, name: &str, text: &str) -> Vec<GenericMetric> {
         let mut metrics = Vec::new();
-        for (metric, labels, value) in parse(text) {
+        for (metric, labels, kind, value) in parse(text) {
             if !self.keep(name, &metric, &labels) {
                 continue;
             }
             let labels: LabelSet = labels.into_iter().collect();
             let indexes = self.indexes.entry(metric.clone()).or_default();
             let next = indexes.len();
-            let index = *indexes.entry(labels).or_insert(next);
-            metrics.push((format!("openmetrics.{name}.{metric}.{index}"), value));
+            let series = *indexes.entry(labels.clone()).or_insert(next);
+            metrics.push(GenericMetric {
+                source: name.to_string(),
+                name: metric,
+                labels: labels
+                    .into_iter()
+                    .map(|(key, value)| MetricLabel { key, value })
+                    .collect(),
+                kind: kind as i32,
+                value: Some(value),
+                series: series as u32,
+            });
         }
         metrics
     }
 }
 
 /// The gauge and counter samples of a Prometheus text exposition, as
-/// (metric, labels, value). Samples of other or unknown types are skipped.
-fn parse(text: &str) -> Vec<(String, HashMap<String, String>, f64)> {
+/// (metric, labels, kind, value). Samples of other or unknown types are
+/// skipped.
+fn parse(text: &str) -> Vec<(String, HashMap<String, String>, Kind, f64)> {
     let mut types: HashMap<&str, &str> = HashMap::new();
     let mut samples = Vec::new();
     for line in text.lines() {
@@ -123,13 +138,15 @@ fn parse(text: &str) -> Vec<(String, HashMap<String, String>, f64)> {
         let Some((metric, labels, rest)) = split_sample(line) else {
             continue;
         };
-        if !matches!(types.get(metric), Some(&"gauge" | &"counter")) {
-            continue;
-        }
+        let kind = match types.get(metric) {
+            Some(&"gauge") => Kind::Gauge,
+            Some(&"counter") => Kind::Counter,
+            _ => continue,
+        };
         let Some(Ok(value)) = rest.split_whitespace().next().map(str::parse::<f64>) else {
             continue;
         };
-        samples.push((metric.to_string(), labels, value));
+        samples.push((metric.to_string(), labels, kind, value));
     }
     samples
 }
@@ -260,40 +277,70 @@ impl GpuSample {
         })
     }
 
-    /// The `gpu.<index>.<metric>[/l:<label>]` key of a DCGM field W&B
-    /// charts, or None for other fields.
-    fn key(&self) -> Option<String> {
-        let metric = match self.name.as_str() {
-            "DCGM_FI_DEV_GPU_TEMP" => "temp",
-            "DCGM_FI_DEV_POWER_USAGE" => "powerWatts",
-            "DCGM_FI_DEV_GPU_UTIL" => "gpu",
-            "DCGM_FI_DEV_MEM_COPY_UTIL" => "memory",
-            "DCGM_FI_DEV_SM_CLOCK" => "smClock",
-            "DCGM_FI_DEV_FB_USED" => "memoryUsed",
-            "DCGM_FI_DEV_FB_TOTAL" => "memoryTotal",
-            "DCGM_FI_PROF_PCIE_TX_BYTES" => "pcieTxBytes",
-            "DCGM_FI_PROF_PCIE_RX_BYTES" => "pcieRxBytes",
-            "DCGM_FI_PROF_NVLINK_TX_BYTES" => "nvlinkTxBytes",
-            "DCGM_FI_PROF_NVLINK_RX_BYTES" => "nvlinkRxBytes",
-            "DCGM_FI_DEV_MEMORY_TEMP" => "memoryTemp",
-            "DCGM_FI_DEV_GPU_MAX_OP_TEMP" => "maxOpTemp",
-            "DCGM_FI_DEV_MEM_MAX_OP_TEMP" => "memoryMaxOpTemp",
-            "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION" => "totalEnergyConsumption",
-            "DCGM_FI_PROF_SM_ACTIVE" => "smActive",
-            "DCGM_FI_PROF_SM_OCCUPANCY" => "smOccupancy",
-            "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE" => "pipeTensorActive",
-            "DCGM_FI_PROF_PIPE_FP64_ACTIVE" => "pipeFp64Active",
-            "DCGM_FI_PROF_PIPE_FP32_ACTIVE" => "pipeFp32Active",
-            "DCGM_FI_PROF_PIPE_FP16_ACTIVE" => "pipeFp16Active",
-            "DCGM_FI_DEV_FB_FREE" => "memoryFree",
-            _ => return None,
+    /// Sets the field this sample measures on its GPU in `devices`, in the
+    /// field's unit. Samples of other fields and of GPUs without a numeric
+    /// index are dropped.
+    fn apply(&self, devices: &mut Vec<AcceleratorMetrics>) {
+        const MIB: f64 = 1024.0 * 1024.0;
+        let Ok(index) = self.index.parse() else {
+            return;
         };
-        let key = format!("gpu.{}.{metric}", self.index);
-        Some(if self.label.is_empty() {
-            key
-        } else {
-            format!("{key}/l:{}", self.label)
-        })
+        let position = devices
+            .iter()
+            .position(|device| device.index == index && device.host == self.label);
+        let device = match position {
+            Some(position) => &mut devices[position],
+            None => {
+                devices.push(AcceleratorMetrics {
+                    r#type: AcceleratorType::NvidiaGpu as i32,
+                    index,
+                    uuid: self.uuid.clone(),
+                    host: self.label.clone(),
+                    source: "dcgm-exporter".to_string(),
+                    model: self.model_name.clone(),
+                    vendor: Some(Vendor::Nvidia(NvidiaMetrics::default())),
+                    ..Default::default()
+                });
+                devices.last_mut().expect("just pushed")
+            }
+        };
+        let value = self.value;
+        // Framebuffer sizes are in MiB and the utilizations in percent.
+        let bytes = (value * MIB) as u64;
+        let ratio = value / 100.0;
+        match self.name.as_str() {
+            "DCGM_FI_DEV_GPU_TEMP" => device.temperature_c = Some(value),
+            "DCGM_FI_DEV_POWER_USAGE" => device.power_w = Some(value),
+            "DCGM_FI_DEV_GPU_UTIL" => device.utilization_ratio = Some(ratio),
+            "DCGM_FI_DEV_MEM_COPY_UTIL" => device.memory_activity_ratio = Some(ratio),
+            "DCGM_FI_DEV_FB_USED" => device.memory_used_bytes = Some(bytes),
+            "DCGM_FI_DEV_FB_TOTAL" => device.memory_total_bytes = Some(bytes),
+            "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION" => device.energy_j = Some(value / 1000.0),
+            _ => {}
+        }
+        let Some(Vendor::Nvidia(nvidia)) = &mut device.vendor else {
+            return;
+        };
+        match self.name.as_str() {
+            "DCGM_FI_DEV_SM_CLOCK" => nvidia.sm_clock_hz = Some(value * 1e6),
+            "DCGM_FI_DEV_FB_FREE" => nvidia.memory_free_bytes = Some(bytes),
+            "DCGM_FI_PROF_PCIE_TX_BYTES" => nvidia.pcie_tx_bytes_per_s = Some(value),
+            "DCGM_FI_PROF_PCIE_RX_BYTES" => nvidia.pcie_rx_bytes_per_s = Some(value),
+            "DCGM_FI_PROF_NVLINK_TX_BYTES" => nvidia.nvlink_tx_bytes_per_s = Some(value),
+            "DCGM_FI_PROF_NVLINK_RX_BYTES" => nvidia.nvlink_rx_bytes_per_s = Some(value),
+            "DCGM_FI_DEV_MEMORY_TEMP" => nvidia.memory_temperature_c = Some(value),
+            "DCGM_FI_DEV_GPU_MAX_OP_TEMP" => nvidia.max_operating_temperature_c = Some(value),
+            "DCGM_FI_DEV_MEM_MAX_OP_TEMP" => {
+                nvidia.memory_max_operating_temperature_c = Some(value)
+            }
+            "DCGM_FI_PROF_SM_ACTIVE" => nvidia.sm_active_ratio = Some(value),
+            "DCGM_FI_PROF_SM_OCCUPANCY" => nvidia.sm_occupancy_ratio = Some(value),
+            "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE" => nvidia.pipe_tensor_active_ratio = Some(value),
+            "DCGM_FI_PROF_PIPE_FP64_ACTIVE" => nvidia.pipe_fp64_active_ratio = Some(value),
+            "DCGM_FI_PROF_PIPE_FP32_ACTIVE" => nvidia.pipe_fp32_active_ratio = Some(value),
+            "DCGM_FI_PROF_PIPE_FP16_ACTIVE" => nvidia.pipe_fp16_active_ratio = Some(value),
+            _ => {}
+        }
     }
 }
 
@@ -491,31 +538,26 @@ impl Collector for Scraper {
             let state = states
                 .entry(endpoint.clone())
                 .or_insert_with(|| EndpointState::new(&endpoint.filters));
-            let metrics = state.metrics(&endpoint.name, &text);
+            let generic = state.metrics(&endpoint.name, &text);
             for scope in scopes {
-                sample
-                    .scoped
-                    .get_mut(scope)
-                    .unwrap()
-                    .metrics
-                    .extend(metrics.iter().cloned());
+                let record = &mut sample.scoped.get_mut(scope).unwrap().record;
+                record.generic.extend(generic.iter().cloned());
             }
         }
         for (((exporter, _), scopes), result) in exporters.iter().zip(queried) {
             let Some(samples) = self.check(exporter, result) else {
                 continue;
             };
-            let metrics: Vec<(String, f64)> = samples
-                .iter()
-                .filter_map(|sample| Some((sample.key()?, sample.value)))
-                .collect();
+            let mut devices = Vec::new();
+            for gpu in &samples {
+                gpu.apply(&mut devices);
+            }
+            let record = SystemMetricsRecord {
+                accelerators: devices,
+                ..Default::default()
+            };
             for scope in scopes {
-                sample
-                    .scoped
-                    .get_mut(scope)
-                    .unwrap()
-                    .metrics
-                    .extend(metrics.iter().cloned());
+                metrics::merge(&mut sample.scoped.get_mut(scope).unwrap().record, &record);
             }
         }
         Ok(sample)
@@ -582,11 +624,19 @@ untyped_metric 3
         }
     }
 
+    /// The metric's key in the legacy form, `openmetrics.<source>.<name>.<series>`.
+    fn key(metric: &GenericMetric) -> String {
+        format!(
+            "openmetrics.{}.{}.{}",
+            metric.source, metric.name, metric.series
+        )
+    }
+
     fn keys(filters: &[Filter]) -> Vec<String> {
         EndpointState::new(filters)
             .metrics("node1", TEXT)
-            .into_iter()
-            .map(|(key, _)| key)
+            .iter()
+            .map(key)
             .collect()
     }
 
@@ -624,10 +674,10 @@ untyped_metric 3
             "n",
             "# TYPE m gauge\nm{a=\"2\"} 5\nm{a=\"3\"} 6\nm{a=\"1\"} 4\n",
         );
-        let keys = |metrics: &[(String, f64)]| {
+        let keys = |metrics: &[GenericMetric]| {
             metrics
                 .iter()
-                .map(|(key, value)| format!("{key}={value}"))
+                .map(|metric| format!("{}={}", key(metric), metric.value.unwrap()))
                 .collect::<Vec<_>>()
         };
         assert_eq!(keys(&first), ["openmetrics.n.m.0=1", "openmetrics.n.m.1=2"]);
