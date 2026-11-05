@@ -649,6 +649,12 @@ func (s *Settings) GetStatsTrackProcessTree() bool {
 }
 
 // Whether to skip cgroup resource limits for system metric percentages.
+// IsStatsTyped returns whether to store system metrics as typed records in
+// the transaction log.
+func (s *Settings) IsStatsTyped() bool {
+	return s.Proto.XStatsTyped.GetValue()
+}
+
 func (s *Settings) GetStatsNoCgroup() bool {
 	return s.Proto.XStatsNoCgroup.GetValue()
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -409,7 +410,11 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
 	case *spb.Record_SystemMetrics:
-		// Not uploaded yet.
+		// Without a typed filestream body, every server gets the legacy
+		// form; servers with TYPED_SYSTEM_METRICS will get the record.
+		if stats := systemmetrics.LegacyStats(x.SystemMetrics); stats != nil {
+			s.sendSystemMetrics(stats)
+		}
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",

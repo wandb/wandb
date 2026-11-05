@@ -381,6 +381,10 @@ message Settings {
   // `wandb.cpu` and `wandb.memory.rssMB`.
   google.protobuf.BoolValue x_stats_self_usage = 210;
 
+  // Whether to store system metrics as typed records in the transaction log.
+  // When off, they are stored as legacy stats records.
+  google.protobuf.BoolValue x_stats_typed = 212;
+
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
   // processes in a distributed training job.

@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -82,6 +83,10 @@ type SystemMonitor struct {
 
 	// Information about the Git repository, if applicable.
 	git *spb.GitRepoRecord
+
+	// writer is set on typed records, which are stored only when
+	// x_stats_typed is on.
+	writer *spb.WriterInfo
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -121,6 +126,10 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		samplingInterval: defaultSamplingInterval,
 		graphqlClient:    f.GraphqlClient,
 		writerID:         f.WriterID,
+	}
+
+	if sm.settings.IsStatsTyped() {
+		sm.writer = writerInfo(sm.writerID, sm.settings.GetLabel())
 	}
 
 	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
@@ -432,32 +441,44 @@ func (sm *SystemMonitor) Resume() {
 //
 // It may block until ctx is done.
 func (sm *SystemMonitor) publish(ctx context.Context, response *spb.SubscribeResponse) {
-	metrics := response.GetRecord().GetStats()
-	if len(metrics.GetItem()) == 0 {
+	legacy := systemmetrics.StatsRecord(response)
+	if len(legacy.GetItem()) == 0 {
 		return // nothing to do
 	}
 
 	// Push metrics to the in-memory buffer when enabled.
 	if sm.buffer != nil {
-		sm.buffer.Push(metrics)
+		sm.buffer.Push(legacy)
 	}
 
-	// Label for custom grouping of stats, e.g. per node in a multi-node run.
-	if label := sm.settings.GetLabel(); label != "" {
-		for _, item := range metrics.Item {
-			item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
+	var records []*spb.Record
+	if sample := response.GetSample(); sm.writer != nil && sample != nil {
+		sample.Writer = sm.writer
+		records = append(records, &spb.Record{
+			RecordType: &spb.Record_SystemMetrics{SystemMetrics: sample},
+		})
+		// Only the metrics symon does not send as typed fields yet.
+		legacy = response.GetRecord().GetStats()
+	}
+
+	if len(legacy.GetItem()) > 0 {
+		// Label for custom grouping of stats, e.g. per node in a multi-node run.
+		if label := sm.settings.GetLabel(); label != "" {
+			for _, item := range legacy.Item {
+				item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
+			}
 		}
+		records = append(records, &spb.Record{
+			RecordType: &spb.Record_Stats{Stats: legacy},
+		})
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Stats{
-			Stats: metrics,
-		},
+	for _, record := range records {
+		sm.extraWork.AddWorkOrCancel(
+			ctx.Done(),
+			runwork.NoRequest(runwork.WorkFromRecord(record)),
+		)
 	}
-	sm.extraWork.AddWorkOrCancel(
-		ctx.Done(),
-		runwork.NoRequest(runwork.WorkFromRecord(record)),
-	)
 }
 
 // GetBuffer returns the current buffer of collected metrics.
