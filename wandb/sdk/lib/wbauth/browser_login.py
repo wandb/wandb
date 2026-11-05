@@ -428,6 +428,12 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
+def _origin(url: str) -> str:
+    """Returns the scheme and host of a URL, without its path."""
+    parts = urllib.parse.urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
 def _authorize_url(
     host: HostUrl,
     *,
@@ -527,8 +533,9 @@ class _CallbackServer(http.server.HTTPServer):
         self.state = state
         self.exchange = exchange
         self.redirect_uri = f"http://127.0.0.1:{self.server_port}{_CALLBACK_PATH}"
-        self.success_url = f"{host.app_url}{_SUCCESS_PATH}"
-        self.cancelled_url = f"{host.app_url}{_CANCELLED_PATH}"
+        # These pages are served from the host's root, outside the app path.
+        self.success_url = f"{_origin(host.app_url)}{_SUCCESS_PATH}"
+        self.cancelled_url = f"{_origin(host.app_url)}{_CANCELLED_PATH}"
 
         # The tokens or the error, once the redirect has been handled.
         self.result: TokenSet | Exception | None = None
