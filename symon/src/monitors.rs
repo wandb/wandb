@@ -316,7 +316,7 @@ impl Collector for DcgmGpuMonitor {
             .get_metrics()
             .await?
             .into_iter()
-            .map(|(id, rate, value)| (metrics::Field::Nvidia("dcgm", id, rate).into(), value))
+            .map(|(id, rate, value)| (metrics::Field::Nvidia("dcgm", id, rate), value))
             .collect();
         Ok(Sample {
             averages,

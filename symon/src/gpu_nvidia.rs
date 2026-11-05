@@ -425,7 +425,7 @@ impl NvidiaGpu {
                     device.pcie_throughput(PcieUtilCounter::Receive),
                 ) {
                     (Ok(tx), Ok(rx)) => {
-                        let rate = |rate| Field::Nvidia(NVML, di, rate).into();
+                        let rate = |rate| Field::Nvidia(NVML, di, rate);
                         sample
                             .averages
                             .push((rate(NvidiaRate::PcieTx), tx as f64 * 1024.0));
@@ -461,7 +461,7 @@ impl NvidiaGpu {
                                         {
                                             if let Ok(m) = result {
                                                 sample.averages.push((
-                                                    Field::Nvidia(NVML, di, *rate).into(),
+                                                    Field::Nvidia(NVML, di, *rate),
                                                     m.value * scale,
                                                 ));
                                             }
