@@ -17,13 +17,10 @@ use prost_types::Timestamp;
 use tokio::sync::{Notify, mpsc};
 use tonic::Status;
 
-use crate::metrics::{Key, Sample, Scope};
+use crate::metrics::{Field, Sample, Scope};
 use crate::monitors::Collectors;
 use crate::record;
-use crate::wandb_internal::{
-    Record, StatsItem, StatsRecord, SubscribeRequest, SubscribeResponse, SystemMetricsRecord,
-    record::RecordType, stats_record::StatsType,
-};
+use crate::wandb_internal::{SubscribeRequest, SubscribeResponse, SystemMetricsRecord};
 
 /// Intervals are rounded to multiples of this.
 const GRANULARITY: Duration = Duration::from_millis(100);
@@ -52,7 +49,7 @@ struct Subscription {
     last_delivery: Option<Instant>,
     /// Weighted sum and total weight of each averaged reading since the
     /// last delivery.
-    sums: HashMap<Key, (f64, f64)>,
+    sums: HashMap<Field, (f64, f64)>,
     /// Samples dropped since the last one delivered.
     dropped: u32,
 }
@@ -76,7 +73,7 @@ enum BaselineKey {
 /// The first value of each counter a subscriber saw.
 #[derive(Default)]
 struct Baseline {
-    counters: HashMap<Key, f64>,
+    counters: HashMap<Field, f64>,
     /// When the subscriber's last stream closed, if it is not live.
     closed: Option<Instant>,
 }
@@ -229,7 +226,7 @@ impl Subscriptions {
             }
             sub.last_delivery = Some(at);
 
-            let mut values: Vec<(Key, f64)> = sub
+            let mut values: Vec<(Field, f64)> = sub
                 .sums
                 .drain()
                 .filter(|(_, (_, total))| *total > 0.0)
@@ -249,50 +246,17 @@ impl Subscriptions {
                 Some(readings) if !readings.pids.is_empty() => readings.pids.as_slice(),
                 _ => std::slice::from_ref(&sub.scope.pid),
             };
-            let (mut legacy, mut fields) = (Vec::new(), Vec::new());
-            for (key, value) in values {
-                match key {
-                    Key::Legacy(key) => legacy.push((key, value)),
-                    Key::Field(field) => fields.push((field, value)),
-                }
-            }
             let mut typed =
-                record::typed_record(sample, scoped, &fields, pids, &sub.gpu_device_ids);
-            let mut items = record::stats_items(sample, &legacy, pids, &sub.gpu_device_ids);
-            // A scope's own readings, such as its host metrics or the GPUs of
-            // a remote DCGM exporter, are not subject to the device filter.
-            for (key, value) in scoped.into_iter().flat_map(|readings| &readings.metrics) {
-                if let Ok(value_json) = serde_json::to_string(value) {
-                    items.push(StatsItem {
-                        key: key.clone(),
-                        value_json,
-                    });
-                }
-            }
-            let has_typed = typed != SystemMetricsRecord::default();
-            if items.is_empty() && !has_typed {
+                record::typed_record(sample, scoped, &values, pids, &sub.gpu_device_ids);
+            if typed == SystemMetricsRecord::default() {
                 continue;
             }
-
-            let timestamp = current_timestamp();
-            let record = (!items.is_empty()).then(|| Record {
-                record_type: Some(RecordType::Stats(StatsRecord {
-                    timestamp: Some(timestamp),
-                    stats_type: StatsType::System as i32,
-                    item: items,
-                    ..Default::default()
-                })),
-                ..Default::default()
-            });
-            let typed = has_typed.then(|| {
-                typed.timestamp = Some(timestamp);
-                typed.interval_ms = sub.interval.as_millis() as u32;
-                typed.dropped_samples = sub.dropped;
-                typed
-            });
+            typed.timestamp = Some(current_timestamp());
+            typed.interval_ms = sub.interval.as_millis() as u32;
+            typed.dropped_samples = sub.dropped;
             let response = SubscribeResponse {
-                record,
-                sample: typed,
+                record: None,
+                sample: Some(typed),
                 processes: if sub.scope.host_details {
                     sample.processes.clone()
                 } else {
@@ -383,13 +347,10 @@ mod tests {
         assert_eq!(tick(&[0.1, 15.0]), Duration::from_millis(100));
     }
 
-    /// The value of the one metric in the next queued sample.
-    fn next_value(rx: &mut Receiver) -> Option<String> {
-        let response = rx.try_recv().ok()?.ok()?;
-        let RecordType::Stats(stats) = response.record?.record_type? else {
-            return None;
-        };
-        Some(stats.item.into_iter().next()?.value_json)
+    /// The network bytes sent in the next queued sample.
+    fn next_value(rx: &mut Receiver) -> Option<u64> {
+        let sample = rx.try_recv().ok()?.ok()?.sample?;
+        sample.host?.network?.sent_bytes
     }
 
     #[test]
@@ -409,7 +370,7 @@ mod tests {
         let start = Instant::now();
         let deliver = |secs: u64, value: f64| {
             let sample = Sample {
-                averages: vec![("gpu.0.smActive".into(), value)],
+                averages: vec![(Field::NetworkSent, value)],
                 ..Default::default()
             };
             subscriptions.deliver(&sample, start + Duration::from_secs(secs), 1.0);
@@ -420,11 +381,11 @@ mod tests {
         deliver(15, 4.0);
         deliver(18, 5.0);
 
-        assert_eq!(next_value(&mut slow).as_deref(), Some("1.0"));
-        assert_eq!(next_value(&mut slow).as_deref(), Some("3.0"));
+        assert_eq!(next_value(&mut slow), Some(1));
+        assert_eq!(next_value(&mut slow), Some(3));
         assert_eq!(next_value(&mut slow), None);
-        for expected in ["1.0", "2.0", "3.0", "4.0"] {
-            assert_eq!(next_value(&mut fast).as_deref(), Some(expected));
+        for expected in [1, 2, 3, 4] {
+            assert_eq!(next_value(&mut fast), Some(expected));
         }
         assert_eq!(next_value(&mut fast), None);
     }
@@ -444,7 +405,7 @@ mod tests {
         let start = Instant::now();
         let deliver = |secs: u64, value: f64| {
             let sample = Sample {
-                counters: vec![("network.sent".into(), value)],
+                counters: vec![(Field::NetworkSent, value)],
                 ..Default::default()
             };
             subscriptions.deliver(&sample, start + Duration::from_secs(secs), 1.0);
@@ -453,12 +414,12 @@ mod tests {
         let mut first = subscribe();
         deliver(0, 100.0);
         deliver(1, 150.0);
-        assert_eq!(next_value(&mut first).as_deref(), Some("0.0"));
-        assert_eq!(next_value(&mut first).as_deref(), Some("50.0"));
+        assert_eq!(next_value(&mut first), Some(0));
+        assert_eq!(next_value(&mut first), Some(50));
 
         drop(first);
         let mut second = subscribe();
         deliver(2, 160.0);
-        assert_eq!(next_value(&mut second).as_deref(), Some("60.0"));
+        assert_eq!(next_value(&mut second), Some(60));
     }
 }

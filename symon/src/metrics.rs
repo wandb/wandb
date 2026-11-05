@@ -14,7 +14,6 @@ use crate::wandb_internal::{
 #[serde(untagged)] // This makes the enum serialize to just the inner value without the variant name
 pub enum MetricValue {
     Int(i64),
-    Float(f64),
     String(String),
 }
 
@@ -89,33 +88,6 @@ impl From<&SubscribeRequest> for Scope {
             neuron_monitor_config_path: request.neuron_monitor_config_path.clone(),
             host_details: request.host_details,
         }
-    }
-}
-
-/// A reading that a subscriber averages over its interval or counts from its
-/// first sample: a typed record field, or a legacy metric name for the
-/// collectors that do not fill the typed record yet.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Key {
-    Legacy(String),
-    Field(Field),
-}
-
-impl From<&str> for Key {
-    fn from(key: &str) -> Self {
-        Key::Legacy(key.to_string())
-    }
-}
-
-impl From<String> for Key {
-    fn from(key: String) -> Self {
-        Key::Legacy(key)
-    }
-}
-
-impl From<Field> for Key {
-    fn from(field: Field) -> Self {
-        Key::Field(field)
     }
 }
 
@@ -283,25 +255,23 @@ pub fn merge(record: &mut SystemMetricsRecord, other: &SystemMetricsRecord) {
 pub struct Readings {
     /// Point-in-time readings in the typed record.
     pub record: SystemMetricsRecord,
-    /// Point-in-time readings keyed by metric name.
-    pub metrics: Vec<(String, f64)>,
     /// Readings that describe the time since the previous sample.
-    pub averages: Vec<(Key, f64)>,
+    pub averages: Vec<(Field, f64)>,
     /// Counters that only grow. A subscriber receives their increase since
     /// its first sample.
-    pub counters: Vec<(Key, f64)>,
+    pub counters: Vec<(Field, f64)>,
     /// The monitored process and its descendants, whose use of a GPU is
     /// reported under `gpu.process.<i>.*`.
     pub pids: Vec<u32>,
 }
 
 impl Readings {
-    pub fn average(&mut self, key: impl Into<Key>, value: f64) {
-        self.averages.push((key.into(), value));
+    pub fn average(&mut self, field: Field, value: f64) {
+        self.averages.push((field, value));
     }
 
-    pub fn counter(&mut self, key: impl Into<Key>, value: f64) {
-        self.counters.push((key.into(), value));
+    pub fn counter(&mut self, field: Field, value: f64) {
+        self.counters.push((field, value));
     }
 }
 
@@ -311,17 +281,16 @@ pub struct Sample {
     /// Point-in-time readings in the typed record.
     pub record: SystemMetricsRecord,
 
-    /// Point-in-time readings keyed by metric name. Keys starting with `_`
-    /// are static facts used for metadata and are not reported as metrics.
+    /// Static facts used for metadata, keyed by names starting with `_`.
     pub metrics: Vec<(String, MetricValue)>,
 
     /// Readings that describe the time since the previous sample, such as
     /// GPM utilization. A subscriber receives their mean over its interval.
-    pub averages: Vec<(Key, f64)>,
+    pub averages: Vec<(Field, f64)>,
 
     /// Host-wide counters that only grow, such as bytes sent over the
     /// network. A subscriber receives their increase since its first sample.
-    pub counters: Vec<(Key, f64)>,
+    pub counters: Vec<(Field, f64)>,
 
     /// The host readings that depend on the subscriber, by scope.
     pub scoped: HashMap<Scope, Readings>,
@@ -345,7 +314,6 @@ impl Sample {
         for (scope, readings) in other.scoped {
             let mine = self.scoped.entry(scope).or_default();
             merge(&mut mine.record, &readings.record);
-            mine.metrics.extend(readings.metrics);
             mine.averages.extend(readings.averages);
             mine.counters.extend(readings.counters);
             mine.pids.extend(readings.pids);
