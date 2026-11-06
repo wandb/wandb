@@ -1402,7 +1402,7 @@ func (s *Sender) sendRequestUploadEvalTable(
 		return
 	}
 
-	if mediaPaths := msg.GetMediaPaths(); len(mediaPaths) > 0 {
+	if mediaPaths := msg.GetUploadMediaPaths(); len(mediaPaths) > 0 {
 		files := &spb.FilesRecord{}
 		for _, path := range mediaPaths {
 			files.Files = append(files.Files, &spb.FilesItem{

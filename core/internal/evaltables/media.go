@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"iter"
 	"strings"
 
 	ces "github.com/wandb/cwevals-go"
 
 	"github.com/wandb/wandb/core/internal/runbranch"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // mediaSchemaVersion is the schema version of the CES extension values
@@ -26,138 +24,9 @@ var mediaExtensionTypes = map[string]ces.EvalTableColumnNewParamsDatasetFieldsEx
 	"video-file": ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbVideo,
 }
 
-// mediaConverter converts the W&B media JSON in EvalTable rows to CES
-// extension values.
+// mediaConverter converts W&B media JSON to CES extension values.
 type mediaConverter struct {
 	runPath runbranch.RunPath
-
-	// mediaTypes maps each row part ("input" or "output") to the names of
-	// its media fields and their W&B media types.
-	mediaTypes map[string]map[string]string
-}
-
-func newMediaConverter(
-	fields []*spb.EvalTableField,
-	runPath runbranch.RunPath,
-) (*mediaConverter, error) {
-	mediaTypes := make(map[string]map[string]string)
-
-	for _, field := range fields {
-		mediaType := field.GetWandbMediaType()
-		if mediaType == "" {
-			continue
-		}
-
-		if _, ok := mediaExtensionTypes[mediaType]; !ok {
-			return nil, fmt.Errorf(
-				"evaltables: field %q has unknown media type %q",
-				field.GetName(), mediaType)
-		}
-
-		if mediaTypes[field.GetSource()] == nil {
-			mediaTypes[field.GetSource()] = make(map[string]string)
-		}
-		mediaTypes[field.GetSource()][field.GetName()] = mediaType
-	}
-
-	return &mediaConverter{runPath: runPath, mediaTypes: mediaTypes}, nil
-}
-
-// convertRows returns the JSON rows with their media converted.
-//
-// It stops after the first error.
-func (c *mediaConverter) convertRows(
-	rows iter.Seq2[[]byte, error],
-) iter.Seq2[[]byte, error] {
-	if len(c.mediaTypes) == 0 {
-		return rows
-	}
-
-	return func(yield func([]byte, error) bool) {
-		i := 0
-		for row, err := range rows {
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			converted, err := c.convertRow(row)
-			if err != nil {
-				yield(nil, fmt.Errorf("%v (row %d)", err, i))
-				return
-			}
-			if !yield(converted, nil) {
-				return
-			}
-			i++
-		}
-	}
-}
-
-// convertRow returns the JSON row with its media converted.
-//
-// It returns rows of tables without media as is. Other rows are re-encoded,
-// which keeps their non-media values' JSON but may reorder object keys.
-func (c *mediaConverter) convertRow(row []byte) ([]byte, error) {
-	if len(c.mediaTypes) == 0 {
-		return row, nil
-	}
-
-	var parts map[string]json.RawMessage
-	if err := json.Unmarshal(row, &parts); err != nil {
-		return nil, fmt.Errorf("evaltables: invalid row: %v", err)
-	}
-
-	for part, mediaTypes := range c.mediaTypes {
-		values, ok := parts[part]
-		if !ok || isJSONNull(values) {
-			continue
-		}
-
-		converted, err := c.convertValues(values, mediaTypes)
-		if err != nil {
-			return nil, err
-		}
-		parts[part] = converted
-	}
-
-	converted, err := marshalJSON(parts)
-	if err != nil {
-		return nil, fmt.Errorf("evaltables: failed to encode row: %v", err)
-	}
-	if len(rowBatchPrefix)+len(converted)+len(rowBatchSuffix) >= maxRequestBodyBytes {
-		return nil, fmt.Errorf(
-			"evaltables: row with converted media is %d bytes, must be under %d",
-			len(converted), maxRequestBodyBytes)
-	}
-
-	return converted, nil
-}
-
-// convertValues converts the media in a row's input or output object.
-func (c *mediaConverter) convertValues(
-	valuesJSON json.RawMessage,
-	mediaTypes map[string]string,
-) (json.RawMessage, error) {
-	var values map[string]json.RawMessage
-	if err := json.Unmarshal(valuesJSON, &values); err != nil {
-		return nil, fmt.Errorf("evaltables: invalid row: %v", err)
-	}
-
-	for name, mediaType := range mediaTypes {
-		value, ok := values[name]
-		if !ok || isJSONNull(value) {
-			continue
-		}
-
-		converted, err := c.convertMedia(value, mediaType)
-		if err != nil {
-			return nil, fmt.Errorf("evaltables: field %q: %v", name, err)
-		}
-		values[name] = converted
-	}
-
-	return marshalJSON(values)
 }
 
 // wandbMedia is the W&B media JSON of a value, as produced by its Python
@@ -349,10 +218,6 @@ func escapeURIComponent(s string) string {
 		}
 	}
 	return b.String()
-}
-
-func isJSONNull(value json.RawMessage) bool {
-	return bytes.Equal(bytes.TrimSpace(value), []byte("null"))
 }
 
 // marshalJSON encodes v without escaping HTML characters, which would only

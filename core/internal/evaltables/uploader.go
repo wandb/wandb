@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	ces "github.com/wandb/cwevals-go"
 	"github.com/wandb/cwevals-go/option"
@@ -104,16 +106,16 @@ func (u *Uploader) Upload(
 	}
 	runPath := upserter.RunPath()
 
-	media, err := newMediaConverter(request.GetDatasetFields(), runPath)
-	if err != nil {
-		return nil, err
-	}
-
 	columns := ces.EvalTableColumnNewParams{
 		DatasetFields: ces.F(datasetFieldParams(request.GetDatasetFields())),
 		Scorers:       ces.F(scorerParams(request.GetScorers())),
 	}
 	if err := validateColumns(&columns); err != nil {
+		return nil, err
+	}
+
+	encoder, err := newRowEncoder(request, runPath)
+	if err != nil {
 		return nil, err
 	}
 
@@ -146,10 +148,10 @@ func (u *Uploader) Upload(
 
 	// NewProgress only fails if the operation already has progress.
 	progress, _ := wboperation.Get(ctx).NewProgress()
-	totalRows := len(request.GetRowsJson())
+	totalRows := len(request.GetRows())
 	rowsDone := 0
 	batchIndex := 0
-	for batch, err := range rowBatches(media.convertRows(requestRows(request))) {
+	for batch, err := range rowBatches(encoder.encodeRows(requestRows(request))) {
 		if err != nil {
 			return nil, err
 		}
@@ -273,24 +275,34 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-// requestRows returns the request's JSON-encoded rows.
-func requestRows(request *spb.UploadEvalTableRequest) iter.Seq2[[]byte, error] {
+// requestRows returns the request's rows.
+func requestRows(
+	request *spb.UploadEvalTableRequest,
+) iter.Seq2[*spb.EvalTableRow, error] {
 	if path := request.GetRowsFilePath(); path != "" {
 		return rowsFromFile(path)
 	}
 
-	return func(yield func([]byte, error) bool) {
-		for _, row := range request.GetRowsJson() {
-			if !yield([]byte(row), nil) {
+	return func(yield func(*spb.EvalTableRow, error) bool) {
+		for _, row := range request.GetRows() {
+			if !yield(row, nil) {
 				return
 			}
 		}
 	}
 }
 
-// rowsFromFile returns the rows in a gzipped file with one row per line.
-func rowsFromFile(path string) iter.Seq2[[]byte, error] {
-	return func(yield func([]byte, error) bool) {
+// maxRowFileMessageBytes limits the size of a row in a rows file.
+//
+// A row's proto encoding can be larger than its CES JSON, such as for many
+// small numbers, so this allows rows well above CES's request limit and
+// leaves the exact check to rowEncoder.
+const maxRowFileMessageBytes = 4 * maxRequestBodyBytes
+
+// rowsFromFile returns the rows in a gzipped file of EvalTableRow messages,
+// each preceded by its size as a varint.
+func rowsFromFile(path string) iter.Seq2[*spb.EvalTableRow, error] {
+	return func(yield func(*spb.EvalTableRow, error) bool) {
 		file, err := os.Open(path)
 		if err != nil {
 			yield(nil, fmt.Errorf("evaltables: failed to read rows: %v", err))
@@ -305,25 +317,44 @@ func rowsFromFile(path string) iter.Seq2[[]byte, error] {
 		}
 		defer func() { _ = gzReader.Close() }()
 
-		// Not a bufio.Scanner, which limits line lengths.
 		reader := bufio.NewReader(gzReader)
 		for {
-			line, err := reader.ReadBytes('\n')
-			line = bytes.TrimSuffix(line, []byte{'\n'})
-
-			if len(line) > 0 && !yield(line, nil) {
-				return
-			}
-
+			row, err := readRow(reader)
 			switch {
 			case errors.Is(err, io.EOF):
 				return
 			case err != nil:
 				yield(nil, fmt.Errorf("evaltables: failed to read rows: %v", err))
 				return
+			case !yield(row, nil):
+				return
 			}
 		}
 	}
+}
+
+// readRow reads a varint-delimited EvalTableRow, or returns io.EOF at the
+// end of the file.
+func readRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
+	size, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil, err
+	}
+	if size > maxRowFileMessageBytes {
+		return nil, fmt.Errorf(
+			"row is %d bytes, must be at most %d", size, maxRowFileMessageBytes)
+	}
+
+	message := make([]byte, size)
+	if _, err := io.ReadFull(reader, message); err != nil {
+		return nil, fmt.Errorf("truncated row: %v", err)
+	}
+
+	row := &spb.EvalTableRow{}
+	if err := proto.Unmarshal(message, row); err != nil {
+		return nil, err
+	}
+	return row, nil
 }
 
 // validateColumns uses the CES SDK to check enum types

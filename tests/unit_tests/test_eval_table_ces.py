@@ -59,8 +59,72 @@ def _sent(deliver: MagicMock) -> list[pb.UploadEvalTableRequest]:
     return [call.args[0] for call in deliver.call_args_list]
 
 
+def _value(value: pb.EvalTableValue) -> Any:
+    """Decode a typed value, parsing W&B media JSON."""
+    kind = value.WhichOneof("value")
+    if kind is None:
+        return None
+    if kind == "bool_value":
+        return value.bool_value
+    if kind == "int_value":
+        return value.int_value
+    if kind == "number_value":
+        return value.number_value
+    if kind == "string_value":
+        return value.string_value
+    if kind == "json_value":
+        return json.loads(value.json_value)
+    return json.loads(value.wandb_media_json)
+
+
 def _rows(request: pb.UploadEvalTableRequest) -> list[dict[str, Any]]:
-    return [json.loads(row) for row in request.rows_json]
+    """Decode the request's typed rows into CES row objects."""
+    names = {
+        source: [
+            field.name for field in request.dataset_fields if field.source == source
+        ]
+        for source in ("input", "output")
+    }
+    scorer_names = [scorer.name for scorer in request.scorers]
+
+    rows = []
+    for row in request.rows:
+        decoded: dict[str, Any] = {}
+        for source in ("input", "output"):
+            values = row.input if source == "input" else row.output
+            decoded[source] = (
+                dict(zip(names[source], map(_value, values.values), strict=True))
+                if row.HasField(source)
+                else None
+            )
+        decoded["scores"] = dict(
+            zip(scorer_names, map(_value, row.scores), strict=True)
+        )
+        if row.example_key:
+            decoded["example_key"] = row.example_key
+        rows.append(decoded)
+    return rows
+
+
+def _read_rows_file(path: str) -> list[pb.EvalTableRow]:
+    """Read a gzipped file of rows, each preceded by its size as a varint."""
+    with gzip.open(path) as file:
+        data = file.read()
+
+    rows = []
+    position = 0
+    while position < len(data):
+        size = shift = 0
+        while True:
+            byte = data[position]
+            position += 1
+            size |= (byte & 0x7F) << shift
+            shift += 7
+            if byte < 0x80:
+                break
+        rows.append(pb.EvalTableRow.FromString(data[position : position + size]))
+        position += size
+    return rows
 
 
 def _as_dicts(messages: list[Message]) -> list[dict[str, Any]]:
@@ -145,10 +209,12 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_CHARS", 0)
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    # Long enough for a multi-byte size.
+    long = "c" * 200
     et = wandb.EvalTable(
         columns=["value"],
-        data=[["a\nb"], ["c"]],
+        data=[["a\nb"], [long]],
         output_columns=["value"],
         backend="ces",
     )
@@ -156,18 +222,17 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
     run.log({"eval": et})
 
     [request] = _sent(deliver_upload_eval_table)
-    assert not request.rows_json
-    with gzip.open(request.rows_file_path, mode="rt", encoding="utf-8") as file:
-        rows = [json.loads(line) for line in file]
+    assert not request.rows
+    request.rows.extend(_read_rows_file(request.rows_file_path))
     os.remove(request.rows_file_path)
-    assert rows == [
+    assert _rows(request) == [
         {
             "input": None,
             "output": {"value": "a\nb"},
             "scores": {},
             "example_key": "1",
         },
-        {"input": None, "output": {"value": "c"}, "scores": {}, "example_key": "2"},
+        {"input": None, "output": {"value": long}, "scores": {}, "example_key": "2"},
     ]
 
 
@@ -267,8 +332,8 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
     prepared = ces._CESWritePayloads(
         dataset_fields=[],
         scorers=[],
-        rows_json=[],
-        media_paths=[],
+        rows=[],
+        upload_media_paths=[],
         media_cells_examined=1,
         oversized_media_cells=oversized_media_cells,
         oversized_locations=(),
@@ -313,33 +378,6 @@ def test_ces_writer_validates_cells_during_construction():
         )
 
 
-def test_ces_eval_table_rejects_oversized_row_before_network(
-    deliver_upload_eval_table,
-    run,
-    monkeypatch,
-):
-    value = "large" * 100
-    row = {
-        "input": None,
-        "output": {"value": value},
-        "scores": {},
-        "example_key": "1",
-    }
-    body_size = len(ces._encode_json({"rows": [row]}))
-    monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
-    et = wandb.EvalTable(
-        columns=["value"],
-        data=[[value]],
-        output_columns=["value"],
-        backend="ces",
-    )
-
-    with pytest.raises(UsageError, match="row at index 0"):
-        run.log({"eval": et})
-
-    deliver_upload_eval_table.assert_not_called()
-
-
 def test_ces_eval_table_rejects_total_row_count_before_network(
     deliver_upload_eval_table,
     run,
@@ -376,6 +414,72 @@ def test_ces_eval_table_raises_upload_error(deliver_upload_eval_table, run):
         run.log({"eval": et})
 
     assert et._immutable_write_result is None
+
+
+def test_ces_eval_table_sends_values_as_typed_cells(
+    deliver_upload_eval_table,
+    run,
+):
+    et = wandb.EvalTable(
+        columns=["prompt", "passed", "count", "ratio", "note", "grade"],
+        data=[["a", True, 3, 0.5, None, 1], ["b", False, 4, 1.5, "x", 2.5]],
+        input_columns=["prompt"],
+        output_columns=["passed", "count", "ratio", "note"],
+        score_columns=["grade"],
+        backend="ces",
+    )
+
+    run.log({"typed_eval": et})
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert [
+        (
+            [value.WhichOneof("value") for value in row.input.values],
+            [value.WhichOneof("value") for value in row.output.values],
+            [value.WhichOneof("value") for value in row.scores],
+        )
+        for row in request.rows
+    ] == [
+        (
+            ["string_value"],
+            ["bool_value", "int_value", "number_value", None],
+            ["int_value"],
+        ),
+        (
+            ["string_value"],
+            ["bool_value", "int_value", "number_value", "string_value"],
+            ["number_value"],
+        ),
+    ]
+    assert _rows(request) == [
+        {
+            "input": {"prompt": "a"},
+            "output": {"passed": True, "count": 3, "ratio": 0.5, "note": None},
+            "scores": {"grade": 1},
+        },
+        {
+            "input": {"prompt": "b"},
+            "output": {"passed": False, "count": 4, "ratio": 1.5, "note": "x"},
+            "scores": {"grade": 2.5},
+        },
+    ]
+
+
+def test_ces_eval_table_rejects_integers_outside_int64(
+    deliver_upload_eval_table,
+    run,
+):
+    et = wandb.EvalTable(
+        columns=["count"],
+        data=[[2**63]],
+        output_columns=["count"],
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="outside the 64-bit range"):
+        run.log({"eval": et})
+
+    deliver_upload_eval_table.assert_not_called()
 
 
 def test_ces_eval_table_infers_python_and_numpy_integers(

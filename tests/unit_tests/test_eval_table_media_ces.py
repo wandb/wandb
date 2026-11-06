@@ -473,7 +473,7 @@ def test_external_reference_artifact_image_is_null_by_default(
         rows=_image_write_rows(image),
     )
 
-    assert json.loads(prepared.rows_json[0])["input"]["image"] is None
+    assert prepared.rows[0].input.values[0].WhichOneof("value") is None
     assert prepared.dataset_fields == [
         pb.EvalTableField(
             source="input",
@@ -515,7 +515,7 @@ def test_external_reference_audio_is_null_by_default(run_factory, monkeypatch):
         rows=_audio_write_rows(audio),
     )
 
-    assert json.loads(prepared.rows_json[0])["input"]["audio"] is None
+    assert prepared.rows[0].input.values[0].WhichOneof("value") is None
     assert prepared.dataset_fields == [
         pb.EvalTableField(
             source="input",
@@ -845,7 +845,7 @@ def test_external_reference_artifact_image_overlays_are_null_by_default(
         rows=_image_write_rows(image),
     )
 
-    assert json.loads(prepared.rows_json[0])["input"]["image"] is None
+    assert prepared.rows[0].input.values[0].WhichOneof("value") is None
     assert prepared.dataset_fields[0].wandb_media_type == "image-file"
     warning.assert_called_once()
 
@@ -900,9 +900,15 @@ _CORE_MEDIA_FIXTURE = (
 
 
 def _json_shape(value):
-    """Return the JSON value with each primitive replaced by its type name."""
+    """Return the JSON value with each primitive replaced by its type name.
+
+    W&B media JSON strings are replaced by the shape of their JSON.
+    """
     if isinstance(value, dict):
-        return {key: _json_shape(item) for key, item in value.items()}
+        return {
+            key: _json_shape(json.loads(item) if key == "wandb_media_json" else item)
+            for key, item in value.items()
+        }
     if isinstance(value, list):
         return [_json_shape(item) for item in value]
     return type(value).__name__
@@ -944,7 +950,9 @@ def test_eval_table_media_request_matches_core_fixture(
             MessageToDict(field, preserving_proto_field_name=True)
             for field in request.dataset_fields
         ],
-        "rows": [json.loads(row) for row in request.rows_json],
+        "rows": [
+            MessageToDict(row, preserving_proto_field_name=True) for row in request.rows
+        ],
     }
     if os.environ.get("WANDB_UPDATE_TEST_FIXTURES"):
         _CORE_MEDIA_FIXTURE.write_text(json.dumps(actual, indent=2) + "\n")
@@ -957,14 +965,18 @@ def test_eval_table_media_request_matches_core_fixture(
     assert _json_shape(actual["rows"]) == _json_shape(expected["rows"])
 
     # wandb-core uploads the media files instead of the run publishing them.
-    image = actual["rows"][0]["input"]["image"]
-    assert sorted(path.replace(os.sep, "/") for path in request.media_paths) == sorted(
+    image, _, audio, video = (
+        json.loads(value.wandb_media_json) for value in request.rows[0].input.values
+    )
+    assert sorted(
+        path.replace(os.sep, "/") for path in request.upload_media_paths
+    ) == sorted(
         [
             image["path"],
             image["boxes"]["predictions"]["path"],
             image["masks"]["predictions"]["path"],
-            actual["rows"][0]["input"]["audio"]["path"],
-            actual["rows"][0]["input"]["video"]["path"],
+            audio["path"],
+            video["path"],
         ]
     )
     run._publish_file.assert_not_called()
