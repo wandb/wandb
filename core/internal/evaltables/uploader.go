@@ -92,11 +92,6 @@ func (u *Uploader) Upload(
 	}
 	runPath := upserter.RunPath()
 
-	media, err := newMediaConverter(request.GetDatasetFields(), runPath)
-	if err != nil {
-		return nil, err
-	}
-
 	columns := ces.EvalTableColumnNewParams{
 		DatasetFields: ces.F(datasetFieldParams(request.GetDatasetFields())),
 		Scorers:       ces.F(scorerParams(request.GetScorers())),
@@ -105,7 +100,11 @@ func (u *Uploader) Upload(
 		return nil, err
 	}
 
-	rowsJSON, err := media.convertRows(request.GetRowsJson())
+	encoder, err := newRowEncoder(request, runPath)
+	if err != nil {
+		return nil, err
+	}
+	rowsJSON, err := encoder.encodeRows(request.GetRows())
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +301,7 @@ type rowBatch struct {
 //
 // Each body has at most maxRowsPerBatch rows and is at most
 // targetRowBatchBytes, unless it has a single larger row.
-func rowBatches(rowsJSON []string) []rowBatch {
+func rowBatches(rowsJSON [][]byte) []rowBatch {
 	var batches []rowBatch
 	var body bytes.Buffer
 	nrows := 0
@@ -329,7 +328,7 @@ func rowBatches(rowsJSON []string) []rowBatch {
 		} else {
 			body.WriteByte(',')
 		}
-		body.WriteString(row)
+		body.Write(row)
 		nrows++
 	}
 

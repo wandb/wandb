@@ -2694,20 +2694,72 @@ pub struct UploadEvalTableRequest {
     pub dataset_fields: ::prost::alloc::vec::Vec<EvalTableField>,
     #[prost(message, repeated, tag = "3")]
     pub scorers: ::prost::alloc::vec::Vec<EvalTableScorer>,
-    /// The table's rows in order, each a JSON object of the form
-    /// {"input": {...} | null, "output": {...} | null, "scores": {...}}.
-    ///
-    /// Values already normalized for CES: every value matches its column's
-    /// declared type, except that media cells hold W&B media JSON with a `path`
-    /// in the run's files directory or an `artifact_path`.
-    #[prost(string, repeated, tag = "4")]
-    pub rows_json: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The table's rows in order.
+    #[prost(message, repeated, tag = "4")]
+    pub rows: ::prost::alloc::vec::Vec<EvalTableRow>,
     /// Run files referenced by the table's media cells, relative to the run's
     /// files directory, for wandb-core to upload.
     #[prost(string, repeated, tag = "6")]
-    pub media_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    pub upload_media_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EvalTableRow {
+    /// Values of the "input" dataset fields, in their order in dataset_fields.
+    /// Unset if the row has no inputs.
+    #[prost(message, optional, tag = "1")]
+    pub input: ::core::option::Option<EvalTableRowValues>,
+    /// Values of the "output" dataset fields, in their order in dataset_fields.
+    /// Unset if the row has no outputs.
+    #[prost(message, optional, tag = "2")]
+    pub output: ::core::option::Option<EvalTableRowValues>,
+    /// Values of the scorers, in their order in scorers.
+    #[prost(message, repeated, tag = "3")]
+    pub scores: ::prost::alloc::vec::Vec<EvalTableValue>,
+    /// Identifies a row without inputs. CES derives the key of other rows
+    /// from their inputs.
+    #[prost(string, tag = "4")]
+    pub example_key: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EvalTableRowValues {
+    #[prost(message, repeated, tag = "1")]
+    pub values: ::prost::alloc::vec::Vec<EvalTableValue>,
+}
+/// A cell's value, which must match its column's declared type.
+/// An unset value is null.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EvalTableValue {
+    #[prost(oneof = "eval_table_value::Value", tags = "1, 2, 3, 4, 5, 6")]
+    pub value: ::core::option::Option<eval_table_value::Value>,
+}
+/// Nested message and enum types in `EvalTableValue`.
+pub mod eval_table_value {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bool, tag = "1")]
+        BoolValue(bool),
+        #[prost(int64, tag = "2")]
+        IntValue(i64),
+        #[prost(double, tag = "3")]
+        NumberValue(f64),
+        #[prost(string, tag = "4")]
+        StringValue(::prost::alloc::string::String),
+        /// An encoded JSON value, for "json" columns.
+        #[prost(string, tag = "5")]
+        JsonValue(::prost::alloc::string::String),
+        /// W&B media JSON, as produced by the media's `to_json`, with a `path`
+        /// in the run's files directory or an `artifact_path`. Only for columns
+        /// with a wandb_media_type. wandb-core converts it to a CES extension
+        /// value.
+        #[prost(string, tag = "6")]
+        WandbMediaJson(::prost::alloc::string::String),
+    }
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

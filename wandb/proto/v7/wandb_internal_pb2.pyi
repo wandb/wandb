@@ -1535,20 +1535,54 @@ class LogArtifactResponse(_message.Message):
     def __init__(self, artifact_id: _Optional[str] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class UploadEvalTableRequest(_message.Message):
-    __slots__ = ("name", "dataset_fields", "scorers", "rows_json", "media_paths", "_info")
+    __slots__ = ("name", "dataset_fields", "scorers", "rows", "upload_media_paths", "_info")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DATASET_FIELDS_FIELD_NUMBER: _ClassVar[int]
     SCORERS_FIELD_NUMBER: _ClassVar[int]
-    ROWS_JSON_FIELD_NUMBER: _ClassVar[int]
-    MEDIA_PATHS_FIELD_NUMBER: _ClassVar[int]
+    ROWS_FIELD_NUMBER: _ClassVar[int]
+    UPLOAD_MEDIA_PATHS_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     name: str
     dataset_fields: _containers.RepeatedCompositeFieldContainer[EvalTableField]
     scorers: _containers.RepeatedCompositeFieldContainer[EvalTableScorer]
-    rows_json: _containers.RepeatedScalarFieldContainer[str]
-    media_paths: _containers.RepeatedScalarFieldContainer[str]
+    rows: _containers.RepeatedCompositeFieldContainer[EvalTableRow]
+    upload_media_paths: _containers.RepeatedScalarFieldContainer[str]
     _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, name: _Optional[str] = ..., dataset_fields: _Optional[_Iterable[_Union[EvalTableField, _Mapping]]] = ..., scorers: _Optional[_Iterable[_Union[EvalTableScorer, _Mapping]]] = ..., rows_json: _Optional[_Iterable[str]] = ..., media_paths: _Optional[_Iterable[str]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., dataset_fields: _Optional[_Iterable[_Union[EvalTableField, _Mapping]]] = ..., scorers: _Optional[_Iterable[_Union[EvalTableScorer, _Mapping]]] = ..., rows: _Optional[_Iterable[_Union[EvalTableRow, _Mapping]]] = ..., upload_media_paths: _Optional[_Iterable[str]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+
+class EvalTableRow(_message.Message):
+    __slots__ = ("input", "output", "scores", "example_key")
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    SCORES_FIELD_NUMBER: _ClassVar[int]
+    EXAMPLE_KEY_FIELD_NUMBER: _ClassVar[int]
+    input: EvalTableRowValues
+    output: EvalTableRowValues
+    scores: _containers.RepeatedCompositeFieldContainer[EvalTableValue]
+    example_key: str
+    def __init__(self, input: _Optional[_Union[EvalTableRowValues, _Mapping]] = ..., output: _Optional[_Union[EvalTableRowValues, _Mapping]] = ..., scores: _Optional[_Iterable[_Union[EvalTableValue, _Mapping]]] = ..., example_key: _Optional[str] = ...) -> None: ...
+
+class EvalTableRowValues(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[EvalTableValue]
+    def __init__(self, values: _Optional[_Iterable[_Union[EvalTableValue, _Mapping]]] = ...) -> None: ...
+
+class EvalTableValue(_message.Message):
+    __slots__ = ("bool_value", "int_value", "number_value", "string_value", "json_value", "wandb_media_json")
+    BOOL_VALUE_FIELD_NUMBER: _ClassVar[int]
+    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
+    NUMBER_VALUE_FIELD_NUMBER: _ClassVar[int]
+    STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
+    JSON_VALUE_FIELD_NUMBER: _ClassVar[int]
+    WANDB_MEDIA_JSON_FIELD_NUMBER: _ClassVar[int]
+    bool_value: bool
+    int_value: int
+    number_value: float
+    string_value: str
+    json_value: str
+    wandb_media_json: str
+    def __init__(self, bool_value: _Optional[bool] = ..., int_value: _Optional[int] = ..., number_value: _Optional[float] = ..., string_value: _Optional[str] = ..., json_value: _Optional[str] = ..., wandb_media_json: _Optional[str] = ...) -> None: ...
 
 class EvalTableField(_message.Message):
     __slots__ = ("source", "name", "value_type", "wandb_media_type")
