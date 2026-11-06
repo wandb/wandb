@@ -27,9 +27,6 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Server request-body limit.
-_MAX_REQUEST_BODY_BYTES = 16 << 20
-_MAX_REQUEST_BODY_SIZE = "16 MiB"
 # Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
@@ -39,6 +36,9 @@ _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
 _MAX_OVERSIZED_MEDIA_LOCATIONS = 5
+# EvalTableValue.int_value is an int64.
+_MIN_INT64 = -(2**63)
+_MAX_INT64 = 2**63 - 1
 
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 _CESFieldSource = Literal["input", "output"]
@@ -80,15 +80,11 @@ class _BoundRun:
 class _CESWritePayloads:
     dataset_fields: list[pb.EvalTableField]
     scorers: list[pb.EvalTableScorer]
-    rows_json: list[str]
-    media_paths: list[str]
+    rows: list[pb.EvalTableRow]
+    upload_media_paths: list[str]
     media_cells_examined: int
     oversized_media_cells: int
     oversized_locations: tuple[str, ...]
-
-
-# Bytes in a row-add body other than encoded rows and their separating commas.
-_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
 
 
 def _ces_row(
@@ -113,21 +109,58 @@ def _ces_row(
     }
 
 
-def _encode_rows(rows: Sequence[_CESRow]) -> list[str]:
-    """Encode rows as JSON, rejecting any too large to upload alone."""
-    rows_json: list[str] = []
+def _encode_rows(
+    rows: Sequence[_CESRow],
+    *,
+    dataset_fields: Sequence[pb.EvalTableField],
+    scorers: Sequence[pb.EvalTableScorer],
+) -> list[pb.EvalTableRow]:
+    """Encode normalized rows with their values in their columns' order."""
+    input_names = [field.name for field in dataset_fields if field.source == "input"]
+    output_names = [field.name for field in dataset_fields if field.source == "output"]
+    scorer_names = [scorer.name for scorer in scorers]
 
-    for row_index, row in enumerate(rows):
-        row_json = _encode_json(row)
-        if _ROW_BATCH_ENVELOPE_BYTES + len(row_json) >= _MAX_REQUEST_BODY_BYTES:
-            raise UsageError(
-                "CES EvalTable rows payload contains a row at index "
-                f"{row_index} whose encoded request must be smaller than "
-                f"{_MAX_REQUEST_BODY_SIZE}."
+    encoded: list[pb.EvalTableRow] = []
+    for row in rows:
+        encoded_row = pb.EvalTableRow(
+            scores=_encode_values(row["scores"], scorer_names),
+            example_key=row.get("example_key", ""),
+        )
+        if (inputs := row["input"]) is not None:
+            encoded_row.input.CopyFrom(
+                pb.EvalTableRowValues(values=_encode_values(inputs, input_names))
             )
-        rows_json.append(row_json.decode())
+        if (output := row["output"]) is not None:
+            encoded_row.output.CopyFrom(
+                pb.EvalTableRowValues(values=_encode_values(output, output_names))
+            )
+        encoded.append(encoded_row)
 
-    return rows_json
+    return encoded
+
+
+def _encode_values(
+    values: Mapping[str, Any],
+    names: Sequence[str],
+) -> list[pb.EvalTableValue]:
+    """Encode a row's values for the named columns, null where missing."""
+    return [_encode_value(values.get(name)) for name in names]
+
+
+def _encode_value(value: Any) -> pb.EvalTableValue:
+    """Encode a normalized cell value."""
+    if value is None:
+        return pb.EvalTableValue()
+    if isinstance(value, bool):
+        return pb.EvalTableValue(bool_value=value)
+    if isinstance(value, int):
+        return pb.EvalTableValue(int_value=value)
+    if isinstance(value, float):
+        return pb.EvalTableValue(number_value=value)
+    if isinstance(value, str):
+        return pb.EvalTableValue(string_value=value)
+    # Normalization leaves only primitives and media, as W&B media JSON.
+    return pb.EvalTableValue(wandb_media_json=_encode_json(value).decode())
 
 
 def _upload_eval_table(
@@ -204,8 +237,8 @@ class CESWriter:
                 name=name,
                 dataset_fields=write_payloads.dataset_fields,
                 scorers=write_payloads.scorers,
-                rows_json=write_payloads.rows_json,
-                media_paths=write_payloads.media_paths,
+                rows=write_payloads.rows,
+                upload_media_paths=write_payloads.upload_media_paths,
             ),
         )
 
@@ -264,7 +297,7 @@ class CESWriter:
         media_cells_examined = 0
         oversized_media_cells = 0
         oversized_locations: list[str] = []
-        media_paths: list[str] = []
+        upload_media_paths: list[str] = []
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
@@ -277,7 +310,7 @@ class CESWriter:
                     bound_run=bound_run,
                     row_index=row_index,
                     oversized_locations=oversized_locations,
-                    media_paths=media_paths,
+                    upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
             )
@@ -294,7 +327,7 @@ class CESWriter:
                         bound_run=bound_run,
                         row_index=row_index,
                         oversized_locations=oversized_locations,
-                        media_paths=media_paths,
+                        upload_media_paths=upload_media_paths,
                         class_label_accumulator=class_label_accumulator,
                     )
                 )
@@ -349,14 +382,17 @@ class CESWriter:
             pb.EvalTableScorer(name=column_name, value_type=scorer_types[column_name])
             for column_name in scorer_order
         ]
-        # Encode rows first so row size errors precede config updates and requests.
-        rows_json = _encode_rows(normalized_rows)
+        encoded_rows = _encode_rows(
+            normalized_rows,
+            dataset_fields=dataset_fields,
+            scorers=scorers,
+        )
         class_label_accumulator.flush(bound_run.run)
         return _CESWritePayloads(
             dataset_fields=dataset_fields,
             scorers=scorers,
-            rows_json=rows_json,
-            media_paths=media_paths,
+            rows=encoded_rows,
+            upload_media_paths=upload_media_paths,
             media_cells_examined=media_cells_examined,
             oversized_media_cells=oversized_media_cells,
             oversized_locations=tuple(oversized_locations),
@@ -372,7 +408,7 @@ class CESWriter:
         bound_run: _BoundRun,
         row_index: int,
         oversized_locations: list[str],
-        media_paths: list[str],
+        upload_media_paths: list[str],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[dict[str, Any], int, int]:
         """Normalize one input/output mapping and accumulate its inferred types."""
@@ -396,7 +432,7 @@ class CESWriter:
                     bound_run,
                     source=source,
                     column_name=name,
-                    media_paths=media_paths,
+                    upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
                 if oversized_size is not None:
@@ -454,12 +490,13 @@ class CESWriter:
         *,
         source: _CESFieldSource,
         column_name: str,
-        media_paths: list[str],
+        upload_media_paths: list[str],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return W&B media JSON, its field type, and oversized byte count.
 
-        Adds files newly placed in the run's files directory to `media_paths`.
+        Adds files newly placed in the run's files directory to
+        `upload_media_paths`.
         """
         try:
             media_cell = _media_ces.prepare_media(
@@ -484,7 +521,7 @@ class CESWriter:
                 ),
                 None,
             )
-        media_paths.extend(media_cell.new_run_files)
+        upload_media_paths.extend(media_cell.new_run_files)
         field_type = _CESFieldType(value_type="json", media_type=media_cell.media_type)
         oversized_size = media_cell.encoded_size if media_cell.oversized else None
         return media_cell.value, field_type, oversized_size
@@ -504,7 +541,13 @@ class CESWriter:
         if isinstance(value, bool) or (np is not None and isinstance(value, np.bool_)):
             return bool(value), "boolean"
         if isinstance(value, int) or (np is not None and isinstance(value, np.integer)):
-            return int(value), "integer"
+            normalized = int(value)
+            if not _MIN_INT64 <= normalized <= _MAX_INT64:
+                raise UsageError(
+                    f"CES EvalTable column {column!r} contains an integer outside "
+                    "the 64-bit range."
+                )
+            return normalized, "integer"
         if isinstance(value, float) or (
             np is not None and isinstance(value, np.floating)
         ):

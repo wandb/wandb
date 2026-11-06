@@ -490,7 +490,7 @@ def _box_class_labels(
 
 
 def _encode_json(value: Any) -> bytes:
-    """Encode JSON for CES rows, which wandb-core sends as is."""
+    """Encode JSON compactly, as sent to wandb-core for media cells."""
     return json.dumps(
         value,
         allow_nan=False,
