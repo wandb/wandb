@@ -73,6 +73,10 @@ message ApiErrorResponse {
   // from an HTTP response. 0 if the failure had no HTTP status (transport
   // error, GraphQL `errors` without an associated HTTP error, etc.).
   int32 http_status = 3;
+
+  // The `extensions.code` of the first GraphQL error that has one, e.g.
+  // "REGISTRY_NOT_FOUND". Empty if the server sent no code.
+  string graphql_error_code = 4;
 }
 
 enum ErrorType {
