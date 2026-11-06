@@ -169,7 +169,8 @@ def _registry_not_found_message(project: str, org_info: OrgInfo, app_url: str) -
     return (
         f"Registry {name!r} not found in organization {org_name!r}. "
         f"To create it, use wandb.Api().create_registry(name={name!r}, "
-        f'visibility="organization") or visit {registry_url}'
+        f'visibility="organization", organization={org_name!r}) '
+        f"or visit {registry_url}"
     )
 
 

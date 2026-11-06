@@ -59,7 +59,7 @@ def test_link_to_missing_registry_raises_actionable_error(
     assert str(exc_info.value) == (
         "Registry 'my-registry' not found in organization 'my-org'. "
         "To create it, use wandb.Api().create_registry(name='my-registry', "
-        'visibility="organization") or visit '
+        "visibility=\"organization\", organization='my-org') or visit "
         "https://app.example.com/orgs/my-org/registry"
     )
     assert exc_info.value.__cause__ is error
