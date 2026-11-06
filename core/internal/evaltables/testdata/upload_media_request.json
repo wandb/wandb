@@ -28,60 +28,21 @@
   "rows": [
     {
       "input": {
-        "image": {
-          "caption": "a cat",
-          "_type": "image-file",
-          "sha256": "3ac156facd9194daa57d0520cf7fae827b390b32e2a88aa63a6d2562e3d5321f",
-          "size": 75,
-          "path": "media/eval_tables/images/eval/3ac156facd9194daa57d0520cf7fae.png",
-          "format": "png",
-          "width": 2,
-          "height": 2,
-          "boxes": {
-            "predictions": {
-              "_type": "boxes2D",
-              "sha256": "ad1d2145f99572ff3c3a4fea99839c7ad570ad5359231e6e060d75caa250405f",
-              "size": 113,
-              "path": "media/eval_tables/metadata/boxes2D/eval/ad1d2145f99572ff3c3a4fea99839c.boxes2D.json"
-            }
+        "values": [
+          {
+            "wandb_media_json": "{\"caption\":\"a cat\",\"_type\":\"image-file\",\"sha256\":\"3ac156facd9194daa57d0520cf7fae827b390b32e2a88aa63a6d2562e3d5321f\",\"size\":75,\"path\":\"media/eval_tables/images/eval/3ac156facd9194daa57d0520cf7fae.png\",\"format\":\"png\",\"width\":2,\"height\":2,\"boxes\":{\"predictions\":{\"_type\":\"boxes2D\",\"sha256\":\"ad1d2145f99572ff3c3a4fea99839c7ad570ad5359231e6e060d75caa250405f\",\"size\":113,\"path\":\"media/eval_tables/metadata/boxes2D/eval/ad1d2145f99572ff3c3a4fea99839c.boxes2D.json\"}},\"masks\":{\"predictions\":{\"_type\":\"mask\",\"sha256\":\"dd7b89993bde2e6c52ea00d533d1f09ac602d218251b7405d291fddc0b60cddf\",\"size\":68,\"path\":\"media/eval_tables/images/mask/eval/dd7b89993bde2e6c52ea00d533d1f0.mask.png\"}}}"
           },
-          "masks": {
-            "predictions": {
-              "_type": "mask",
-              "sha256": "dd7b89993bde2e6c52ea00d533d1f09ac602d218251b7405d291fddc0b60cddf",
-              "size": 68,
-              "path": "media/eval_tables/images/mask/eval/dd7b89993bde2e6c52ea00d533d1f0.mask.png"
-            }
+          {
+            "wandb_media_json": "{\"_type\":\"image-file\",\"sha256\":\"2f1686c393cd8b93b2b3d9ca90a271a87672a28dccb22d5688cd56561d34bdc5\",\"size\":75,\"artifact_path\":\"wandb-artifact://abc123/media/images/artifact.png\",\"format\":\"png\",\"width\":2,\"height\":2}"
+          },
+          {
+            "wandb_media_json": "{\"caption\":\"meow\",\"_type\":\"audio-file\",\"sha256\":\"6583eae4b42ae05c5bea5d55837c8613de7898fc6ce0712ed26b961d6392f306\",\"size\":14,\"path\":\"media/eval_tables/audio/eval/6583eae4b42ae05c5bea5d55837c86.wav\"}"
+          },
+          {
+            "wandb_media_json": "{\"caption\":\"a clip\",\"_type\":\"video-file\",\"sha256\":\"eb09cef0044f4d991fd75715493d7cb01fde6dcb5896fa3e6fc09ce25a4e841a\",\"size\":14,\"path\":\"media/eval_tables/videos/eval/eb09cef0044f4d991fd75715493d7c.mp4\",\"width\":640,\"height\":480}"
           }
-        },
-        "artifact_image": {
-          "_type": "image-file",
-          "sha256": "2f1686c393cd8b93b2b3d9ca90a271a87672a28dccb22d5688cd56561d34bdc5",
-          "size": 75,
-          "artifact_path": "wandb-artifact://abc123/media/images/artifact.png",
-          "format": "png",
-          "width": 2,
-          "height": 2
-        },
-        "audio": {
-          "caption": "meow",
-          "_type": "audio-file",
-          "sha256": "6583eae4b42ae05c5bea5d55837c8613de7898fc6ce0712ed26b961d6392f306",
-          "size": 14,
-          "path": "media/eval_tables/audio/eval/6583eae4b42ae05c5bea5d55837c86.wav"
-        },
-        "video": {
-          "caption": "a clip",
-          "_type": "video-file",
-          "sha256": "eb09cef0044f4d991fd75715493d7cb01fde6dcb5896fa3e6fc09ce25a4e841a",
-          "size": 14,
-          "path": "media/eval_tables/videos/eval/eb09cef0044f4d991fd75715493d7c.mp4",
-          "width": 640,
-          "height": 480
-        }
-      },
-      "output": null,
-      "scores": {}
+        ]
+      }
     }
   ]
 }

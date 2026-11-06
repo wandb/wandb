@@ -1301,19 +1301,55 @@ message UploadEvalTableRequest {
   repeated EvalTableField dataset_fields = 2;
   repeated EvalTableScorer scorers = 3;
 
-  // The table's rows in order, each a JSON object of the form
-  // {"input": {...} | null, "output": {...} | null, "scores": {...}}.
-  //
-  // Values already normalized for CES: every value matches its column's
-  // declared type, except that media cells hold W&B media JSON with a `path`
-  // in the run's files directory or an `artifact_path`.
-  repeated string rows_json = 4;
+  // The table's rows in order.
+  repeated EvalTableRow rows = 4;
 
   // Run files referenced by the table's media cells, relative to the run's
   // files directory, for wandb-core to upload.
-  repeated string media_paths = 6;
+  repeated string upload_media_paths = 6;
 
   _RequestInfo _info = 200;
+}
+
+message EvalTableRow {
+  // Values of the "input" dataset fields, in their order in dataset_fields.
+  // Unset if the row has no inputs.
+  EvalTableRowValues input = 1;
+
+  // Values of the "output" dataset fields, in their order in dataset_fields.
+  // Unset if the row has no outputs.
+  EvalTableRowValues output = 2;
+
+  // Values of the scorers, in their order in scorers.
+  repeated EvalTableValue scores = 3;
+
+  // Identifies a row without inputs. CES derives the key of other rows
+  // from their inputs.
+  string example_key = 4;
+}
+
+message EvalTableRowValues {
+  repeated EvalTableValue values = 1;
+}
+
+// A cell's value, which must match its column's declared type.
+// An unset value is null.
+message EvalTableValue {
+  oneof value {
+    bool bool_value = 1;
+    int64 int_value = 2;
+    double number_value = 3;
+    string string_value = 4;
+
+    // An encoded JSON value, for "json" columns.
+    string json_value = 5;
+
+    // W&B media JSON, as produced by the media's `to_json`, with a `path`
+    // in the run's files directory or an `artifact_path`. Only for columns
+    // with a wandb_media_type. wandb-core converts it to a CES extension
+    // value.
+    string wandb_media_json = 6;
+  }
 }
 
 message EvalTableField {
