@@ -160,16 +160,15 @@ def test_create_automation(
 def test_create_existing_automation_raises_by_default_if_existing(
     module_api: wandb.Api,
     team: Team,
-    event,
-    action,
+    automation_input,
     automation_name: str,
 ):
     created = module_api.create_automation(
-        (event >> action),
+        automation_input,
         name=automation_name,
     )
     with raises(CommError):
-        module_api.create_automation((event >> action), name=created.name)
+        module_api.create_automation(automation_input, name=created.name)
 
     # Fetching the automation by name should return the original automation, unchanged.
     fetched = module_api.automation(entity=team.name, name=created.name)
@@ -180,19 +179,18 @@ def test_create_existing_automation_raises_by_default_if_existing(
 def test_create_existing_automation_fetches_existing_if_requested(
     module_api: wandb.Api,
     team: Team,
-    event,
-    action,
+    automation_input,
     automation_name: str,
 ):
     created = module_api.create_automation(
-        (event >> action),
+        automation_input,
         name=automation_name,
     )
 
     # Since we request the prior automation if it exists, any extra values
     # that would normally be set on the created object will be ignored.
     existing = module_api.create_automation(
-        (event >> action),
+        automation_input,
         name=created.name,
         description="ignored description",
         fetch_existing=True,
@@ -442,17 +440,22 @@ def test_create_automation_for_run_metric_zscore_event(
 
 
 @fixture
+def automation_input(project: Project):
+    """A representative rule for lifecycle behavior independent of its payload."""
+    return OnLinkArtifact(scope=project) >> DoNothing()
+
+
+@fixture
 def created_automation(
     module_api: wandb.Api,
     team: Team,
     reset_automations,
-    event,
-    action,
+    automation_input,
     automation_name: str,
 ) -> Automation:
     """An already-created automation that we can use for testing."""
     created = module_api.create_automation(
-        (event >> action),
+        automation_input,
         name=automation_name,
     )
 
@@ -961,41 +964,32 @@ class TestPaginatedAutomations:
             # Retain the automation ID for later cleanup.
             created_automation_ids.append(created.id)
 
-        yield
+        yield list(created_automation_ids)
 
         # This particular fixture is deliberately class-scoped, but clean up the automations for good measure
         cleanup_api = make_module_api()
         for id_ in created_automation_ids:
             cleanup_api.delete_automation(id_)
 
-    @mark.usefixtures(setup_paginated_automations.__name__)
     def test_paginated_automations(
         self,
-        mocker,
         module_api: wandb.Api,
         team: Team,
-        num_projects,
         page_size,
+        setup_paginated_automations,
     ):
-        # Spy on the service method that makes the GQL request.
-        client_spy = mocker.spy(module_api._service_api, "execute_graphql")
+        ids = [
+            a.id for a in module_api.automations(entity=team.name, per_page=page_size)
+        ]
+        assert len(ids) == len(set(ids))
+        assert set(ids) == set(setup_paginated_automations)
 
-        # Fetch the automations
-        list(module_api.automations(entity=team.name, per_page=page_size))
-
-        # Check that the number of GQL requests is at least what we expect from the pagination params
-        # Note that a (cached) introspection query may add an extra request the first time this is
-        # called.
-        expected_page_count = math.ceil(num_projects / page_size)
-
-        assert client_spy.call_count >= expected_page_count
-
-    @mark.usefixtures(setup_paginated_automations.__name__)
     def test_paginated_automations_start(
         self,
         module_api: wandb.Api,
         team: Team,
         page_size: int,
+        setup_paginated_automations,
     ):
         all_automations = list(
             module_api.automations(entity=team.name, per_page=page_size)
@@ -1014,3 +1008,5 @@ class TestPaginatedAutomations:
         remaining_ids = [a.id for a in resumed_paginator]
 
         assert all_ids == [*first_ids, *remaining_ids]
+        assert len(all_ids) == len(set(all_ids))
+        assert set(all_ids) == set(setup_paginated_automations)

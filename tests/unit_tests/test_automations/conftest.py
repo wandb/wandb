@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import secrets
-from functools import cache
 from typing import TypeAlias
 from unittest.mock import Mock
 
@@ -33,7 +32,6 @@ from wandb.automations import (
     SendPromptToAria,
     SendWebhook,
 )
-from wandb.automations._inputs import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import (
     InputAction,
     SavedAction,
@@ -45,6 +43,13 @@ from wandb.automations.actions import (
 from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment, RegistryFragment
+
+from ._cases import (
+    invalid_events_and_scopes,
+    valid_input_actions,
+    valid_input_events,
+    valid_scopes,
+)
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
@@ -230,34 +235,6 @@ def org(mock_client: Mock) -> Organization:
             },
         },
     )
-
-
-# Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
-def valid_scopes() -> list[ScopeType]:
-    # return sorted(set(ScopeType))  # TODO: restore once ENTITY scope is supported
-    return sorted(set(ScopeType) - {ScopeType.ENTITY})
-
-
-def valid_input_events() -> list[EventType]:
-    return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
-
-
-def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
-
-
-# Invalid (event, scope) combinations that should be skipped
-@cache
-def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
-    return {
-        (EventType.CREATE_ARTIFACT, ScopeType.ENTITY),
-        (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
-        (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
-        (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
-        (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
-        (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
-        (EventType.SANDBOX_STATE, ScopeType.ARTIFACT_COLLECTION),
-    }
 
 
 @fixture(params=valid_scopes(), ids=lambda x: f"scope={x.value}")
