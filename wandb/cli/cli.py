@@ -251,7 +251,9 @@ def projects(entity, display=True):
     """List projects for the current entity."""
     api = wandb.Api()
     entity = entity or api.settings["entity"] or api.default_entity
-    projects = api.projects(entity)
+    # `Api.projects()` returns a lazy paginator that is not sized.
+    # Materialize it once so both the emptiness check and the listing work.
+    projects = list(api.projects(entity))
     if len(projects) == 0:
         message = f"No projects found for {entity}"
     else:
