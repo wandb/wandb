@@ -132,7 +132,8 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 
 	if sm.settings.IsStatsTyped() {
-		sm.writer = writerInfo(sm.writerID, sm.settings.GetLabel())
+		sm.writer = writerInfo(
+			sm.writerID, sm.settings.GetLabel(), sm.settings.GetStatsPid())
 	}
 
 	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
