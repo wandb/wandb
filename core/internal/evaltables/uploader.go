@@ -45,8 +45,8 @@ type Uploader struct {
 	graphqlClient graphql.Client
 	runHandle     *runhandle.RunHandle
 
-	evalTables    *ces.EvalTableService
-	evalTablesErr error
+	// evalTables returns the CES client, creating it on first use.
+	evalTables func() (*ces.EvalTableService, error)
 
 	// scopeMu guards scopeID.
 	scopeMu sync.Mutex
@@ -64,16 +64,17 @@ type UploaderParams struct {
 }
 
 func NewUploader(params UploaderParams) *Uploader {
-	u := &Uploader{
+	return &Uploader{
 		graphqlClient: params.GraphqlClient,
 		runHandle:     params.RunHandle,
+		evalTables: sync.OnceValues(func() (*ces.EvalTableService, error) {
+			return NewEvalTableService(
+				params.CredentialProvider,
+				params.Logger.Logger,
+				params.Settings,
+			)
+		}),
 	}
-	u.evalTables, u.evalTablesErr = NewEvalTableService(
-		params.CredentialProvider,
-		params.Logger.Logger,
-		params.Settings,
-	)
-	return u
 }
 
 // usageError is a problem with a request's table, which the user can fix.
@@ -133,9 +134,9 @@ func (u *Uploader) Upload(
 	ctx context.Context,
 	table *EncodedTable,
 ) (*spb.UploadEvalTableResponse, error) {
-	evalTables := u.evalTables
-	if evalTables == nil {
-		return nil, u.evalTablesErr
+	evalTables, err := u.evalTables()
+	if err != nil {
+		return nil, err
 	}
 
 	scopeID, err := u.projectScopeID(ctx, table.runPath)
