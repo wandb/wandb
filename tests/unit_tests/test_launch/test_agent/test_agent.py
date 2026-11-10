@@ -673,6 +673,29 @@ async def test_thread_failed_no_run(mocker, clean_agent):
     )
 
 
+@pytest.mark.asyncio
+async def test_thread_finish_frees_slot_when_fail_report_errors(mocker, clean_agent):
+    """A failed failRunQueueItem call must not leave the job holding its slot."""
+    _setup_thread_finish(mocker)
+    mocker.api.fail_run_queue_item = MagicMock(side_effect=CommError("server error"))
+    agent = LaunchAgent(
+        api=mocker.api,
+        config={"entity": "test-entity", "project": "test-project"},
+        telemetry_recorder=TelemetryRecorder(),
+    )
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", MagicMock())
+    agent._jobs = {"thread_1": job}
+
+    await agent.finish_thread_id("thread_1", LaunchError("job failed"))
+
+    mocker.api.fail_run_queue_item.assert_called_once()
+    assert agent.num_running_jobs == 0
+    assert any(
+        "Failed to report failure of run queue item run_queue_item_id" in c.args[0]
+        for c in mocker.termerror.call_args_list
+    )
+
+
 @pytest.mark.timeout(90)
 @pytest.mark.asyncio
 async def test_thread_finish_run_info_backoff(mocker, clean_agent):
