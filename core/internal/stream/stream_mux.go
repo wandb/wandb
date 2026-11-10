@@ -89,13 +89,25 @@ func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
 // Streams are flushed concurrently, so one slow disk does not delay the
 // others. Streams added while this runs may be missed.
 func (sm *StreamMux) FlushTransactionLogs() {
+	sm.forEachStream((*Stream).FlushTransactionLog)
+}
+
+// SyncTransactionLogs is like FlushTransactionLogs, but also persists each
+// file with fsync.
+func (sm *StreamMux) SyncTransactionLogs() {
+	sm.forEachStream((*Stream).SyncTransactionLog)
+}
+
+// forEachStream runs fn on every stream currently in the mux, concurrently,
+// and waits for all of them.
+func (sm *StreamMux) forEachStream(fn func(*Stream)) {
 	sm.mutex.RLock()
 	streams := slices.Collect(maps.Values(sm.mux))
 	sm.mutex.RUnlock()
 
 	wg := sync.WaitGroup{}
 	for _, stream := range streams {
-		wg.Go(stream.FlushTransactionLog)
+		wg.Go(func() { fn(stream) })
 	}
 	wg.Wait()
 }

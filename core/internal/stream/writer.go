@@ -132,6 +132,17 @@ func (w *Writer) process(work runwork.Work) {
 			savedWork.SavedOffset = offset
 			savedWork.RecordNumber = recordNum
 		}
+
+		// Make the end of the run durable before waiting for uploads,
+		// which can take longer than a scheduler's shutdown grace period.
+		if record.GetExit() != nil {
+			if err := w.Sync(); err != nil {
+				w.logger.CaptureError(
+					"stream",
+					fmt.Errorf("writer: failed to sync on exit: %v", err),
+				)
+			}
+		}
 	}
 
 	w.out <- savedWork
@@ -193,6 +204,18 @@ func (w *Writer) write(record *spb.Record) (int64, error) {
 		w.stats.SetTxLogBytes(offset)
 	}
 	return offset, err
+}
+
+// Sync writes all records saved so far to the file and persists it with fsync.
+func (w *Writer) Sync() error {
+	w.writerMu.Lock()
+	defer w.writerMu.Unlock()
+
+	if w.finished {
+		return nil
+	}
+
+	return w.writer.Sync()
 }
 
 // Flush ensures all Work the Writer has output has been written to disk.

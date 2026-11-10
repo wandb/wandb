@@ -406,3 +406,16 @@ func (s *Stream) FlushTransactionLog() {
 		s.logger.Error("stream: failed to flush transaction log", "error", err)
 	}
 }
+
+// SyncTransactionLog is like FlushTransactionLog, but also persists the
+// file with fsync, so the records survive a machine crash.
+func (s *Stream) SyncTransactionLog() {
+	writer := s.transactionWriter.Load()
+	if writer == nil {
+		return
+	}
+
+	if err := writer.Sync(); err != nil {
+		s.logger.Error("stream: failed to sync transaction log", "error", err)
+	}
+}

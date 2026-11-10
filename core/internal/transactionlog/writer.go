@@ -83,6 +83,26 @@ func (w *Writer) Flush() error {
 	return w.writer.Flush()
 }
 
+// Sync flushes the in-memory store and asks the OS to persist the file.
+//
+// Unlike Flush, records written before Sync survive a machine crash or
+// power loss, not only the process exiting.
+func (w *Writer) Sync() error {
+	if w.writer == nil {
+		return errors.New("transactionlog: writer is closed")
+	}
+
+	if err := w.writer.Flush(); err != nil {
+		return fmt.Errorf("transactionlog: error flushing: %v", err)
+	}
+
+	if err := w.file.Sync(); err != nil {
+		return fmt.Errorf("transactionlog: error syncing file: %v", err)
+	}
+
+	return nil
+}
+
 // LastRecordOffset returns the offset where the last record was written.
 func (w *Writer) LastRecordOffset() (int64, error) {
 	return w.writer.LastRecordOffset()
@@ -102,6 +122,13 @@ func (w *Writer) Close() error {
 	if err := w.writer.Close(); err != nil {
 		errs = append(errs,
 			fmt.Errorf("transactionlog: error closing writer: %v", err))
+	}
+
+	// Persist the end of the log, so a finished run survives a machine
+	// crash right after the process exits.
+	if err := w.file.Sync(); err != nil {
+		errs = append(errs,
+			fmt.Errorf("transactionlog: error syncing file: %v", err))
 	}
 
 	if err := w.file.Close(); err != nil {

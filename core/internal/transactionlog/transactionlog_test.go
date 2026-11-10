@@ -312,3 +312,33 @@ func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualExportedValues(t, &spb.Record{}, record)
 }
+
+func Test_Sync_MakesRecordsReadable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	defer func() { _ = writer.Close() }()
+	require.NoError(t, writer.Write(&spb.Record{Num: 5}))
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer reader.Close()
+	_, err = reader.Read()
+	require.Error(t, err, "control: the record is still buffered")
+	require.NoError(t, reader.ResetLastRead())
+
+	require.NoError(t, writer.Sync())
+
+	record, err := reader.Read()
+	require.NoError(t, err)
+	assert.EqualValues(t, 5, record.Num)
+}
+
+func Test_Sync_AlreadyClosed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	assert.ErrorContains(t, writer.Sync(), "writer is closed")
+}

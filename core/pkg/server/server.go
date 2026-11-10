@@ -24,8 +24,8 @@ const (
 	IntervalCheckParentPidMilliseconds = 100
 
 	// transactionLogFlushTimeout bounds how long StopAfterFlushingLogs waits
-	// for buffered transaction log records to reach disk, so that a stuck
-	// filesystem cannot keep the process alive.
+	// for buffered transaction log records to be written and fsynced, so
+	// that a stuck filesystem cannot keep the process alive.
 	transactionLogFlushTimeout = time.Second
 )
 
@@ -108,20 +108,21 @@ func (s *Server) ForceStop() {
 }
 
 // StopAfterFlushingLogs writes each run's buffered transaction log records
-// to its .wandb file, then calls ForceStop.
+// to its .wandb file, fsyncs the file, then calls ForceStop.
 //
 // This is for stopping on a signal or when the parent process is gone:
 // records the client already sent are saved so that `wandb sync` can upload
-// them later. Records still queued ahead of the writer are lost, as before,
+// them later, and the fsync makes them survive a machine crash that follows
+// the signal. Records still queued ahead of the writer are lost, as before,
 // and no uploads are attempted.
 //
-// It waits at most transactionLogFlushTimeout for the flush. A ForceStop
-// from elsewhere ends the wait early.
+// It waits at most transactionLogFlushTimeout for the flush and fsync. A
+// ForceStop from elsewhere ends the wait early.
 func (s *Server) StopAfterFlushingLogs() {
 	flushed := make(chan struct{})
 	go func() {
 		defer close(flushed)
-		s.streamMux.FlushTransactionLogs()
+		s.streamMux.SyncTransactionLogs()
 	}()
 
 	select {
