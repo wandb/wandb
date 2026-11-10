@@ -621,11 +621,11 @@ func writeGzipFile(t *testing.T, data []byte) string {
 	return path
 }
 
-func TestUpload_ReadsAndDeletesRowsFile(t *testing.T) {
+func TestUpload_ReadsRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	// Larger than bufio.Reader's buffer.
-	long := strings.Repeat("a", 5<<20)
+	long := strings.Repeat("a", 5_000)
 	path := writeRowsFile(t,
 		&spb.EvalTableRow{Output: values(stringValue("1"))},
 		&spb.EvalTableRow{Output: values(stringValue(long))},
@@ -646,7 +646,6 @@ func TestUpload_ReadsAndDeletesRowsFile(t *testing.T) {
 			`{"input":null,"output":{"x":"`+long+`"},"scores":{}}`+
 			`]}`,
 		requests[2].Body)
-	assert.NoFileExists(t, path)
 }
 
 func TestUpload_ReportsRowsFileProgressWithoutTotal(t *testing.T) {
@@ -664,18 +663,6 @@ func TestUpload_ReportsRowsFileProgressWithoutTotal(t *testing.T) {
 	assert.Equal(t, "2 rows", op.ToProto().GetProgress())
 }
 
-func TestUpload_DeletesRowsFileOnFailure(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, `{"project": null}`)
-	path := writeRowsFile(t, &spb.EvalTableRow{})
-
-	_, err := upload(context.Background(), uploader,
-		&spb.UploadEvalTableRequest{Name: "t", RowsFilePath: path})
-
-	require.Error(t, err)
-	assert.NoFileExists(t, path)
-}
-
 func TestUpload_RejectsTruncatedRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
@@ -687,7 +674,6 @@ func TestUpload_RejectsTruncatedRowsFile(t *testing.T) {
 
 	assert.ErrorContains(t, err, "evaltables: failed to read rows: truncated row")
 	assertNoRowsOrVersion(t, ces)
-	assert.NoFileExists(t, path)
 }
 
 // assertNoRowsOrVersion checks that the upload added no rows and cut no

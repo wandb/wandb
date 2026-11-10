@@ -7,7 +7,7 @@ import json
 import os
 from collections.abc import Iterable
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import DEFAULT, MagicMock
 
 import pytest
 import wandb
@@ -186,12 +186,20 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
         backend="ces",
     )
 
+    file_rows = []
+
+    def read_rows_file(request: pb.UploadEvalTableRequest) -> Any:
+        file_rows.extend(_read_rows_file(request.rows_file_path))
+        return DEFAULT
+
+    deliver_upload_eval_table.side_effect = read_rows_file
+
     run.log({"eval": et})
 
     [request] = _sent(deliver_upload_eval_table)
     assert not request.rows
-    request.rows.extend(_read_rows_file(request.rows_file_path))
-    os.remove(request.rows_file_path)
+    assert not os.path.exists(request.rows_file_path)
+    request.rows.extend(file_rows)
     assert _rows(request) == [
         {
             "input": None,
@@ -201,6 +209,31 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
         },
         {"input": None, "output": {"value": long}, "scores": {}, "example_key": "2"},
     ]
+
+
+def test_ces_eval_table_deletes_rows_file_after_failed_upload(
+    deliver_upload_eval_table,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    deliver_upload_eval_table.return_value.wait_or.return_value = _upload_error(
+        pb.ErrorInfo.UNKNOWN, "failed"
+    )
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        output_columns=["value"],
+        backend="ces",
+    )
+    et.bind_to_run(run, "eval", 7)
+
+    with pytest.raises(CommError):
+        et.to_json(run)
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert request.rows_file_path
+    assert not os.path.exists(request.rows_file_path)
 
 
 def test_ces_eval_table_without_inputs_keys_rows_by_position(

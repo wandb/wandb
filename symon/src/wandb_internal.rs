@@ -2700,11 +2700,11 @@ pub struct UploadEvalTableRequest {
     /// Only one of {rows, rows_file_path} should be set.
     #[prost(message, repeated, tag = "4")]
     pub rows: ::prost::alloc::vec::Vec<EvalTableRow>,
-    /// A gzipped file of the table's rows, as length-delimited EvalTableRow
-    /// messages.
+    /// A gzipped file of the table's rows, as EvalTableRow messages, each
+    /// preceded by its size as a varint.
     ///
-    /// It is used for tables too large to send inline. wandb-core deletes the
-    /// file after reading it, whether or not the upload succeeds.
+    /// It is used for tables too large to send inline. The client owns the
+    /// file and deletes it after the response; wandb-core only reads it.
     #[prost(string, tag = "5")]
     pub rows_file_path: ::prost::alloc::string::String,
     /// Run files that the table's media cells reference, relative to the run's

@@ -167,16 +167,10 @@ func (u *Uploader) Encode(
 
 // Upload creates an EvalTable in CES, adds its columns and rows,
 // and cuts a version.
-//
-// It deletes the table's rows file, if any.
 func (u *Uploader) Upload(
 	ctx context.Context,
 	table *EncodedTable,
 ) (*spb.UploadEvalTableResponse, error) {
-	if table.rowsFilePath != "" {
-		defer func() { _ = os.Remove(table.rowsFilePath) }()
-	}
-
 	evalTables, err := u.evalTables()
 	if err != nil {
 		return nil, err

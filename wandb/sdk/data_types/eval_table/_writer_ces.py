@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 import gzip
 import logging
 import math
 import os
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import IO, TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
@@ -125,33 +126,47 @@ def _ordered(
     return [values.get(name, pb.EvalTableValue()) for name in names]
 
 
-def _write_rows_file(rows: Sequence[pb.EvalTableRow]) -> str:
-    """Write rows to a gzipped temporary file, each preceded by its size.
+@contextlib.contextmanager
+def _add_rows(
+    request: pb.UploadEvalTableRequest,
+    rows: Sequence[pb.EvalTableRow],
+) -> Iterator[None]:
+    """Add rows to an upload request, in a temporary file for large tables.
 
-    Sizes are varints, as in protobuf's length-delimited encoding.
-
-    wandb-core deletes the file after reading it.
-
-    Returns:
-        The file's path.
+    The file is deleted when the context exits. wandb-core only reads it,
+    and responds after the upload finishes.
     """
+    rows_bytes = sum(row.ByteSize() for row in rows)
+    if rows_bytes <= _ROWS_FILE_THRESHOLD_BYTES:
+        request.rows.extend(rows)
+        yield
+        return
+
     file = tempfile.NamedTemporaryFile(
         prefix="wandb-eval-table-",
         suffix=".rows.pb.gz",
         delete=False,
     )
     try:
-        with file, gzip.open(file, mode="wb", compresslevel=1) as rows_file:
-            for row in rows:
-                message = row.SerializeToString()
-                rows_file.write(_encode_varint(len(message)))
-                rows_file.write(message)
-    except BaseException:
-        # Delete the partial file, then propagate the original error.
-        os.remove(file.name)
-        raise
+        with file:
+            _write_rows(file, rows)
+        request.rows_file_path = file.name
+        yield
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(file.name)
 
-    return file.name
+
+def _write_rows(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> None:
+    """Write rows gzipped, each preceded by its size as a varint.
+
+    This is protobuf's length-delimited encoding.
+    """
+    with gzip.open(file, mode="wb", compresslevel=1) as rows_file:
+        for row in rows:
+            message = row.SerializeToString()
+            rows_file.write(_encode_varint(len(message)))
+            rows_file.write(message)
 
 
 def _encode_varint(value: int) -> bytes:
@@ -239,13 +254,8 @@ class CESWriter:
             scorers=write_payloads.scorers,
             upload_media_paths=write_payloads.upload_media_paths,
         )
-        rows_bytes = sum(row.ByteSize() for row in write_payloads.rows)
-        if rows_bytes > _ROWS_FILE_THRESHOLD_BYTES:
-            request.rows_file_path = _write_rows_file(write_payloads.rows)
-        else:
-            request.rows.extend(write_payloads.rows)
-
-        response = _upload_eval_table(bound_run.run, request)
+        with _add_rows(request, write_payloads.rows):
+            response = _upload_eval_table(bound_run.run, request)
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",
