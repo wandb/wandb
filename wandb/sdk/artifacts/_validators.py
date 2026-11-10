@@ -162,6 +162,25 @@ def validate_aliases(aliases: Iterable[str] | str) -> list[str]:
     return aliases_list
 
 
+def warn_if_link_target_name_has_colon(name: str) -> None:
+    """Warn if the collection name of a link target contains ":".
+
+    Collection names cannot contain ":", but some collections created before
+    the server enforced this still exist and can be linked to, so this only
+    warns instead of raising.
+    """
+    if ":" in name:
+        import wandb
+
+        wandb.termwarn(
+            f"Target collection name {name!r} contains ':', which is not allowed"
+            " in collection names. Newer W&B servers reject the link unless a"
+            " collection with this exact name already exists. To add an alias"
+            " to the linked artifact, pass it with `aliases=` instead of"
+            " appending it to the target path."
+        )
+
+
 def validate_artifact_types(types: Iterable[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
     types_list = always_list(types)

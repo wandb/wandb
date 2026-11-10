@@ -13,6 +13,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -1260,6 +1261,18 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 	if s.settings.IsOffline() {
 		return
+	}
+
+	// A run's artifacts go where the run is, as resolved by its upsert.
+	//
+	// An offline run's artifact records have no entity, and `wandb sync`
+	// options such as --entity change only the run record.
+	if upserter, err := s.runHandle.Upserter(); err == nil {
+		runPath := upserter.RunPath()
+		msg = proto.CloneOf(msg)
+		msg.Entity = runPath.Entity
+		msg.Project = runPath.Project
+		msg.RunId = runPath.RunID
 	}
 
 	op := s.operations.New(

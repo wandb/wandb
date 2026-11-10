@@ -21,6 +21,10 @@ import (
 // short-circuit on cols/rows <= 0). Returns a bg-filled target when src
 // has empty bounds.
 func prepareSource(src image.Image, fit FitMode, cols, rows, cellW, cellH int, bg color.Color, anchor FitAnchor) image.Image {
+	return prepareSourceWithScratch(src, fit, cols, rows, cellW, cellH, bg, anchor, nil)
+}
+
+func prepareSourceWithScratch(src image.Image, fit FitMode, cols, rows, cellW, cellH int, bg color.Color, anchor FitAnchor, scratch *fitScratch) image.Image {
 	if cols <= 0 || rows <= 0 || cellW <= 0 || cellH <= 0 {
 		return nil
 	}
@@ -30,18 +34,18 @@ func prepareSource(src image.Image, fit FitMode, cols, rows, cellW, cellH int, b
 
 	sb := src.Bounds()
 	if sb.Dx() == 0 || sb.Dy() == 0 {
-		out := image.NewRGBA(target)
+		out := scratch.target(target)
 		draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
 		return out
 	}
 
 	switch fit {
 	case FitFill:
-		return fillTo(src, sb, target, bg)
+		return fillTo(src, sb, target, bg, scratch)
 	case FitCover:
-		return coverTo(src, sb, target, bg, anchor)
+		return coverTo(src, sb, target, bg, anchor, scratch)
 	default: // FitContain and any out-of-range value
-		return containTo(src, sb, target, bg)
+		return containTo(src, sb, target, bg, scratch)
 	}
 }
 
@@ -50,12 +54,21 @@ func prepareSource(src image.Image, fit FitMode, cols, rows, cellW, cellH int, b
 // changes no pixel but still allocates a float scratch buffer four times
 // the source and runs both kernel passes, which dominated a terminal
 // viewer's frame time.
-func place(out *image.RGBA, dst image.Rectangle, src image.Image, sb image.Rectangle) {
+func place(out *image.RGBA, dst image.Rectangle, src image.Image, sb image.Rectangle, scratch *fitScratch) {
 	if dst.Dx() == sb.Dx() && dst.Dy() == sb.Dy() {
 		draw.Draw(out, dst, src, sb.Min, draw.Over)
 		return
 	}
-	draw.CatmullRom.Scale(out, dst, src, sb, draw.Over, nil)
+	if scratch == nil {
+		draw.CatmullRom.Scale(out, dst, src, sb, draw.Over, nil)
+		return
+	}
+	dims := [4]int{dst.Dx(), dst.Dy(), sb.Dx(), sb.Dy()}
+	if scratch.scaler == nil || scratch.dims != dims {
+		scratch.scaler = draw.CatmullRom.NewScaler(dims[0], dims[1], dims[2], dims[3])
+		scratch.dims = dims
+	}
+	scratch.scaler.Scale(out, dst, src, sb, draw.Over, nil)
 }
 
 // coversTarget reports whether src at target size would hide bg entirely,
@@ -81,24 +94,24 @@ func bgIsTransparent(bg color.Color) bool {
 // areas. Fast path: when bg is transparent AND src is already at target
 // size, return src unchanged (matches the kitty.go optimization the
 // original composite() preserved for the transparent-bg case).
-func fillTo(src image.Image, sb, target image.Rectangle, bg color.Color) image.Image {
+func fillTo(src image.Image, sb, target image.Rectangle, bg color.Color, scratch *fitScratch) image.Image {
 	if (bgIsTransparent(bg) && sb.Dx() == target.Dx() && sb.Dy() == target.Dy()) || coversTarget(src, sb, target) {
 		return src
 	}
-	out := image.NewRGBA(target)
+	out := scratch.target(target)
 	draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
-	place(out, target, src, sb)
+	place(out, target, src, sb, scratch)
 	return out
 }
 
 // containTo computes the AR-preserving inscribed rect inside target, fills
 // target with bg, then draws src into the inscribed rect with draw.Over so
 // transparent bg yields literal transparency in the output PNG.
-func containTo(src image.Image, sb, target image.Rectangle, bg color.Color) image.Image {
+func containTo(src image.Image, sb, target image.Rectangle, bg color.Color, scratch *fitScratch) image.Image {
 	if coversTarget(src, sb, target) {
 		return src
 	}
-	out := image.NewRGBA(target)
+	out := scratch.target(target)
 	draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
 
 	tw, th := target.Dx(), target.Dy()
@@ -125,7 +138,7 @@ func containTo(src image.Image, sb, target image.Rectangle, bg color.Color) imag
 	ox := (tw - iw) / 2
 	oy := (th - ih) / 2
 	dst := image.Rect(ox, oy, ox+iw, oy+ih)
-	place(out, dst, src, sb)
+	place(out, dst, src, sb, scratch)
 	return out
 }
 
@@ -133,7 +146,7 @@ func containTo(src image.Image, sb, target image.Rectangle, bg color.Color) imag
 // target, the other overflows), fills target with bg, then draws src into
 // the circumscribed rect with draw.Over. Target-bound clipping crops the
 // overflow; bg shows through translucent source pixels.
-func coverTo(src image.Image, sb, target image.Rectangle, bg color.Color, anchor FitAnchor) image.Image {
+func coverTo(src image.Image, sb, target image.Rectangle, bg color.Color, anchor FitAnchor, scratch *fitScratch) image.Image {
 	if coversTarget(src, sb, target) {
 		return src
 	}
@@ -177,8 +190,26 @@ func coverTo(src image.Image, sb, target image.Rectangle, bg color.Color, anchor
 		oy = (th - ch) / 2
 	}
 	dst := image.Rect(ox, oy, ox+cw, oy+ch)
-	out := image.NewRGBA(target)
+	out := scratch.target(target)
 	draw.Draw(out, target, &image.Uniform{C: bg}, image.Point{}, draw.Src)
-	place(out, dst, src, sb)
+	place(out, dst, src, sb, scratch)
 	return out
+}
+
+// fitScratch belongs only to the synchronous Glyph path. Kitty commands must
+// keep their own targets because they can execute concurrently.
+type fitScratch struct {
+	rgba   *image.RGBA
+	scaler draw.Scaler
+	dims   [4]int
+}
+
+func (s *fitScratch) target(bounds image.Rectangle) *image.RGBA {
+	if s == nil {
+		return image.NewRGBA(bounds)
+	}
+	if s.rgba == nil || s.rgba.Bounds() != bounds {
+		s.rgba = image.NewRGBA(bounds)
+	}
+	return s.rgba
 }

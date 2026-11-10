@@ -111,6 +111,14 @@ class ProjectScopeFields(GQLResult):
     name: str
 
 
+class PushNotificationActionFields(GQLResult):
+    typename__: Typename[Literal["PushNotificationTriggeredAction"]] = (
+        "PushNotificationTriggeredAction"
+    )
+    title: str | None
+    body: str | None
+
+
 class QueueJobActionFields(GQLResult):
     typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
     queue: QueueJobActionFieldsQueue | None
@@ -142,13 +150,9 @@ class TriggerFields(GQLResult):
         | GenericWebhookActionFields
         | NoOpActionFields
         | NotificationActionFields
-        | TriggerFieldsActionPushNotificationTriggeredAction
+        | PushNotificationActionFields
         | QueueJobActionFields
     ) = Field(discriminator="typename__")
-
-
-class TriggerFieldsActionPushNotificationTriggeredAction(GQLResult):
-    typename__: Typename[Literal["PushNotificationTriggeredAction"]]
 
 
 class ProjectTriggersFields(GQLResult):
@@ -168,6 +172,7 @@ SlackIntegrationFields.model_rebuild()
 NotificationActionFields.model_rebuild()
 PageInfoFields.model_rebuild()
 ProjectScopeFields.model_rebuild()
+PushNotificationActionFields.model_rebuild()
 QueueJobActionFields.model_rebuild()
 TriggerFields.model_rebuild()
 ProjectTriggersFields.model_rebuild()
