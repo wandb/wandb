@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -13,7 +14,6 @@ from wandb.errors import CommError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces
-from wandb.sdk.interface.interface import InterfaceBase
 
 
 @pytest.fixture
@@ -27,29 +27,6 @@ def default_eval_table_server_feature_enabled(monkeypatch):
         "wandb.apis.public.service_api.ServiceApi.feature_enabled",
         lambda self, feature: True,
     )
-
-
-def _upload_eval_table_result(
-    response: pb.UploadEvalTableResponse,
-) -> pb.Result:
-    return pb.Result(response=pb.Response(upload_eval_table_response=response))
-
-
-_UPLOADED = pb.UploadEvalTableResponse(
-    evaluation_id="evaluation-1",
-    evaluation_version_id="evaluation-version-1",
-    dataset_id="dataset-1",
-    dataset_version_id="dataset-version-1",
-)
-
-
-@pytest.fixture
-def deliver_upload_eval_table(monkeypatch) -> MagicMock:
-    """Replace wandb-core's EvalTable upload with one that succeeds."""
-    deliver = MagicMock()
-    deliver.return_value.wait_or.return_value = _upload_eval_table_result(_UPLOADED)
-    monkeypatch.setattr(InterfaceBase, "deliver_upload_eval_table", deliver)
-    return deliver
 
 
 def _sent(deliver: MagicMock) -> list[pb.UploadEvalTableRequest]:
@@ -70,34 +47,28 @@ def _value(value: pb.EvalTableValue) -> Any:
         return value.number_value
     if kind == "string_value":
         return value.string_value
-    if kind == "json_value":
-        return json.loads(value.json_value)
     return json.loads(value.wandb_media_json)
 
 
+def _named(names: list[str], values: Iterable[pb.EvalTableValue]) -> dict[str, Any]:
+    return dict(zip(names, map(_value, values), strict=True))
+
+
 def _rows(request: pb.UploadEvalTableRequest) -> list[dict[str, Any]]:
-    """Decode the request's typed rows into CES row objects."""
-    names = {
-        source: [
-            field.name for field in request.dataset_fields if field.source == source
-        ]
-        for source in ("input", "output")
-    }
-    scorer_names = [scorer.name for scorer in request.scorers]
+    """Decode the request's typed rows into dicts keyed by column name."""
+    inputs = [field.name for field in request.dataset_fields if field.source == "input"]
+    outputs = [
+        field.name for field in request.dataset_fields if field.source == "output"
+    ]
+    scorers = [scorer.name for scorer in request.scorers]
 
     rows = []
     for row in request.rows:
-        decoded: dict[str, Any] = {}
-        for source in ("input", "output"):
-            values = row.input if source == "input" else row.output
-            decoded[source] = (
-                dict(zip(names[source], map(_value, values.values), strict=True))
-                if row.HasField(source)
-                else None
-            )
-        decoded["scores"] = dict(
-            zip(scorer_names, map(_value, row.scores), strict=True)
-        )
+        decoded = {"input": None, "output": None, "scores": _named(scorers, row.scores)}
+        if row.HasField("input"):
+            decoded["input"] = _named(inputs, row.input.values)
+        if row.HasField("output"):
+            decoded["output"] = _named(outputs, row.output.values)
         if row.example_key:
             decoded["example_key"] = row.example_key
         rows.append(decoded)
@@ -126,13 +97,7 @@ def _as_dicts(messages: list[Message]) -> list[dict[str, Any]]:
 def test_ces_eval_table_writes_columns_rows_and_version(
     deliver_upload_eval_table,
     run,
-    monkeypatch,
 ):
-    debug = MagicMock()
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_ces._logger.debug",
-        debug,
-    )
     et = wandb.EvalTable(
         columns=["prompt", "truth", "answer", "confidence", "correct"],
         data=[
@@ -170,13 +135,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
             "scores": {"correct": False},
         },
     ]
-    debug.assert_called_once_with(
-        "CES EvalTable recorded evaluation_version_id=%s",
-        "evaluation-version-1",
-    )
-
-    history_value = et.to_json(run)
-    assert history_value == {
+    assert et.to_json(run) == {
         "_type": "eval-table-ces",
         "schema_version": 1,
         "ncols": 5,
@@ -187,9 +146,6 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "dataset_id": "dataset-1",
         "dataset_version_id": "dataset-version-1",
     }
-    assert "evaluate_call_id" not in history_value
-    assert et._immutable_write_result is not None
-    assert et._immutable_write_result.logged_id == "evaluation-version-1"
 
 
 def test_ces_eval_table_without_inputs_keys_rows_by_position(

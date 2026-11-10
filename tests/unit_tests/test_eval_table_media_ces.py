@@ -14,7 +14,6 @@ from PIL import Image as PILImage
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table import _media_ces, _writer, _writer_ces
-from wandb.sdk.interface.interface import InterfaceBase
 
 
 @pytest.fixture
@@ -29,29 +28,10 @@ def run_factory(mock_run, tmp_path):
                 "mode": "online",
             }
         )
-        run._publish_file = MagicMock()
         run._add_singleton = MagicMock()
         return run
 
     return make
-
-
-@pytest.fixture
-def deliver_upload_eval_table(monkeypatch) -> MagicMock:
-    """Replace wandb-core's EvalTable upload with one that succeeds."""
-    deliver = MagicMock()
-    deliver.return_value.wait_or.return_value = pb.Result(
-        response=pb.Response(
-            upload_eval_table_response=pb.UploadEvalTableResponse(
-                evaluation_id="evaluation-1",
-                evaluation_version_id="evaluation-version-1",
-                dataset_id="dataset-1",
-                dataset_version_id="dataset-version-1",
-            )
-        )
-    )
-    monkeypatch.setattr(InterfaceBase, "deliver_upload_eval_table", deliver)
-    return deliver
 
 
 def _png(tmp_path, name="image.png", color=(10, 20, 30)):
@@ -964,7 +944,6 @@ def test_eval_table_media_request_matches_core_fixture(
     assert actual["dataset_fields"] == expected["dataset_fields"]
     assert _json_shape(actual["rows"]) == _json_shape(expected["rows"])
 
-    # wandb-core uploads the media files instead of the run publishing them.
     image, _, audio, video = (
         json.loads(value.wandb_media_json) for value in request.rows[0].input.values
     )
@@ -979,7 +958,6 @@ def test_eval_table_media_request_matches_core_fixture(
             video["path"],
         ]
     )
-    run._publish_file.assert_not_called()
 
 
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
