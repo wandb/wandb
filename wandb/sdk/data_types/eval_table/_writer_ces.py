@@ -298,7 +298,8 @@ class CESWriter:
         media_cells_examined = 0
         oversized_media_cells = 0
         oversized_locations: list[str] = []
-        upload_media_paths: list[str] = []
+        # Deduplicated, as rows can share content-addressed media files.
+        upload_media_paths: dict[str, None] = {}
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
@@ -393,7 +394,7 @@ class CESWriter:
             dataset_fields=dataset_fields,
             scorers=scorers,
             rows=encoded_rows,
-            upload_media_paths=upload_media_paths,
+            upload_media_paths=list(upload_media_paths),
             media_cells_examined=media_cells_examined,
             oversized_media_cells=oversized_media_cells,
             oversized_locations=tuple(oversized_locations),
@@ -409,7 +410,7 @@ class CESWriter:
         bound_run: _BoundRun,
         row_index: int,
         oversized_locations: list[str],
-        upload_media_paths: list[str],
+        upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[dict[str, Any], int, int]:
         """Normalize one input/output mapping and accumulate its inferred types."""
@@ -491,13 +492,12 @@ class CESWriter:
         *,
         source: _CESFieldSource,
         column_name: str,
-        upload_media_paths: list[str],
+        upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return W&B media JSON, its field type, and oversized byte count.
 
-        Adds files newly placed in the run's files directory to
-        `upload_media_paths`.
+        Adds the run files that the media references to `upload_media_paths`.
         """
         try:
             media_cell = _media_ces.prepare_media(
@@ -522,7 +522,7 @@ class CESWriter:
                 ),
                 None,
             )
-        upload_media_paths.extend(media_cell.new_run_files)
+        upload_media_paths.update(dict.fromkeys(media_cell.run_files))
         field_type = _CESFieldType(value_type="json", media_type=media_cell.media_type)
         oversized_size = media_cell.encoded_size if media_cell.oversized else None
         return media_cell.value, field_type, oversized_size
