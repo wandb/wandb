@@ -41,17 +41,11 @@ func (u *Updates) HasRemovals() bool {
 	return u != nil && !u.remove.IsEmpty()
 }
 
-// Serialize returns the values set by these updates as a JSON object,
-// in the same format as [RunSummary.Serialize].
-//
-// Removed paths are not represented.
+// Serialize returns the values set by the updates in the format of
+// [RunSummary.Serialize], ignoring removals and values that fail to unmarshal.
 func (u *Updates) Serialize() ([]byte, error) {
 	rs := New()
-
-	// Values that fail to unmarshal are skipped. The same updates are
-	// applied to the run's summary, which reports those errors.
 	_ = u.Apply(rs)
-
 	return rs.Serialize()
 }
 

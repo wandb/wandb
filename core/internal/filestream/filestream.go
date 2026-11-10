@@ -140,9 +140,9 @@ type fileStream struct {
 	// Once it becomes true, it does not switch back to false.
 	stopState atomic.Bool
 
-	// explicitSummary is whether the backend's last response asked for
-	// summary deltas instead of the full summary.
-	explicitSummary atomic.Bool
+	// acceptSummaryDelta is whether the backend's last response accepted
+	// summary deltas.
+	acceptSummaryDelta atomic.Bool
 
 	// stats measures the cost of the upload pipeline for this run.
 	//

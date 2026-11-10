@@ -39,25 +39,25 @@ func TestStopState_FeedbackTable(t *testing.T) {
 	}
 }
 
-func TestExplicitSummary_Feedback(t *testing.T) {
+func TestAcceptSummaryDelta_Feedback(t *testing.T) {
 	tests := []struct {
 		name     string
 		feedback []map[string]any
 		want     bool
 	}{
 		{"default false", nil, false},
-		{"turned on", []map[string]any{{"explicit_summary": true}}, true},
+		{"accepted", []map[string]any{{"accept_summary_delta": true}}, true},
 		{
-			"absent turns it off",
-			[]map[string]any{{"explicit_summary": true}, {"stopped": false}},
+			"absent is false",
+			[]map[string]any{{"accept_summary_delta": true}, {"stopped": false}},
 			false,
 		},
 		{
-			"undecodable response keeps it",
-			[]map[string]any{{"explicit_summary": true}, nil},
+			"undecodable response is ignored",
+			[]map[string]any{{"accept_summary_delta": true}, nil},
 			true,
 		},
-		{"non-bool is off", []map[string]any{{"explicit_summary": "yes"}}, false},
+		{"non-bool is false", []map[string]any{{"accept_summary_delta": "yes"}}, false},
 	}
 
 	for _, tc := range tests {
@@ -73,8 +73,8 @@ func TestExplicitSummary_Feedback(t *testing.T) {
 			close(ch)
 			wg.Wait()
 
-			if got := fs.explicitSummary.Load(); got != tc.want {
-				t.Fatalf("explicitSummary = %v, want %v", got, tc.want)
+			if got := fs.acceptSummaryDelta.Load(); got != tc.want {
+				t.Fatalf("acceptSummaryDelta = %v, want %v", got, tc.want)
 			}
 		})
 	}

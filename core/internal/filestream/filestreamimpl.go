@@ -80,7 +80,7 @@ func (fs *fileStream) startTransmitting(
 			int(fs.settings.GetFileStreamMaxLineBytes()),
 			defaultMaxFileLineBytes,
 		),
-		ExplicitSummary: fs.explicitSummary.Load,
+		AcceptSummaryDelta: fs.acceptSummaryDelta.Load,
 	}
 
 	if initialOffsets != nil {
@@ -124,11 +124,10 @@ func (fs *fileStream) startProcessingFeedback(
 				}
 			}
 
-			// The backend can switch summary deltas on or off at any time.
-			// A response it couldn't decode leaves the setting unchanged.
+			// Every response says whether deltas are accepted.
 			if res != nil {
-				explicitSummary, _ := res["explicit_summary"].(bool)
-				fs.explicitSummary.Store(explicitSummary)
+				accept, _ := res["accept_summary_delta"].(bool)
+				fs.acceptSummaryDelta.Store(accept)
 			}
 		}
 	}()
