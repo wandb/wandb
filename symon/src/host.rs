@@ -18,7 +18,7 @@ use sysinfo::{
     ProcessRefreshKind, ProcessesToUpdate, System,
 };
 
-use crate::metrics::{self, Field, Key, Readings, Sample, Scope};
+use crate::metrics::{self, Field, Readings, Sample, Scope};
 use crate::monitors::Collector;
 use crate::wandb_internal::{
     CpuCoreMetrics, CpuInfo, CpuMetrics, DiskInfo, DiskUsageMetrics, EnvironmentRecord,
@@ -964,7 +964,7 @@ fn read_key_values(path: &Path) -> Option<HashMap<String, u64>> {
 
 /// Bytes sent and received over the interfaces that are not loopback and
 /// not enslaved to a bond, bridge or team master, which reports them.
-fn network_counters(networks: &Networks) -> Vec<(Key, f64)> {
+fn network_counters(networks: &Networks) -> Vec<(Field, f64)> {
     let (mut sent, mut recv) = (0u64, 0u64);
     for (name, data) in networks.list() {
         if name.starts_with("lo")
@@ -979,11 +979,11 @@ fn network_counters(networks: &Networks) -> Vec<(Key, f64)> {
         recv += data.total_received();
     }
     let mut counters = vec![
-        (Field::NetworkSent.into(), sent as f64),
-        (Field::NetworkRecv.into(), recv as f64),
+        (Field::NetworkSent, sent as f64),
+        (Field::NetworkRecv, recv as f64),
     ];
     if let Some(retransmits) = tcp_retransmits() {
-        counters.push((Field::NetworkTcpRetransmits.into(), retransmits as f64));
+        counters.push((Field::NetworkTcpRetransmits, retransmits as f64));
     }
     counters
 }
@@ -1202,7 +1202,7 @@ mod tests {
             host_details: true,
             ..Default::default()
         };
-        let cpu = Key::Field(Field::ProcessCpu);
+        let cpu = Field::ProcessCpu;
         let first = host.sweep(std::slice::from_ref(&scope));
         let readings = &first.scoped[&scope];
         assert!(readings.record.process.as_ref().unwrap().rss_bytes.unwrap() > 0);
@@ -1222,7 +1222,7 @@ mod tests {
             second.scoped[&scope]
                 .averages
                 .iter()
-                .any(|(key, _)| *key == Key::Field(field.clone()))
+                .any(|(key, _)| *key == field)
         };
         assert!(averaged(Field::ProcessCpu));
         if cfg!(any(target_os = "linux", target_os = "macos")) {
