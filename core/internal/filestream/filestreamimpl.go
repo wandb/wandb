@@ -80,6 +80,7 @@ func (fs *fileStream) startTransmitting(
 			int(fs.settings.GetFileStreamMaxLineBytes()),
 			defaultMaxFileLineBytes,
 		),
+		ExplicitSummary: fs.explicitSummary.Load,
 	}
 
 	if initialOffsets != nil {
@@ -121,6 +122,13 @@ func (fs *fileStream) startProcessingFeedback(
 				if stopped, ok := v.(bool); ok && stopped {
 					fs.stopState.Store(true)
 				}
+			}
+
+			// The backend can switch summary deltas on or off at any time.
+			// A response it couldn't decode leaves the setting unchanged.
+			if res != nil {
+				explicitSummary, _ := res["explicit_summary"].(bool)
+				fs.explicitSummary.Store(explicitSummary)
 			}
 		}
 	}()

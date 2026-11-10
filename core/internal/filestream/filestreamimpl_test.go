@@ -38,3 +38,44 @@ func TestStopState_FeedbackTable(t *testing.T) {
 		})
 	}
 }
+
+func TestExplicitSummary_Feedback(t *testing.T) {
+	tests := []struct {
+		name     string
+		feedback []map[string]any
+		want     bool
+	}{
+		{"default false", nil, false},
+		{"turned on", []map[string]any{{"explicit_summary": true}}, true},
+		{
+			"absent turns it off",
+			[]map[string]any{{"explicit_summary": true}, {"stopped": false}},
+			false,
+		},
+		{
+			"undecodable response keeps it",
+			[]map[string]any{{"explicit_summary": true}, nil},
+			true,
+		},
+		{"non-bool is off", []map[string]any{{"explicit_summary": "yes"}}, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var fs fileStream
+			ch := make(chan map[string]any, len(tc.feedback))
+			var wg sync.WaitGroup
+			fs.startProcessingFeedback(ch, &wg)
+
+			for _, res := range tc.feedback {
+				ch <- res
+			}
+			close(ch)
+			wg.Wait()
+
+			if got := fs.explicitSummary.Load(); got != tc.want {
+				t.Fatalf("explicitSummary = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
