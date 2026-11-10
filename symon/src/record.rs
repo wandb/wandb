@@ -34,8 +34,8 @@ pub fn typed_record(
     });
     // Only NVML lists the processes on a device.
     for device in &mut record.accelerators {
-        if device.source == "nvml" && sample.gpu_pids.contains_key(&device.index) {
-            device.set_binding(if gpus_in_use.contains(&device.index) {
+        if device.source == "nvml" && sample.gpu_pids.contains_key(&device.uuid) {
+            device.set_binding(if gpus_in_use.contains(device.uuid.as_str()) {
                 Binding::Process
             } else {
                 Binding::Visible
@@ -49,13 +49,13 @@ pub fn typed_record(
     record
 }
 
-/// The GPUs any of the processes in `pids` use, by device index.
-fn gpus_in_use(sample: &Sample, pids: &[u32]) -> HashSet<u32> {
+/// The uuids of the GPUs any of the processes in `pids` use.
+fn gpus_in_use<'a>(sample: &'a Sample, pids: &[u32]) -> HashSet<&'a str> {
     sample
         .gpu_pids
         .iter()
         .filter(|(_, users)| users.iter().any(|pid| pids.contains(pid)))
-        .map(|(device, _)| *device)
+        .map(|(uuid, _)| uuid.as_str())
         .collect()
 }
 
@@ -70,6 +70,7 @@ mod tests {
         let gpu = |index| AcceleratorMetrics {
             r#type: AcceleratorType::NvidiaGpu as i32,
             index,
+            uuid: format!("GPU-{index}"),
             source: "nvml".to_string(),
             ..Default::default()
         };
@@ -78,7 +79,11 @@ mod tests {
                 accelerators: vec![gpu(0), gpu(1)],
                 ..Default::default()
             },
-            gpu_pids: [(0, vec![42]), (1, vec![7])].into(),
+            gpu_pids: [
+                ("GPU-0".to_string(), vec![42]),
+                ("GPU-1".to_string(), vec![7]),
+            ]
+            .into(),
             ..Default::default()
         };
         let values = [
