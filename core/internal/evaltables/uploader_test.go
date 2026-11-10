@@ -154,6 +154,19 @@ func newTestUploaderWithSettings(
 	}), mockGQL
 }
 
+// upload encodes and uploads an EvalTable.
+func upload(
+	ctx context.Context,
+	uploader *evaltables.Uploader,
+	request *spb.UploadEvalTableRequest,
+) (*spb.UploadEvalTableResponse, error) {
+	table, err := uploader.Encode(request)
+	if err != nil {
+		return nil, err
+	}
+	return uploader.Upload(ctx, table)
+}
+
 func boolValue(v bool) *spb.EvalTableValue {
 	return &spb.EvalTableValue{Value: &spb.EvalTableValue_BoolValue{BoolValue: v}}
 }
@@ -210,7 +223,7 @@ func TestUpload(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, mockGQL := newTestUploader(t, ces, projectFoundJSON)
 
-	response, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	response, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "prompt", ValueType: "string"},
@@ -266,7 +279,7 @@ func TestUpload_EncodesAllValueTypes(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "flag", ValueType: "boolean"},
@@ -389,7 +402,7 @@ func TestUpload_EncodesStringsAndNumbersLikeEncodingJSON(t *testing.T) {
 		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, n))
 	}
 
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		DatasetFields: fields,
 		Rows:          []*spb.EvalTableRow{{Input: values(row...)}},
 	})
@@ -420,9 +433,9 @@ func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
 		Rows: []*spb.EvalTableRow{{}},
 	}
 
-	_, err := uploader.Upload(context.Background(), request)
+	_, err := upload(context.Background(), uploader, request)
 	require.NoError(t, err)
-	_, err = uploader.Upload(context.Background(), request)
+	_, err = upload(context.Background(), uploader, request)
 	require.NoError(t, err)
 
 	requests := ces.Requests()
@@ -452,7 +465,7 @@ func TestUpload_RetriesReuseIdempotencyKey(t *testing.T) {
 	}
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name: "my-table",
 		Rows: []*spb.EvalTableRow{{}},
 	})
@@ -472,13 +485,40 @@ func TestUpload_RetriesReuseIdempotencyKey(t *testing.T) {
 		rowsRequests[1].IdempotencyKey)
 }
 
+func TestUpload_StopsRetryingWhenCancelled(t *testing.T) {
+	ces := newFakeCES(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel during a rows request that fails with a retryable status.
+	ces.onRequest = func(path string) {
+		if strings.HasSuffix(path, "/rows") {
+			cancel()
+		}
+	}
+	ces.errorStatus = func(path string) int {
+		if strings.HasSuffix(path, "/rows") {
+			return http.StatusServiceUnavailable
+		}
+		return 0
+	}
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+	_, err := upload(ctx, uploader, &spb.UploadEvalTableRequest{
+		Name: "my-table",
+		Rows: []*spb.EvalTableRow{{}},
+	})
+
+	assert.ErrorContains(t, err, "context canceled")
+	// Create, columns, and one rows attempt.
+	assert.Len(t, ces.Requests(), 3)
+}
+
 func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
 	// Each row is 1 MiB, so at most 7 fit under the 8 MiB target with the
 	// surrounding JSON.
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name:          "t",
 		DatasetFields: outputFieldX,
 		Rows:          outputRows(10, 1<<20),
@@ -503,7 +543,7 @@ func TestUpload_KeepsExampleKeysOfRowsWithoutInputs(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
 	// Each row is 3 MiB, so only two fit under the 8 MiB target.
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name:          "t",
 		DatasetFields: outputFieldX,
 		Rows:          outputRows(3, 3<<20),
@@ -543,7 +583,7 @@ func TestUpload_ReportsRowProgress(t *testing.T) {
 	}
 
 	// Each row is 1 MiB, so the rows are sent in batches of 7 and 3.
-	_, err := uploader.Upload(op.Context(context.Background()),
+	_, err := upload(op.Context(context.Background()), uploader,
 		&spb.UploadEvalTableRequest{
 			Name:          "t",
 			DatasetFields: outputFieldX,
@@ -591,7 +631,7 @@ func TestUpload_ReadsAndDeletesRowsFile(t *testing.T) {
 		&spb.EvalTableRow{Output: values(stringValue(long))},
 	)
 
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name:          "t",
 		DatasetFields: outputFieldX,
 		RowsFilePath:  path,
@@ -614,7 +654,7 @@ func TestUpload_ReportsRowsFileProgressWithoutTotal(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	op := wboperation.NewOperations().New("uploading eval table t")
 
-	_, err := uploader.Upload(op.Context(context.Background()),
+	_, err := upload(op.Context(context.Background()), uploader,
 		&spb.UploadEvalTableRequest{
 			Name:         "t",
 			RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}, &spb.EvalTableRow{}),
@@ -629,7 +669,7 @@ func TestUpload_DeletesRowsFileOnFailure(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, `{"project": null}`)
 	path := writeRowsFile(t, &spb.EvalTableRow{})
 
-	_, err := uploader.Upload(context.Background(),
+	_, err := upload(context.Background(), uploader,
 		&spb.UploadEvalTableRequest{Name: "t", RowsFilePath: path})
 
 	require.Error(t, err)
@@ -642,7 +682,7 @@ func TestUpload_RejectsTruncatedRowsFile(t *testing.T) {
 	// A row's size, but not the row.
 	path := writeGzipFile(t, binary.AppendUvarint(nil, 10))
 
-	_, err := uploader.Upload(context.Background(),
+	_, err := upload(context.Background(), uploader,
 		&spb.UploadEvalTableRequest{Name: "t", RowsFilePath: path})
 
 	assert.ErrorContains(t, err, "evaltables: failed to read rows: truncated row")
@@ -664,17 +704,18 @@ func assertNoRowsOrVersion(t *testing.T, ces *fakeCES) {
 func TestUpload_NoCESURL(t *testing.T) {
 	uploader, _ := newTestUploaderWithSettings(t, projectFoundJSON, settings.New())
 
-	_, err := uploader.Upload(context.Background(),
+	_, err := upload(context.Background(), uploader,
 		&spb.UploadEvalTableRequest{Name: "t"})
 
 	assert.ErrorContains(t, err, "no CES URL in settings")
+	assert.False(t, evaltables.IsUsageError(err))
 }
 
 func TestUpload_ProjectNotFound(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, `{"project": null}`)
 
-	_, err := uploader.Upload(context.Background(),
+	_, err := upload(context.Background(), uploader,
 		&spb.UploadEvalTableRequest{Name: "t"})
 
 	assert.ErrorContains(t, err, "project test-entity/test-project not found")
@@ -719,9 +760,10 @@ func TestUpload_RejectsUnknownColumnTypes(t *testing.T) {
 			ces := newFakeCES(t)
 			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-			_, err := uploader.Upload(context.Background(), tc.request)
+			_, err := upload(context.Background(), uploader, tc.request)
 
 			assert.ErrorContains(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
 		})
 	}
@@ -733,7 +775,7 @@ func TestUpload_RejectsOversizedColumns(t *testing.T) {
 
 	// Each "<" is escaped to 6 bytes, so the name alone exceeds the limit.
 	name := strings.Repeat("<", 3<<20)
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: name, ValueType: "string"},
 		},
@@ -816,13 +858,14 @@ func TestUpload_RejectsRowsThatDontFitColumns(t *testing.T) {
 			ces := newFakeCES(t)
 			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-			_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+			_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 				DatasetFields: []*spb.EvalTableField{tc.field},
 				Rows:          []*spb.EvalTableRow{tc.row},
 			})
 
 			assert.ErrorContains(t, err, tc.wantErr)
-			assertNoRowsOrVersion(t, ces)
+			assert.True(t, evaltables.IsUsageError(err))
+			assert.Empty(t, ces.Requests())
 		})
 	}
 }
@@ -832,16 +875,17 @@ func TestUpload_RejectsOversizedRow(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
 	// Each "\n" is escaped to 2 bytes, so the encoded row exceeds 16 MiB.
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		DatasetFields: outputFieldX,
 		Rows: []*spb.EvalTableRow{
 			{Output: values(stringValue(strings.Repeat("\n", 8<<20)))},
 		},
 	})
 
-	assert.ErrorContains(t, err, "evaltables: row is")
+	assert.ErrorContains(t, err, "row is")
 	assert.ErrorContains(t, err, "(row 0)")
-	assertNoRowsOrVersion(t, ces)
+	assert.True(t, evaltables.IsUsageError(err))
+	assert.Empty(t, ces.Requests())
 }
 
 func TestUpload_ConvertsMedia(t *testing.T) {
@@ -889,7 +933,7 @@ func TestUpload_ConvertsMedia(t *testing.T) {
 		`"height":48` +
 		`}`
 
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "prompt", ValueType: "string"},
@@ -1007,108 +1051,79 @@ func TestUpload_ConvertsPythonMedia(t *testing.T) {
 	require.NoError(t, protojson.Unmarshal(fixture, request))
 	request.Name = "my-table"
 
-	_, err = uploader.Upload(context.Background(), request)
+	_, err = upload(context.Background(), uploader, request)
 
 	require.NoError(t, err)
 	requests := ces.Requests()
 	require.Len(t, requests, 4)
-
-	var converted struct {
-		Rows []struct {
-			Input map[string]map[string]any `json:"input"`
-		} `json:"rows"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(requests[2].Body), &converted))
-	require.Len(t, converted.Rows, 1)
-
-	// sent returns the W&B media JSON of the recorded row's i-th input.
-	sent := func(i int) map[string]any {
-		var media map[string]any
-		require.NoError(t, json.Unmarshal(
-			[]byte(request.GetRows()[0].GetInput().GetValues()[i].GetWandbMediaJson()),
-			&media,
-		))
-		return media
-	}
-	// uri returns the CES URI expected for W&B media JSON.
-	uri := func(media map[string]any) string {
-		if artifactPath, ok := media["artifact_path"]; ok {
-			return artifactPath.(string)
-		}
-		return "wandb-run-file://test-entity/test-project/test-run/" +
-			media["path"].(string)
-	}
-	// file returns the CES value expected for a W&B media file's JSON.
-	file := func(media map[string]any) map[string]any {
-		return map[string]any{
-			"_type":  media["_type"],
-			"sha256": media["sha256"],
-			"size":   media["size"],
-			"uri":    uri(media),
-		}
-	}
-
-	image := sent(0)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-image",
-		"schema_version": float64(1),
-		"wb_media_type":  "image-file",
-		"format":         "png",
-		"sha256":         image["sha256"],
-		"size":           image["size"],
-		"uri":            uri(image),
-		"width":          float64(2),
-		"height":         float64(2),
-		"caption":        "a cat",
-		"boxes": map[string]any{"predictions": file(
-			image["boxes"].(map[string]any)["predictions"].(map[string]any))},
-		"masks": map[string]any{"predictions": file(
-			image["masks"].(map[string]any)["predictions"].(map[string]any))},
-	}, converted.Rows[0].Input["image"])
-
-	artifactImage := sent(1)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-image",
-		"schema_version": float64(1),
-		"wb_media_type":  "image-file",
-		"format":         "png",
-		"sha256":         artifactImage["sha256"],
-		"size":           artifactImage["size"],
-		"uri":            "wandb-artifact://abc123/media/images/artifact.png",
-		"width":          float64(2),
-		"height":         float64(2),
-	}, converted.Rows[0].Input["artifact_image"])
-
-	audio := sent(2)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-audio",
-		"schema_version": float64(1),
-		"wb_media_type":  "audio-file",
-		"sha256":         audio["sha256"],
-		"size":           audio["size"],
-		"uri":            uri(audio),
-		"caption":        "meow",
-	}, converted.Rows[0].Input["audio"])
-
-	video := sent(3)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-video",
-		"schema_version": float64(1),
-		"wb_media_type":  "video-file",
-		"sha256":         video["sha256"],
-		"size":           video["size"],
-		"uri":            uri(video),
-		"width":          float64(640),
-		"height":         float64(480),
-		"caption":        "a clip",
-	}, converted.Rows[0].Input["video"])
+	assert.JSONEq(t, `{"rows": [{
+		"input": {
+			"image": {
+				"extension_type": "wandb-image",
+				"schema_version": 1,
+				"wb_media_type": "image-file",
+				"format": "png",
+				"sha256": "3ac156facd9194daa57d0520cf7fae827b390b32e2a88aa63a6d2562e3d5321f",
+				"size": 75,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/eval/3ac156facd9194daa57d0520cf7fae.png",
+				"width": 2,
+				"height": 2,
+				"caption": "a cat",
+				"boxes": {"predictions": {
+					"_type": "boxes2D",
+					"sha256": "ad1d2145f99572ff3c3a4fea99839c7ad570ad5359231e6e060d75caa250405f",
+					"size": 113,
+					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/metadata/boxes2D/eval/ad1d2145f99572ff3c3a4fea99839c.boxes2D.json"
+				}},
+				"masks": {"predictions": {
+					"_type": "mask",
+					"sha256": "dd7b89993bde2e6c52ea00d533d1f09ac602d218251b7405d291fddc0b60cddf",
+					"size": 68,
+					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/mask/eval/dd7b89993bde2e6c52ea00d533d1f0.mask.png"
+				}}
+			},
+			"artifact_image": {
+				"extension_type": "wandb-image",
+				"schema_version": 1,
+				"wb_media_type": "image-file",
+				"format": "png",
+				"sha256": "2f1686c393cd8b93b2b3d9ca90a271a87672a28dccb22d5688cd56561d34bdc5",
+				"size": 75,
+				"uri": "wandb-artifact://abc123/media/images/artifact.png",
+				"width": 2,
+				"height": 2
+			},
+			"audio": {
+				"extension_type": "wandb-audio",
+				"schema_version": 1,
+				"wb_media_type": "audio-file",
+				"sha256": "6583eae4b42ae05c5bea5d55837c8613de7898fc6ce0712ed26b961d6392f306",
+				"size": 14,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/audio/eval/6583eae4b42ae05c5bea5d55837c86.wav",
+				"caption": "meow"
+			},
+			"video": {
+				"extension_type": "wandb-video",
+				"schema_version": 1,
+				"wb_media_type": "video-file",
+				"sha256": "eb09cef0044f4d991fd75715493d7cb01fde6dcb5896fa3e6fc09ce25a4e841a",
+				"size": 14,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/videos/eval/eb09cef0044f4d991fd75715493d7c.mp4",
+				"width": 640,
+				"height": 480,
+				"caption": "a clip"
+			}
+		},
+		"output": null,
+		"scores": {}
+	}]}`, requests[2].Body)
 }
 
 func TestUpload_KeepsNullMedia(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
 			{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
@@ -1175,7 +1190,7 @@ func TestUpload_RejectsInvalidMedia(t *testing.T) {
 			ces := newFakeCES(t)
 			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-			_, err := uploader.Upload(context.Background(), &spb.UploadEvalTableRequest{
+			_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
 				DatasetFields: []*spb.EvalTableField{{
 					Source:         "output",
 					Name:           "media",
@@ -1186,7 +1201,8 @@ func TestUpload_RejectsInvalidMedia(t *testing.T) {
 			})
 
 			assert.ErrorContains(t, err, tc.wantErr)
-			assertNoRowsOrVersion(t, ces)
+			assert.True(t, evaltables.IsUsageError(err))
+			assert.Empty(t, ces.Requests())
 		})
 	}
 }

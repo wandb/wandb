@@ -420,27 +420,55 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.GQLVar("artifactId", gomock.Eq("serverId")))
 }
 
-func TestSendUploadEvalTable_RespondsWithErrorOnFailure(t *testing.T) {
-	// The run isn't initialized, so the upload fails.
-	x := makeSender(t, gqlmock.NewMockClient())
-	uploadEvalTable := &spb.Record{
+// sendUploadEvalTable sends an UploadEvalTable request and returns
+// its response.
+func sendUploadEvalTable(
+	t *testing.T,
+	x testFixtures,
+	msg *spb.UploadEvalTableRequest,
+) *spb.UploadEvalTableResponse {
+	t.Helper()
+	request, outputs := runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(&spb.Record{
 		RecordType: &spb.Record_Request{
 			Request: &spb.Request{
-				RequestType: &spb.Request_UploadEvalTable{
-					UploadEvalTable: &spb.UploadEvalTableRequest{Name: "table"},
-				},
+				RequestType: &spb.Request_UploadEvalTable{UploadEvalTable: msg},
 			},
 		},
-	}
-
-	request, outputs := runworktest.SimpleRequest(t, "test-id")
-	x.Sender.SendRecord(uploadEvalTable, request)
+	}, request)
 	output := <-outputs
+	return output.GetResultCommunicate().GetResponse().GetUploadEvalTableResponse()
+}
 
-	response := output.GetResultCommunicate().GetResponse().GetUploadEvalTableResponse()
+func TestSendUploadEvalTable_RespondsWithErrorOnFailure(t *testing.T) {
+	// The run isn't initialized.
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	response := sendUploadEvalTable(t, x, &spb.UploadEvalTableRequest{Name: "t"})
+
 	require.NotNil(t, response)
-	assert.Contains(t, response.ErrorMessage, "evaltables:")
-	assert.Empty(t, response.EvaluationVersionId)
+	assert.Equal(t, spb.ErrorInfo_UNKNOWN, response.GetError().GetCode())
+	assert.Contains(t, response.GetError().GetMessage(), "run not yet initialized")
+	assert.Empty(t, response.GetEvaluationVersionId())
+}
+
+func TestSendUploadEvalTable_RespondsWithUsageErrorForInvalidTable(t *testing.T) {
+	x := makeSenderWithFileStream(
+		t, gqlmock.NewMockClient(), filestreamtest.NewFakeFileStream())
+
+	response := sendUploadEvalTable(t, x, &spb.UploadEvalTableRequest{
+		Name: "t",
+		DatasetFields: []*spb.EvalTableField{
+			{Source: "metadata", Name: "a", ValueType: "string"},
+		},
+	})
+
+	assert.Equal(t,
+		&spb.ErrorInfo{
+			Code:    spb.ErrorInfo_USAGE,
+			Message: `field "a" has unknown source "metadata"`,
+		},
+		response.GetError())
 }
 
 func TestSendUseArtifact(t *testing.T) {

@@ -6,6 +6,8 @@ from queue import Queue
 import pytest
 import wandb
 from hypothesis import settings
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface.interface import InterfaceBase
 
 settings.register_profile(
     "ci",
@@ -24,6 +26,27 @@ def api() -> wandb.Api:
     """
     with unittest.mock.patch("wandb.sdk.wandb_login._verify_login"):
         return wandb.Api()
+
+
+@pytest.fixture
+def deliver_upload_eval_table(monkeypatch) -> unittest.mock.MagicMock:
+    """The mocked `InterfaceBase.deliver_upload_eval_table`.
+
+    By default, every upload succeeds with fixed evaluation and dataset IDs.
+    """
+    deliver = unittest.mock.MagicMock()
+    deliver.return_value.wait_or.return_value = pb.Result(
+        response=pb.Response(
+            upload_eval_table_response=pb.UploadEvalTableResponse(
+                evaluation_id="evaluation-1",
+                evaluation_version_id="evaluation-version-1",
+                dataset_id="dataset-1",
+                dataset_version_id="dataset-version-1",
+            )
+        )
+    )
+    monkeypatch.setattr(InterfaceBase, "deliver_upload_eval_table", deliver)
+    return deliver
 
 
 # --------------------------------

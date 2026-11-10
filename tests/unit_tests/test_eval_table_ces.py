@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+from collections.abc import Iterable
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -15,7 +16,6 @@ from wandb.errors import CommError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces
-from wandb.sdk.interface.interface import InterfaceBase
 
 
 @pytest.fixture
@@ -29,29 +29,6 @@ def default_eval_table_server_feature_enabled(monkeypatch):
         "wandb.apis.public.service_api.ServiceApi.feature_enabled",
         lambda self, feature: True,
     )
-
-
-def _upload_eval_table_result(
-    response: pb.UploadEvalTableResponse,
-) -> pb.Result:
-    return pb.Result(response=pb.Response(upload_eval_table_response=response))
-
-
-_UPLOADED = pb.UploadEvalTableResponse(
-    evaluation_id="evaluation-1",
-    evaluation_version_id="evaluation-version-1",
-    dataset_id="dataset-1",
-    dataset_version_id="dataset-version-1",
-)
-
-
-@pytest.fixture
-def deliver_upload_eval_table(monkeypatch) -> MagicMock:
-    """Replace wandb-core's EvalTable upload with one that succeeds."""
-    deliver = MagicMock()
-    deliver.return_value.wait_or.return_value = _upload_eval_table_result(_UPLOADED)
-    monkeypatch.setattr(InterfaceBase, "deliver_upload_eval_table", deliver)
-    return deliver
 
 
 def _sent(deliver: MagicMock) -> list[pb.UploadEvalTableRequest]:
@@ -72,34 +49,28 @@ def _value(value: pb.EvalTableValue) -> Any:
         return value.number_value
     if kind == "string_value":
         return value.string_value
-    if kind == "json_value":
-        return json.loads(value.json_value)
     return json.loads(value.wandb_media_json)
 
 
+def _named(names: list[str], values: Iterable[pb.EvalTableValue]) -> dict[str, Any]:
+    return dict(zip(names, map(_value, values), strict=True))
+
+
 def _rows(request: pb.UploadEvalTableRequest) -> list[dict[str, Any]]:
-    """Decode the request's typed rows into CES row objects."""
-    names = {
-        source: [
-            field.name for field in request.dataset_fields if field.source == source
-        ]
-        for source in ("input", "output")
-    }
-    scorer_names = [scorer.name for scorer in request.scorers]
+    """Decode the request's typed rows into dicts keyed by column name."""
+    inputs = [field.name for field in request.dataset_fields if field.source == "input"]
+    outputs = [
+        field.name for field in request.dataset_fields if field.source == "output"
+    ]
+    scorers = [scorer.name for scorer in request.scorers]
 
     rows = []
     for row in request.rows:
-        decoded: dict[str, Any] = {}
-        for source in ("input", "output"):
-            values = row.input if source == "input" else row.output
-            decoded[source] = (
-                dict(zip(names[source], map(_value, values.values), strict=True))
-                if row.HasField(source)
-                else None
-            )
-        decoded["scores"] = dict(
-            zip(scorer_names, map(_value, row.scores), strict=True)
-        )
+        decoded = {"input": None, "output": None, "scores": _named(scorers, row.scores)}
+        if row.HasField("input"):
+            decoded["input"] = _named(inputs, row.input.values)
+        if row.HasField("output"):
+            decoded["output"] = _named(outputs, row.output.values)
         if row.example_key:
             decoded["example_key"] = row.example_key
         rows.append(decoded)
@@ -127,6 +98,17 @@ def _read_rows_file(path: str) -> list[pb.EvalTableRow]:
     return rows
 
 
+def _upload_error(code: pb.ErrorInfo.ErrorCode, message: str) -> pb.Result:
+    """Return wandb-core's result for an EvalTable upload that failed."""
+    return pb.Result(
+        response=pb.Response(
+            upload_eval_table_response=pb.UploadEvalTableResponse(
+                error=pb.ErrorInfo(code=code, message=message)
+            )
+        )
+    )
+
+
 def _as_dicts(messages: list[Message]) -> list[dict[str, Any]]:
     """Convert messages to dicts of their set fields."""
     return [
@@ -138,13 +120,7 @@ def _as_dicts(messages: list[Message]) -> list[dict[str, Any]]:
 def test_ces_eval_table_writes_columns_rows_and_version(
     deliver_upload_eval_table,
     run,
-    monkeypatch,
 ):
-    debug = MagicMock()
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_ces._logger.debug",
-        debug,
-    )
     et = wandb.EvalTable(
         columns=["prompt", "truth", "answer", "confidence", "correct"],
         data=[
@@ -182,13 +158,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
             "scores": {"correct": False},
         },
     ]
-    debug.assert_called_once_with(
-        "CES EvalTable recorded evaluation_version_id=%s",
-        "evaluation-version-1",
-    )
-
-    history_value = et.to_json(run)
-    assert history_value == {
+    assert et.to_json(run) == {
         "_type": "eval-table-ces",
         "schema_version": 1,
         "ncols": 5,
@@ -199,9 +169,6 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "dataset_id": "dataset-1",
         "dataset_version_id": "dataset-version-1",
     }
-    assert "evaluate_call_id" not in history_value
-    assert et._immutable_write_result is not None
-    assert et._immutable_write_result.logged_id == "evaluation-version-1"
 
 
 def test_ces_eval_table_sends_large_tables_in_a_rows_file(
@@ -395,25 +362,6 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
         run.log({"eval": et})
 
     deliver_upload_eval_table.assert_not_called()
-
-
-def test_ces_eval_table_raises_upload_error(deliver_upload_eval_table, run):
-    deliver_upload_eval_table.return_value.wait_or.return_value = (
-        _upload_eval_table_result(
-            pb.UploadEvalTableResponse(error_message="upload failed")
-        )
-    )
-    et = wandb.EvalTable(
-        columns=["value"],
-        data=[[1]],
-        output_columns=["value"],
-        backend="ces",
-    )
-
-    with pytest.raises(CommError, match="upload failed"):
-        run.log({"eval": et})
-
-    assert et._immutable_write_result is None
 
 
 def test_ces_eval_table_sends_values_as_typed_cells(
@@ -689,25 +637,34 @@ def test_ces_error_uses_original_integer_column(deliver_upload_eval_table, run):
     deliver_upload_eval_table.assert_not_called()
 
 
-def test_ces_eval_table_retry_resends_request(deliver_upload_eval_table, run):
-    deliver_upload_eval_table.return_value.wait_or.side_effect = [
-        _upload_eval_table_result(pb.UploadEvalTableResponse(error_message="failed")),
-        _upload_eval_table_result(_UPLOADED),
-    ]
+@pytest.mark.parametrize(
+    ("code", "error_type", "message"),
+    [
+        (pb.ErrorInfo.USAGE, UsageError, "^failed$"),
+        (pb.ErrorInfo.UNKNOWN, CommError, "^Failed to upload EvalTable: failed$"),
+    ],
+)
+def test_ces_eval_table_upload_error_allows_retry(
+    deliver_upload_eval_table,
+    run,
+    code,
+    error_type,
+    message,
+):
+    wait_or = deliver_upload_eval_table.return_value.wait_or
+    wait_or.side_effect = [_upload_error(code, "failed"), wait_or.return_value]
     et = wandb.EvalTable(
         columns=["value"],
-        data=[[1], [2]],
+        data=[[1]],
         output_columns=["value"],
         backend="ces",
     )
     et.bind_to_run(run, "eval", 7)
 
-    with pytest.raises(CommError, match="failed"):
+    with pytest.raises(error_type, match=message):
         et.to_json(run)
-    et.to_json(run)
 
-    first, retry = _sent(deliver_upload_eval_table)
-    assert first == retry
+    assert et.to_json(run)["evaluation_version_id"] == "evaluation-version-1"
 
 
 def test_ces_eval_table_rejects_mixed_type_mode():

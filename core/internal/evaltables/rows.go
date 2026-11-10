@@ -37,25 +37,23 @@ type rowEncoder struct {
 	scores  []rowColumn
 }
 
+// newRowEncoder returns an encoder for the request's rows.
+//
+// The request's columns must have passed validateColumns.
 func newRowEncoder(
 	request *spb.UploadEvalTableRequest,
 	runPath runbranch.RunPath,
-) (*rowEncoder, error) {
+) *rowEncoder {
 	e := &rowEncoder{media: &mediaConverter{runPath: runPath}}
 
 	for _, field := range request.GetDatasetFields() {
-		mediaType := field.GetWandbMediaType()
-		if _, ok := mediaExtensionTypes[mediaType]; mediaType != "" && !ok {
-			return nil, fmt.Errorf(
-				"evaltables: field %q has unknown media type %q",
-				field.GetName(), mediaType)
-		}
+		column := newRowColumn(
+			field.GetName(), field.GetValueType(), field.GetWandbMediaType())
 
-		column := newRowColumn(field.GetName(), field.GetValueType(), mediaType)
-		switch field.GetSource() {
-		case "input":
+		// validateColumns checked that the source is "input" or "output".
+		if field.GetSource() == "input" {
 			e.inputs = append(e.inputs, column)
-		case "output":
+		} else {
 			e.outputs = append(e.outputs, column)
 		}
 	}
@@ -65,7 +63,7 @@ func newRowEncoder(
 			newRowColumn(scorer.GetName(), scorer.GetValueType(), ""))
 	}
 
-	return e, nil
+	return e
 }
 
 func newRowColumn(name, valueType, mediaType string) rowColumn {
@@ -132,7 +130,7 @@ func (e *rowEncoder) encodeRow(row *spb.EvalTableRow) ([]byte, error) {
 
 	if len(rowBatchPrefix)+len(buf)+len(rowBatchSuffix) >= maxRequestBodyBytes {
 		return nil, fmt.Errorf(
-			"evaltables: row is %d bytes, must be under %d",
+			"row is %d bytes, must be under %d",
 			len(buf), maxRequestBodyBytes-len(rowBatchPrefix)-len(rowBatchSuffix))
 	}
 
@@ -163,7 +161,7 @@ func (e *rowEncoder) appendValues(
 ) ([]byte, error) {
 	if len(values) != len(columns) {
 		return nil, fmt.Errorf(
-			"evaltables: row has %d %s values, expected %d",
+			"row has %d %s values, expected %d",
 			len(values), part, len(columns))
 	}
 
@@ -177,7 +175,7 @@ func (e *rowEncoder) appendValues(
 		var err error
 		buf, err = e.appendValue(buf, columns[i], value)
 		if err != nil {
-			return nil, fmt.Errorf("evaltables: field %q: %v", columns[i].name, err)
+			return nil, fmt.Errorf("field %q: %v", columns[i].name, err)
 		}
 	}
 	return append(buf, '}'), nil
@@ -281,6 +279,9 @@ func columnKind(column rowColumn) string {
 }
 
 // appendJSONFloat appends f as encoding/json would encode it.
+//
+// This and appendJSONString avoid encoding/json's allocation per value,
+// since a table can have millions of cells.
 func appendJSONFloat(buf []byte, f float64) ([]byte, error) {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return nil, fmt.Errorf("unsupported number %v", f)

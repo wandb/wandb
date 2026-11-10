@@ -1397,9 +1397,60 @@ func (s *Sender) sendRequestUploadEvalTable(
 
 	if s.evalTableUploader == nil {
 		respond(&spb.UploadEvalTableResponse{
-			ErrorMessage: "cannot log an EvalTable in offline mode",
+			Error: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_UNSUPPORTED,
+				Message: "cannot log an EvalTable in offline mode",
+			},
 		})
 		return
+	}
+
+	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetName()))
+	ctx, cancel := context.WithCancel(op.Context(s.runWork.BeforeEndCtx()))
+	if request != nil {
+		// Stop uploading if the client cancels the request.
+		context.AfterFunc(request.Context(), cancel)
+	}
+
+	s.evalTableWG.Add(1)
+	go func() {
+		defer s.evalTableWG.Done()
+		defer cancel()
+
+		response, err := s.uploadEvalTable(ctx, msg)
+		op.Finish()
+
+		switch {
+		case evaltables.IsUsageError(err):
+			response = &spb.UploadEvalTableResponse{
+				Error: &spb.ErrorInfo{
+					Code:    spb.ErrorInfo_USAGE,
+					Message: err.Error(),
+				},
+			}
+		case err != nil:
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
+			)
+			response = &spb.UploadEvalTableResponse{
+				Error: &spb.ErrorInfo{Message: err.Error()},
+			}
+		}
+
+		respond(response)
+	}()
+}
+
+// uploadEvalTable validates an EvalTable, then uploads it and the run
+// files that its media cells reference.
+func (s *Sender) uploadEvalTable(
+	ctx context.Context,
+	msg *spb.UploadEvalTableRequest,
+) (*spb.UploadEvalTableResponse, error) {
+	table, err := s.evalTableUploader.Encode(msg)
+	if err != nil {
+		return nil, err
 	}
 
 	if mediaPaths := msg.GetUploadMediaPaths(); len(mediaPaths) > 0 {
@@ -1414,26 +1465,7 @@ func (s *Sender) sendRequestUploadEvalTable(
 		s.runfilesUploader.Process(files)
 	}
 
-	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetName()))
-	ctx := op.Context(s.runWork.BeforeEndCtx())
-
-	s.evalTableWG.Add(1)
-	go func() {
-		defer s.evalTableWG.Done()
-
-		response, err := s.evalTableUploader.Upload(ctx, msg)
-		op.Finish()
-
-		if err != nil {
-			s.logger.CaptureError(
-				"stream",
-				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
-			)
-			response = &spb.UploadEvalTableResponse{ErrorMessage: err.Error()}
-		}
-
-		respond(response)
-	}()
+	return s.evalTableUploader.Upload(ctx, table)
 }
 
 func (s *Sender) sendRequestDownloadArtifact(
