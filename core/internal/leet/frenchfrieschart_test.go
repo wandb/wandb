@@ -88,7 +88,7 @@ func TestFrenchFriesChart_RetainsHistoryBeyondVisibleWidth(t *testing.T) {
 	require.Equal(t, 10, chart.TestSampleCount())
 }
 
-func TestFrenchFriesChart_TruncatedRowsExposeVisibleSeriesInTitle(t *testing.T) {
+func TestFrenchFriesChart_ScrollsRowsThatDoNotFit(t *testing.T) {
 	def := &leet.MetricDef{
 		Name:       "GPU Utilization",
 		Unit:       leet.UnitPercent,
@@ -108,8 +108,17 @@ func TestFrenchFriesChart_TruncatedRowsExposeVisibleSeriesInTitle(t *testing.T) 
 		chart.AddDataPoint("GPU "+strconv.Itoa(gpu), 100, float64(gpu)*10)
 	}
 
-	require.Equal(t, []string{"GPU 0", "GPU 7"}, chart.TestVisibleSeries())
-	require.Equal(t, "[0,7/8]", chart.TestTitleDetail())
+	require.Equal(t, []string{"GPU 0", "GPU 1"}, chart.TestVisibleSeries())
+	require.Equal(t, "[0-1/8]", chart.TestTitleDetail())
+	require.False(t, chart.ScrollRows(-1))
+
+	require.True(t, chart.ScrollRows(3))
+	require.Equal(t, []string{"GPU 3", "GPU 4"}, chart.TestVisibleSeries())
+	require.Equal(t, "[3-4/8]", chart.TestTitleDetail())
+
+	require.True(t, chart.ScrollRows(100))
+	require.Equal(t, []string{"GPU 6", "GPU 7"}, chart.TestVisibleSeries())
+	require.False(t, chart.ScrollRows(1))
 }
 
 func TestFrenchFriesChart_InspectionShowsValuesForWholeColumn(t *testing.T) {

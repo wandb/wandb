@@ -215,6 +215,9 @@ func (c *TimeSeriesLineChart) UpdateInspectionAt(mouseX, _ int) {
 // SupportsHeatmap reports whether this chart can toggle into heatmap mode.
 func (c *TimeSeriesLineChart) SupportsHeatmap() bool { return false }
 
+// ScrollRows is unsupported for plain line charts.
+func (c *TimeSeriesLineChart) ScrollRows(int) bool { return false }
+
 // ToggleHeatmapMode is unsupported for plain line charts.
 func (c *TimeSeriesLineChart) ToggleHeatmapMode() bool { return false }
 
