@@ -20,4 +20,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- `Registry.import_from_huggingface()` imports a Hugging Face model repo into a registry collection server-side, with `Api.check_huggingface_source()`, `Api.huggingface_import()`, and `Api.huggingface_imports()` to check, monitor, and list imports. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/TBD)
+- `Registry.import_from_huggingface()` imports a Hugging Face model repo into a registry collection server-side, with `Api.check_huggingface_source()`, `Api.huggingface_import()`, and `Api.huggingface_imports()` to check, monitor, and list imports. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/13352)
