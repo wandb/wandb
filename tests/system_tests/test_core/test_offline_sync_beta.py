@@ -810,13 +810,13 @@ def test_retry_after_partial_filestream_failure(
         for i in range(n_rows):
             run.log({"row": i, "padding": padding})
 
-    # Accept the first two filestream requests (the summary, then the first
-    # batch of history) and reject the next one.
+    # Let filestream requests through until some history is accepted,
+    # then reject the next request.
     wandb_backend_spy.stub_filestream(
         "upload rejected",
         status=403,
         n_times=1,
-        pass_first=2,
+        after_history=True,
     )
     failed = runner.invoke(cli.beta, f"sync {run.sync_dir}")
     marker = pathlib.Path(run.settings.sync_file + ".synced")

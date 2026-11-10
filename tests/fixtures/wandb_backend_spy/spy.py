@@ -75,7 +75,7 @@ class WandbBackendSpy:
         *,
         status: int,
         n_times: int = 1,
-        pass_first: int = 0,
+        after_history: bool = False,
     ) -> None:
         """Stub the FileStream endpoint.
 
@@ -89,18 +89,35 @@ class WandbBackendSpy:
             body: The request body. If a dict, it is converted to JSON.
             status: The HTTP status code to return.
             n_times: The number of requests to intercept.
-            pass_first: The number of requests to let through to the server
-                before intercepting.
+            after_history: If true, requests are let through to the server
+                until it has accepted some run history, and only later
+                requests are intercepted.
         """
         if not isinstance(body, str):
             body = json.dumps(body)
 
         with self._lock:
             self._filestream_stubs.extend(
-                [_FileStreamResponse(status=status, body=body)] * n_times
+                [
+                    _FileStreamResponse(
+                        status=status,
+                        body=body,
+                        after_history=after_history,
+                    )
+                ]
+                * n_times
             )
-            # Stubs are popped from the end of the list.
-            self._filestream_stubs.extend([_PASS_THROUGH] * pass_first)
+
+    def _has_accepted_history(self) -> bool:
+        """Whether any FileStream request with history has succeeded.
+
+        The lock must be held.
+        """
+        return any(
+            run._file_stream_files.get("wandb-history.jsonl")
+            for runs in self._runs._run_by_id.values()
+            for run in runs.values()
+        )
 
     def intercept_graphql(self, request_raw: bytes) -> fastapi.Response | None:
         """Intercept a GraphQL request to produce a fake response."""
@@ -131,10 +148,9 @@ class WandbBackendSpy:
             stubs = self._filestream_stubs
             if not stubs:
                 return None
+            if stubs[-1].after_history and not self._has_accepted_history():
+                return None
             stub = stubs.pop()
-
-        if stub is _PASS_THROUGH:
-            return None
 
         return fastapi.Response(
             status_code=stub.status,
@@ -606,6 +622,5 @@ class _FileStreamResponse:
     status: int
     body: str
 
-
-_PASS_THROUGH = _FileStreamResponse(status=0, body="")
-"""A FileStream stub that lets the request through to the server."""
+    after_history: bool = False
+    """Whether to wait until the server has accepted some history."""
