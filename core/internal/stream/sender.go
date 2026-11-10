@@ -1415,11 +1415,16 @@ func (s *Sender) sendRequestUploadEvalTable(
 	}
 
 	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetName()))
-	ctx := op.Context(s.runWork.BeforeEndCtx())
+	ctx, cancel := context.WithCancel(op.Context(s.runWork.BeforeEndCtx()))
+	if request != nil {
+		// Stop uploading if the client cancels the request.
+		context.AfterFunc(request.Context(), cancel)
+	}
 
 	s.evalTableWG.Add(1)
 	go func() {
 		defer s.evalTableWG.Done()
+		defer cancel()
 
 		response, err := s.evalTableUploader.Upload(ctx, msg)
 		op.Finish()

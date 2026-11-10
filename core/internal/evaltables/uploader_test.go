@@ -468,6 +468,33 @@ func TestUpload_RetriesReuseIdempotencyKey(t *testing.T) {
 		rowsRequests[1].IdempotencyKey)
 }
 
+func TestUpload_StopsRetryingWhenCancelled(t *testing.T) {
+	ces := newFakeCES(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel during a rows request that fails with a retryable status.
+	ces.onRequest = func(path string) {
+		if strings.HasSuffix(path, "/rows") {
+			cancel()
+		}
+	}
+	ces.errorStatus = func(path string) int {
+		if strings.HasSuffix(path, "/rows") {
+			return http.StatusServiceUnavailable
+		}
+		return 0
+	}
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+	_, err := uploader.Upload(ctx, &spb.UploadEvalTableRequest{
+		Name: "my-table",
+		Rows: []*spb.EvalTableRow{{}},
+	})
+
+	assert.ErrorContains(t, err, "context canceled")
+	// Create, columns, and one rows attempt.
+	assert.Len(t, ces.Requests(), 3)
+}
+
 func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
