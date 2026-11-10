@@ -17,6 +17,7 @@ use prost_types::Timestamp;
 use tokio::sync::{Notify, mpsc};
 use tonic::Status;
 
+use crate::job::Job;
 use crate::metrics::{Field, Sample, Scope};
 use crate::monitors::Collectors;
 use crate::record;
@@ -43,6 +44,8 @@ struct Subscription {
     interval: Duration,
     gpu_device_ids: Vec<i32>,
     scope: Scope,
+    /// The job of the monitored process, read once when it subscribes.
+    job: Job,
     baseline: BaselineKey,
     tx: Sender,
     /// The scheduled time of the sweep that last served this subscriber.
@@ -133,6 +136,7 @@ impl Subscriptions {
             interval: GRANULARITY * ticks,
             gpu_device_ids: request.gpu_device_ids.clone(),
             scope: Scope::from(request),
+            job: Job::of(request.pid.max(0) as u32),
             baseline,
             tx,
             last_delivery: None,
@@ -249,7 +253,7 @@ impl Subscriptions {
                 _ => std::slice::from_ref(&sub.scope.pid),
             };
             let mut typed =
-                record::typed_record(sample, scoped, &values, pids, &sub.gpu_device_ids);
+                record::typed_record(sample, scoped, &values, pids, &sub.job, &sub.gpu_device_ids);
             if typed == SystemMetricsRecord::default() {
                 continue;
             }
