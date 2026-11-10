@@ -320,3 +320,51 @@ func TestFileStream_UploadedFileNamesOverProxyLimitAreFatal(t *testing.T) {
 	assert.Empty(t, server.accepted)
 	requireNeverComplete(t, server)
 }
+
+// requireDeliveredWhileOpen waits for the server to accept everything
+// without the run finishing, then finishes it.
+func requireDeliveredWhileOpen(
+	t *testing.T,
+	server *sizeLimitedServer,
+	fs filestream.FileStream,
+	delivered func() bool,
+) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		server.mu.Lock()
+		defer server.mu.Unlock()
+		return delivered()
+	}, 10*time.Second, 10*time.Millisecond,
+		"leftover data must be sent without another update or finish()")
+	finishFileStream(t, fs)
+}
+
+func TestFileStream_SendsLeftoverUploadedNamesWhileRunIsOpen(t *testing.T) {
+	server := &sizeLimitedServer{limit: 100 << 10}
+	fs := startFileStream(t, server,
+		&spb.Settings{XFileStreamMaxBytes: wrapperspb.Int32(90 << 10)})
+	names := makeUploadedNames(4000)
+
+	fs.StreamUpdate(uploadedFiles(names))
+
+	requireDeliveredWhileOpen(t, server, fs, func() bool {
+		n := 0
+		for _, request := range server.accepted {
+			n += len(request.Uploaded)
+		}
+		return n == len(names)
+	})
+}
+
+func TestFileStream_SendsLeftoverHistoryWhileRunIsOpen(t *testing.T) {
+	server := &sizeLimitedServer{limit: 1 << 20}
+	fs := startFileStream(t, server,
+		&spb.Settings{XFileStreamMaxBytes: wrapperspb.Int32(90 << 10)})
+	lines := makeHistoryLines(200, 4<<10) // about 1.6 MB of JSON
+
+	fs.StreamUpdate(historyLines(lines))
+
+	requireDeliveredWhileOpen(t, server, fs, func() bool {
+		return len(acceptedHistory(t, server)) == len(lines)
+	})
+}

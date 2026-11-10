@@ -43,6 +43,14 @@ func (cl CollectLoop) Start(
 
 			cl.waitForRateLimit(state, buffer, requests)
 			hasMore = cl.transmit(state, buffer, requests, output)
+
+			// Send what didn't fit in the last request, such as lines or
+			// uploaded file names over the size limit, without waiting
+			// for another update. transmit keeps merging new updates.
+			for hasMore {
+				cl.waitForRateLimit(state, buffer, requests)
+				hasMore = cl.transmit(state, buffer, requests, output)
+			}
 		}
 
 		for hasMore {
