@@ -82,10 +82,19 @@ func infoFromRecord(rec *spb.RunRecord) Info {
 // Run is a run's state folded from its transaction log.
 //
 // Update reads the records written since the last call, so a Run kept open
-// follows a live run cheaply. History rows are not retained.
+// follows a live run cheaply. History rows are not retained; History scans
+// the file for them.
 type Run struct {
 	path   string
 	cursor *Cursor
+	logger *observability.CoreLogger
+
+	// index has one entry per indexStride history records, in file order.
+	// Steps never decrease within a log, since the SDK drops out-of-order
+	// steps, so a scan for a step or for the last rows can seek to the
+	// entry nearest its target instead of reading from the start.
+	index        []indexEntry
+	historyCount int
 
 	info        Info
 	infoSeen    bool
@@ -112,6 +121,7 @@ func Open(path string, logger *observability.CoreLogger) (*Run, error) {
 	return &Run{
 		path:        path,
 		cursor:      cursor,
+		logger:      logger,
 		config:      runconfig.New(),
 		summary:     runsummary.New(),
 		console:     NewConsole(),
@@ -129,18 +139,18 @@ func (r *Run) Update(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		record, err := r.cursor.Next()
+		record, offset, err := r.cursor.Next()
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		r.apply(record)
+		r.apply(record, offset)
 	}
 }
 
-func (r *Run) apply(record *spb.Record) {
+func (r *Run) apply(record *spb.Record, offset int64) {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
 		r.info = infoFromRecord(rec.Run)
@@ -168,7 +178,12 @@ func (r *Run) apply(record *spb.Record) {
 		}
 		r.environment.ProcessRecord(rec.Environment)
 	case *spb.Record_History:
-		r.lastStep = max(r.lastStep, historyStep(rec.History))
+		step := historyStep(rec.History)
+		if r.historyCount%indexStride == 0 {
+			r.index = append(r.index, indexEntry{step: step, offset: offset})
+		}
+		r.historyCount++
+		r.lastStep = max(r.lastStep, step)
 		if r.summaryMetrics != nil {
 			r.deriveSummary(rec.History)
 		}
