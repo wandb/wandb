@@ -9754,7 +9754,7 @@ type UploadEvalTableRequest struct {
 	Scorers       []*EvalTableScorer     `protobuf:"bytes,3,rep,name=scorers,proto3" json:"scorers,omitempty"`
 	// The table's rows in order.
 	//
-	// Only one of {rows, rows_file_path} should be set.
+	// At most one of {rows, rows_file_path} may be set.
 	Rows []*EvalTableRow `protobuf:"bytes,4,rep,name=rows,proto3" json:"rows,omitempty"`
 	// A gzipped file of the table's rows, as EvalTableRow messages, each
 	// preceded by its size as a varint.

@@ -77,7 +77,8 @@ func newRowColumn(name, valueType, mediaType string) rowColumn {
 
 // encodeRows returns the CES row JSON of rows.
 //
-// It stops after the first error.
+// It stops after the first error. Errors encoding a row satisfy
+// IsUsageError.
 func (e *rowEncoder) encodeRows(
 	rows iter.Seq2[*spb.EvalTableRow, error],
 ) iter.Seq2[[]byte, error] {
@@ -91,7 +92,7 @@ func (e *rowEncoder) encodeRows(
 
 			rowJSON, err := e.encodeRow(row)
 			if err != nil {
-				yield(nil, fmt.Errorf("%v (row %d)", err, i))
+				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i)})
 				return
 			}
 			if !yield(rowJSON, nil) {

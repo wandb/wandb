@@ -2697,7 +2697,7 @@ pub struct UploadEvalTableRequest {
     pub scorers: ::prost::alloc::vec::Vec<EvalTableScorer>,
     /// The table's rows in order.
     ///
-    /// Only one of {rows, rows_file_path} should be set.
+    /// At most one of {rows, rows_file_path} may be set.
     #[prost(message, repeated, tag = "4")]
     pub rows: ::prost::alloc::vec::Vec<EvalTableRow>,
     /// A gzipped file of the table's rows, as EvalTableRow messages, each

@@ -100,12 +100,13 @@ type EncodedTable struct {
 	runPath runbranch.RunPath
 	columns ces.EvalTableColumnNewParams
 	encoder *rowEncoder
+	nrows   int
 
 	// rowsJSON is the CES JSON of the request's inline rows.
 	rowsJSON [][]byte
 
-	// rowsFilePath is the request's rows file, if any, which is encoded
-	// while uploading.
+	// rowsFilePath is the request's rows file, if any, which Upload reads
+	// and encodes again rather than holding its rows' JSON in memory.
 	rowsFilePath string
 }
 
@@ -126,10 +127,17 @@ func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 
 // Encode validates an EvalTable upload request and encodes its rows.
 //
+// It encodes every row, so that an invalid table fails before Upload
+// writes anything to CES.
+//
 // Errors in the request's table satisfy IsUsageError.
 func (u *Uploader) Encode(
 	request *spb.UploadEvalTableRequest,
 ) (*EncodedTable, error) {
+	if len(request.GetRows()) > 0 && request.GetRowsFilePath() != "" {
+		return nil, usageError{errors.New("request has both rows and a rows file")}
+	}
+
 	upserter, err := u.runHandle.Upserter()
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: %v", err)
@@ -151,15 +159,14 @@ func (u *Uploader) Encode(
 		encoder:      newRowEncoder(request, runPath),
 		rowsFilePath: request.GetRowsFilePath(),
 	}
-	if table.rowsFilePath != "" {
-		return table, nil
-	}
-
 	for rowJSON, err := range table.encoder.encodeRows(requestRows(request)) {
 		if err != nil {
-			return nil, usageError{err}
+			return nil, err
 		}
-		table.rowsJSON = append(table.rowsJSON, rowJSON)
+		table.nrows++
+		if table.rowsFilePath == "" {
+			table.rowsJSON = append(table.rowsJSON, rowJSON)
+		}
 	}
 
 	return table, nil
@@ -206,7 +213,6 @@ func (u *Uploader) Upload(
 
 	// NewProgress only fails if the operation already has progress.
 	progress, _ := wboperation.Get(ctx).NewProgress()
-	totalRows := len(table.rowsJSON)
 	rowsDone := 0
 	batchIndex := 0
 	for batch, err := range rowBatches(table.rows()) {
@@ -228,12 +234,7 @@ func (u *Uploader) Upload(
 		batchIndex++
 
 		rowsDone += batch.rows
-		if totalRows > 0 {
-			progress.SetUnitsOfTotal(rowsDone, totalRows, "rows")
-		} else {
-			// A rows file's row count isn't known until it's read.
-			progress.SetUnitsDone(rowsDone, "rows")
-		}
+		progress.SetUnitsOfTotal(rowsDone, table.nrows, "rows")
 	}
 
 	version, err := evalTables.Versions.New(
@@ -333,7 +334,8 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-// requestRows returns the request's rows.
+// requestRows returns the rows in the request's rows file if it has one,
+// or else its inline rows.
 func requestRows(
 	request *spb.UploadEvalTableRequest,
 ) iter.Seq2[*spb.EvalTableRow, error] {

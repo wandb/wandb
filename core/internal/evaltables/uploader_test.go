@@ -648,7 +648,7 @@ func TestUpload_ReadsRowsFile(t *testing.T) {
 		requests[2].Body)
 }
 
-func TestUpload_ReportsRowsFileProgressWithoutTotal(t *testing.T) {
+func TestUpload_ReportsRowsFileProgress(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	op := wboperation.NewOperations().New("uploading eval table t")
@@ -660,31 +660,93 @@ func TestUpload_ReportsRowsFileProgressWithoutTotal(t *testing.T) {
 		})
 
 	require.NoError(t, err)
-	assert.Equal(t, "2 rows", op.ToProto().GetProgress())
+	assert.Equal(t, "2/2 rows", op.ToProto().GetProgress())
 }
 
-func TestUpload_RejectsTruncatedRowsFile(t *testing.T) {
+func TestUpload_RejectsInvalidRowInRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	// A row's size, but not the row.
-	path := writeGzipFile(t, binary.AppendUvarint(nil, 10))
+	path := writeRowsFile(t,
+		&spb.EvalTableRow{Output: values(stringValue("ok"))},
+		&spb.EvalTableRow{Output: values(numberValue(1))},
+	)
 
-	_, err := upload(context.Background(), uploader,
-		&spb.UploadEvalTableRequest{Name: "t", RowsFilePath: path})
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+		DatasetFields: outputFieldX,
+		RowsFilePath:  path,
+	})
 
-	assert.ErrorContains(t, err, "evaltables: failed to read rows: truncated row")
-	assertNoRowsOrVersion(t, ces)
+	assert.ErrorContains(t, err, "(row 1)")
+	assert.True(t, evaltables.IsUsageError(err))
+	assert.Empty(t, ces.Requests())
 }
 
-// assertNoRowsOrVersion checks that the upload added no rows and cut no
-// version. Rows are encoded as they're sent, so the table may exist.
-func assertNoRowsOrVersion(t *testing.T, ces *fakeCES) {
-	t.Helper()
-	for _, request := range ces.Requests() {
-		assert.NotContains(t,
-			[]string{tablePath + "/eval-id/rows", tablePath + "/eval-id/versions"},
-			request.Path)
+func TestUpload_RejectsBadRowsFile(t *testing.T) {
+	testCases := []struct {
+		name    string
+		write   func(t *testing.T) string
+		wantErr string
+	}{
+		{
+			name: "truncated row",
+			// A row's size, but not the row.
+			write:   func(t *testing.T) string { return writeGzipFile(t, binary.AppendUvarint(nil, 10)) },
+			wantErr: "truncated row",
+		},
+		{
+			name:    "oversized row",
+			write:   func(t *testing.T) string { return writeGzipFile(t, binary.AppendUvarint(nil, 1<<30)) },
+			wantErr: "row is 1073741824 bytes",
+		},
+		{
+			name: "not gzip",
+			write: func(t *testing.T) string {
+				path := filepath.Join(t.TempDir(), "rows.pb.gz")
+				require.NoError(t, os.WriteFile(path, []byte("not a gzip file"), 0o600))
+				return path
+			},
+			wantErr: "gzip: invalid header",
+		},
+		{
+			name: "gzip checksum mismatch",
+			write: func(t *testing.T) string {
+				path := writeRowsFile(t, &spb.EvalTableRow{})
+				data, err := os.ReadFile(path)
+				require.NoError(t, err)
+				data[len(data)-8] ^= 0xff // The CRC-32 in the gzip trailer.
+				require.NoError(t, os.WriteFile(path, data, 0o600))
+				return path
+			},
+			wantErr: "gzip: invalid checksum",
+		},
 	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ces := newFakeCES(t)
+			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+			_, err := upload(context.Background(), uploader,
+				&spb.UploadEvalTableRequest{Name: "t", RowsFilePath: tc.write(t)})
+
+			assert.ErrorContains(t, err, "evaltables: failed to read rows: "+tc.wantErr)
+			assert.Empty(t, ces.Requests())
+		})
+	}
+}
+
+func TestUpload_RejectsBothRowsAndRowsFile(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+		Rows:         []*spb.EvalTableRow{{}},
+		RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}),
+	})
+
+	assert.ErrorContains(t, err, "both rows and a rows file")
+	assert.True(t, evaltables.IsUsageError(err))
+	assert.Empty(t, ces.Requests())
 }
 
 func TestUpload_NoCESURL(t *testing.T) {

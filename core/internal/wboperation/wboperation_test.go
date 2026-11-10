@@ -222,14 +222,3 @@ func TestProgress_ArbitraryUnits(t *testing.T) {
 	proto := ops.ToProto()
 	assert.Equal(t, "37/99 bottles of beer", proto.Operations[0].Progress)
 }
-
-func TestProgress_ArbitraryUnitsWithoutTotal(t *testing.T) {
-	ops := wboperation.NewOperations()
-	op := ops.New("test operation")
-
-	progress, _ := op.NewProgress()
-	progress.SetUnitsDone(37, "bottles of beer")
-
-	proto := ops.ToProto()
-	assert.Equal(t, "37 bottles of beer", proto.Operations[0].Progress)
-}

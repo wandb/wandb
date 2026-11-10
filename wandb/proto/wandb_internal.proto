@@ -1304,7 +1304,7 @@ message UploadEvalTableRequest {
 
   // The table's rows in order.
   //
-  // Only one of {rows, rows_file_path} should be set.
+  // At most one of {rows, rows_file_path} may be set.
   repeated EvalTableRow rows = 4;
 
   // A gzipped file of the table's rows, as EvalTableRow messages, each

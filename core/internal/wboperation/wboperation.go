@@ -397,17 +397,6 @@ func bytesToShortString(bytes int) string {
 	}
 }
 
-func (p *WandbProgress) SetUnitsDone(done int, unit string) {
-	if p == nil {
-		return
-	}
-
-	p.op.mu.Lock()
-	defer p.op.mu.Unlock()
-
-	p.op.progress = fmt.Sprintf("%d %s", done, unit)
-}
-
 func (p *WandbProgress) SetUnitsOfTotal(done, total int, unit string) {
 	if p == nil {
 		return
