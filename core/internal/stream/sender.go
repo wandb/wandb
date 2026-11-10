@@ -127,6 +127,9 @@ type Sender struct {
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
 
+	// transactionLogBackup is present only on opted-in live streams.
+	transactionLogBackup *transactionLogBackup
+
 	// runHandle is parts of the Stream initialized after the first RunRecord
 	runHandle *runhandle.RunHandle
 
@@ -657,6 +660,8 @@ func (s *Sender) finishRunSync(
 		defer cancelAbortOnRequestFinish()
 	}
 
+	backupDone := s.startTransactionLogBackup()
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
@@ -705,6 +710,11 @@ func (s *Sender) finishRunSync(
 		} else {
 			s.fileStream.FinishWithExit(exitRecord.ExitCode)
 		}
+	}
+
+	// wait till transaction log backup is finished before fully marking upload as complete.
+	if backupDone != nil {
+		<-backupDone
 	}
 
 	// Indicate that `run.finish()` is done.

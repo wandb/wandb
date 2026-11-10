@@ -206,3 +206,11 @@ func (w *Writer) Flush() error {
 
 	return w.writer.Flush()
 }
+
+// Size measures the transaction log under the writer lock without flushing.
+func (w *Writer) Size() (int64, error) {
+	w.writerMu.Lock()
+	defer w.writerMu.Unlock()
+
+	return w.writer.Size()
+}

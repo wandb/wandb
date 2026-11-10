@@ -26,6 +26,9 @@ func MakeSyncSettings(
 	syncSettings.FinishTimeout = nil
 	syncSettings.InitTimeout = nil
 
+	// Do not backup the transaction log when syncing
+	syncSettings.XTransactionLogBackup = nil
+
 	// This determines files_dir.
 	syncSettings.SyncDir = wrapperspb.String(filepath.Dir(wandbFile))
 

@@ -81,6 +81,16 @@ func (s *Settings) GetTransactionLogFlushInterval() time.Duration {
 	return time.Duration(s.Proto.XTransactionLogFlushInterval.GetValue() * float64(time.Second))
 }
 
+// GetTransactionLogBackup returns the backup destination.
+func (s *Settings) GetTransactionLogBackup() string {
+	return s.Proto.XTransactionLogBackup.GetValue()
+}
+
+// GetTransactionLogBackupTimeout returns the deadline for one backup attempt, or zero if unset.
+func (s *Settings) GetTransactionLogBackupTimeout() time.Duration {
+	return time.Duration(s.Proto.XTransactionLogBackupTimeout.GetValue() * float64(time.Second))
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,

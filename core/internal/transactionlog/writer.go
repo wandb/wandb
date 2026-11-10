@@ -83,6 +83,24 @@ func (w *Writer) Flush() error {
 	return w.writer.Flush()
 }
 
+// Size returns the size of the log file, even after the writer is closed.
+// It does not flush buffered records.
+func (w *Writer) Size() (int64, error) {
+	var info os.FileInfo
+	var err error
+	if w.writer == nil {
+		info, err = os.Stat(w.file.Name())
+	} else {
+		info, err = w.file.Stat()
+	}
+	
+	if err != nil {
+		return 0, err
+	}
+
+	return info.Size(), nil
+}
+
 // LastRecordOffset returns the offset where the last record was written.
 func (w *Writer) LastRecordOffset() (int64, error) {
 	return w.writer.LastRecordOffset()
@@ -90,7 +108,7 @@ func (w *Writer) LastRecordOffset() (int64, error) {
 
 // Close closes the file.
 //
-// The writer may not be used after.
+// Size remains usable after closing.
 // An error could indicate that not all data was written.
 func (w *Writer) Close() error {
 	if w.writer == nil {

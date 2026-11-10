@@ -1,5 +1,6 @@
 import copy
 import json
+import math
 import os
 import pathlib
 import platform
@@ -786,3 +787,59 @@ def test_history_value_encoding_in_proto():
     s = Settings(x_history_value_encoding="json,typed")
 
     assert s.to_proto().x_history_value_encoding.value == "json,typed"
+
+
+@pytest.mark.parametrize(
+    ("destination", "expected"),
+    [
+        (None, None),
+        ("s3://bucket", "s3://bucket"),
+        ("gs://bucket/prefix", "gs://bucket/prefix/"),
+        ("s3://bucket/a%2Fb", "s3://bucket/a%2Fb/"),
+        ("s3://bucket/a%2F", "s3://bucket/a%2F"),
+        (
+            "azblob://container/a?storage_account=account",
+            "azblob://container/a/?storage_account=account",
+        ),
+    ],
+)
+def test_transaction_log_backup_destination(destination, expected):
+    settings = Settings(mode="online", x_transaction_log_backup=destination)
+    assert settings.x_transaction_log_backup == expected
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "file://bucket",
+        "s3:bucket",
+        "s3:///path",
+        "s3://user:secret@bucket/path",
+        "s3://bucket:123/path",
+        "s3://bucket/a\nsecret",
+        "s3://bucket/a#secret",
+        "s3://bucket/a%",
+        "s3://bucket/a%00",
+        "s3://bucket/%FF",
+        "s3://bucket/a%2F..%2Fb",
+        "gs://bucket/?prefix=secret",
+        "gs://bucket/?storage_account=a",
+        "azblob://bucket/?storage_account=",
+        "azblob://bucket/?storage_account=a&storage_account=b",
+        "azblob://bucket/?storage_account=secret%00",
+        "azblob://bucket/?storage_account=%FF",
+        "azblob://bucket/?storage_account=a&",
+        "azblob://bucket/?storage_account=a;b",
+    ],
+)
+def test_invalid_transaction_log_backup_destination(destination):
+    with pytest.raises(UsageError) as exc:
+        Settings(x_transaction_log_backup=destination)
+    assert "Invalid transaction log backup destination" in str(exc.value)
+    assert "secret" not in str(exc.value)
+
+
+@pytest.mark.parametrize("timeout", [1, 604800, math.nextafter(2**63 / 1e9, 0)])
+def test_transaction_log_backup_timeout_boundaries(timeout):
+    settings = Settings(x_transaction_log_backup_timeout=timeout)
+    assert settings.x_transaction_log_backup_timeout == timeout

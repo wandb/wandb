@@ -148,6 +148,12 @@ func NewStream(
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
 		clientID:           clientID,
+	} 
+
+	if s.GetTransactionLogBackup() != "" {
+		stream.sender.transactionLogBackup = &transactionLogBackup{
+			executionID: string(clientID),
+		}
 	}
 
 	logger.Info("stream: created new stream", "id", stream.settings.GetRunID())
@@ -215,6 +221,9 @@ func (s *Stream) maybeSavingToTransactionLog(
 	}
 
 	writer := s.writerFactory.New(w)
+	if s.sender.transactionLogBackup != nil {
+		s.sender.transactionLogBackup.writer = writer
+	}
 	flowControl := s.flowControlFactory.New(
 		r, writer.Flush, s.recordParser,
 		FlowControlParams{
