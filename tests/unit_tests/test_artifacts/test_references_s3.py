@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import boto3
 from moto import mock_aws
-from pytest import MonkeyPatch, fixture, mark, raises
+from pytest import MonkeyPatch, fixture, raises
 from wandb import Artifact
 
 if TYPE_CHECKING:
@@ -259,13 +259,6 @@ def test_add_s3_reference_path_with_content_type(
     assert "Generating checksum" in capsys.readouterr().err
 
 
-@mark.xfail(
-    reason=(
-        "S3Handler.store_path fetches only max_objects objects, so an over-limit "
-        "reference is silently truncated instead of raising ValueError."
-    ),
-    strict=True,
-)
 def test_add_s3_max_objects(s3, bucket, mock_body, artifact):
     s3.put_object(Bucket=bucket, Key="my_dir/my_object.pb", Body=mock_body)
     s3.put_object(Bucket=bucket, Key="my_dir/my_other_object.pb", Body=mock_body)
