@@ -263,6 +263,45 @@ message CpuMetrics {
     } ],
     legacy: [ { template: "cpu.avg_temp" } ]
   }];
+  // Per CPU package. Linux reads the packages from sysfs; other platforms
+  // report one, without times.
+  repeated CpuSocketMetrics sockets = 3;
+}
+
+message CpuSocketMetrics {
+  // The physical package id.
+  uint32 index = 1 [(attribute) = "com.coreweave.cpu.socket"];
+  string model = 2 [(attribute) = "hw.model"];
+  optional uint32 physical_cores = 3 [(metric) = {
+    unit: "{cpu}",
+    display: "CPU Physical Cores",
+    names: [ { name: "system.cpu.physical.count" } ]
+  }];
+  optional uint32 logical_cpus = 4 [(metric) = {
+    unit: "{cpu}",
+    display: "CPU Logical Cores",
+    names: [ { name: "system.cpu.logical.count" } ]
+  }];
+  // CPU seconds of every core in the package since the first sample. User
+  // includes nice; system includes irq and softirq.
+  optional double user_time_s = 5 [(metric) = {
+    unit: "s",
+    display: "CPU Time (User)",
+    kind: COUNTER,
+    names: [ {
+      name: "system.cpu.time",
+      attributes: [ { key: "cpu.mode", value: "user" } ]
+    } ]
+  }];
+  optional double system_time_s = 6 [(metric) = {
+    unit: "s",
+    display: "CPU Time (System)",
+    kind: COUNTER,
+    names: [ {
+      name: "system.cpu.time",
+      attributes: [ { key: "cpu.mode", value: "system" } ]
+    } ]
+  }];
 }
 
 message CpuCoreMetrics {
@@ -525,6 +564,34 @@ message ProcessMetrics {
     display: "Process CPU Utilization (System)",
     names: [ {
       name: "process.cpu.utilization",
+      attributes: [ { key: "cpu.mode", value: "system" } ]
+    } ]
+  }];
+  // The CPUs the cgroup may use: the lower of cpu.max's quota and the
+  // cpuset, when either limits the process. Linux only.
+  optional double cgroup_cpu_limit = 9 [(metric) = {
+    unit: "{cpu}",
+    display: "CPU Limit",
+    names: [ { name: "com.coreweave.container.cpu.limit" } ]
+  }];
+  // CPU seconds of the tree in user and system mode since the first sample.
+  // Summed from each process's own times, so a process that exits keeps
+  // what it used. Not on Windows.
+  optional double cpu_user_time_s = 10 [(metric) = {
+    unit: "s",
+    display: "Process CPU Time (User)",
+    kind: COUNTER,
+    names: [ {
+      name: "process.cpu.time",
+      attributes: [ { key: "cpu.mode", value: "user" } ]
+    } ]
+  }];
+  optional double cpu_system_time_s = 11 [(metric) = {
+    unit: "s",
+    display: "Process CPU Time (System)",
+    kind: COUNTER,
+    names: [ {
+      name: "process.cpu.time",
       attributes: [ { key: "cpu.mode", value: "system" } ]
     } ]
   }];
