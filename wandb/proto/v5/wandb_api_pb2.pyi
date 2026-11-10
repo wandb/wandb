@@ -91,14 +91,16 @@ class ApiResponse(_message.Message):
     def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
-    __slots__ = ("message", "error_type", "http_status")
+    __slots__ = ("message", "error_type", "http_status", "graphql_error_code")
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     ERROR_TYPE_FIELD_NUMBER: _ClassVar[int]
     HTTP_STATUS_FIELD_NUMBER: _ClassVar[int]
+    GRAPHQL_ERROR_CODE_FIELD_NUMBER: _ClassVar[int]
     message: str
     error_type: ErrorType
     http_status: int
-    def __init__(self, message: _Optional[str] = ..., error_type: _Optional[_Union[ErrorType, str]] = ..., http_status: _Optional[int] = ...) -> None: ...
+    graphql_error_code: str
+    def __init__(self, message: _Optional[str] = ..., error_type: _Optional[_Union[ErrorType, str]] = ..., http_status: _Optional[int] = ..., graphql_error_code: _Optional[str] = ...) -> None: ...
 
 class ServerApiCleanupRequest(_message.Message):
     __slots__ = ("api_id",)

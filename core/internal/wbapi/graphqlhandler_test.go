@@ -135,3 +135,69 @@ func TestGraphQLHandlerLeavesHttpStatusZeroForNonHTTPError(t *testing.T) {
 	require.NotNil(t, response.GetApiErrorResponse())
 	assert.Equal(t, int32(0), response.GetApiErrorResponse().GetHttpStatus())
 }
+
+func TestGraphQLHandlerReturnsGraphQLErrorCode(t *testing.T) {
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
+		err: &graphql.HTTPError{
+			StatusCode: 404,
+			Response: graphql.Response{
+				Errors: gqlerror.List{
+					{Message: "no code"},
+					{
+						Message:    "registry not found",
+						Extensions: map[string]any{"code": "REGISTRY_NOT_FOUND"},
+					},
+				},
+			},
+		},
+	})
+
+	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
+		Query: "query Viewer { viewer { id } }",
+	})
+
+	require.NotNil(t, response.GetApiErrorResponse())
+	assert.Equal(t,
+		"REGISTRY_NOT_FOUND",
+		response.GetApiErrorResponse().GetGraphqlErrorCode(),
+	)
+}
+
+func TestGraphQLHandlerReturnsGraphQLErrorCodeWithoutHTTPError(t *testing.T) {
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
+		err: gqlerror.List{
+			{
+				Message:    "registry not found",
+				Extensions: map[string]any{"code": "REGISTRY_NOT_FOUND"},
+			},
+		},
+	})
+
+	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
+		Query: "query Viewer { viewer { id } }",
+	})
+
+	require.NotNil(t, response.GetApiErrorResponse())
+	assert.Equal(t,
+		"REGISTRY_NOT_FOUND",
+		response.GetApiErrorResponse().GetGraphqlErrorCode(),
+	)
+}
+
+func TestGraphQLHandlerLeavesGraphQLErrorCodeEmptyWithoutCode(t *testing.T) {
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
+		err: &graphql.HTTPError{
+			StatusCode: 404,
+			Response: graphql.Response{
+				Errors: gqlerror.List{{Message: "not found"}},
+			},
+		},
+	})
+
+	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
+		Query: "query Viewer { viewer { id } }",
+	})
+
+	require.NotNil(t, response.GetApiErrorResponse())
+	assert.Empty(t, response.GetApiErrorResponse().GetGraphqlErrorCode())
+}
