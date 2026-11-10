@@ -12,6 +12,7 @@ from ._generated import (
     GenericWebhookActionFields,
     NoOpActionFields,
     NotificationActionFields,
+    PushNotificationActionFields,
     QueueJobActionFields,
 )
 from .actions import ActionType
@@ -66,6 +67,7 @@ EVENT_FEATURES: Final[dict[EventType, ServerFeature]] = {
     EventType.REMOVE_ARTIFACT_TAG: ServerFeature.AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG,
     EventType.REMOVE_COLLECTION_TAG: ServerFeature.AUTOMATION_EVENT_REMOVE_COLLECTION_TAG,
     EventType.UNLINK_ARTIFACT: ServerFeature.AUTOMATION_EVENT_UNLINK_ARTIFACT,
+    EventType.SANDBOX_STATE: ServerFeature.AUTOMATION_EVENT_SANDBOX_STATE,
 }
 
 ACTION_FEATURES: Final[dict[ActionType, ServerFeature]] = {
@@ -124,6 +126,7 @@ ACTION_FRAGMENT_NAMES: Final[dict[ActionType, str]] = {
     ActionType.NOTIFICATION: nameof(NotificationActionFields),
     ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
     ActionType.ARIA: nameof(AriaActionFields),
+    ActionType.PUSH_NOTIFICATION: nameof(PushNotificationActionFields),
 }
 
 

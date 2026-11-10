@@ -1841,7 +1841,7 @@ mod tests {
         let mut found_libtpu = false;
         for i in 0..archive.len() {
             let mut entry = archive.by_index(i).unwrap();
-            let name = entry.name().to_string();
+            let Ok(name) = entry.name() else { continue };
             if name.ends_with("libtpu.so") {
                 let mut out = std::fs::File::create(&libtpu_path).unwrap();
                 std::io::copy(&mut entry, &mut out).unwrap();

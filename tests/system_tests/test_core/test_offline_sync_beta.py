@@ -447,6 +447,63 @@ def test_sync_to_other_path(
         assert history[0]["x"] == 1
 
 
+def _log_table_and_model(run: wandb.Run, tmp_path: pathlib.Path) -> None:
+    run.log({"table": wandb.Table(columns=["x"], data=[[1]])})
+
+    model_file = tmp_path / "model.bin"
+    model_file.write_bytes(b"model")
+    model = wandb.Artifact("model", type="model")
+    model.add_file(str(model_file))
+    run.log_artifact(model)
+
+
+def test_syncs_artifacts_of_run_without_entity(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    user: str,
+    runner: CliRunner,
+):
+    """An offline run with no entity uploads its artifacts to the run's entity."""
+    # Without an entity in the environment or settings, an offline run doesn't
+    # know its entity until it's synced. Make the Api only after the run, so it
+    # doesn't load settings while WANDB_ENTITY is still set.
+    #
+    # A nested context restores WANDB_ENTITY before the user fixture restores
+    # the environment it changed.
+    with monkeypatch.context() as env:
+        env.delenv("WANDB_ENTITY")
+        with wandb.init(mode="offline", project="project1") as run:
+            assert not run.entity
+            _log_table_and_model(run, tmp_path)
+
+        runner.invoke(cli.beta, f"sync {run.sync_dir}")
+
+    api = wandb.Api(api_key=user)
+    artifacts = api.run(f"{user}/project1/{run.id}").logged_artifacts()
+    # The server may add artifacts of its own, such as history exports.
+    types = sorted(a.type for a in artifacts if a.type in ("model", "run_table"))
+    assert types == ["model", "run_table"]
+
+
+def test_sync_to_other_path_moves_artifacts(
+    tmp_path: pathlib.Path,
+    user: str,
+    api: wandb.Api,
+    runner: CliRunner,
+):
+    with wandb.init(mode="offline", project="project1") as run:
+        _log_table_and_model(run, tmp_path)
+
+    runner.invoke(
+        cli.beta,
+        f"sync -p project2 --id {run.id}-copy {run.sync_dir}",
+    )
+
+    artifacts = api.run(f"{user}/project2/{run.id}-copy").logged_artifacts()
+    types = sorted(a.type for a in artifacts if a.type in ("model", "run_table"))
+    assert types == ["model", "run_table"]
+
+
 def test_sync_overrides(
     wandb_backend_spy: WandbBackendSpy,
     runner: CliRunner,
