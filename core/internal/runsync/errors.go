@@ -30,6 +30,12 @@ func (e *SyncError) Error() string {
 	}
 }
 
+// Unwrap returns the wrapped error, so errors.Is and errors.As can inspect
+// the cause.
+func (e *SyncError) Unwrap() error {
+	return e.Err
+}
+
 // FirstSyncError returns the first available SyncError, if any, and logs
 // the other ones.
 //

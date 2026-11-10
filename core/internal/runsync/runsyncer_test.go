@@ -87,9 +87,7 @@ func TestSyncMarkerRequiresSuccessfulUpload(t *testing.T) {
 				userText := ToUserText(err)
 				require.NotContains(t, userText, "Internal error")
 				require.Contains(t, userText, "server rejected history")
-				var syncErr *SyncError
-				require.ErrorAs(t, err, &syncErr)
-				require.Equal(t, tt.uploadErr, syncErr.Err)
+				require.ErrorIs(t, err, tt.uploadErr)
 			}
 		})
 	}
@@ -100,4 +98,16 @@ func TestSyncMarkerWriteFailure(t *testing.T) {
 	require.NoError(t, os.Mkdir(path+".synced", 0o700))
 	rs := &RunSyncer{path: path}
 	require.ErrorContains(t, rs.markSynced(), "could not create .synced file")
+}
+
+func TestSyncErrorUnwrap(t *testing.T) {
+	cause := errors.New("cause")
+	err := error(&SyncError{Err: cause, Message: "failed", UserText: "Failed."})
+
+	require.ErrorIs(t, err, cause)
+	require.Equal(t, "Failed.", ToUserText(err))
+	require.Equal(t, "Cancelled.", ToUserText(&SyncError{
+		Err:      context.Canceled,
+		UserText: "Failed to read the file.",
+	}), "a cancellation is reported as such")
 }
