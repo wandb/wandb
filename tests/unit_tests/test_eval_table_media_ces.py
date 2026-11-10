@@ -307,7 +307,7 @@ def test_prepare_media_returns_image_media_json(run_factory, tmp_path):
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
     assert prepared.media_type == "image-file"
-    assert prepared.value == {
+    assert json.loads(prepared.media_json) == {
         "_type": "image-file",
         "sha256": digest,
         "size": path.stat().st_size,
@@ -377,7 +377,7 @@ def test_prepare_audio_and_video_returns_media_json(
         f"{digest[: _media_ces._DIGEST_PATH_LENGTH]}{path.suffix}",
     )
     assert prepared.media_type == media_type
-    assert prepared.value == {
+    assert json.loads(prepared.media_json) == {
         "_type": media_type,
         "caption": caption,
         "sha256": digest,
@@ -401,7 +401,7 @@ def test_committed_artifact_image_preserves_artifact_ref_url(
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value["artifact_path"] == artifact_uri
+    assert json.loads(prepared.media_json)["artifact_path"] == artifact_uri
     assert image._run is None
     assert prepared.run_files == ()
 
@@ -504,8 +504,9 @@ def test_artifact_rehydrated_image_mask_registers_parent_class_labels(
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value["artifact_path"] == artifact_uri
-    mask = prepared.value["masks"]["predictions"]
+    media_json = json.loads(prepared.media_json)
+    assert media_json["artifact_path"] == artifact_uri
+    mask = media_json["masks"]["predictions"]
     assert mask["path"].startswith("media/eval_tables/")
     assert run._add_singleton.call_args == call(
         "mask/class_labels",
@@ -549,8 +550,9 @@ def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value["artifact_path"] == artifact_uri
-    boxes = prepared.value["boxes"]["predictions"]
+    media_json = json.loads(prepared.media_json)
+    assert media_json["artifact_path"] == artifact_uri
+    boxes = media_json["boxes"]["predictions"]
     assert boxes["path"].startswith("media/eval_tables/")
     assert run._add_singleton.call_args == call(
         "bounding_box/class_labels",
@@ -574,11 +576,12 @@ def test_image_with_masks_and_boxes_uses_run_file_paths(run_factory, tmp_path):
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    box = prepared.value["boxes"]["predictions"]
-    mask = prepared.value["masks"]["predictions"]
+    media_json = json.loads(prepared.media_json)
+    box = media_json["boxes"]["predictions"]
+    mask = media_json["masks"]["predictions"]
     assert box["path"].startswith("media/eval_tables/metadata/boxes2D/eval/")
     assert mask["path"].startswith("media/eval_tables/images/mask/eval/")
-    assert prepared.run_files == (prepared.value["path"], box["path"], mask["path"])
+    assert prepared.run_files == (media_json["path"], box["path"], mask["path"])
     assert run._add_singleton.call_count == 2
     assert image._run is None
     assert image._path == image_path
@@ -837,7 +840,7 @@ def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
     result = _media_ces.prepare_media(second, run, _IMAGE_FIELD)
 
     assert result.encoded_size == first_result.encoded_size
-    assert result.value is None
+    assert result.media_json is None
     assert result.oversized
 
 

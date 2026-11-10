@@ -48,17 +48,17 @@ _MediaT = TypeVar("_MediaT", bound=Media)
 
 @dataclass(frozen=True)
 class PreparedMediaCell:
-    """W&B media JSON and its encoded-size metadata for one media cell.
+    """Encoded W&B media JSON and its size metadata for one media cell.
 
-    Media implementations set `value` to `None` when the encoded media JSON
-    reaches `CES_MAX_CELL_BYTES` while retaining its type and size metadata.
+    `media_json` is the compact JSON sent to wandb-core, or `None` when its UTF-8
+    encoding reaches `CES_MAX_CELL_BYTES`.
 
     `run_files` lists the run files that the media references, relative to the
     run's files directory, whether or not this call placed them there. The caller
     must have wandb-core upload them.
     """
 
-    value: dict[str, Any] | None
+    media_json: str | None
     media_type: MediaType
     encoded_size: int
     oversized: bool
@@ -233,10 +233,16 @@ def _prepared_media_cell(
     media_type: MediaType,
     run_files: tuple[str, ...],
 ) -> PreparedMediaCell:
-    encoded_size = len(_encode_json(media_json))
+    encoded = json.dumps(
+        media_json,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    encoded_size = len(encoded.encode())
     oversized = encoded_size >= CES_MAX_CELL_BYTES
     return PreparedMediaCell(
-        value=None if oversized else media_json,
+        media_json=None if oversized else encoded,
         media_type=media_type,
         encoded_size=encoded_size,
         oversized=oversized,
@@ -469,13 +475,3 @@ def _box_class_labels(
         class_id: parent_labels.get(class_id, name)
         for class_id, name in class_labels.items()
     }
-
-
-def _encode_json(value: Any) -> bytes:
-    """Encode JSON compactly, as sent to wandb-core for media cells."""
-    return json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode()

@@ -6,8 +6,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from typing_extensions import NotRequired, TypedDict
-
 import wandb
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
@@ -16,7 +14,6 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.eval_table import _media_ces
-from wandb.sdk.data_types.eval_table._media_ces import _encode_json
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
 
@@ -42,13 +39,6 @@ _MAX_INT64 = 2**63 - 1
 
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 _CESFieldSource = Literal["input", "output"]
-
-
-class _CESRow(TypedDict):
-    input: dict[str, Any] | None
-    output: dict[str, Any] | None
-    scores: dict[str, Any]
-    example_key: NotRequired[str]
 
 
 @dataclass(frozen=True)
@@ -87,80 +77,46 @@ class _CESWritePayloads:
     oversized_locations: tuple[str, ...]
 
 
-def _ces_row(
-    *,
-    row_index: int,
-    inputs: dict[str, Any],
-    output: dict[str, Any] | None,
-    scores: dict[str, Any],
-) -> _CESRow:
-    """Build a row-add row, keying a row without inputs by position.
-
-    CES derives the example key of a row with inputs from a hash of its whole
-    input, so comparisons match rows with equal inputs.
-    """
-    if inputs:
-        return {"input": inputs, "output": output, "scores": scores}
-    return {
-        "input": None,
-        "output": output,
-        "scores": scores,
-        "example_key": str(row_index + 1),
-    }
-
-
 def _encode_rows(
-    rows: Sequence[_CESRow],
+    rows: Sequence[WriteRow],
     *,
     dataset_fields: Sequence[pb.EvalTableField],
     scorers: Sequence[pb.EvalTableScorer],
 ) -> list[pb.EvalTableRow]:
-    """Encode normalized rows with their values in their columns' order."""
+    """Encode rows of typed cells, keyed by column name, in their columns' order.
+
+    CES derives the example key of a row with inputs from a hash of its whole
+    input, so comparisons match rows with equal inputs. Rows without inputs are
+    keyed by position instead.
+    """
     input_names = [field.name for field in dataset_fields if field.source == "input"]
     output_names = [field.name for field in dataset_fields if field.source == "output"]
     scorer_names = [scorer.name for scorer in scorers]
-
-    encoded: list[pb.EvalTableRow] = []
-    for row in rows:
-        encoded_row = pb.EvalTableRow(
-            scores=_encode_values(row["scores"], scorer_names),
-            example_key=row.get("example_key", ""),
+    return [
+        pb.EvalTableRow(
+            input=(
+                pb.EvalTableRowValues(values=_ordered(row.inputs, input_names))
+                if row.inputs
+                else None
+            ),
+            output=(
+                None
+                if row.output is None
+                else pb.EvalTableRowValues(values=_ordered(row.output, output_names))
+            ),
+            scores=_ordered(row.scores, scorer_names),
+            example_key="" if row.inputs else str(row_index + 1),
         )
-        if (inputs := row["input"]) is not None:
-            encoded_row.input.CopyFrom(
-                pb.EvalTableRowValues(values=_encode_values(inputs, input_names))
-            )
-        if (output := row["output"]) is not None:
-            encoded_row.output.CopyFrom(
-                pb.EvalTableRowValues(values=_encode_values(output, output_names))
-            )
-        encoded.append(encoded_row)
-
-    return encoded
+        for row_index, row in enumerate(rows)
+    ]
 
 
-def _encode_values(
-    values: Mapping[str, Any],
+def _ordered(
+    values: Mapping[ColumnKey, pb.EvalTableValue],
     names: Sequence[str],
 ) -> list[pb.EvalTableValue]:
-    """Encode a row's values for the named columns, null where missing."""
-    return [_encode_value(values.get(name)) for name in names]
-
-
-def _encode_value(value: Any) -> pb.EvalTableValue:
-    """Encode a normalized cell value."""
-    if value is None:
-        return pb.EvalTableValue()
-    if isinstance(value, bool):
-        return pb.EvalTableValue(bool_value=value)
-    if isinstance(value, int):
-        return pb.EvalTableValue(int_value=value)
-    if isinstance(value, float):
-        return pb.EvalTableValue(number_value=value)
-    if isinstance(value, str):
-        return pb.EvalTableValue(string_value=value)
-    # Normalization leaves only primitives and media, as W&B media JSON.
-    return pb.EvalTableValue(wandb_media_json=_encode_json(value).decode())
+    """Return a row's values for the named columns, null where missing."""
+    return [values.get(name, pb.EvalTableValue()) for name in names]
 
 
 def _upload_eval_table(
@@ -294,7 +250,7 @@ class CESWriter:
         dataset_field_order: dict[tuple[_CESFieldSource, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
         scorer_order: dict[str, None] = {}
-        normalized_rows: list[_CESRow] = []
+        normalized_rows: list[WriteRow] = []
         media_cells_examined = 0
         oversized_locations: list[str] = []
         # Deduplicated, as rows can share content-addressed media files.
@@ -334,12 +290,7 @@ class CESWriter:
                 order=scorer_order,
             )
             normalized_rows.append(
-                _ces_row(
-                    row_index=row_index,
-                    inputs=inputs,
-                    output=output,
-                    scores=scores,
-                )
+                WriteRow(inputs=inputs, output=output, scores=scores)
             )
 
         missing_fields = [
@@ -407,13 +358,13 @@ class CESWriter:
         oversized_locations: list[str],
         upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[dict[str, pb.EvalTableValue], int]:
         """Normalize one input/output mapping and accumulate its inferred types.
 
         Returns:
             The normalized values and the number of media cells among them.
         """
-        normalized_values: dict[str, Any] = {}
+        normalized_values: dict[str, pb.EvalTableValue] = {}
         media_cells = 0
         for column, value in values.items():
             name = str(column)
@@ -458,9 +409,9 @@ class CESWriter:
         *,
         types: dict[str, PrimitiveValueType],
         order: dict[str, None],
-    ) -> dict[str, Any]:
+    ) -> dict[str, pb.EvalTableValue]:
         """Normalize one score mapping and accumulate its inferred types."""
-        normalized_values: dict[str, Any] = {}
+        normalized_values: dict[str, pb.EvalTableValue] = {}
         for column, value in values.items():
             name = str(column)
             if name not in order:
@@ -490,8 +441,8 @@ class CESWriter:
         column_name: str,
         upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
-    ) -> tuple[Any, _CESFieldType, int | None]:
-        """Return W&B media JSON, its field type, and oversized byte count.
+    ) -> tuple[pb.EvalTableValue, _CESFieldType, int | None]:
+        """Return the media's cell, its field type, and oversized byte count.
 
         Adds the run files that the media references to `upload_media_paths`.
         """
@@ -511,7 +462,7 @@ class CESWriter:
                 raise
             wandb.termwarn(error.stub_warning, repeat=False)
             return (
-                None,
+                pb.EvalTableValue(),
                 _CESFieldType(
                     value_type="json",
                     media_type=_media_ces.media_type(value),
@@ -521,14 +472,18 @@ class CESWriter:
         upload_media_paths.update(dict.fromkeys(media_cell.run_files))
         field_type = _CESFieldType(value_type="json", media_type=media_cell.media_type)
         oversized_size = media_cell.encoded_size if media_cell.oversized else None
-        return media_cell.value, field_type, oversized_size
+        return (
+            pb.EvalTableValue(wandb_media_json=media_cell.media_json),
+            field_type,
+            oversized_size,
+        )
 
     def _normalize_primitive(
         self,
         value: Any,
         column: ColumnKey,
-    ) -> tuple[Any, PrimitiveValueType | None]:
-        """Return a JSON-safe value and its observed CES primitive type."""
+    ) -> tuple[pb.EvalTableValue, PrimitiveValueType | None]:
+        """Return a value's typed cell and its observed CES primitive type."""
         if isinstance(value, WBValue):
             value = self._normalize_wandb_value(value, column)
 
@@ -538,27 +493,27 @@ class CESWriter:
             value = float(value) if isinstance(value, np.floating) else value.item()
 
         if value is None:
-            return None, None
+            return pb.EvalTableValue(), None
         if isinstance(value, bool):
-            return value, "boolean"
+            return pb.EvalTableValue(bool_value=value), "boolean"
         if isinstance(value, int):
             if not _MIN_INT64 <= value <= _MAX_INT64:
                 raise UsageError(
                     f"CES EvalTable column {column!r} contains an integer outside "
                     "the 64-bit range."
                 )
-            return value, "integer"
+            return pb.EvalTableValue(int_value=value), "integer"
         if isinstance(value, float):
             if math.isnan(value):
                 # JSON has no NaN literal; send null while retaining numeric schema.
-                return None, "number"
+                return pb.EvalTableValue(), "number"
             if not math.isfinite(value):
                 raise UsageError(
                     f"CES EvalTable column {column!r} contains a non-finite number."
                 )
-            return value, "number"
+            return pb.EvalTableValue(number_value=value), "number"
         if isinstance(value, str):
-            return value, "string"
+            return pb.EvalTableValue(string_value=value), "string"
 
         raise UsageError(
             f"CES EvalTable column {column!r} contains unsupported value "
