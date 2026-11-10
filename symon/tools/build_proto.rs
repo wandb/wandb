@@ -15,6 +15,7 @@ fn main() -> Result<()> {
     let proto_files = [
         "wandb_base.proto",
         "wandb_telemetry.proto",
+        "wandb_system_metrics.proto",
         "wandb_internal.proto",
         "wandb_system_monitor.proto",
     ];

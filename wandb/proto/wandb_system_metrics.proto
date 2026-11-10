@@ -1,0 +1,1228 @@
+syntax = "proto3";
+
+// Typed system metrics.
+//
+// wandb-symon fills a SystemMetricsRecord for each subscriber, and wandb-core
+// adds the writer and stores it in the transaction log as
+// Record.system_metrics when the x_stats_typed setting is on. The sender
+// uploads the record to servers with ServerFeature.TYPED_SYSTEM_METRICS and
+// renders it as the legacy StatsRecord for other servers.
+//
+// The MetricInfo option on each measured field is the only catalog of system
+// metrics: their units and titles, their OpenTelemetry names, and the legacy
+// key strings the renderer produces, so nothing has to parse a key.
+//
+// Names and units follow the OpenTelemetry semantic conventions where they
+// have one, such as hw.gpu.utilization as a ratio from 0 to 1. Otherwise
+// they use the name the vendor publishes for OpenTelemetry (NVIDIA's
+// dcgm-exporter catalog, com.nvidia.*), then the vendor's own term under its
+// reverse domain (com.google.tpu.*, com.amazon.neuron.*, com.amd.gpu.*,
+// com.apple.*), and com.coreweave.* for what no standard covers. The legacy
+// keys keep the names and units older SDKs used.
+
+package wandb_internal;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_base.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+// =============================================================================
+// Schema annotations
+// =============================================================================
+
+message MetricInfo {
+  enum Kind {
+    GAUGE = 0;
+    // Grows monotonically, such as bytes sent since the writer started.
+    COUNTER = 1;
+  }
+
+  // UCUM unit of the field, as the semantic conventions use it: "1" for
+  // ratios, "By", "By/s", "W", "Cel", "Hz", "s", "J", and "{thread}" for
+  // counts of things.
+  string unit = 1;
+  // Title without the unit, for example "GPU Temperature".
+  string display = 2;
+  Kind kind = 3;
+
+  // Legacy key templates, without the "system." prefix. More than one when
+  // the legacy key depends on the accelerator type or the source. A field
+  // with no matching template has no legacy key.
+  //
+  // Placeholders are the identity fields of the enclosing messages: {index},
+  // {path}, {device}, {label}, {source}, {name}, {series}.
+  repeated LegacyKey legacy = 4;
+
+  // The legacy renderer repeats the field under gpu.process.{index}.* when
+  // the accelerator's binding is PROCESS.
+  bool legacy_process_copy = 5;
+
+  // Chart range hints.
+  optional double range_min = 6;
+  optional double range_max = 7;
+
+  // OpenTelemetry names. More than one when the name depends on the
+  // accelerator type.
+  repeated MetricName names = 8;
+}
+
+message MetricName {
+  // Empty matches any accelerator type.
+  repeated AcceleratorType accelerator_type = 1;
+  string name = 2;
+  // Attributes that tell the field apart from others with the same name,
+  // such as network.io.direction=transmit.
+  repeated MetricLabel attributes = 3;
+}
+
+message LegacyKey {
+  // Unset matches any accelerator type.
+  AcceleratorType accelerator_type = 1;
+  // Unset matches any source.
+  string source = 2;
+  string template = 3;
+  // Unit of the legacy value when it differs from MetricInfo.unit, for
+  // example "MiBy" for proc.memory.rssMB or "%" for a ratio. The renderer
+  // converts.
+  string unit = 4;
+}
+
+// Not in the protobuf global extension registry; 50000 to 99999 is for
+// in-house use, and this number is not used elsewhere in the SDK.
+extend google.protobuf.FieldOptions {
+  MetricInfo metric = 58153;
+  // The OpenTelemetry attribute an identity field becomes, such as hw.id.
+  string attribute = 58154;
+}
+
+extend google.protobuf.EnumValueOptions {
+  // The unit, title and names of a TpuRuntimeMetrics distribution.
+  MetricInfo distribution = 58155;
+}
+
+// =============================================================================
+// The record
+// =============================================================================
+
+// One system metrics sample for one writer of a run.
+//
+// A field that was not measured is absent, never zero.
+message SystemMetricsRecord {
+  google.protobuf.Timestamp timestamp = 1;
+
+  // The subscriber's sampling interval.
+  uint32 interval_ms = 2;
+
+  // Samples dropped before this one because the subscriber did not read
+  // them. Each one is a gap of interval_ms.
+  uint32 dropped_samples = 3;
+
+  // Who wrote the sample. Set by wandb-core.
+  WriterInfo writer = 4;
+
+  HostMetrics host = 5;
+  // The monitored process tree (x_stats_pid).
+  ProcessMetrics process = 6;
+  // W&B's own processes (x_stats_self_usage).
+  SdkMetrics sdk = 7;
+  repeated AcceleratorMetrics accelerators = 8;
+  TpuRuntimeMetrics tpu_runtime = 9;
+  TrainiumHostMetrics trainium_host = 10;
+  repeated GenericMetric generic = 11;
+
+  _RecordInfo _info = 200;
+}
+
+// The process that wrote a sample, and where it ran.
+message WriterInfo {
+  // The writer's client ID, a UUIDv7.
+  string id = 1 [(attribute) = "com.coreweave.writer.id"];
+  // The x_label setting. Legacy: "/l:<label>" at the end of every key.
+  string label = 2 [(attribute) = "com.coreweave.writer.label"];
+  string hostname = 3 [(attribute) = "host.name"];
+
+  // From the launcher's environment (RANK, LOCAL_RANK, GROUP_RANK or
+  // NODE_RANK, WORLD_SIZE), when set.
+  optional int32 rank = 4 [(attribute) = "com.coreweave.writer.rank"];
+  optional int32 local_rank = 5 [(attribute) = "com.coreweave.writer.local_rank"];
+  optional int32 node_rank = 6 [(attribute) = "com.coreweave.writer.node_rank"];
+  optional int32 world_size = 7 [(attribute) = "com.coreweave.writer.world_size"];
+
+  // The scheduler's job, such as "slurm:48213.0" or "k8s:<namespace>/<pod>".
+  string scheduler_job = 8 [(attribute) = "com.coreweave.writer.scheduler_job"];
+}
+
+// Why an accelerator is in a writer's sample.
+enum Binding {
+  BINDING_UNSPECIFIED = 0;
+  // The device is on the host and nothing more is known.
+  VISIBLE = 1;
+  // The job's device list (CUDA_VISIBLE_DEVICES and similar) names it.
+  VISIBLE_DEVICES = 2;
+  // The monitored process tree has the device in use.
+  PROCESS = 3;
+  // The job's cgroup or pod assignment names it.
+  SCHEDULER = 4;
+}
+
+enum AcceleratorType {
+  ACCELERATOR_UNSPECIFIED = 0;
+  NVIDIA_GPU = 1;
+  AMD_GPU = 2;
+  APPLE_GPU = 3;
+  APPLE_ANE = 4;
+  GOOGLE_TPU = 5;
+  // One entry per NeuronCore.
+  AWS_TRAINIUM = 6;
+}
+
+// =============================================================================
+// Host
+// =============================================================================
+
+message HostMetrics {
+  MemoryMetrics memory = 1;
+  SwapMetrics swap = 2;
+  CpuMetrics cpu = 3;
+  repeated DiskUsageMetrics disk_usage = 4;
+  repeated DiskIoMetrics disk_io = 5;
+  NetworkMetrics network = 6;
+  // Apple Silicon only.
+  AppleHostMetrics apple = 7;
+  // Reported only to subscribers that ask for host details (wandb leet symon).
+  LoadMetrics load = 8;
+  optional double uptime_s = 9 [(metric) = {
+    unit: "s",
+    display: "Uptime",
+    names: [ { name: "system.uptime" } ],
+    legacy: [ { template: "system.uptime" } ]
+  }];
+}
+
+message MemoryMetrics {
+  // Used memory: the cgroup's usage over its limit when the process is
+  // limited, else the host's.
+  optional double used_ratio = 1 [(metric) = {
+    unit: "1",
+    display: "System Memory Utilization",
+    names: [ {
+      name: "system.memory.utilization",
+      attributes: [ { key: "system.memory.state", value: "used" } ]
+    } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "memory_percent", unit: "%" } ]
+  }];
+  // Memory available to the process: the cgroup's headroom when limited,
+  // else the host's.
+  optional uint64 available_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Memory Available",
+    names: [ {
+      name: "system.memory.usage",
+      attributes: [ { key: "system.memory.state", value: "available" } ]
+    } ],
+    legacy: [ { template: "proc.memory.availableMB", unit: "MiBy" } ]
+  }];
+}
+
+message SwapMetrics {
+  optional uint64 used_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "Swap Used",
+    names: [ {
+      name: "system.paging.usage",
+      attributes: [ { key: "system.paging.state", value: "used" } ]
+    } ],
+    legacy: [ { template: "swap.used" } ]
+  }];
+  optional double used_ratio = 2 [(metric) = {
+    unit: "1",
+    display: "Swap Used",
+    names: [ {
+      name: "system.paging.utilization",
+      attributes: [ { key: "system.paging.state", value: "used" } ]
+    } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "swap.used_percent", unit: "%" } ]
+  }];
+}
+
+message CpuMetrics {
+  // Per logical core. Host details only.
+  repeated CpuCoreMetrics cores = 1;
+  optional double temperature_c = 2 [(metric) = {
+    unit: "Cel",
+    display: "CPU Temperature",
+    names: [ {
+      name: "hw.temperature",
+      attributes: [ { key: "hw.id", value: "cpu" }, { key: "hw.sensor_location", value: "cpu" } ]
+    } ],
+    legacy: [ { template: "cpu.avg_temp" } ]
+  }];
+}
+
+message CpuCoreMetrics {
+  uint32 index = 1 [(attribute) = "cpu.logical_number"];
+  optional double utilization_ratio = 2 [(metric) = {
+    unit: "1",
+    display: "CPU Core Utilization",
+    names: [ { name: "system.cpu.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "cpu.{index}.cpu_percent", unit: "%" } ]
+  }];
+}
+
+message LoadMetrics {
+  optional double one_minute = 1 [(metric) = {
+    unit: "{thread}",
+    display: "Load Average (1 min)",
+    names: [ { name: "system.cpu.load_average.1m" } ],
+    legacy: [ { template: "system.load1" } ]
+  }];
+  optional double five_minutes = 2 [(metric) = {
+    unit: "{thread}",
+    display: "Load Average (5 min)",
+    names: [ { name: "system.cpu.load_average.5m" } ],
+    legacy: [ { template: "system.load5" } ]
+  }];
+  optional double fifteen_minutes = 3 [(metric) = {
+    unit: "{thread}",
+    display: "Load Average (15 min)",
+    names: [ { name: "system.cpu.load_average.15m" } ],
+    legacy: [ { template: "system.load15" } ]
+  }];
+}
+
+// One entry per path in x_stats_disk_paths.
+message DiskUsageMetrics {
+  string path = 1 [(attribute) = "system.filesystem.mountpoint"];
+  optional double used_ratio = 2 [(metric) = {
+    unit: "1",
+    display: "Disk Utilization",
+    names: [ {
+      name: "system.filesystem.utilization",
+      attributes: [ { key: "system.filesystem.state", value: "used" } ]
+    } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "disk.{path}.usagePercent", unit: "%" } ]
+  }];
+  optional uint64 used_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "Disk Used",
+    names: [ {
+      name: "system.filesystem.usage",
+      attributes: [ { key: "system.filesystem.state", value: "used" } ]
+    } ],
+    legacy: [ { template: "disk.{path}.usageGB", unit: "GiBy" } ]
+  }];
+}
+
+// One entry per block device behind the disk paths, since the subscriber's
+// first sample.
+message DiskIoMetrics {
+  string device = 1 [(attribute) = "system.device.name"];
+  optional uint64 read_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Disk Read",
+    names: [ {
+      name: "system.disk.io",
+      attributes: [ { key: "disk.io.direction", value: "read" } ]
+    } ],
+    kind: COUNTER,
+    legacy: [ { template: "disk.{device}.in", unit: "MiBy" } ]
+  }];
+  optional uint64 write_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "Disk Write",
+    names: [ {
+      name: "system.disk.io",
+      attributes: [ { key: "disk.io.direction", value: "write" } ]
+    } ],
+    kind: COUNTER,
+    legacy: [ { template: "disk.{device}.out", unit: "MiBy" } ]
+  }];
+}
+
+// All interfaces but loopback and bond members, since the subscriber's first
+// sample.
+message NetworkMetrics {
+  optional uint64 sent_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "Network Sent",
+    names: [ {
+      name: "system.network.io",
+      attributes: [ { key: "network.io.direction", value: "transmit" } ]
+    } ],
+    kind: COUNTER,
+    legacy: [ { template: "network.sent" } ]
+  }];
+  optional uint64 recv_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Network Received",
+    names: [ {
+      name: "system.network.io",
+      attributes: [ { key: "network.io.direction", value: "receive" } ]
+    } ],
+    kind: COUNTER,
+    legacy: [ { template: "network.recv" } ]
+  }];
+  optional uint64 tcp_retransmits = 3 [(metric) = {
+    unit: "{segment}",
+    display: "TCP Retransmits",
+    names: [ { name: "com.coreweave.system.network.tcp.retransmits" } ],
+    kind: COUNTER,
+    legacy: [ { template: "network.tcpRetransmits" } ]
+  }];
+}
+
+message AppleHostMetrics {
+  optional uint64 memory_used_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "RAM Used",
+    names: [ {
+      name: "system.memory.usage",
+      attributes: [ { key: "system.memory.state", value: "used" } ]
+    } ],
+    legacy: [ { template: "memory.used" } ]
+  }];
+  optional double memory_used_ratio = 2 [(metric) = {
+    unit: "1",
+    display: "RAM Used",
+    names: [ {
+      name: "system.memory.utilization",
+      attributes: [ { key: "system.memory.state", value: "used" } ]
+    } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "memory.used_percent", unit: "%" } ]
+  }];
+  optional double ecpu_utilization_ratio = 3 [(metric) = {
+    unit: "1",
+    display: "Efficiency Cores Utilization",
+    names: [ {
+      name: "system.cpu.utilization",
+      attributes: [ { key: "com.apple.cpu.cluster", value: "e" } ]
+    } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "cpu.ecpu_percent", unit: "%" } ]
+  }];
+  optional double ecpu_frequency_hz = 4 [(metric) = {
+    unit: "Hz",
+    display: "Efficiency Cores Frequency",
+    names: [ {
+      name: "system.cpu.frequency",
+      attributes: [ { key: "com.apple.cpu.cluster", value: "e" } ]
+    } ],
+    legacy: [ { template: "cpu.ecpu_freq", unit: "MHz" } ]
+  }];
+  optional double pcpu_utilization_ratio = 5 [(metric) = {
+    unit: "1",
+    display: "Performance Cores Utilization",
+    names: [ {
+      name: "system.cpu.utilization",
+      attributes: [ { key: "com.apple.cpu.cluster", value: "p" } ]
+    } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "cpu.pcpu_percent", unit: "%" } ]
+  }];
+  optional double pcpu_frequency_hz = 6 [(metric) = {
+    unit: "Hz",
+    display: "Performance Cores Frequency",
+    names: [ {
+      name: "system.cpu.frequency",
+      attributes: [ { key: "com.apple.cpu.cluster", value: "p" } ]
+    } ],
+    legacy: [ { template: "cpu.pcpu_freq", unit: "MHz" } ]
+  }];
+  optional double cpu_power_w = 7 [(metric) = {
+    unit: "W",
+    display: "CPU Power",
+    names: [ {
+      name: "hw.power",
+      attributes: [ { key: "hw.id", value: "cpu" }, { key: "hw.type", value: "cpu" } ]
+    } ],
+    legacy: [ { template: "cpu.powerWatts" } ]
+  }];
+  optional double system_power_w = 8 [(metric) = {
+    unit: "W",
+    display: "System Power",
+    names: [ { name: "hw.host.power" } ],
+    legacy: [ { template: "system.powerWatts" } ]
+  }];
+}
+
+// =============================================================================
+// Processes
+// =============================================================================
+
+message ProcessMetrics {
+  // CPU use of the tree over the CPU capacity: the cgroup's CPU limit when
+  // set, else the physical core count. All modes together, as the legacy
+  // key had it.
+  optional double cpu_ratio = 1 [(metric) = {
+    unit: "1",
+    display: "Process CPU Utilization",
+    names: [ { name: "com.coreweave.process.cpu.utilization" } ],
+    legacy: [ { template: "cpu", unit: "%" } ]
+  }];
+  optional uint64 rss_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Process Memory In Use",
+    names: [ { name: "process.memory.usage" } ],
+    legacy: [ { template: "proc.memory.rssMB", unit: "MiBy" } ]
+  }];
+  // RSS over the cgroup's memory limit, else over the host's memory.
+  optional double memory_ratio = 3 [(metric) = {
+    unit: "1",
+    display: "Process Memory In Use",
+    names: [ { name: "process.memory.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "proc.memory.percent", unit: "%" } ]
+  }];
+  optional uint32 threads = 4 [(metric) = {
+    unit: "{thread}",
+    display: "Process Threads",
+    names: [ { name: "process.thread.count" } ],
+    legacy: [ { template: "proc.cpu.threads" } ]
+  }];
+  // Share of the cgroup's CPU periods that were throttled.
+  optional double cgroup_cpu_throttled_ratio = 5 [(metric) = {
+    unit: "1",
+    display: "CPU Throttled",
+    names: [ { name: "com.coreweave.container.cpu.throttling" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "proc.cpu.throttledPercent", unit: "%" } ]
+  }];
+  // OOM kills in the cgroup since the subscriber's first sample.
+  optional uint64 cgroup_oom_kills = 6 [(metric) = {
+    unit: "{kill}",
+    display: "OOM Kills",
+    names: [ { name: "com.coreweave.container.memory.oom_kills" } ],
+    kind: COUNTER,
+    legacy: [ { template: "proc.memory.oomKills" } ]
+  }];
+  // User and system CPU time over the same capacity. Not on Windows.
+  optional double cpu_user_ratio = 7 [(metric) = {
+    unit: "1",
+    display: "Process CPU Utilization (User)",
+    names: [ {
+      name: "process.cpu.utilization",
+      attributes: [ { key: "cpu.mode", value: "user" } ]
+    } ]
+  }];
+  optional double cpu_system_ratio = 8 [(metric) = {
+    unit: "1",
+    display: "Process CPU Utilization (System)",
+    names: [ {
+      name: "process.cpu.utilization",
+      attributes: [ { key: "cpu.mode", value: "system" } ]
+    } ]
+  }];
+}
+
+message SdkMetrics {
+  optional double cpu_ratio = 1 [(metric) = {
+    unit: "1",
+    display: "W&B CPU Utilization",
+    names: [ {
+      name: "com.coreweave.process.cpu.utilization",
+      attributes: [ { key: "com.coreweave.process.role", value: "sdk" } ]
+    } ],
+    legacy: [ { template: "wandb.cpu", unit: "%" } ]
+  }];
+  optional uint64 rss_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "W&B Memory In Use",
+    names: [ {
+      name: "process.memory.usage",
+      attributes: [ { key: "com.coreweave.process.role", value: "sdk" } ]
+    } ],
+    legacy: [ { template: "wandb.memory.rssMB", unit: "MiBy" } ]
+  }];
+  // User and system CPU time over the same capacity. Not on Windows.
+  optional double cpu_user_ratio = 3 [(metric) = {
+    unit: "1",
+    display: "W&B CPU Utilization (User)",
+    names: [ {
+      name: "process.cpu.utilization",
+      attributes: [ { key: "cpu.mode", value: "user" }, { key: "com.coreweave.process.role", value: "sdk" } ]
+    } ]
+  }];
+  optional double cpu_system_ratio = 4 [(metric) = {
+    unit: "1",
+    display: "W&B CPU Utilization (System)",
+    names: [ {
+      name: "process.cpu.utilization",
+      attributes: [ { key: "cpu.mode", value: "system" }, { key: "com.coreweave.process.role", value: "sdk" } ]
+    } ]
+  }];
+}
+
+// =============================================================================
+// Accelerators
+// =============================================================================
+
+message AcceleratorMetrics {
+  AcceleratorType type = 1;
+  // Device index as the collector numbers it: NVML, DCGM or ROCm SMI index,
+  // TPU device, NeuronCore.
+  uint32 index = 2 [(attribute) = "com.coreweave.accelerator.index"];
+  // Stable device ID when the vendor has one, such as the NVML UUID. The
+  // index stands in for hw.id when there is none.
+  string uuid = 3 [(attribute) = "hw.id"];
+  // The device's host when the sample comes from another machine, as with
+  // DCGM exporter queries. Legacy: "/l:<host>" after the device's keys.
+  string host = 4 [(attribute) = "host.name"];
+  // The collector: "nvml", "dcgm", "dcgm-exporter", "rocm-smi", "ioreport",
+  // "libtpu", "neuron-monitor".
+  string source = 5 [(attribute) = "com.coreweave.accelerator.source"];
+  Binding binding = 6 [(attribute) = "com.coreweave.accelerator.binding"];
+  // PCI bus ID as NVML formats it, such as "00000000:1B:00.0".
+  string pci_bus_id = 7 [(attribute) = "com.coreweave.accelerator.pci.bus_id"];
+  // Product name, such as "NVIDIA H100 80GB HBM3".
+  string model = 8 [(attribute) = "hw.model"];
+
+  // Fraction of time the compute units were busy, as each vendor defines it.
+  optional double utilization_ratio = 20 [(metric) = {
+    unit: "1",
+    display: "Utilization",
+    names: [
+      {
+        accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ],
+        name: "hw.gpu.utilization",
+        attributes: [ { key: "hw.gpu.task", value: "general" } ]
+      },
+      { accelerator_type: [ GOOGLE_TPU ], name: "com.google.tpu.tensorcore.utilization" },
+      { accelerator_type: [ AWS_TRAINIUM ], name: "com.amazon.neuron.neuroncore.utilization" }
+    ],
+    range_min: 0,
+    range_max: 1,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.gpu", unit: "%" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.gpu", unit: "%" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.gpu", unit: "%" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.tensorcoreUtilization", unit: "%" },
+      { accelerator_type: AWS_TRAINIUM, template: "trn.{index}.neuroncore_utilization", unit: "%" }
+    ]
+  }];
+  // Fraction of time the memory controller was busy.
+  optional double memory_activity_ratio = 21 [(metric) = {
+    unit: "1",
+    display: "Memory Controller Activity",
+    names: [
+      { accelerator_type: [ NVIDIA_GPU ], name: "com.nvidia.gpu.memory_copy.utilization" },
+      { accelerator_type: [ AMD_GPU ], name: "com.amd.gpu.umc.utilization" }
+    ],
+    range_min: 0,
+    range_max: 1,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.memory", unit: "%" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.memoryReadWriteActivity", unit: "%" }
+    ]
+  }];
+  optional double memory_used_ratio = 22 [(metric) = {
+    unit: "1",
+    display: "Memory Used",
+    names: [
+      { accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ], name: "hw.gpu.memory.utilization" },
+      { accelerator_type: [ GOOGLE_TPU ], name: "com.google.tpu.memory.utilization" }
+    ],
+    range_min: 0,
+    range_max: 1,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.memoryAllocated", unit: "%" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.memoryAllocated", unit: "%" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.hbmMemoryUsage", unit: "%" }
+    ]
+  }];
+  optional uint64 memory_used_bytes = 23 [(metric) = {
+    unit: "By",
+    display: "Memory Used",
+    names: [
+      { accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ], name: "hw.gpu.memory.usage" },
+      { accelerator_type: [ GOOGLE_TPU ], name: "com.google.tpu.memory.usage" }
+    ],
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.memoryAllocatedBytes" },
+      { accelerator_type: NVIDIA_GPU, source: "dcgm-exporter", template: "gpu.{index}.memoryUsed", unit: "MiBy" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.hbmCapacityUsage" }
+    ]
+  }];
+  optional uint64 memory_total_bytes = 24 [(metric) = {
+    unit: "By",
+    display: "Memory Total",
+    names: [
+      { accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ], name: "hw.gpu.memory.limit" },
+      { accelerator_type: [ GOOGLE_TPU ], name: "com.google.tpu.memory.limit" }
+    ],
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, source: "dcgm-exporter", template: "gpu.{index}.memoryTotal", unit: "MiBy" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.hbmCapacityTotal" }
+    ]
+  }];
+  optional double temperature_c = 25 [(metric) = {
+    unit: "Cel",
+    display: "Temperature",
+    names: [ {
+      accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ],
+      name: "hw.temperature",
+      attributes: [ { key: "hw.sensor_location", value: "gpu" } ]
+    } ],
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.temp" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.temp" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.temp" }
+    ]
+  }];
+  optional double power_w = 26 [(metric) = {
+    unit: "W",
+    display: "Power",
+    names: [
+      {
+        accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ],
+        name: "hw.power",
+        attributes: [ { key: "hw.type", value: "gpu" } ]
+      },
+      { accelerator_type: [ APPLE_ANE ], name: "com.apple.ane.power" }
+    ],
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.powerWatts" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.powerWatts" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.powerWatts" },
+      { accelerator_type: APPLE_ANE, template: "ane.power" }
+    ]
+  }];
+  // Power over the enforced limit.
+  optional double power_ratio = 27 [(metric) = {
+    unit: "1",
+    display: "Power",
+    names: [ { accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ], name: "com.coreweave.gpu.power.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.powerPercent", unit: "%" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.powerPercent", unit: "%" }
+    ]
+  }];
+  optional double power_limit_w = 28 [(metric) = {
+    unit: "W",
+    display: "Enforced Power Limit",
+    names: [ { accelerator_type: [ NVIDIA_GPU ], name: "com.nvidia.gpu.power.limit" } ],
+    legacy_process_copy: true,
+    legacy: [ { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.enforcedPowerLimitWatts" } ]
+  }];
+  // Core clock.
+  optional double clock_hz = 29 [(metric) = {
+    unit: "Hz",
+    display: "Clock",
+    names: [ { accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ], name: "com.coreweave.gpu.clock" } ],
+    legacy: [ { accelerator_type: APPLE_GPU, template: "gpu.{index}.freq", unit: "MHz" } ]
+  }];
+  optional double fan_speed_ratio = 30 [(metric) = {
+    unit: "1",
+    display: "Fan Speed",
+    names: [ { accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ], name: "hw.fan.speed_ratio" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.fanSpeed", unit: "%" } ]
+  }];
+  // Energy since the driver loaded.
+  optional double energy_j = 31 [(metric) = {
+    unit: "J",
+    display: "Energy",
+    names: [ {
+      accelerator_type: [ NVIDIA_GPU, AMD_GPU, APPLE_GPU ],
+      name: "hw.energy",
+      attributes: [ { key: "hw.type", value: "gpu" } ]
+    } ],
+    kind: COUNTER,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.energyJoules" },
+      {
+        accelerator_type: NVIDIA_GPU,
+        source: "dcgm-exporter",
+        template: "gpu.{index}.totalEnergyConsumption",
+        unit: "mJ"
+      },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.energyJoules" }
+    ]
+  }];
+
+  oneof vendor {
+    NvidiaMetrics nvidia = 40;
+    AmdMetrics amd = 41;
+    TpuMetrics tpu = 42;
+    TrainiumMetrics trainium = 43;
+  }
+}
+
+// NVML and GPM, DCGM profiling, and DCGM exporter queries. GPM and the
+// DCGM_FI_PROF fields need Hopper or newer.
+message NvidiaMetrics {
+  optional double sm_clock_hz = 1 [(metric) = {
+    unit: "Hz",
+    display: "SM Clock",
+    names: [ { name: "com.nvidia.gpu.sm.clock" } ],
+    legacy: [ { template: "gpu.{index}.smClock", unit: "MHz" } ]
+  }];
+  optional double memory_clock_hz = 2 [(metric) = {
+    unit: "Hz",
+    display: "Memory Clock",
+    names: [ { name: "com.nvidia.gpu.memory.clock" } ],
+    legacy: [ { template: "gpu.{index}.memoryClock", unit: "MHz" } ]
+  }];
+  optional uint64 corrected_memory_errors = 3 [(metric) = {
+    unit: "{error}",
+    display: "Corrected Memory Errors",
+    names: [ {
+      name: "hw.errors",
+      attributes: [ { key: "error.type", value: "corrected" }, { key: "hw.type", value: "gpu" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.correctedMemoryErrors" } ]
+  }];
+  optional uint64 uncorrected_memory_errors = 4 [(metric) = {
+    unit: "{error}",
+    display: "Uncorrected Memory Errors",
+    names: [ {
+      name: "hw.errors",
+      attributes: [ { key: "error.type", value: "uncorrected" }, { key: "hw.type", value: "gpu" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.uncorrectedMemoryErrors" } ]
+  }];
+
+  optional double pcie_tx_bytes_per_s = 10 [(metric) = {
+    unit: "By/s",
+    display: "PCIe Transmit",
+    names: [ {
+      name: "com.nvidia.gpu.pcie.io.rate",
+      attributes: [ { key: "network.io.direction", value: "transmit" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.pcieTxBytes" } ]
+  }];
+  optional double pcie_rx_bytes_per_s = 11 [(metric) = {
+    unit: "By/s",
+    display: "PCIe Receive",
+    names: [ {
+      name: "com.nvidia.gpu.pcie.io.rate",
+      attributes: [ { key: "network.io.direction", value: "receive" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.pcieRxBytes" } ]
+  }];
+  optional double nvlink_tx_bytes_per_s = 12 [(metric) = {
+    unit: "By/s",
+    display: "NVLink Transmit",
+    names: [ {
+      name: "com.nvidia.gpu.nvlink.io.rate",
+      attributes: [ { key: "network.io.direction", value: "transmit" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.nvlinkTxBytes" } ]
+  }];
+  optional double nvlink_rx_bytes_per_s = 13 [(metric) = {
+    unit: "By/s",
+    display: "NVLink Receive",
+    names: [ {
+      name: "com.nvidia.gpu.nvlink.io.rate",
+      attributes: [ { key: "network.io.direction", value: "receive" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.nvlinkRxBytes" } ]
+  }];
+
+  // DCGM exporter queries report these as ratios.
+  optional double sm_active_ratio = 20 [(metric) = {
+    unit: "1",
+    display: "SM Active",
+    names: [ { name: "com.nvidia.gpu.sm.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [
+      { template: "gpu.{index}.smActive", unit: "%" },
+      { source: "dcgm-exporter", template: "gpu.{index}.smActive" }
+    ]
+  }];
+  optional double sm_occupancy_ratio = 21 [(metric) = {
+    unit: "1",
+    display: "SM Occupancy",
+    names: [ { name: "com.nvidia.gpu.sm.occupancy" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [
+      { template: "gpu.{index}.smOccupancy", unit: "%" },
+      { source: "dcgm-exporter", template: "gpu.{index}.smOccupancy" }
+    ]
+  }];
+  optional double dram_active_ratio = 22 [(metric) = {
+    unit: "1",
+    display: "DRAM Active",
+    names: [ { name: "com.nvidia.gpu.memory_interface.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "gpu.{index}.dramActive", unit: "%" } ]
+  }];
+  optional double pipe_tensor_active_ratio = 23 [(metric) = {
+    unit: "1",
+    display: "Tensor Pipe Active",
+    names: [ { name: "com.nvidia.gpu.tensor_pipe.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [
+      { template: "gpu.{index}.pipeTensorActive", unit: "%" },
+      { source: "dcgm-exporter", template: "gpu.{index}.pipeTensorActive" }
+    ]
+  }];
+  optional double pipe_tensor_hmma_active_ratio = 24 [(metric) = {
+    unit: "1",
+    display: "Tensor HMMA Pipe Active",
+    names: [ { name: "com.nvidia.gpu.hmma_pipe.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "gpu.{index}.pipeTensorHmmaActive", unit: "%" } ]
+  }];
+  optional double pipe_fp64_active_ratio = 25 [(metric) = {
+    unit: "1",
+    display: "FP64 Pipe Active",
+    names: [ { name: "com.nvidia.gpu.fp64_pipe.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [
+      { template: "gpu.{index}.pipeFp64Active", unit: "%" },
+      { source: "dcgm-exporter", template: "gpu.{index}.pipeFp64Active" }
+    ]
+  }];
+  optional double pipe_fp32_active_ratio = 26 [(metric) = {
+    unit: "1",
+    display: "FP32 Pipe Active",
+    names: [ { name: "com.nvidia.gpu.fp32_pipe.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [
+      { template: "gpu.{index}.pipeFp32Active", unit: "%" },
+      { source: "dcgm-exporter", template: "gpu.{index}.pipeFp32Active" }
+    ]
+  }];
+  optional double pipe_fp16_active_ratio = 27 [(metric) = {
+    unit: "1",
+    display: "FP16 Pipe Active",
+    names: [ { name: "com.nvidia.gpu.fp16_pipe.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [
+      { template: "gpu.{index}.pipeFp16Active", unit: "%" },
+      { source: "dcgm-exporter", template: "gpu.{index}.pipeFp16Active" }
+    ]
+  }];
+
+  // DCGM exporter queries only.
+  optional double memory_temperature_c = 30 [(metric) = {
+    unit: "Cel",
+    display: "Memory Temperature",
+    names: [ {
+      name: "hw.temperature",
+      attributes: [ { key: "hw.sensor_location", value: "memory" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.memoryTemp" } ]
+  }];
+  optional double max_operating_temperature_c = 31 [(metric) = {
+    unit: "Cel",
+    display: "Max Operating Temperature",
+    names: [ {
+      name: "hw.temperature.limit",
+      attributes: [ { key: "hw.limit_type", value: "max" }, { key: "hw.sensor_location", value: "gpu" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.maxOpTemp" } ]
+  }];
+  optional double memory_max_operating_temperature_c = 32 [(metric) = {
+    unit: "Cel",
+    display: "Memory Max Operating Temperature",
+    names: [ {
+      name: "hw.temperature.limit",
+      attributes: [ { key: "hw.limit_type", value: "max" }, { key: "hw.sensor_location", value: "memory" } ]
+    } ],
+    legacy: [ { template: "gpu.{index}.memoryMaxOpTemp" } ]
+  }];
+  optional uint64 memory_free_bytes = 33 [(metric) = {
+    unit: "By",
+    display: "Memory Free",
+    names: [ { name: "com.nvidia.gpu.memory.free" } ],
+    legacy: [ { template: "gpu.{index}.memoryFree", unit: "MiBy" } ]
+  }];
+}
+
+// ROCm SMI.
+message AmdMetrics {
+  optional double memory_overdrive_ratio = 1 [(metric) = {
+    unit: "1",
+    display: "Memory Overdrive",
+    names: [ { name: "com.amd.gpu.memory.overdrive" } ],
+    legacy: [ { template: "gpu.{index}.memoryOverDrive", unit: "%" } ]
+  }];
+}
+
+// libtpu, per TPU device.
+message TpuMetrics {
+  optional double duty_cycle_ratio = 1 [(metric) = {
+    unit: "1",
+    display: "Duty Cycle",
+    names: [ { name: "com.google.tpu.duty_cycle" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "tpu.{index}.dutyCycle", unit: "%" } ]
+  }];
+  optional double tensorcore_idle_duration_s = 2 [(metric) = {
+    unit: "s",
+    display: "TensorCore Idle Duration",
+    names: [ { name: "com.google.tpu.tensorcore.idle_duration" } ],
+    legacy: [ { template: "tpu.{index}.tensorcoreIdleDuration" } ]
+  }];
+  optional double runtime_hbm_utilization_ratio = 3 [(metric) = {
+    unit: "1",
+    display: "HBM Utilization",
+    names: [ { name: "com.google.tpu.memory_bandwidth.utilization" } ],
+    range_min: 0,
+    range_max: 1,
+    legacy: [ { template: "tpu.{index}.runtimeHbmUtilization", unit: "%" } ]
+  }];
+  optional double ici_link_health = 4 [(metric) = {
+    unit: "1",
+    display: "ICI Link Health",
+    names: [ { name: "com.google.tpu.ici.link_health" } ],
+    legacy: [ { template: "tpu.{index}.iciLinkHealth" } ]
+  }];
+  optional double throttle_score = 5 [(metric) = {
+    unit: "1",
+    display: "Throttle Score",
+    names: [ { name: "com.google.tpu.core.throttling" } ],
+    legacy: [ { template: "tpu.{index}.throttleScore" } ]
+  }];
+}
+
+// neuron-monitor, per NeuronCore.
+message TrainiumMetrics {
+  optional uint64 memory_constants_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Constants Memory",
+    names: [ {
+      name: "com.amazon.neuron.neuroncore.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "constants" } ]
+    } ],
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.constants" } ]
+  }];
+  optional uint64 memory_model_code_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Model Code Memory",
+    names: [ {
+      name: "com.amazon.neuron.neuroncore.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "model_code" } ]
+    } ],
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.model_code" } ]
+  }];
+  optional uint64 memory_model_shared_scratchpad_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Shared Scratchpad Memory",
+    names: [ {
+      name: "com.amazon.neuron.neuroncore.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "model_shared_scratchpad" } ]
+    } ],
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.model_shared_scratchpad" } ]
+  }];
+  optional uint64 memory_runtime_bytes = 4 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Runtime Memory",
+    names: [ {
+      name: "com.amazon.neuron.neuroncore.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "runtime_memory" } ]
+    } ],
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.runtime_memory" } ]
+  }];
+  optional uint64 memory_tensors_bytes = 5 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Tensors Memory",
+    names: [ {
+      name: "com.amazon.neuron.neuroncore.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "tensors" } ]
+    } ],
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.tensors" } ]
+  }];
+}
+
+// =============================================================================
+// Runtime metrics that are not per device
+// =============================================================================
+
+// libtpu distributions and queues on the host.
+message TpuRuntimeMetrics {
+  enum DistributionKind {
+    DISTRIBUTION_UNSPECIFIED = 0;
+    BUFFER_TRANSFER_LATENCY = 1 [(distribution) = {
+      unit: "s",
+      display: "Buffer Transfer Latency",
+      names: [ { name: "com.google.tpu.dcn_transfer.duration" } ]
+    }];
+    INBOUND_BUFFER_TRANSFER_LATENCY = 2 [(distribution) = {
+      unit: "s",
+      display: "Inbound Buffer Transfer Latency",
+      names: [ { name: "com.google.tpu.dcn_inbound_transfer.duration" } ]
+    }];
+    HOST_TO_DEVICE_TRANSFER_LATENCY = 3 [(distribution) = {
+      unit: "s",
+      display: "Host to Device Transfer Latency",
+      names: [ { name: "com.google.tpu.host_to_device_transfer.duration" } ]
+    }];
+    DEVICE_TO_HOST_TRANSFER_LATENCY = 4 [(distribution) = {
+      unit: "s",
+      display: "Device to Host Transfer Latency",
+      names: [ { name: "com.google.tpu.device_to_host_transfer.duration" } ]
+    }];
+    COLLECTIVE_E2E_LATENCY = 5 [(distribution) = {
+      unit: "s",
+      display: "Collective End-to-End Latency",
+      names: [ { name: "com.google.tpu.collective.duration" } ]
+    }];
+    HOST_COMPUTE_LATENCY = 6 [(distribution) = {
+      unit: "s",
+      display: "Host Compute Latency",
+      names: [ { name: "com.google.tpu.host_compute.duration" } ]
+    }];
+    HLO_EXEC_TIMING = 7 [(distribution) = {
+      unit: "s",
+      display: "HLO Execution Time",
+      names: [ { name: "com.google.tpu.hlo.execution.duration" } ]
+    }];
+    GRPC_TCP_MIN_RTT = 8 [(distribution) = {
+      unit: "s",
+      display: "gRPC TCP Minimum RTT",
+      names: [ { name: "com.google.tpu.grpc.tcp.min_rtt" } ]
+    }];
+    GRPC_TCP_DELIVERY_RATE = 9 [(distribution) = {
+      unit: "bit/s",
+      display: "gRPC TCP Delivery Rate",
+      names: [ { name: "com.google.tpu.grpc.tcp.delivery_rate" } ]
+    }];
+  }
+
+  // In the kind's unit. Legacy keys are in microseconds and megabits per
+  // second: tpu.<kind>[.<label>].<stat><unit>, such as
+  // tpu.hloExecTiming.program_main.p50Us.
+  message Distribution {
+    DistributionKind kind = 1;
+    // The program, buffer class or series. Empty for the libtpu SDK's flat
+    // distributions, whose legacy keys have no label segment.
+    string label = 2 [(attribute) = "com.google.tpu.label"];
+    optional double mean = 3;
+    optional double p50 = 4;
+    optional double p90 = 5;
+    optional double p95 = 6;
+    optional double p99 = 7;
+    optional double p999 = 8;
+  }
+  repeated Distribution distributions = 1;
+
+  message QueueSize {
+    string label = 1 [(attribute) = "com.google.tpu.label"];
+    optional double size = 2 [(metric) = {
+      unit: "{program}",
+      display: "HLO Queue Size",
+      names: [ { name: "com.google.tpu.hlo.queue.size" } ],
+      legacy: [ { template: "tpu.hloQueueSize.{label}" } ]
+    }];
+  }
+  repeated QueueSize hlo_queue_sizes = 2;
+}
+
+// neuron-monitor memory on the host.
+message TrainiumHostMetrics {
+  optional uint64 host_memory_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "Host Memory Used",
+    names: [ {
+      name: "com.amazon.neuron.runtime.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.location", value: "host" } ]
+    } ],
+    legacy: [ { template: "trn.host_total_memory_usage" } ]
+  }];
+  optional uint64 device_memory_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Neuron Device Memory Used",
+    names: [ {
+      name: "com.amazon.neuron.runtime.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.location", value: "neuron_device" } ]
+    } ],
+    legacy: [ { template: "trn.neuron_device_total_memory_usage" } ]
+  }];
+  optional uint64 host_memory_application_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "Host Application Memory",
+    names: [ {
+      name: "com.amazon.neuron.host.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "application_memory" } ]
+    } ],
+    legacy: [ { template: "trn.host_memory_usage.application_memory" } ]
+  }];
+  optional uint64 host_memory_constants_bytes = 4 [(metric) = {
+    unit: "By",
+    display: "Host Constants Memory",
+    names: [ {
+      name: "com.amazon.neuron.host.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "constants" } ]
+    } ],
+    legacy: [ { template: "trn.host_memory_usage.constants" } ]
+  }];
+  optional uint64 host_memory_dma_buffers_bytes = 5 [(metric) = {
+    unit: "By",
+    display: "Host DMA Buffers Memory",
+    names: [ {
+      name: "com.amazon.neuron.host.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "dma_buffers" } ]
+    } ],
+    legacy: [ { template: "trn.host_memory_usage.dma_buffers" } ]
+  }];
+  optional uint64 host_memory_tensors_bytes = 6 [(metric) = {
+    unit: "By",
+    display: "Host Tensors Memory",
+    names: [ {
+      name: "com.amazon.neuron.host.memory.usage",
+      attributes: [ { key: "com.amazon.neuron.memory.category", value: "tensors" } ]
+    } ],
+    legacy: [ { template: "trn.host_memory_usage.tensors" } ]
+  }];
+}
+
+// =============================================================================
+// Metrics the schema does not model
+// =============================================================================
+
+// A gauge or counter scraped from an OpenMetrics endpoint
+// (x_stats_open_metrics_endpoints).
+message GenericMetric {
+  // The endpoint's name in x_stats_open_metrics_endpoints.
+  string source = 1;
+  // The metric family name.
+  string name = 2;
+  repeated MetricLabel labels = 3;
+  MetricInfo.Kind kind = 4;
+  optional double value = 5 [(metric) = { legacy: [ { template: "openmetrics.{source}.{name}.{series}" } ] }];
+  // The label set's position among the label sets of this metric in the
+  // order symon first saw them. The {series} in the legacy key.
+  uint32 series = 6;
+}
+
+message MetricLabel {
+  string key = 1;
+  string value = 2;
+}

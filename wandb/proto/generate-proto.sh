@@ -27,6 +27,7 @@ PROTOC="$PROTOC_CACHE/$PROTOC_VER/bin/protoc"
 PROTO_FILES=(
     wandb_base.proto
     wandb_internal.proto
+    wandb_system_metrics.proto
     wandb_settings.proto
     wandb_telemetry.proto
     wandb_otel.proto
