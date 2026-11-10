@@ -30,7 +30,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- `Api.artifacts()` and the other public API artifact lookups (artifact types, artifact collections, collection aliases and `Artifact.files()`) say which project, artifact type, collection or version was not found or is not accessible, instead of `Unable to parse ... response data` or `Could not find artifact type` (@mrobers1982 in https://github.com/wandb/wandb/pull/TBD)
+- `Api.artifacts()` and the other public API artifact lookups (artifact types, artifact collections, collection aliases and `Artifact.files()`) say which project, artifact type, collection or version was not found or is not accessible, instead of `Unable to parse ... response data` or `Could not find artifact type` (@mrobers1982 in https://github.com/wandb/wandb/pull/13350)
 - `Artifact.link()` and `Run.link_artifact()` warn when the target collection name contains `:` (for example `my-coll:prod`) and point to the `aliases` argument for adding aliases (@mrobers1982 in https://github.com/wandb/wandb/pull/13321)
 - `Api.automations()` lists push notification automations (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13282)
 - Installing `wandb` from source on Android (Termux) now builds for Android instead of failing on a glibc Linux Rust target (@dmitryduev in https://github.com/wandb/wandb/pull/13289)
