@@ -29,13 +29,34 @@ from wandb.automations._inputs import (
     prepare_to_create,
     prepare_to_update,
 )
-from wandb.automations.actions import InputAction
+from wandb.automations.actions import InputAction, SavedNoOpAction
 from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState
+
+from ._cases import (
+    invalid_events_and_scopes,
+    valid_input_actions,
+    valid_input_events,
+    valid_scopes,
+)
 
 
 class TestPrepareToCreate:
     """Checks on the internal helper that prepares the GraphQL input for CreateFilterTrigger mutations."""
+
+    # Payload components are independent. Individual tests opt into only the
+    # axes they assert on, instead of inheriting the full fixture product.
+    @fixture
+    def scope_type(self, request):
+        return getattr(request, "param", ScopeType.PROJECT)
+
+    @fixture
+    def event_type(self, request):
+        return getattr(request, "param", EventType.LINK_ARTIFACT)
+
+    @fixture
+    def action_type(self, request):
+        return getattr(request, "param", ActionType.NO_OP)
 
     def test_same_results_from_equivalent_args(self, input_event, input_action):
         """Check that preparing the CreateFilterTrigger input object by passing the same values in different ways produces identical results."""
@@ -97,56 +118,26 @@ class TestPrepareToCreate:
         assert prepared_vars["scopeID"] == registry.id
 
     @mark.parametrize("invalid_event_type", INVALID_INPUT_EVENTS)
-    def test_prepare_to_create_rejects_excluded_event_types(
+    def test_input_event_rejects_legacy_type_assignment(
         self,
         input_event,
-        input_action,
         invalid_event_type,
     ):
-        """Check that prepare_to_create() fails if we try to assign a disallowed event type.
-
-        Event types may be disallowed if e.g. the event type is deprecated or should otherwise
-        be blocked on new/edited automations.
-        """
-        with raises(ValidationError):
-            automation_to_create = NewAutomation(
-                event=input_event,
-                action=input_action,
-                name="test-name",
-            )
-            automation_to_create.event.event_type = invalid_event_type
-            prepare_to_create(automation_to_create)
+        with raises(ValidationError, match="event_type"):
+            input_event.event_type = invalid_event_type
 
     @mark.parametrize("invalid_action_type", INVALID_INPUT_ACTIONS)
-    def test_prepare_to_create_rejects_excluded_action_types(
+    def test_input_action_type_is_immutable(
         self,
-        input_event,
         input_action,
         invalid_action_type,
     ):
-        """Check that prepare_to_create() fails if we try to assign a disallowed action type.
+        with raises(ValidationError, match="frozen"):
+            input_action.action_type = invalid_action_type
 
-        Action types may be disallowed if e.g. the action type is deprecated or should otherwise
-        be blocked on new/edited automations.
-        """
-        with raises(ValidationError):
-            automation_to_create = NewAutomation(
-                event=input_event,
-                action=input_action,
-                name="test-name",
-            )
-            automation_to_create.action.action_type = invalid_action_type
-            prepare_to_create(automation_to_create)
-
-    @fixture(
-        params=[
-            {"name": "test-name", "description": "test-description", "enabled": True},
-            {"name": "test-name", "enabled": False},
-            {"name": "test-name"},
-        ]
-    )
+    @fixture
     def input_kwargs(self, request: FixtureRequest) -> dict[str, Any]:
-        return request.param
+        return getattr(request, "param", {"name": "test-name"})
 
     @fixture
     def prepared_vars(
@@ -160,6 +151,16 @@ class TestPrepareToCreate:
         prepared = prepare_to_create(input_event >> input_action, **input_kwargs)
         return prepared.model_dump()
 
+    @mark.parametrize(
+        "input_kwargs",
+        [
+            {"name": "test-name", "description": "test-description", "enabled": True},
+            {"name": "test-name", "enabled": False},
+            {"name": "test-name"},
+        ],
+        indirect=True,
+        ids=["explicit", "disabled", "defaults"],
+    )
     def test_prepared_dict_values(
         self,
         scope,
@@ -191,6 +192,27 @@ class TestPrepareToCreate:
         # Check all expected keys are present
         other_expected_keys = {"eventFilter", "triggeredActionConfig"}
         assert {*expected_subset.keys(), *other_expected_keys} == prepared_vars.keys()
+
+    @mark.parametrize(
+        ("event_type", "scope_type"),
+        [
+            (event, scope)
+            for event in valid_input_events()
+            for scope in valid_scopes()
+            if (event, scope) not in invalid_events_and_scopes()
+        ],
+        indirect=True,
+    )
+    def test_event_identity_and_scope(
+        self, prepared_vars, event_type, scope_type, scope
+    ):
+        assert prepared_vars["triggeringEventType"] == event_type
+        assert prepared_vars["scopeType"] == scope_type
+        assert prepared_vars["scopeID"] == scope.id
+
+    @mark.parametrize("action_type", valid_input_actions(), indirect=True)
+    def test_action_identity(self, prepared_vars, action_type):
+        assert prepared_vars["triggeredActionType"] == action_type
 
     # ----------------------------------------------------------------------------
     # Check prepared event payloads
@@ -235,8 +257,9 @@ class TestPrepareToCreate:
         ],
         indirect=True,
     )
+    @mark.parametrize("scope_type", [ScopeType.ARTIFACT_COLLECTION], indirect=True)
     def test_event_payload_for_artifact_mutation_events(
-        self, input_event, event_filter_dict
+        self, input_event, event_filter_dict, scope_type
     ):
         # Check that the filter is nested/wrapped as required by current backend/frontend logic
         #
@@ -249,6 +272,13 @@ class TestPrepareToCreate:
         assert event_filter_dict.keys() == {"$or"}
         assert len(event_filter_dict["$or"]) == 1
         assert event_filter_dict["$or"][0].keys() == {"$and"}
+
+    @mark.parametrize("event_type", [EventType.RUN_STATE], indirect=True)
+    def test_event_payload_for_run_state_events(self, event_filter_dict):
+        assert json.loads(event_filter_dict["run_filter"]) == {
+            "$and": [{"display_name": {"$contains": "my-run"}}]
+        }
+        assert event_filter_dict["run_state_filter"] == {"states": ["FAILED"]}
 
     # ----------------------------------------------------------------------------
     # Check prepared action payloads
@@ -294,6 +324,10 @@ class TestPrepareToCreate:
 
 class TestPrepareToUpdate:
     """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""
+
+    @fixture
+    def saved_action(self):
+        return SavedNoOpAction()
 
     MUTATION_EVENT_CLASSES: dict[EventType, type[InputEvent]] = {
         EventType.CREATE_ARTIFACT: OnCreateArtifact,
@@ -389,5 +423,33 @@ class TestPrepareToUpdate:
         result = prepare_to_update(saved_run_automation, event=new_event)
         event_filter = json.loads(result.event_filter)
 
-        assert event_filter
+        assert event_filter == new_event.filter.model_dump()
         assert result.triggering_event_type == new_event.event_type
+
+
+class TestSavedActionInput:
+    @fixture
+    def mutation_event_type(self):
+        return EventType.LINK_ARTIFACT
+
+    def test_update_preserves_saved_action(self, saved_automation, saved_action):
+        expected = {
+            ActionType.NO_OP: {"noOpActionInput": {"noOp": True}},
+            ActionType.NOTIFICATION: {
+                "notificationActionInput": {
+                    "integrationID": "PLACEHOLDER",
+                    "title": "",
+                    "message": "",
+                    "severity": "INFO",
+                }
+            },
+            ActionType.GENERIC_WEBHOOK: {
+                "genericWebhookActionInput": {"integrationID": "PLACEHOLDER"}
+            },
+            ActionType.ARIA: {"ariaActionInput": {"prompt": "Summarize this run"}},
+        }
+        result = prepare_to_update(saved_automation)
+        assert (
+            result.triggered_action_config.model_dump()
+            == expected[saved_action.action_type]
+        )
