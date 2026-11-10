@@ -1644,6 +1644,13 @@ type AcceleratorMetrics struct {
 	PciBusId string `protobuf:"bytes,7,opt,name=pci_bus_id,json=pciBusId,proto3" json:"pci_bus_id,omitempty"`
 	// Product name, such as "NVIDIA H100 80GB HBM3".
 	Model string `protobuf:"bytes,8,opt,name=model,proto3" json:"model,omitempty"`
+	// For a partition of a physical device, such as a MIG instance: the uuid
+	// of the physical device, the partition's profile, such as "3g.40gb", and
+	// its share of the physical device, such as 3/7 of the compute slices.
+	// Partitions have no legacy keys.
+	ParentUuid string   `protobuf:"bytes,9,opt,name=parent_uuid,json=parentUuid,proto3" json:"parent_uuid,omitempty"`
+	Profile    string   `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	Share      *float64 `protobuf:"fixed64,11,opt,name=share,proto3,oneof" json:"share,omitempty"`
 	// Fraction of time the compute units were busy, as each vendor defines it.
 	UtilizationRatio *float64 `protobuf:"fixed64,20,opt,name=utilization_ratio,json=utilizationRatio,proto3,oneof" json:"utilization_ratio,omitempty"`
 	// Fraction of time the memory controller was busy.
@@ -1756,6 +1763,27 @@ func (x *AcceleratorMetrics) GetModel() string {
 		return x.Model
 	}
 	return ""
+}
+
+func (x *AcceleratorMetrics) GetParentUuid() string {
+	if x != nil {
+		return x.ParentUuid
+	}
+	return ""
+}
+
+func (x *AcceleratorMetrics) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *AcceleratorMetrics) GetShare() float64 {
+	if x != nil && x.Share != nil {
+		return *x.Share
+	}
+	return 0
 }
 
 func (x *AcceleratorMetrics) GetUtilizationRatio() float64 {
@@ -3042,7 +3070,7 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\n" +
 	"_rss_bytesB\x11\n" +
 	"\x0f_cpu_user_ratioB\x13\n" +
-	"\x11_cpu_system_ratio\"\xbc\x1b\n" +
+	"\x11_cpu_system_ratio\"\xf7\x1c\n" +
 	"\x12AcceleratorMetrics\x123\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1f.wandb_internal.AcceleratorTypeR\x04type\x129\n" +
 	"\x05index\x18\x02 \x01(\rB#Ҳ\x1c\x1fcom.coreweave.accelerator.indexR\x05index\x12\x1d\n" +
@@ -3052,61 +3080,67 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\abinding\x18\x06 \x01(\x0e2\x17.wandb_internal.BindingB%Ҳ\x1c!com.coreweave.accelerator.bindingR\abinding\x12F\n" +
 	"\n" +
 	"pci_bus_id\x18\a \x01(\tB(Ҳ\x1c$com.coreweave.accelerator.pci.bus_idR\bpciBusId\x12\"\n" +
-	"\x05model\x18\b \x01(\tB\fҲ\x1c\bhw.modelR\x05model\x12\x87\x03\n" +
+	"\x05model\x18\b \x01(\tB\fҲ\x1c\bhw.modelR\x05model\x12.\n" +
+	"\vparent_uuid\x18\t \x01(\tB\rҲ\x1c\thw.parentR\n" +
+	"parentUuid\x12?\n" +
+	"\aprofile\x18\n" +
+	" \x01(\tB%Ҳ\x1c!com.coreweave.accelerator.profileR\aprofile\x12>\n" +
+	"\x05share\x18\v \x01(\x01B#Ҳ\x1c\x1fcom.coreweave.accelerator.shareH\x01R\x05share\x88\x01\x01\x12\x87\x03\n" +
 	"\x11utilization_ratio\x18\x14 \x01(\x01B\xd4\x02ʲ\x1c\xcf\x02\n" +
 	"\x011\x12\vUtilization\"\x16\b\x01\x1a\x0fgpu.{index}.gpu\"\x01%\"\x16\b\x02\x1a\x0fgpu.{index}.gpu\"\x01%\"\x16\b\x03\x1a\x0fgpu.{index}.gpu\"\x01%\"(\b\x05\x1a!tpu.{index}.tensorcoreUtilization\"\x01%\")\b\x06\x1a\"trn.{index}.neuroncore_utilization\"\x01%(\x011\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B1\n" +
 	"\x03\x01\x02\x03\x12\x12hw.gpu.utilization\x1a\x16\n" +
 	"\vhw.gpu.task\x12\ageneralB*\n" +
 	"\x01\x05\x12%com.google.tpu.tensorcore.utilizationB-\n" +
-	"\x01\x06\x12(com.amazon.neuron.neuroncore.utilizationH\x01R\x10utilizationRatio\x88\x01\x01\x12\x88\x02\n" +
+	"\x01\x06\x12(com.amazon.neuron.neuroncore.utilizationH\x02R\x10utilizationRatio\x88\x01\x01\x12\x88\x02\n" +
 	"\x15memory_activity_ratio\x18\x15 \x01(\x01B\xce\x01ʲ\x1c\xc9\x01\n" +
 	"\x011\x12\x1aMemory Controller Activity\"\x19\b\x01\x1a\x12gpu.{index}.memory\"\x01%\"*\b\x02\x1a#gpu.{index}.memoryReadWriteActivity\"\x01%(\x011\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B+\n" +
 	"\x01\x01\x12&com.nvidia.gpu.memory_copy.utilizationB \n" +
-	"\x01\x02\x12\x1bcom.amd.gpu.umc.utilizationH\x02R\x13memoryActivityRatio\x88\x01\x01\x12\x90\x02\n" +
+	"\x01\x02\x12\x1bcom.amd.gpu.umc.utilizationH\x03R\x13memoryActivityRatio\x88\x01\x01\x12\x90\x02\n" +
 	"\x11memory_used_ratio\x18\x16 \x01(\x01B\xde\x01ʲ\x1c\xd9\x01\n" +
 	"\x011\x12\vMemory Used\"\"\b\x01\x1a\x1bgpu.{index}.memoryAllocated\"\x01%\"\"\b\x02\x1a\x1bgpu.{index}.memoryAllocated\"\x01%\"!\b\x05\x1a\x1atpu.{index}.hbmMemoryUsage\"\x01%(\x011\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B \n" +
 	"\x03\x01\x02\x03\x12\x19hw.gpu.memory.utilizationB&\n" +
-	"\x01\x05\x12!com.google.tpu.memory.utilizationH\x03R\x0fmemoryUsedRatio\x88\x01\x01\x12\x81\x02\n" +
+	"\x01\x05\x12!com.google.tpu.memory.utilizationH\x04R\x0fmemoryUsedRatio\x88\x01\x01\x12\x81\x02\n" +
 	"\x11memory_used_bytes\x18\x17 \x01(\x04B\xcf\x01ʲ\x1c\xca\x01\n" +
 	"\x02By\x12\vMemory Used\"$\b\x01\x1a gpu.{index}.memoryAllocatedBytes\"/\b\x01\x12\rdcgm-exporter\x1a\x16gpu.{index}.memoryUsed\"\x04MiBy\" \b\x05\x1a\x1ctpu.{index}.hbmCapacityUsage(\x01B\x1a\n" +
 	"\x03\x01\x02\x03\x12\x13hw.gpu.memory.usageB \n" +
-	"\x01\x05\x12\x1bcom.google.tpu.memory.usageH\x04R\x0fmemoryUsedBytes\x88\x01\x01\x12\xdd\x01\n" +
+	"\x01\x05\x12\x1bcom.google.tpu.memory.usageH\x05R\x0fmemoryUsedBytes\x88\x01\x01\x12\xdd\x01\n" +
 	"\x12memory_total_bytes\x18\x18 \x01(\x04B\xa9\x01ʲ\x1c\xa4\x01\n" +
 	"\x02By\x12\fMemory Total\"0\b\x01\x12\rdcgm-exporter\x1a\x17gpu.{index}.memoryTotal\"\x04MiBy\" \b\x05\x1a\x1ctpu.{index}.hbmCapacityTotalB\x1a\n" +
 	"\x03\x01\x02\x03\x12\x13hw.gpu.memory.limitB \n" +
-	"\x01\x05\x12\x1bcom.google.tpu.memory.limitH\x05R\x10memoryTotalBytes\x88\x01\x01\x12\xb8\x01\n" +
+	"\x01\x05\x12\x1bcom.google.tpu.memory.limitH\x06R\x10memoryTotalBytes\x88\x01\x01\x12\xb8\x01\n" +
 	"\rtemperature_c\x18\x19 \x01(\x01B\x8d\x01ʲ\x1c\x88\x01\n" +
 	"\x03Cel\x12\vTemperature\"\x14\b\x01\x1a\x10gpu.{index}.temp\"\x14\b\x02\x1a\x10gpu.{index}.temp\"\x14\b\x03\x1a\x10gpu.{index}.temp(\x01B0\n" +
 	"\x03\x01\x02\x03\x12\x0ehw.temperature\x1a\x19\n" +
-	"\x12hw.sensor_location\x12\x03gpuH\x06R\ftemperatureC\x88\x01\x01\x12\xce\x01\n" +
+	"\x12hw.sensor_location\x12\x03gpuH\aR\ftemperatureC\x88\x01\x01\x12\xce\x01\n" +
 	"\apower_w\x18\x1a \x01(\x01B\xaf\x01ʲ\x1c\xaa\x01\n" +
 	"\x01W\x12\x05Power\"\x1a\b\x01\x1a\x16gpu.{index}.powerWatts\"\x1a\b\x02\x1a\x16gpu.{index}.powerWatts\"\x1a\b\x03\x1a\x16gpu.{index}.powerWatts\"\r\b\x04\x1a\tane.power(\x01B\x1f\n" +
 	"\x03\x01\x02\x03\x12\bhw.power\x1a\x0e\n" +
 	"\ahw.type\x12\x03gpuB\x18\n" +
-	"\x01\x04\x12\x13com.apple.ane.powerH\aR\x06powerW\x88\x01\x01\x12\xb8\x01\n" +
+	"\x01\x04\x12\x13com.apple.ane.powerH\bR\x06powerW\x88\x01\x01\x12\xb8\x01\n" +
 	"\vpower_ratio\x18\x1b \x01(\x01B\x91\x01ʲ\x1c\x8c\x01\n" +
 	"\x011\x12\x05Power\"\x1f\b\x01\x1a\x18gpu.{index}.powerPercent\"\x01%\"\x1f\b\x02\x1a\x18gpu.{index}.powerPercent\"\x01%(\x011\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B*\n" +
-	"\x03\x01\x02\x03\x12#com.coreweave.gpu.power.utilizationH\bR\n" +
+	"\x03\x01\x02\x03\x12#com.coreweave.gpu.power.utilizationH\tR\n" +
 	"powerRatio\x88\x01\x01\x12\x92\x01\n" +
 	"\rpower_limit_w\x18\x1c \x01(\x01Biʲ\x1ce\n" +
 	"\x01W\x12\x14Enforced Power Limit\"'\b\x01\x1a#gpu.{index}.enforcedPowerLimitWatts(\x01B\x1f\n" +
-	"\x01\x01\x12\x1acom.nvidia.gpu.power.limitH\tR\vpowerLimitW\x88\x01\x01\x12j\n" +
+	"\x01\x01\x12\x1acom.nvidia.gpu.power.limitH\n" +
+	"R\vpowerLimitW\x88\x01\x01\x12j\n" +
 	"\bclock_hz\x18\x1d \x01(\x01BJʲ\x1cF\n" +
 	"\x02Hz\x12\x05Clock\"\x19\b\x03\x1a\x10gpu.{index}.freq\"\x03MHzB\x1e\n" +
-	"\x03\x01\x02\x03\x12\x17com.coreweave.gpu.clockH\n" +
-	"R\aclockHz\x88\x01\x01\x12\x89\x01\n" +
+	"\x03\x01\x02\x03\x12\x17com.coreweave.gpu.clockH\vR\aclockHz\x88\x01\x01\x12\x89\x01\n" +
 	"\x0ffan_speed_ratio\x18\x1e \x01(\x01B\\ʲ\x1cX\n" +
 	"\x011\x12\tFan Speed\"\x1b\b\x01\x1a\x14gpu.{index}.fanSpeed\"\x01%1\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B\x19\n" +
-	"\x03\x01\x02\x03\x12\x12hw.fan.speed_ratioH\vR\rfanSpeedRatio\x88\x01\x01\x12\xcc\x01\n" +
+	"\x03\x01\x02\x03\x12\x12hw.fan.speed_ratioH\fR\rfanSpeedRatio\x88\x01\x01\x12\xcc\x01\n" +
 	"\benergy_j\x18\x1f \x01(\x01B\xab\x01ʲ\x1c\xa6\x01\n" +
 	"\x01J\x12\x06Energy\x18\x01\"\x1c\b\x01\x1a\x18gpu.{index}.energyJoules\"9\b\x01\x12\rdcgm-exporter\x1a\"gpu.{index}.totalEnergyConsumption\"\x02mJ\"\x1c\b\x02\x1a\x18gpu.{index}.energyJoulesB \n" +
 	"\x03\x01\x02\x03\x12\thw.energy\x1a\x0e\n" +
-	"\ahw.type\x12\x03gpuH\fR\aenergyJ\x88\x01\x01\x127\n" +
+	"\ahw.type\x12\x03gpuH\rR\aenergyJ\x88\x01\x01\x127\n" +
 	"\x06nvidia\x18( \x01(\v2\x1d.wandb_internal.NvidiaMetricsH\x00R\x06nvidia\x12.\n" +
 	"\x03amd\x18) \x01(\v2\x1a.wandb_internal.AmdMetricsH\x00R\x03amd\x12.\n" +
 	"\x03tpu\x18* \x01(\v2\x1a.wandb_internal.TpuMetricsH\x00R\x03tpu\x12=\n" +
 	"\btrainium\x18+ \x01(\v2\x1f.wandb_internal.TrainiumMetricsH\x00R\btrainiumB\b\n" +
-	"\x06vendorB\x14\n" +
+	"\x06vendorB\b\n" +
+	"\x06_shareB\x14\n" +
 	"\x12_utilization_ratioB\x18\n" +
 	"\x16_memory_activity_ratioB\x14\n" +
 	"\x12_memory_used_ratioB\x14\n" +
