@@ -170,17 +170,18 @@ def _upload_eval_table(
     """Upload an EvalTable to CES through wandb-core and wait for the result.
 
     Raises:
+        UsageError: If wandb-core rejects the table as invalid.
         CommError: If the upload fails.
     """
-    if not run._interface:
-        raise UsageError("Cannot upload an EvalTable without a backend.")
+    assert run._interface
 
     handle = run._interface.deliver_upload_eval_table(request)
     response = handle.wait_or(timeout=None).response.upload_eval_table_response
-    if response.error_message:
-        raise CommError(f"Failed to upload EvalTable: {response.error_message}")
-
-    return response
+    if not response.HasField("error"):
+        return response
+    if response.error.code == pb.ErrorInfo.USAGE:
+        raise UsageError(response.error.message)
+    raise CommError(f"Failed to upload EvalTable: {response.error.message}")
 
 
 class CESWriter:

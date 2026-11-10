@@ -104,6 +104,17 @@ def _rows(request: pb.UploadEvalTableRequest) -> list[dict[str, Any]]:
     return rows
 
 
+def _upload_error(code: pb.ErrorInfo.ErrorCode, message: str) -> pb.Result:
+    """Return wandb-core's result for an EvalTable upload that failed."""
+    return pb.Result(
+        response=pb.Response(
+            upload_eval_table_response=pb.UploadEvalTableResponse(
+                error=pb.ErrorInfo(code=code, message=message)
+            )
+        )
+    )
+
+
 def _as_dicts(messages: list[Message]) -> list[dict[str, Any]]:
     """Convert messages to dicts of their set fields."""
     return [
@@ -340,25 +351,6 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
         run.log({"eval": et})
 
     deliver_upload_eval_table.assert_not_called()
-
-
-def test_ces_eval_table_raises_upload_error(deliver_upload_eval_table, run):
-    deliver_upload_eval_table.return_value.wait_or.return_value = (
-        _upload_eval_table_result(
-            pb.UploadEvalTableResponse(error_message="upload failed")
-        )
-    )
-    et = wandb.EvalTable(
-        columns=["value"],
-        data=[[1]],
-        output_columns=["value"],
-        backend="ces",
-    )
-
-    with pytest.raises(CommError, match="upload failed"):
-        run.log({"eval": et})
-
-    assert et._immutable_write_result is None
 
 
 def test_ces_eval_table_sends_values_as_typed_cells(
@@ -634,25 +626,34 @@ def test_ces_error_uses_original_integer_column(deliver_upload_eval_table, run):
     deliver_upload_eval_table.assert_not_called()
 
 
-def test_ces_eval_table_retry_resends_request(deliver_upload_eval_table, run):
-    deliver_upload_eval_table.return_value.wait_or.side_effect = [
-        _upload_eval_table_result(pb.UploadEvalTableResponse(error_message="failed")),
-        _upload_eval_table_result(_UPLOADED),
-    ]
+@pytest.mark.parametrize(
+    ("code", "error_type", "message"),
+    [
+        (pb.ErrorInfo.USAGE, UsageError, "^failed$"),
+        (pb.ErrorInfo.UNKNOWN, CommError, "^Failed to upload EvalTable: failed$"),
+    ],
+)
+def test_ces_eval_table_upload_error_allows_retry(
+    deliver_upload_eval_table,
+    run,
+    code,
+    error_type,
+    message,
+):
+    wait_or = deliver_upload_eval_table.return_value.wait_or
+    wait_or.side_effect = [_upload_error(code, "failed"), wait_or.return_value]
     et = wandb.EvalTable(
         columns=["value"],
-        data=[[1], [2]],
+        data=[[1]],
         output_columns=["value"],
         backend="ces",
     )
     et.bind_to_run(run, "eval", 7)
 
-    with pytest.raises(CommError, match="failed"):
+    with pytest.raises(error_type, match=message):
         et.to_json(run)
-    et.to_json(run)
 
-    first, retry = _sent(deliver_upload_eval_table)
-    assert first == retry
+    assert et.to_json(run)["evaluation_version_id"] == "evaluation-version-1"
 
 
 def test_ces_eval_table_rejects_mixed_type_mode():
