@@ -81,6 +81,26 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
     return {"logged": RUN_OUTPUT_ARTIFACTS_GQL, "used": RUN_INPUT_ARTIFACTS_GQL}
 
 
+def _project_not_found(entity: str, project: str) -> ValueError:
+    return ValueError(
+        f"project {project!r} not found under entity {entity!r}, "
+        "or you don't have access to it"
+    )
+
+
+def _artifact_type_not_found(entity: str, project: str, type_: str) -> ValueError:
+    return ValueError(f"artifact type {type_!r} not found in {f'{entity}/{project}'!r}")
+
+
+def _artifact_collection_not_found(
+    entity: str, project: str, type_: str, name: str
+) -> ValueError:
+    return ValueError(
+        f"artifact collection {name!r} of type {type_!r} "
+        f"not found in {f'{entity}/{project}'!r}"
+    )
+
+
 class _ArtifactCollectionAliasesVars(PaginatorVars):
     id: str
     per_page: int = 1_000
@@ -125,8 +145,15 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
             parse=ArtifactCollectionAliases.model_validate_json
         )
 
+        if not (coll := result.artifact_collection):
+            collection_id = self.variables["id"]
+            raise ValueError(
+                f"artifact collection with ID {collection_id!r} not found, "
+                "or you don't have access to it"
+            )
+
         # Extract the inner `*Connection` result for faster/easier access.
-        if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
+        if not (conn := coll.aliases):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
@@ -185,8 +212,11 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         result = self._execute_query(parse=ProjectArtifactTypes.model_validate_json)
 
+        if not (proj := result.project):
+            raise _project_not_found(self.entity, self.project)
+
         # Extract the inner `*Connection` result for faster/easier access.
-        if not ((proj := result.project) and (conn := proj.artifact_types)):
+        if not (conn := proj.artifact_types):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactTypeConnection.model_validate(conn)
@@ -254,8 +284,10 @@ class ArtifactType:
             parse=ProjectArtifactType.model_validate_json,
         )
 
-        if not ((proj := data.project) and (artifact_type := proj.artifact_type)):
-            raise ValueError(f"Could not find artifact type {self.type!r}")
+        if not (proj := data.project):
+            raise _project_not_found(self.entity, self.project)
+        if not (artifact_type := proj.artifact_type):
+            raise _artifact_type_not_found(self.entity, self.project, self.type)
         return ArtifactTypeFragment.model_validate(artifact_type)
 
     @property
@@ -410,12 +442,13 @@ class ArtifactCollections(
             parse=ArtifactTypeArtifactCollections.model_validate_json
         )
 
+        if not (proj := result.project):
+            raise _project_not_found(self.entity, self.project)
+        if not (artifact_type := proj.artifact_type):
+            raise _artifact_type_not_found(self.entity, self.project, self.type_name)
+
         # Extract the inner `*Connection` result for faster/easier access.
-        if not (
-            (proj := result.project)
-            and (artifact_type := proj.artifact_type)
-            and (conn := artifact_type.artifact_collections)
-        ):
+        if not (conn := artifact_type.artifact_collections):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactCollectionConnection.model_validate(conn)
@@ -519,8 +552,11 @@ class ProjectArtifactCollections(
         result = self._execute_query(
             parse=ProjectArtifactCollections.model_validate_json
         )
+        if not (proj := result.project):
+            raise _project_not_found(self.entity, self.project)
+
         # Extract the inner `*Connection` result for faster/easier access.
-        if not ((proj := result.project) and (conn := proj.artifact_collections)):
+        if not (conn := proj.artifact_collections):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
         self.last_response = ProjectArtifactCollectionConnection.model_validate(conn)
 
@@ -681,13 +717,12 @@ class ArtifactCollection:
             {"entity": entity, "project": project, "type": type_, "name": name},
             parse=ProjectArtifactCollection.model_validate_json,
         )
-        if not (
-            result.project
-            and (proj := result.project)
-            and (artifact_type := proj.artifact_type)
-            and (collection := artifact_type.artifact_collection)
-        ):
-            raise ValueError(f"Could not find artifact type {type_!r}")
+        if not (proj := result.project):
+            raise _project_not_found(entity, project)
+        if not (artifact_type := proj.artifact_type):
+            raise _artifact_type_not_found(entity, project, type_)
+        if not (collection := artifact_type.artifact_collection):
+            raise _artifact_collection_not_found(entity, project, type_, name)
         return collection
 
     @normalize_exceptions
@@ -1007,13 +1042,17 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
         result = self._execute_query(parse=ProjectArtifacts.model_validate_json)
 
+        if not (proj := result.project):
+            raise _project_not_found(self.entity, self.project)
+        if not (type_ := proj.artifact_type):
+            raise _artifact_type_not_found(self.entity, self.project, self.type)
+        if not (collection := type_.artifact_collection):
+            raise _artifact_collection_not_found(
+                self.entity, self.project, self.type, self.collection_name
+            )
+
         # Extract the inner `*Connection` result for faster/easier access.
-        if not (
-            (proj := result.project)
-            and (type_ := proj.artifact_type)
-            and (collection := type_.artifact_collection)
-            and (conn := collection.artifacts)
-        ):
+        if not (conn := collection.artifacts):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = _ArtifactConnectionGeneric[
@@ -1193,10 +1232,22 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
 
         result = self._execute_query(parse=ArtifactMembershipFiles.model_validate_json)
 
-        # Extract the inner `*Connection` result for faster/easier access.
-        conn = result.project.artifact_collection.artifact_membership.files
+        entity, project = self.variables["entity"], self.variables["project"]
+        name = self.variables["collection"]
+        if not (proj := result.project):
+            raise _project_not_found(entity, project)
+        if not (collection := proj.artifact_collection):
+            raise ValueError(
+                f"artifact collection {name!r} not found in {f'{entity}/{project}'!r}"
+            )
+        if not (membership := collection.artifact_membership):
+            version = f"{name}:{self.variables['alias']}"
+            raise ValueError(
+                f"artifact {version!r} not found in {f'{entity}/{project}'!r}"
+            )
 
-        if conn is None:
+        # Extract the inner `*Connection` result for faster/easier access.
+        if (conn := membership.files) is None:
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactFileConnection.model_validate(conn)
