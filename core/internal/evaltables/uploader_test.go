@@ -944,96 +944,67 @@ func TestUpload_ConvertsPythonMedia(t *testing.T) {
 	require.NoError(t, err)
 	requests := ces.Requests()
 	require.Len(t, requests, 4)
-
-	var converted struct {
-		Rows []struct {
-			Input map[string]map[string]any `json:"input"`
-		} `json:"rows"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(requests[2].Body), &converted))
-	require.Len(t, converted.Rows, 1)
-
-	// sent returns the W&B media JSON of the recorded row's i-th input.
-	sent := func(i int) map[string]any {
-		var media map[string]any
-		require.NoError(t, json.Unmarshal(
-			[]byte(request.GetRows()[0].GetInput().GetValues()[i].GetWandbMediaJson()),
-			&media,
-		))
-		return media
-	}
-	// uri returns the CES URI expected for W&B media JSON.
-	uri := func(media map[string]any) string {
-		if artifactPath, ok := media["artifact_path"]; ok {
-			return artifactPath.(string)
-		}
-		return "wandb-run-file://test-entity/test-project/test-run/" +
-			media["path"].(string)
-	}
-	// file returns the CES value expected for a W&B media file's JSON.
-	file := func(media map[string]any) map[string]any {
-		return map[string]any{
-			"_type":  media["_type"],
-			"sha256": media["sha256"],
-			"size":   media["size"],
-			"uri":    uri(media),
-		}
-	}
-
-	image := sent(0)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-image",
-		"schema_version": float64(1),
-		"wb_media_type":  "image-file",
-		"format":         "png",
-		"sha256":         image["sha256"],
-		"size":           image["size"],
-		"uri":            uri(image),
-		"width":          float64(2),
-		"height":         float64(2),
-		"caption":        "a cat",
-		"boxes": map[string]any{"predictions": file(
-			image["boxes"].(map[string]any)["predictions"].(map[string]any))},
-		"masks": map[string]any{"predictions": file(
-			image["masks"].(map[string]any)["predictions"].(map[string]any))},
-	}, converted.Rows[0].Input["image"])
-
-	artifactImage := sent(1)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-image",
-		"schema_version": float64(1),
-		"wb_media_type":  "image-file",
-		"format":         "png",
-		"sha256":         artifactImage["sha256"],
-		"size":           artifactImage["size"],
-		"uri":            "wandb-artifact://abc123/media/images/artifact.png",
-		"width":          float64(2),
-		"height":         float64(2),
-	}, converted.Rows[0].Input["artifact_image"])
-
-	audio := sent(2)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-audio",
-		"schema_version": float64(1),
-		"wb_media_type":  "audio-file",
-		"sha256":         audio["sha256"],
-		"size":           audio["size"],
-		"uri":            uri(audio),
-		"caption":        "meow",
-	}, converted.Rows[0].Input["audio"])
-
-	video := sent(3)
-	assert.Equal(t, map[string]any{
-		"extension_type": "wandb-video",
-		"schema_version": float64(1),
-		"wb_media_type":  "video-file",
-		"sha256":         video["sha256"],
-		"size":           video["size"],
-		"uri":            uri(video),
-		"width":          float64(640),
-		"height":         float64(480),
-		"caption":        "a clip",
-	}, converted.Rows[0].Input["video"])
+	assert.JSONEq(t, `{"rows": [{
+		"input": {
+			"image": {
+				"extension_type": "wandb-image",
+				"schema_version": 1,
+				"wb_media_type": "image-file",
+				"format": "png",
+				"sha256": "3ac156facd9194daa57d0520cf7fae827b390b32e2a88aa63a6d2562e3d5321f",
+				"size": 75,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/eval/3ac156facd9194daa57d0520cf7fae.png",
+				"width": 2,
+				"height": 2,
+				"caption": "a cat",
+				"boxes": {"predictions": {
+					"_type": "boxes2D",
+					"sha256": "ad1d2145f99572ff3c3a4fea99839c7ad570ad5359231e6e060d75caa250405f",
+					"size": 113,
+					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/metadata/boxes2D/eval/ad1d2145f99572ff3c3a4fea99839c.boxes2D.json"
+				}},
+				"masks": {"predictions": {
+					"_type": "mask",
+					"sha256": "dd7b89993bde2e6c52ea00d533d1f09ac602d218251b7405d291fddc0b60cddf",
+					"size": 68,
+					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/mask/eval/dd7b89993bde2e6c52ea00d533d1f0.mask.png"
+				}}
+			},
+			"artifact_image": {
+				"extension_type": "wandb-image",
+				"schema_version": 1,
+				"wb_media_type": "image-file",
+				"format": "png",
+				"sha256": "2f1686c393cd8b93b2b3d9ca90a271a87672a28dccb22d5688cd56561d34bdc5",
+				"size": 75,
+				"uri": "wandb-artifact://abc123/media/images/artifact.png",
+				"width": 2,
+				"height": 2
+			},
+			"audio": {
+				"extension_type": "wandb-audio",
+				"schema_version": 1,
+				"wb_media_type": "audio-file",
+				"sha256": "6583eae4b42ae05c5bea5d55837c8613de7898fc6ce0712ed26b961d6392f306",
+				"size": 14,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/audio/eval/6583eae4b42ae05c5bea5d55837c86.wav",
+				"caption": "meow"
+			},
+			"video": {
+				"extension_type": "wandb-video",
+				"schema_version": 1,
+				"wb_media_type": "video-file",
+				"sha256": "eb09cef0044f4d991fd75715493d7cb01fde6dcb5896fa3e6fc09ce25a4e841a",
+				"size": 14,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/videos/eval/eb09cef0044f4d991fd75715493d7c.mp4",
+				"width": 640,
+				"height": 480,
+				"caption": "a clip"
+			}
+		},
+		"output": null,
+		"scores": {}
+	}]}`, requests[2].Body)
 }
 
 func TestUpload_KeepsNullMedia(t *testing.T) {
