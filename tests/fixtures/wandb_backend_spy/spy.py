@@ -75,6 +75,7 @@ class WandbBackendSpy:
         *,
         status: int,
         n_times: int = 1,
+        pass_first: int = 0,
     ) -> None:
         """Stub the FileStream endpoint.
 
@@ -88,6 +89,8 @@ class WandbBackendSpy:
             body: The request body. If a dict, it is converted to JSON.
             status: The HTTP status code to return.
             n_times: The number of requests to intercept.
+            pass_first: The number of requests to let through to the server
+                before intercepting.
         """
         if not isinstance(body, str):
             body = json.dumps(body)
@@ -96,6 +99,8 @@ class WandbBackendSpy:
             self._filestream_stubs.extend(
                 [_FileStreamResponse(status=status, body=body)] * n_times
             )
+            # Stubs are popped from the end of the list.
+            self._filestream_stubs.extend([_PASS_THROUGH] * pass_first)
 
     def intercept_graphql(self, request_raw: bytes) -> fastapi.Response | None:
         """Intercept a GraphQL request to produce a fake response."""
@@ -127,6 +132,9 @@ class WandbBackendSpy:
             if not stubs:
                 return None
             stub = stubs.pop()
+
+        if stub is _PASS_THROUGH:
+            return None
 
         return fastapi.Response(
             status_code=stub.status,
@@ -597,3 +605,7 @@ class _FileStreamResponse:
 
     status: int
     body: str
+
+
+_PASS_THROUGH = _FileStreamResponse(status=0, body="")
+"""A FileStream stub that lets the request through to the server."""

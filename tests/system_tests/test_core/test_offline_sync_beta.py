@@ -788,3 +788,58 @@ def test_failed_filestream_does_not_mark_synced(wandb_backend_spy, runner):
         history = snapshot.history(run_id=run.id)
         assert len(history) == 1
         assert history[0]["sync_recovery_value"] == 123
+
+
+def _history_line_count(api: wandb.Api, run_path: str) -> int:
+    """Returns the server's history line count for the run."""
+    api.flush()
+    return api.run(run_path)._attrs["historyLineCount"]
+
+
+def test_retry_after_partial_filestream_failure(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+    api: wandb.Api,
+):
+    # About 15 MB of history, so that syncing it takes more than one
+    # filestream request (each is capped at about 10 MiB). Rows are small
+    # so that the local server's database accepts each batch it writes.
+    n_rows = 15_000
+    padding = "x" * 1_000
+    with wandb.init(mode="offline", project="partial-sync") as run:
+        for i in range(n_rows):
+            run.log({"row": i, "padding": padding})
+
+    # Accept the first two filestream requests (the summary, then the first
+    # batch of history) and reject the next one.
+    wandb_backend_spy.stub_filestream(
+        "upload rejected",
+        status=403,
+        n_times=1,
+        pass_first=2,
+    )
+    failed = runner.invoke(cli.beta, f"sync {run.sync_dir}")
+    marker = pathlib.Path(run.settings.sync_file + ".synced")
+    assert not marker.exists(), failed.output
+
+    run_path = f"{run.entity}/partial-sync/{run.id}"
+    accepted_rows = _history_line_count(api, run_path)
+    assert 0 < accepted_rows < n_rows, "control: the first sync was partial"
+
+    recovered = runner.invoke(cli.beta, f"sync {run.sync_dir}")
+    assert recovered.exit_code == 0, recovered.output
+    assert marker.exists()
+
+    # Read the stored history lines directly. (scan_history needs the
+    # parquet library, and sampled history drops rows.)
+    api.flush()
+    history = api.run(run_path)._full_history(samples=2 * n_rows)
+    steps = [row["_step"] for row in history]
+    rows = [row["row"] for row in history]
+    # The replayed rows keep their _step, so they overwrite rather than
+    # duplicate the rows the first attempt stored.
+    assert sorted(steps) == list(range(n_rows))
+    assert sorted(rows) == list(range(n_rows))
+    # The retry starts at the server's line count and replays every row,
+    # so the count includes the replayed rows a second time.
+    assert _history_line_count(api, run_path) == accepted_rows + n_rows
