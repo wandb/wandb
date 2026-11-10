@@ -54,6 +54,9 @@ type Writer struct {
 
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
+
+	// syncFile, if set, replaces the transaction log's Sync in tests.
+	syncFile func() error
 }
 
 // New returns a new Writer.
@@ -132,20 +135,29 @@ func (w *Writer) process(work runwork.Work) {
 			savedWork.SavedOffset = offset
 			savedWork.RecordNumber = recordNum
 		}
-
-		// Make the end of the run durable before waiting for uploads,
-		// which can take longer than a scheduler's shutdown grace period.
-		if record.GetExit() != nil {
-			if err := w.Sync(); err != nil {
-				w.logger.CaptureError(
-					"stream",
-					fmt.Errorf("writer: failed to sync on exit: %v", err),
-				)
-			}
-		}
 	}
 
 	w.out <- savedWork
+
+	// Make the end of the run durable while its uploads finish, which can
+	// take longer than a scheduler's shutdown grace period.
+	//
+	// This runs after the exit record is passed on so that a slow fsync
+	// does not delay the Sender, which starts the run's finish timeout.
+	// Closing the log waits for it.
+	if savedWork.IsSaved && record.GetExit() != nil {
+		go w.syncOnExit()
+	}
+}
+
+// syncOnExit fsyncs the transaction log after the run's exit record.
+func (w *Writer) syncOnExit() {
+	if err := w.Sync(); err != nil {
+		w.logger.CaptureError(
+			"stream",
+			fmt.Errorf("writer: failed to sync on exit: %v", err),
+		)
+	}
 }
 
 // finish closes the transaction log writer.
@@ -215,6 +227,9 @@ func (w *Writer) Sync() error {
 		return nil
 	}
 
+	if w.syncFile != nil {
+		return w.syncFile()
+	}
 	return w.writer.Sync()
 }
 

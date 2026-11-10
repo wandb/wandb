@@ -124,13 +124,6 @@ func (w *Writer) Close() error {
 			fmt.Errorf("transactionlog: error closing writer: %v", err))
 	}
 
-	// Persist the end of the log, so a finished run survives a machine
-	// crash right after the process exits.
-	if err := w.file.Sync(); err != nil {
-		errs = append(errs,
-			fmt.Errorf("transactionlog: error syncing file: %v", err))
-	}
-
 	if err := w.file.Close(); err != nil {
 		errs = append(errs,
 			fmt.Errorf("transactionlog: error closing file: %v", err))
