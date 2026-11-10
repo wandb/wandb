@@ -82,6 +82,15 @@ func TestSyncMarkerRequiresSuccessfulUpload(t *testing.T) {
 				require.NoError(t, err)
 				require.FileExists(t, path+".synced")
 			}
+			if tt.uploadErr != nil {
+				// An upload rejection is not an internal error.
+				userText := ToUserText(err)
+				require.NotContains(t, userText, "Internal error")
+				require.Contains(t, userText, "server rejected history")
+				var syncErr *SyncError
+				require.ErrorAs(t, err, &syncErr)
+				require.Equal(t, tt.uploadErr, syncErr.Err)
+			}
 		})
 	}
 }

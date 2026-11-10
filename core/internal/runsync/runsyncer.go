@@ -175,7 +175,15 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 	g.Go(func() error {
 		rs.sender.Do(rs.runWork.Chan())
 		if err := rs.sender.FileStreamError(); err != nil {
-			return fmt.Errorf("runsync: filestream upload failed: %w", err)
+			return &SyncError{
+				Err:     err,
+				Message: "runsync: filestream upload failed",
+				UserText: fmt.Sprintf(
+					"Failed to upload run data (%v). The local data is"+
+						" unchanged; run `wandb sync` again to retry.",
+					err,
+				),
+			}
 		}
 		return nil
 	})
