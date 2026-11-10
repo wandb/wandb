@@ -54,6 +54,9 @@ type InspectorInitMsg struct {
 type InspectorBatchMsg struct {
 	Entries []RecordEntry
 
+	// Err stops scanning after the entries in this batch.
+	Err error
+
 	// AtEOF is true when the scan caught up with the end of the
 	// currently written data.
 	AtEOF bool
@@ -108,10 +111,14 @@ func ReadInspectorBatch(store *LiveStore, startNum int) tea.Cmd {
 			case errors.Is(err, io.EOF), errors.Is(err, errLiveStoreClosed):
 				msg.AtEOF = true
 				return msg
-			case err != nil:
-				// Corrupt data was skipped; keep scanning.
+			case errors.Is(err, errCorruptSkipped):
+				// continue scanning after skipping corrupt region
 				msg.Corrupt++
 				continue
+			case err != nil:
+				// stop scanning after unrecoverable error
+				msg.Err = err
+				return msg
 			}
 
 			if exit, ok := record.RecordType.(*spb.Record_Exit); ok {

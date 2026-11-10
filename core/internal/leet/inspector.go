@@ -241,6 +241,7 @@ func (ins *Inspector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ErrorMsg:
 		ins.lastError = msg.Err.Error()
+		ins.Cleanup()
 		return ins, nil
 
 	default:
@@ -298,6 +299,12 @@ func (ins *Inspector) handleBatch(msg InspectorBatchMsg) tea.Cmd {
 	ins.corrupt += msg.Corrupt
 	if msg.ExitSeen {
 		ins.finished, ins.exitCode = true, msg.ExitCode
+	}
+
+	if msg.Err != nil {
+		ins.lastError = msg.Err.Error()
+		ins.Cleanup()
+		return nil
 	}
 
 	if !msg.AtEOF {
