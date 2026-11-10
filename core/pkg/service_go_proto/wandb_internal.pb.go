@@ -1768,9 +1768,8 @@ type RunRecord struct {
 	Resume bool `protobuf:"varint,24,opt,name=resume,proto3" json:"resume,omitempty"`
 	// Unique ID of the writer session that produced this record.
 	//
-	// Set by wandb-core when the record arrives from the client. It matches
-	// EnvironmentRecord.writer_id, and `wandb sync` uploads the run as this
-	// writer instead of generating a new ID.
+	// Set by wandb-core when the record arrives from the client.
+	// Matches EnvironmentRecord.writer_id.
 	WriterId      string       `protobuf:"bytes,25,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
