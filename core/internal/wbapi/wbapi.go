@@ -43,6 +43,7 @@ type WandbAPI struct {
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
+	localRunHandler      *LocalRunHandler
 	opentelemetryHandler *OpenTelemetryHandler
 	runFilesHandler      *RunFilesHandler
 	runHandler           *RunHandler
@@ -116,6 +117,7 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		localRunHandler:      NewLocalRunHandler(logger),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),
 		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
@@ -218,6 +220,15 @@ func (p *WandbAPI) HandleRequest(
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
 	case *spb.ApiRequest_OpenTelemetryRequest:
 		return p.opentelemetryHandler.HandleRequest(ctx, req.OpenTelemetryRequest)
+	case *spb.ApiRequest_ListLocalRunsRequest:
+		return p.localRunHandler.HandleListLocalRuns(ctx, req.ListLocalRunsRequest)
+	case *spb.ApiRequest_ReadLocalRunRequest:
+		return p.localRunHandler.HandleReadLocalRun(ctx, req.ReadLocalRunRequest)
+	case *spb.ApiRequest_ReadLocalRunHistoryRequest:
+		return p.localRunHandler.HandleReadLocalRunHistory(ctx, req.ReadLocalRunHistoryRequest)
+	case *spb.ApiRequest_ReadLocalRunConsoleLogsRequest:
+		return p.localRunHandler.HandleReadLocalRunConsoleLogs(
+			ctx, req.ReadLocalRunConsoleLogsRequest)
 	default:
 		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 	}
@@ -227,6 +238,7 @@ func (p *WandbAPI) HandleRequest(
 //
 // It should be called once when the API is no longer needed.
 func (p *WandbAPI) Shutdown(ctx context.Context) {
+	p.localRunHandler.Close()
 	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
 		p.logger.Error(
 			"wbapi: error shutting down OpenTelemetry handler",
