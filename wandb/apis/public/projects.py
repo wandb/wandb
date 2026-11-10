@@ -145,7 +145,7 @@ class Project(Attrs):
     Args:
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this project.
-        name (str): The name of the project.
+        project (str): The name of the project.
         entity (str): The entity name that owns the project.
     """
 

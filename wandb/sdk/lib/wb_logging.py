@@ -74,7 +74,7 @@ def log_to_run(run_id: str | None) -> Generator[None]:
     """Direct all wandb log messages to the given run.
 
     Args:
-        id: The current run ID, or None if actions in the context manager are
+        run_id: The current run ID, or None if actions in the context manager are
             not associated to a specific run. In the latter case, log messages
             will go to all runs.
 

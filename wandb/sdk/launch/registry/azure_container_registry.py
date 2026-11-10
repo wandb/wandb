@@ -71,8 +71,6 @@ class AzureContainerRegistry(AbstractRegistry):
 
         Args:
             config (dict): The config dict.
-            environment (AbstractEnvironment): The environment to use.
-            verify (bool, optional): Whether to verify the registry. Defaults to True.
 
         Returns:
             AzureContainerRegistry: The registry.

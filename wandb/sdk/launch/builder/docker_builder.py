@@ -70,8 +70,6 @@ class DockerBuilder(AbstractBuilder):
         Arguments:
             config (Dict[str, Any]): The config.
             registry (AbstractRegistry): The registry to use.
-            verify (bool, optional): Whether to verify the functionality of the builder.
-            login (bool, optional): Whether to login to the registry.
 
         Returns:
             DockerBuilder: The DockerBuilder.

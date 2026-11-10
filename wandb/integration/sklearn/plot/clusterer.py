@@ -69,7 +69,7 @@ def elbow_curve(
     Please note this function fits the model on the training set when called.
 
     Args:
-        model: (clusterer) Takes in a fitted clusterer.
+        clusterer: (clusterer) Takes in a fitted clusterer.
         X: (arr) Training set features.
 
     Returns:
@@ -119,7 +119,7 @@ def silhouette(
     Please note this function fits the model on the training set when called.
 
     Args:
-        model: (clusterer) Takes in a fitted clusterer.
+        clusterer: (clusterer) Takes in a fitted clusterer.
         X: (arr) Training set features.
         cluster_labels: (list) Names for cluster labels. Makes plots easier to read
                                by replacing cluster indexes with corresponding names.

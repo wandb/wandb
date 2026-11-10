@@ -68,7 +68,6 @@ def resolve_agent_config(
     """Resolve the agent config.
 
     Arguments:
-        api (LaunchApi): The api.
         entity (str): The entity.
         max_jobs (int): The max number of jobs.
         queues (Tuple[str]): The queues.

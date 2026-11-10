@@ -132,7 +132,6 @@ class GoogleArtifactRegistry(AbstractRegistry):
             config: A dictionary containing the following keys:
                 repository: The repository name.
                 image-name: The image name.
-            environment: A GcpEnvironment configured for access to this registry.
 
         Returns:
             A GoogleArtifactRegistry.
@@ -173,9 +172,6 @@ class GoogleArtifactRegistry(AbstractRegistry):
 
     async def get_repo_uri(self) -> str:
         """Get the URI for the given repository.
-
-        Arguments:
-            repo_name: The repository name.
 
         Returns:
             The repository URI.

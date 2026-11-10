@@ -66,7 +66,6 @@ class GcpEnvironment(AbstractEnvironment):
 
         Arguments:
             region: The GCP region.
-            verify: Whether to verify the credentials, region, and project.
 
         Raises:
             LaunchError: If verify is True and the environment is not properly
