@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -40,9 +39,7 @@ type RecordParserFactory struct {
 	Logger             *observability.CoreLogger
 	Operations         *wboperation.WandbOperations
 	RunHandle          *runhandle.RunHandle
-
-	ClientID sharedmode.ClientID
-	Settings *settings.Settings
+	Settings           *settings.Settings
 }
 
 // New returns a new RecordParser.
@@ -81,7 +78,6 @@ func (p *recordParser) Parse(record *spb.Record) runwork.WorkImpl {
 			FeatureProvider:    p.FeatureProvider,
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
 			Logger:             p.Logger,
-			ClientID:           string(p.ClientID),
 			SyncStateStore:     p.syncStateStore,
 		}
 

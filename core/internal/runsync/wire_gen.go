@@ -43,7 +43,6 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Logger:             logger,
 		Operations:         wandbOperations,
 		RunHandle:          runHandle,
-		ClientID:           clientID,
 		Settings:           settings2,
 	}
 	runReaderFactory := &RunReaderFactory{

@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -289,6 +290,11 @@ func (r *RunReader) nextUpdatedRecord(
 	}
 
 	r.updates.Modify(record)
+
+	// Transaction logs from older SDK versions have no writer ID.
+	if run := record.GetRun(); run != nil && run.WriterId == "" {
+		run.WriterId = string(sharedmode.RandomClientID())
+	}
 	return
 }
 

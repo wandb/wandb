@@ -863,6 +863,12 @@ pub struct RunRecord {
     /// actually happened.
     #[prost(bool, tag = "24")]
     pub resume: bool,
+    /// Unique ID of the writer session that produced this record.
+    ///
+    /// Set by wandb-core when the record arrives from the client.
+    /// Matches EnvironmentRecord.writer_id.
+    #[prost(string, tag = "25")]
+    pub writer_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

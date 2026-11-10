@@ -242,6 +242,10 @@ func (s *Stream) maybeSavingToTransactionLog(
 func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
 
+	if run := record.GetRun(); run != nil {
+		run.WriterId = string(s.clientID)
+	}
+
 	work := runwork.Work{
 		WorkImpl: s.recordParser.Parse(record),
 		Request:  request,
