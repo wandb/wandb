@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
+from uuid import uuid4
 
 from pydantic import PositiveInt
 from typing_extensions import Self, assert_never
@@ -8,10 +9,13 @@ from typing_extensions import Self, assert_never
 import wandb
 from wandb._analytics import tracked
 from wandb._strutils import nameof
+from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.teams import Team
 from wandb.apis.public.users import User
+from wandb.errors.errors import CommError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._models.registry import RegistryData
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._members import (
@@ -30,6 +34,7 @@ if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import RegistryFragment
 
+    from .huggingface import HuggingFaceImport
     from .registries_search import _VersionOrder
 
 
@@ -273,6 +278,126 @@ class Registry:
             per_page=per_page,
             start=start,
         )
+
+    @normalize_exceptions
+    @tracked
+    def import_from_huggingface(
+        self,
+        repo_id: str,
+        *,
+        entity: str,
+        project: str,
+        collection: str,
+        revision: str | None = None,
+        resolved_revision: str | None = None,
+        aliases: list[str] | None = None,
+        file_paths: list[str] | None = None,
+        token_secret_name: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> HuggingFaceImport:
+        """Import a Hugging Face model repository into this registry.
+
+        The import runs on the server; this method returns as soon as the
+        import is created. Call `.wait()` on the returned handle to block
+        until it finishes.
+
+        Args:
+            repo_id: The Hugging Face repo id to import, e.g. `"org/name"`.
+            entity: The team whose project receives the imported artifact.
+            project: The project that receives the imported artifact.
+                It is created if it does not exist.
+            collection: The registry collection to link the imported
+                artifact version into.
+            revision: A branch, tag or commit on the Hub. The repo's default
+                branch is imported if omitted.
+            resolved_revision: A commit already checked against the Hub, for
+                example via `Api.check_huggingface_source()`. When given, the
+                import is pinned to it instead of resolving `revision` again
+                server-side.
+            aliases: Aliases to apply to the linked registry version.
+            file_paths: Repo-relative paths to import. All files are imported
+                if omitted.
+            token_secret_name: The name of a secret holding a Hugging Face
+                access token, needed for gated or private repos.
+            idempotency_key: A key identifying this import request. Only pass
+                one to retry a call whose outcome is unknown (for example
+                after a network error reported it); a fresh key is generated
+                otherwise.
+
+        Returns:
+            A `HuggingFaceImport` handle for the created import.
+
+        Raises:
+            CommError: If the server rejects the request or returns an
+                unexpected response.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        registry = api.registry(name="my-registry", organization="my-org")
+
+        imported = registry.import_from_huggingface(
+            "org/model",
+            entity="my-team",
+            project="huggingface-imports",
+            collection="my-collection",
+        )
+        imported.wait()
+        artifact = imported.registry_artifact()
+        ```
+        """
+        from wandb.sdk.artifacts._generated import (
+            CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL,
+            CreateRegistryHuggingFaceImport,
+            CreateRegistryHuggingFaceImportInput,
+            RegistryHuggingFaceImportRegistryInput,
+            RegistryHuggingFaceImportRepoType,
+        )
+
+        from .huggingface import HuggingFaceImport
+
+        key = idempotency_key or uuid4().hex
+        gql_input = CreateRegistryHuggingFaceImportInput(
+            entity_name=entity,
+            project_name=project,
+            hf_repo_type=RegistryHuggingFaceImportRepoType.MODEL,
+            hf_repo_id=repo_id,
+            hf_revision=revision,
+            hf_resolved_revision=resolved_revision,
+            registry=RegistryHuggingFaceImportRegistryInput(
+                registry_name=self._saved.name,
+                collection_name=collection,
+            ),
+            aliases=aliases,
+            file_paths=file_paths,
+            # The server resolves the secret name to the caller's personal
+            # secret first when user secrets are enabled, and to the
+            # `entityName` team's secret otherwise, so a personal secret
+            # with the same name shadows the team one (WB-42602).
+            hf_token_secret_name=token_secret_name,
+            idempotency_key=key,
+        )
+        try:
+            data = self._service_api.execute_graphql(
+                CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL,
+                variables={"input": gql_input.model_dump()},
+                parse=CreateRegistryHuggingFaceImport.model_validate_json,
+            )
+        except WandbApiFailedError as err:
+            message = (
+                err.response.message
+                if err.response is not None and err.response.message
+                else str(err)
+            )
+            raise CommError(f"{message} (idempotency_key={key!r})", err) from err
+        if not (
+            (result := data.create_registry_hugging_face_import)
+            and (fragment := result.registry_hugging_face_import)
+        ):
+            raise ValueError("Unexpected response data")
+        return HuggingFaceImport(self._service_api, fragment)
 
     @classmethod
     @tracked
