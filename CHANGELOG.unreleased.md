@@ -8,7 +8,9 @@ sections:
 - Deprecated - for soon-to-be removed features.
 - Removed - for now removed features.
 - Fixed - for any bug fixes.
-- Security - in case of vulnerabilities.
+- Security - in case of vulnerabilities, including known vulnerabilities (CVEs)
+  in dependencies fixed by a version bump. The Update Go Dependencies workflow
+  adds these for `core/go.mod`.
 
 Section headings should be at level 3 (e.g. `### Added`).
 
