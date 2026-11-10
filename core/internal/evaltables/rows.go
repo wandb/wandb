@@ -36,25 +36,23 @@ type rowEncoder struct {
 	scores  []rowColumn
 }
 
+// newRowEncoder returns an encoder for the request's rows.
+//
+// The request's columns must have passed validateColumns.
 func newRowEncoder(
 	request *spb.UploadEvalTableRequest,
 	runPath runbranch.RunPath,
-) (*rowEncoder, error) {
+) *rowEncoder {
 	e := &rowEncoder{media: &mediaConverter{runPath: runPath}}
 
 	for _, field := range request.GetDatasetFields() {
-		mediaType := field.GetWandbMediaType()
-		if _, ok := mediaExtensionTypes[mediaType]; mediaType != "" && !ok {
-			return nil, fmt.Errorf(
-				"evaltables: field %q has unknown media type %q",
-				field.GetName(), mediaType)
-		}
+		column := newRowColumn(
+			field.GetName(), field.GetValueType(), field.GetWandbMediaType())
 
-		column := newRowColumn(field.GetName(), field.GetValueType(), mediaType)
-		switch field.GetSource() {
-		case "input":
+		// validateColumns checked that the source is "input" or "output".
+		if field.GetSource() == "input" {
 			e.inputs = append(e.inputs, column)
-		case "output":
+		} else {
 			e.outputs = append(e.outputs, column)
 		}
 	}
@@ -64,7 +62,7 @@ func newRowEncoder(
 			newRowColumn(scorer.GetName(), scorer.GetValueType(), ""))
 	}
 
-	return e, nil
+	return e
 }
 
 func newRowColumn(name, valueType, mediaType string) rowColumn {

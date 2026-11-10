@@ -1402,18 +1402,6 @@ func (s *Sender) sendRequestUploadEvalTable(
 		return
 	}
 
-	if mediaPaths := msg.GetUploadMediaPaths(); len(mediaPaths) > 0 {
-		files := &spb.FilesRecord{}
-		for _, path := range mediaPaths {
-			files.Files = append(files.Files, &spb.FilesItem{
-				Path:   path,
-				Policy: spb.FilesItem_NOW,
-				Type:   spb.FilesItem_MEDIA,
-			})
-		}
-		s.runfilesUploader.Process(files)
-	}
-
 	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetName()))
 	ctx, cancel := context.WithCancel(op.Context(s.runWork.BeforeEndCtx()))
 	if request != nil {
@@ -1426,7 +1414,7 @@ func (s *Sender) sendRequestUploadEvalTable(
 		defer s.evalTableWG.Done()
 		defer cancel()
 
-		response, err := s.evalTableUploader.Upload(ctx, msg)
+		response, err := s.uploadEvalTable(ctx, msg)
 		op.Finish()
 
 		if err != nil {
@@ -1439,6 +1427,32 @@ func (s *Sender) sendRequestUploadEvalTable(
 
 		respond(response)
 	}()
+}
+
+// uploadEvalTable validates an EvalTable, then uploads it and the run
+// files that its media cells reference.
+func (s *Sender) uploadEvalTable(
+	ctx context.Context,
+	msg *spb.UploadEvalTableRequest,
+) (*spb.UploadEvalTableResponse, error) {
+	table, err := s.evalTableUploader.Encode(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	if mediaPaths := msg.GetUploadMediaPaths(); len(mediaPaths) > 0 {
+		files := &spb.FilesRecord{}
+		for _, path := range mediaPaths {
+			files.Files = append(files.Files, &spb.FilesItem{
+				Path:   path,
+				Policy: spb.FilesItem_NOW,
+				Type:   spb.FilesItem_MEDIA,
+			})
+		}
+		s.runfilesUploader.Process(files)
+	}
+
+	return s.evalTableUploader.Upload(ctx, table)
 }
 
 func (s *Sender) sendRequestDownloadArtifact(
