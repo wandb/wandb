@@ -751,6 +751,7 @@ message Request {
     // Requests collecting information about the system environment and resources.
     ProbeSystemInfoRequest probe_system_info = 83;
 
+    // Uploads an EvalTable to CES.
     UploadEvalTableRequest upload_eval_table = 85;
 
     TestInjectRequest test_inject = 1000;
@@ -1304,8 +1305,9 @@ message UploadEvalTableRequest {
   // The table's rows in order.
   repeated EvalTableRow rows = 4;
 
-  // Run files referenced by the table's media cells, relative to the run's
-  // files directory, for wandb-core to upload.
+  // Run files that the table's media cells reference, relative to the run's
+  // files directory, for wandb-core to upload. Cells get their CES URIs
+  // from their media JSON, not from this list.
   repeated string upload_media_paths = 6;
 
   _RequestInfo _info = 200;
@@ -1332,7 +1334,8 @@ message EvalTableRowValues {
   repeated EvalTableValue values = 1;
 }
 
-// A cell's value, which must match its column's declared type.
+// A cell's value, which must match its column's declared type, except
+// that int_value is also allowed in "number" columns.
 // An unset value is null.
 message EvalTableValue {
   oneof value {
@@ -1383,7 +1386,9 @@ message UploadEvalTableResponse {
   string dataset_version_id = 4;
 
   // Set if the upload failed, in which case the IDs are unset.
-  string error_message = 5;
+  //
+  // The code is USAGE if the request's table is invalid.
+  ErrorInfo error = 5;
 }
 
 /*

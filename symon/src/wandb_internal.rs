@@ -1866,6 +1866,7 @@ pub mod request {
         /// Requests collecting information about the system environment and resources.
         #[prost(message, tag = "83")]
         ProbeSystemInfo(super::ProbeSystemInfoRequest),
+        /// Uploads an EvalTable to CES.
         #[prost(message, tag = "85")]
         UploadEvalTable(super::UploadEvalTableRequest),
         #[prost(message, tag = "1000")]
@@ -2697,8 +2698,9 @@ pub struct UploadEvalTableRequest {
     /// The table's rows in order.
     #[prost(message, repeated, tag = "4")]
     pub rows: ::prost::alloc::vec::Vec<EvalTableRow>,
-    /// Run files referenced by the table's media cells, relative to the run's
-    /// files directory, for wandb-core to upload.
+    /// Run files that the table's media cells reference, relative to the run's
+    /// files directory, for wandb-core to upload. Cells get their CES URIs
+    /// from their media JSON, not from this list.
     #[prost(string, repeated, tag = "6")]
     pub upload_media_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "200")]
@@ -2729,7 +2731,8 @@ pub struct EvalTableRowValues {
     #[prost(message, repeated, tag = "1")]
     pub values: ::prost::alloc::vec::Vec<EvalTableValue>,
 }
-/// A cell's value, which must match its column's declared type.
+/// A cell's value, which must match its column's declared type, except
+/// that int_value is also allowed in "number" columns.
 /// An unset value is null.
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2802,8 +2805,10 @@ pub struct UploadEvalTableResponse {
     #[prost(string, tag = "4")]
     pub dataset_version_id: ::prost::alloc::string::String,
     /// Set if the upload failed, in which case the IDs are unset.
-    #[prost(string, tag = "5")]
-    pub error_message: ::prost::alloc::string::String,
+    ///
+    /// The code is USAGE if the request's table is invalid.
+    #[prost(message, optional, tag = "5")]
+    pub error: ::core::option::Option<ErrorInfo>,
 }
 /// DownloadArtifact:
 #[allow(clippy::all)]

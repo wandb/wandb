@@ -3,6 +3,7 @@ package evaltables
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -44,8 +45,8 @@ type Uploader struct {
 	graphqlClient graphql.Client
 	runHandle     *runhandle.RunHandle
 
-	evalTables    *ces.EvalTableService
-	evalTablesErr error
+	// evalTables returns the CES client, creating it on first use.
+	evalTables func() (*ces.EvalTableService, error)
 
 	// scopeMu guards scopeID.
 	scopeMu sync.Mutex
@@ -63,29 +64,43 @@ type UploaderParams struct {
 }
 
 func NewUploader(params UploaderParams) *Uploader {
-	u := &Uploader{
+	return &Uploader{
 		graphqlClient: params.GraphqlClient,
 		runHandle:     params.RunHandle,
+		evalTables: sync.OnceValues(func() (*ces.EvalTableService, error) {
+			return NewEvalTableService(
+				params.CredentialProvider,
+				params.Logger.Logger,
+				params.Settings,
+			)
+		}),
 	}
-	u.evalTables, u.evalTablesErr = NewEvalTableService(
-		params.CredentialProvider,
-		params.Logger.Logger,
-		params.Settings,
-	)
-	return u
 }
 
-// Upload creates an EvalTable in CES, adds its columns and rows,
-// and cuts a version.
-func (u *Uploader) Upload(
-	ctx context.Context,
-	request *spb.UploadEvalTableRequest,
-) (*spb.UploadEvalTableResponse, error) {
-	evalTables := u.evalTables
-	if evalTables == nil {
-		return nil, u.evalTablesErr
-	}
+// usageError is a problem with a request's table, which the user can fix.
+type usageError struct{ error }
 
+// IsUsageError reports whether err is a problem with the table in an
+// upload request, rather than a failure to upload it.
+func IsUsageError(err error) bool {
+	return errors.As(err, &usageError{})
+}
+
+// EncodedTable is an EvalTable that has been validated and encoded for
+// CES.
+type EncodedTable struct {
+	name     string
+	runPath  runbranch.RunPath
+	columns  ces.EvalTableColumnNewParams
+	rowsJSON [][]byte
+}
+
+// Encode validates an EvalTable upload request and encodes its rows.
+//
+// Errors in the request's table satisfy IsUsageError.
+func (u *Uploader) Encode(
+	request *spb.UploadEvalTableRequest,
+) (*EncodedTable, error) {
 	upserter, err := u.runHandle.Upserter()
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: %v", err)
@@ -96,30 +111,46 @@ func (u *Uploader) Upload(
 		DatasetFields: ces.F(datasetFieldParams(request.GetDatasetFields())),
 		Scorers:       ces.F(scorerParams(request.GetScorers())),
 	}
-	if err := validateColumns(&columns); err != nil {
-		return nil, err
+	if err := validateColumns(request, &columns); err != nil {
+		return nil, usageError{err}
 	}
 
-	encoder, err := newRowEncoder(request, runPath)
+	rowsJSON, err := newRowEncoder(request, runPath).encodeRows(request.GetRows())
+	if err != nil {
+		return nil, usageError{err}
+	}
+
+	return &EncodedTable{
+		name:     request.GetName(),
+		runPath:  runPath,
+		columns:  columns,
+		rowsJSON: rowsJSON,
+	}, nil
+}
+
+// Upload creates an EvalTable in CES, adds its columns and rows,
+// and cuts a version.
+func (u *Uploader) Upload(
+	ctx context.Context,
+	table *EncodedTable,
+) (*spb.UploadEvalTableResponse, error) {
+	evalTables, err := u.evalTables()
 	if err != nil {
 		return nil, err
 	}
-	rowsJSON, err := encoder.encodeRows(request.GetRows())
-	if err != nil {
-		return nil, err
-	}
 
-	scopeID, err := u.projectScopeID(ctx, runPath)
+	scopeID, err := u.projectScopeID(ctx, table.runPath)
 	if err != nil {
 		return nil, err
 	}
 	scope := ces.F(scopeID)
+	columns := table.columns
 	columns.ScopeID = scope
 	keys := newIdempotencyKeys()
 
 	created, err := evalTables.New(
 		ctx,
-		ces.EvalTableNewParams{ScopeID: scope, Name: ces.F(request.GetName())},
+		ces.EvalTableNewParams{ScopeID: scope, Name: ces.F(table.name)},
 		keys.option("create"),
 	)
 	if err != nil {
@@ -138,9 +169,9 @@ func (u *Uploader) Upload(
 
 	// NewProgress only fails if the operation already has progress.
 	progress, _ := wboperation.Get(ctx).NewProgress()
-	totalRows := len(rowsJSON)
+	totalRows := len(table.rowsJSON)
 	rowsDone := 0
-	for i, batch := range rowBatches(rowsJSON) {
+	for i, batch := range rowBatches(table.rowsJSON) {
 		_, err = evalTables.Rows.Add(
 			ctx,
 			created.EvaluationID,
@@ -255,37 +286,51 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-// validateColumns uses the CES SDK to check enum types
-func validateColumns(columns *ces.EvalTableColumnNewParams) error {
-	for i := range columns.DatasetFields.Value {
-		field := &columns.DatasetFields.Value[i]
+// validateColumns checks that the request's columns have known types,
+// which the CES SDK doesn't check, and that their CES request fits
+// CES's size limit.
+func validateColumns(
+	request *spb.UploadEvalTableRequest,
+	columns *ces.EvalTableColumnNewParams,
+) error {
+	for _, field := range request.GetDatasetFields() {
+		source := ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource())
+		valueType := ces.EvalTableColumnNewParamsDatasetFieldsValueType(field.GetValueType())
+		mediaType := field.GetWandbMediaType()
+		_, isKnownMediaType := mediaExtensionTypes[mediaType]
+
 		switch {
-		case !field.Source.Value.IsKnown():
+		case !source.IsKnown():
 			return fmt.Errorf(
-				"evaltables: field %q has unknown source %q",
-				field.Name.Value, field.Source.Value)
-		case !field.ValueType.Value.IsKnown():
+				"field %q has unknown source %q",
+				field.GetName(), source)
+		case !valueType.IsKnown():
 			return fmt.Errorf(
-				"evaltables: field %q has unknown value type %q",
-				field.Name.Value, field.ValueType.Value)
+				"field %q has unknown value type %q",
+				field.GetName(), valueType)
+		case mediaType != "" && !isKnownMediaType:
+			return fmt.Errorf(
+				"field %q has unknown media type %q",
+				field.GetName(), mediaType)
 		}
 	}
 
-	for _, scorer := range columns.Scorers.Value {
-		if !scorer.ValueType.Value.IsKnown() {
+	for _, scorer := range request.GetScorers() {
+		valueType := ces.EvalTableColumnNewParamsScorersValueType(scorer.GetValueType())
+		if !valueType.IsKnown() {
 			return fmt.Errorf(
-				"evaltables: scorer %q has unknown value type %q",
-				scorer.Name.Value, scorer.ValueType.Value)
+				"scorer %q has unknown value type %q",
+				scorer.GetName(), valueType)
 		}
 	}
 
 	body, err := columns.MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("evaltables: failed to encode columns: %v", err)
+		return fmt.Errorf("failed to encode columns: %v", err)
 	}
 	if len(body) >= maxRequestBodyBytes {
 		return fmt.Errorf(
-			"evaltables: columns request is %d bytes, must be under %d",
+			"columns request is %d bytes, must be under %d",
 			len(body), maxRequestBodyBytes)
 	}
 
