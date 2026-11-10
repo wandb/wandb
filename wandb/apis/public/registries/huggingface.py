@@ -336,16 +336,15 @@ class HuggingFaceImport:
                     break
 
                 if deadline is None:
-                    delay = poll_interval
+                    time.sleep(poll_interval)
                 else:
                     remaining = deadline - time.monotonic()
-                    if remaining <= 0:
+                    time.sleep(max(0.0, min(poll_interval, remaining)))
+                    if time.monotonic() >= deadline:
                         raise WaitTimeoutError(
                             f"Hugging Face import {self.id!r} did not finish within"
                             f" {timeout} seconds (state: {self.state})."
                         )
-                    delay = min(poll_interval, remaining)
-                time.sleep(delay)
                 self.refresh()
         except KeyboardInterrupt:
             termlog(
