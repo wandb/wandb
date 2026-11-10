@@ -296,17 +296,29 @@ class CESWriter:
         scorer_order: dict[str, None] = {}
         normalized_rows: list[_CESRow] = []
         media_cells_examined = 0
-        oversized_media_cells = 0
         oversized_locations: list[str] = []
         # Deduplicated, as rows can share content-addressed media files.
         upload_media_paths: dict[str, None] = {}
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
-            inputs, input_media, input_oversized = (
-                self._normalize_row_input_or_output_values(
-                    row.inputs,
-                    source="input",
+            inputs, input_media = self._normalize_row_input_or_output_values(
+                row.inputs,
+                source="input",
+                types=dataset_field_types,
+                order=dataset_field_order,
+                bound_run=bound_run,
+                row_index=row_index,
+                oversized_locations=oversized_locations,
+                upload_media_paths=upload_media_paths,
+                class_label_accumulator=class_label_accumulator,
+            )
+            media_cells_examined += input_media
+            output = None
+            if row.output is not None:
+                output, output_media = self._normalize_row_input_or_output_values(
+                    row.output,
+                    source="output",
                     types=dataset_field_types,
                     order=dataset_field_order,
                     bound_run=bound_run,
@@ -315,26 +327,7 @@ class CESWriter:
                     upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
-            )
-            media_cells_examined += input_media
-            oversized_media_cells += input_oversized
-            output = None
-            if row.output is not None:
-                output, output_media, output_oversized = (
-                    self._normalize_row_input_or_output_values(
-                        row.output,
-                        source="output",
-                        types=dataset_field_types,
-                        order=dataset_field_order,
-                        bound_run=bound_run,
-                        row_index=row_index,
-                        oversized_locations=oversized_locations,
-                        upload_media_paths=upload_media_paths,
-                        class_label_accumulator=class_label_accumulator,
-                    )
-                )
                 media_cells_examined += output_media
-                oversized_media_cells += output_oversized
             scores = self._normalize_row_score_values(
                 row.scores,
                 types=scorer_types,
@@ -396,8 +389,10 @@ class CESWriter:
             rows=encoded_rows,
             upload_media_paths=list(upload_media_paths),
             media_cells_examined=media_cells_examined,
-            oversized_media_cells=oversized_media_cells,
-            oversized_locations=tuple(oversized_locations),
+            oversized_media_cells=len(oversized_locations),
+            oversized_locations=tuple(
+                oversized_locations[:_MAX_OVERSIZED_MEDIA_LOCATIONS]
+            ),
         )
 
     def _normalize_row_input_or_output_values(
@@ -412,11 +407,14 @@ class CESWriter:
         oversized_locations: list[str],
         upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
-    ) -> tuple[dict[str, Any], int, int]:
-        """Normalize one input/output mapping and accumulate its inferred types."""
+    ) -> tuple[dict[str, Any], int]:
+        """Normalize one input/output mapping and accumulate its inferred types.
+
+        Returns:
+            The normalized values and the number of media cells among them.
+        """
         normalized_values: dict[str, Any] = {}
         media_cells = 0
-        oversized_cells = 0
         for column, value in values.items():
             name = str(column)
             key = (source, name)
@@ -438,12 +436,10 @@ class CESWriter:
                     class_label_accumulator=class_label_accumulator,
                 )
                 if oversized_size is not None:
-                    oversized_cells += 1
-                    if len(oversized_locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
-                        oversized_locations.append(
-                            f"row {row_index}, {source} column {name!r} "
-                            f"({oversized_size} bytes)"
-                        )
+                    oversized_locations.append(
+                        f"row {row_index}, {source} column {name!r} "
+                        f"({oversized_size} bytes)"
+                    )
             else:
                 normalized, primitive_type = self._normalize_primitive(value, column)
                 value_type = (
@@ -454,7 +450,7 @@ class CESWriter:
             if value_type is not None:
                 types[key] = self._merge_field_type(column, types.get(key), value_type)
             normalized_values[name] = normalized
-        return normalized_values, media_cells, oversized_cells
+        return normalized_values, media_cells
 
     def _normalize_row_score_values(
         self,
@@ -535,34 +531,34 @@ class CESWriter:
         """Return a JSON-safe value and its observed CES primitive type."""
         if isinstance(value, WBValue):
             value = self._normalize_wandb_value(value, column)
-        if value is None:
-            return None, None
 
         np = wandb.util.np
-        if isinstance(value, bool) or (np is not None and isinstance(value, np.bool_)):
-            return bool(value), "boolean"
-        if isinstance(value, int) or (np is not None and isinstance(value, np.integer)):
-            normalized = int(value)
-            if not _MIN_INT64 <= normalized <= _MAX_INT64:
+        if np is not None and isinstance(value, np.generic):
+            # float() also converts np.longdouble, overflowing to inf if needed.
+            value = float(value) if isinstance(value, np.floating) else value.item()
+
+        if value is None:
+            return None, None
+        if isinstance(value, bool):
+            return value, "boolean"
+        if isinstance(value, int):
+            if not _MIN_INT64 <= value <= _MAX_INT64:
                 raise UsageError(
                     f"CES EvalTable column {column!r} contains an integer outside "
                     "the 64-bit range."
                 )
-            return normalized, "integer"
-        if isinstance(value, float) or (
-            np is not None and isinstance(value, np.floating)
-        ):
-            normalized = float(value)
-            if math.isnan(normalized):
+            return value, "integer"
+        if isinstance(value, float):
+            if math.isnan(value):
                 # JSON has no NaN literal; send null while retaining numeric schema.
                 return None, "number"
-            if not math.isfinite(normalized):
+            if not math.isfinite(value):
                 raise UsageError(
                     f"CES EvalTable column {column!r} contains a non-finite number."
                 )
-            return normalized, "number"
-        if isinstance(value, str) or (np is not None and isinstance(value, np.str_)):
-            return str(value), "string"
+            return value, "number"
+        if isinstance(value, str):
+            return value, "string"
 
         raise UsageError(
             f"CES EvalTable column {column!r} contains unsupported value "
