@@ -597,6 +597,7 @@ func TestUpload_NoCESURL(t *testing.T) {
 		&spb.UploadEvalTableRequest{Name: "t"})
 
 	assert.ErrorContains(t, err, "no CES URL in settings")
+	assert.False(t, evaltables.IsUsageError(err))
 }
 
 func TestUpload_ProjectNotFound(t *testing.T) {
@@ -651,6 +652,7 @@ func TestUpload_RejectsUnknownColumnTypes(t *testing.T) {
 			_, err := upload(context.Background(), uploader, tc.request)
 
 			assert.ErrorContains(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
 		})
 	}
@@ -751,6 +753,7 @@ func TestUpload_RejectsRowsThatDontFitColumns(t *testing.T) {
 			})
 
 			assert.ErrorContains(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
 		})
 	}
@@ -768,7 +771,7 @@ func TestUpload_RejectsOversizedRow(t *testing.T) {
 		},
 	})
 
-	assert.ErrorContains(t, err, "evaltables: row is")
+	assert.ErrorContains(t, err, "row is")
 	assert.ErrorContains(t, err, "(row 0)")
 	assert.Empty(t, ces.Requests())
 }
@@ -1115,6 +1118,7 @@ func TestUpload_RejectsInvalidMedia(t *testing.T) {
 			})
 
 			assert.ErrorContains(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
 		})
 	}

@@ -1397,7 +1397,10 @@ func (s *Sender) sendRequestUploadEvalTable(
 
 	if s.evalTableUploader == nil {
 		respond(&spb.UploadEvalTableResponse{
-			ErrorMessage: "cannot log an EvalTable in offline mode",
+			Error: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_UNSUPPORTED,
+				Message: "cannot log an EvalTable in offline mode",
+			},
 		})
 		return
 	}
@@ -1417,12 +1420,22 @@ func (s *Sender) sendRequestUploadEvalTable(
 		response, err := s.uploadEvalTable(ctx, msg)
 		op.Finish()
 
-		if err != nil {
+		switch {
+		case evaltables.IsUsageError(err):
+			response = &spb.UploadEvalTableResponse{
+				Error: &spb.ErrorInfo{
+					Code:    spb.ErrorInfo_USAGE,
+					Message: err.Error(),
+				},
+			}
+		case err != nil:
 			s.logger.CaptureError(
 				"stream",
 				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
 			)
-			response = &spb.UploadEvalTableResponse{ErrorMessage: err.Error()}
+			response = &spb.UploadEvalTableResponse{
+				Error: &spb.ErrorInfo{Message: err.Error()},
+			}
 		}
 
 		respond(response)

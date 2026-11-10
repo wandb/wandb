@@ -1602,18 +1602,18 @@ class EvalTableScorer(_message.Message):
     def __init__(self, name: _Optional[str] = ..., value_type: _Optional[str] = ...) -> None: ...
 
 class UploadEvalTableResponse(_message.Message):
-    __slots__ = ("evaluation_id", "evaluation_version_id", "dataset_id", "dataset_version_id", "error_message")
+    __slots__ = ("evaluation_id", "evaluation_version_id", "dataset_id", "dataset_version_id", "error")
     EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
     EVALUATION_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
     DATASET_ID_FIELD_NUMBER: _ClassVar[int]
     DATASET_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
-    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     evaluation_id: str
     evaluation_version_id: str
     dataset_id: str
     dataset_version_id: str
-    error_message: str
-    def __init__(self, evaluation_id: _Optional[str] = ..., evaluation_version_id: _Optional[str] = ..., dataset_id: _Optional[str] = ..., dataset_version_id: _Optional[str] = ..., error_message: _Optional[str] = ...) -> None: ...
+    error: ErrorInfo
+    def __init__(self, evaluation_id: _Optional[str] = ..., evaluation_version_id: _Optional[str] = ..., dataset_id: _Optional[str] = ..., dataset_version_id: _Optional[str] = ..., error: _Optional[_Union[ErrorInfo, _Mapping]] = ...) -> None: ...
 
 class DownloadArtifactRequest(_message.Message):
     __slots__ = ("artifact_id", "download_root", "allow_missing_references", "skip_cache", "path_prefix", "_info")

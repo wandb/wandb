@@ -3,6 +3,7 @@ package evaltables
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -75,6 +76,15 @@ func NewUploader(params UploaderParams) *Uploader {
 	return u
 }
 
+// usageError is a problem with a request's table, which the user can fix.
+type usageError struct{ error }
+
+// IsUsageError reports whether err is a problem with the table in an
+// upload request, rather than a failure to upload it.
+func IsUsageError(err error) bool {
+	return errors.As(err, &usageError{})
+}
+
 // EncodedTable is an EvalTable that has been validated and encoded for
 // CES.
 type EncodedTable struct {
@@ -85,6 +95,8 @@ type EncodedTable struct {
 }
 
 // Encode validates an EvalTable upload request and encodes its rows.
+//
+// Errors in the request's table satisfy IsUsageError.
 func (u *Uploader) Encode(
 	request *spb.UploadEvalTableRequest,
 ) (*EncodedTable, error) {
@@ -99,12 +111,12 @@ func (u *Uploader) Encode(
 		Scorers:       ces.F(scorerParams(request.GetScorers())),
 	}
 	if err := validateColumns(request, &columns); err != nil {
-		return nil, err
+		return nil, usageError{err}
 	}
 
 	rowsJSON, err := newRowEncoder(request, runPath).encodeRows(request.GetRows())
 	if err != nil {
-		return nil, err
+		return nil, usageError{err}
 	}
 
 	return &EncodedTable{
@@ -289,15 +301,15 @@ func validateColumns(
 		switch {
 		case !source.IsKnown():
 			return fmt.Errorf(
-				"evaltables: field %q has unknown source %q",
+				"field %q has unknown source %q",
 				field.GetName(), source)
 		case !valueType.IsKnown():
 			return fmt.Errorf(
-				"evaltables: field %q has unknown value type %q",
+				"field %q has unknown value type %q",
 				field.GetName(), valueType)
 		case mediaType != "" && !isKnownMediaType:
 			return fmt.Errorf(
-				"evaltables: field %q has unknown media type %q",
+				"field %q has unknown media type %q",
 				field.GetName(), mediaType)
 		}
 	}
@@ -306,18 +318,18 @@ func validateColumns(
 		valueType := ces.EvalTableColumnNewParamsScorersValueType(scorer.GetValueType())
 		if !valueType.IsKnown() {
 			return fmt.Errorf(
-				"evaltables: scorer %q has unknown value type %q",
+				"scorer %q has unknown value type %q",
 				scorer.GetName(), valueType)
 		}
 	}
 
 	body, err := columns.MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("evaltables: failed to encode columns: %v", err)
+		return fmt.Errorf("failed to encode columns: %v", err)
 	}
 	if len(body) >= maxRequestBodyBytes {
 		return fmt.Errorf(
-			"evaltables: columns request is %d bytes, must be under %d",
+			"columns request is %d bytes, must be under %d",
 			len(body), maxRequestBodyBytes)
 	}
 

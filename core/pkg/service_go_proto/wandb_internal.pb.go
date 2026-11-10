@@ -5602,6 +5602,7 @@ type Request_ProbeSystemInfo struct {
 }
 
 type Request_UploadEvalTable struct {
+	// Uploads an EvalTable to CES.
 	UploadEvalTable *UploadEvalTableRequest `protobuf:"bytes,85,opt,name=upload_eval_table,json=uploadEvalTable,proto3,oneof"`
 }
 
@@ -9753,8 +9754,9 @@ type UploadEvalTableRequest struct {
 	Scorers       []*EvalTableScorer     `protobuf:"bytes,3,rep,name=scorers,proto3" json:"scorers,omitempty"`
 	// The table's rows in order.
 	Rows []*EvalTableRow `protobuf:"bytes,4,rep,name=rows,proto3" json:"rows,omitempty"`
-	// Run files referenced by the table's media cells, relative to the run's
-	// files directory, for wandb-core to upload.
+	// Run files that the table's media cells reference, relative to the run's
+	// files directory, for wandb-core to upload. Cells get their CES URIs
+	// from their media JSON, not from this list.
 	UploadMediaPaths []string      `protobuf:"bytes,6,rep,name=upload_media_paths,json=uploadMediaPaths,proto3" json:"upload_media_paths,omitempty"`
 	XInfo            *XRequestInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -9952,7 +9954,8 @@ func (x *EvalTableRowValues) GetValues() []*EvalTableValue {
 	return nil
 }
 
-// A cell's value, which must match its column's declared type.
+// A cell's value, which must match its column's declared type, except
+// that int_value is also allowed in "number" columns.
 // An unset value is null.
 type EvalTableValue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -10241,7 +10244,9 @@ type UploadEvalTableResponse struct {
 	DatasetId           string                 `protobuf:"bytes,3,opt,name=dataset_id,json=datasetId,proto3" json:"dataset_id,omitempty"`
 	DatasetVersionId    string                 `protobuf:"bytes,4,opt,name=dataset_version_id,json=datasetVersionId,proto3" json:"dataset_version_id,omitempty"`
 	// Set if the upload failed, in which case the IDs are unset.
-	ErrorMessage  string `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	//
+	// The code is USAGE if the request's table is invalid.
+	Error         *ErrorInfo `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10304,11 +10309,11 @@ func (x *UploadEvalTableResponse) GetDatasetVersionId() string {
 	return ""
 }
 
-func (x *UploadEvalTableResponse) GetErrorMessage() string {
+func (x *UploadEvalTableResponse) GetError() *ErrorInfo {
 	if x != nil {
-		return x.ErrorMessage
+		return x.Error
 	}
-	return ""
+	return nil
 }
 
 // DownloadArtifact:
@@ -13361,14 +13366,14 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fEvalTableScorer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"value_type\x18\x02 \x01(\tR\tvalueType\"\xe4\x01\n" +
+	"value_type\x18\x02 \x01(\tR\tvalueType\"\xf0\x01\n" +
 	"\x17UploadEvalTableResponse\x12#\n" +
 	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x122\n" +
 	"\x15evaluation_version_id\x18\x02 \x01(\tR\x13evaluationVersionId\x12\x1d\n" +
 	"\n" +
 	"dataset_id\x18\x03 \x01(\tR\tdatasetId\x12,\n" +
-	"\x12dataset_version_id\x18\x04 \x01(\tR\x10datasetVersionId\x12#\n" +
-	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"\x8d\x02\n" +
+	"\x12dataset_version_id\x18\x04 \x01(\tR\x10datasetVersionId\x12/\n" +
+	"\x05error\x18\x05 \x01(\v2\x19.wandb_internal.ErrorInfoR\x05error\"\x8d\x02\n" +
 	"\x17DownloadArtifactRequest\x12\x1f\n" +
 	"\vartifact_id\x18\x01 \x01(\tR\n" +
 	"artifactId\x12#\n" +
@@ -14038,43 +14043,44 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	139, // 214: wandb_internal.EvalTableRow.output:type_name -> wandb_internal.EvalTableRowValues
 	140, // 215: wandb_internal.EvalTableRow.scores:type_name -> wandb_internal.EvalTableValue
 	140, // 216: wandb_internal.EvalTableRowValues.values:type_name -> wandb_internal.EvalTableValue
-	186, // 217: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	186, // 218: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
-	149, // 219: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
-	150, // 220: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
-	148, // 221: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
-	151, // 222: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
-	152, // 223: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
-	153, // 224: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
-	154, // 225: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
-	182, // 226: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	186, // 227: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
-	184, // 228: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
-	19,  // 229: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
-	175, // 230: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
-	161, // 231: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
-	162, // 232: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
-	163, // 233: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
-	164, // 234: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
-	165, // 235: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
-	176, // 236: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
-	166, // 237: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
-	167, // 238: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
-	168, // 239: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
-	182, // 240: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
-	177, // 241: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
-	178, // 242: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
-	179, // 243: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
-	172, // 244: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
-	171, // 245: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
-	171, // 246: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
-	79,  // 247: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
-	160, // 248: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
-	249, // [249:249] is the sub-list for method output_type
-	249, // [249:249] is the sub-list for method input_type
-	249, // [249:249] is the sub-list for extension type_name
-	249, // [249:249] is the sub-list for extension extendee
-	0,   // [0:249] is the sub-list for field type_name
+	21,  // 217: wandb_internal.UploadEvalTableResponse.error:type_name -> wandb_internal.ErrorInfo
+	186, // 218: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	186, // 219: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
+	149, // 220: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
+	150, // 221: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
+	148, // 222: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
+	151, // 223: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
+	152, // 224: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
+	153, // 225: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
+	154, // 226: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
+	182, // 227: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	186, // 228: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
+	184, // 229: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
+	19,  // 230: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
+	175, // 231: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
+	161, // 232: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
+	162, // 233: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
+	163, // 234: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
+	164, // 235: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
+	165, // 236: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
+	176, // 237: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
+	166, // 238: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
+	167, // 239: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
+	168, // 240: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
+	182, // 241: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
+	177, // 242: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
+	178, // 243: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
+	179, // 244: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
+	172, // 245: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
+	171, // 246: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
+	171, // 247: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
+	79,  // 248: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
+	160, // 249: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
+	250, // [250:250] is the sub-list for method output_type
+	250, // [250:250] is the sub-list for method input_type
+	250, // [250:250] is the sub-list for extension type_name
+	250, // [250:250] is the sub-list for extension extendee
+	0,   // [0:250] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_internal_proto_init() }

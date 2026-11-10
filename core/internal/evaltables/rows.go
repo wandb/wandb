@@ -115,7 +115,7 @@ func (e *rowEncoder) encodeRow(row *spb.EvalTableRow) ([]byte, error) {
 
 	if len(rowBatchPrefix)+len(buf)+len(rowBatchSuffix) >= maxRequestBodyBytes {
 		return nil, fmt.Errorf(
-			"evaltables: row is %d bytes, must be under %d",
+			"row is %d bytes, must be under %d",
 			len(buf), maxRequestBodyBytes-len(rowBatchPrefix)-len(rowBatchSuffix))
 	}
 
@@ -146,7 +146,7 @@ func (e *rowEncoder) appendValues(
 ) ([]byte, error) {
 	if len(values) != len(columns) {
 		return nil, fmt.Errorf(
-			"evaltables: row has %d %s values, expected %d",
+			"row has %d %s values, expected %d",
 			len(values), part, len(columns))
 	}
 
@@ -160,7 +160,7 @@ func (e *rowEncoder) appendValues(
 		var err error
 		buf, err = e.appendValue(buf, columns[i], value)
 		if err != nil {
-			return nil, fmt.Errorf("evaltables: field %q: %v", columns[i].name, err)
+			return nil, fmt.Errorf("field %q: %v", columns[i].name, err)
 		}
 	}
 	return append(buf, '}'), nil
