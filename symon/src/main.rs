@@ -12,6 +12,7 @@
 //! - OpenMetrics and DCGM exporter endpoints over HTTP
 
 mod host;
+mod job;
 mod metrics;
 mod monitors;
 mod record;

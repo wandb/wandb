@@ -157,16 +157,22 @@ message WriterInfo {
   string scheduler_job = 8 [(attribute) = "com.coreweave.writer.scheduler_job"];
 }
 
-// Why an accelerator is in a writer's sample.
+// Why an accelerator is in a writer's sample: the strongest tie between the
+// device and the monitored process, PROCESS first, then VISIBLE_DEVICES,
+// SCHEDULER and VISIBLE. With process_count, it lets a reader count a busy
+// device of the job that no process of the writer is on.
 enum Binding {
+  // The collector cannot tell, as for a device on another machine.
   BINDING_UNSPECIFIED = 0;
   // The device is on the host and nothing more is known.
   VISIBLE = 1;
-  // The job's device list (CUDA_VISIBLE_DEVICES and similar) names it.
+  // The device list in the monitored process's environment
+  // (CUDA_VISIBLE_DEVICES) names it.
   VISIBLE_DEVICES = 2;
-  // The monitored process tree has the device in use.
+  // A process of the monitored tree is on the device.
   PROCESS = 3;
-  // The job's cgroup or pod assignment names it.
+  // The monitored process runs in a Kubernetes pod, which sees only the
+  // devices assigned to it.
   SCHEDULER = 4;
 }
 
@@ -669,6 +675,14 @@ message AcceleratorMetrics {
   string parent_uuid = 9 [(attribute) = "hw.parent"];
   string profile = 10 [(attribute) = "com.coreweave.accelerator.profile"];
   optional double share = 11 [(attribute) = "com.coreweave.accelerator.share"];
+
+  // Compute processes the driver lists on the device, whoever owns them.
+  // Unset when the collector has no process list.
+  optional uint32 process_count = 12 [(metric) = {
+    unit: "{process}",
+    display: "Processes",
+    names: [ { accelerator_type: [ NVIDIA_GPU ], name: "com.coreweave.gpu.process.count" } ]
+  }];
 
   // Fraction of time the compute units were busy, as each vendor defines it.
   optional double utilization_ratio = 20 [(metric) = {
