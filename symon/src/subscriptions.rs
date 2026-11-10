@@ -207,6 +207,7 @@ impl Subscriptions {
             }
         }
 
+        let timestamp = wall_clock_time(at);
         for sub in subs.iter_mut() {
             let scoped = sample.scoped.get(&sub.scope);
             if scoped.is_none() && !sample.scoped.is_empty() {
@@ -224,6 +225,7 @@ impl Subscriptions {
             if !sub.due(at) {
                 continue;
             }
+            let since_last = sub.last_delivery.map_or(Duration::ZERO, |last| at - last);
             sub.last_delivery = Some(at);
 
             let mut values: Vec<(Field, f64)> = sub
@@ -251,8 +253,8 @@ impl Subscriptions {
             if typed == SystemMetricsRecord::default() {
                 continue;
             }
-            typed.timestamp = Some(current_timestamp());
-            typed.interval_ms = sub.interval.as_millis() as u32;
+            typed.timestamp = Some(timestamp);
+            typed.interval_ms = since_last.as_millis() as u32;
             typed.dropped_samples = sub.dropped;
             let response = SubscribeResponse {
                 record: None,
@@ -325,11 +327,16 @@ fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 { a } else { gcd(b, a % b) }
 }
 
-fn current_timestamp() -> Timestamp {
-    let now = chrono::Utc::now();
+/// The wall-clock time of the sweep scheduled for `at`.
+///
+/// Samples carry it instead of the time their collection finished, so a
+/// subscriber's samples are exactly its interval apart however long the
+/// collectors take.
+fn wall_clock_time(at: Instant) -> Timestamp {
+    let time = chrono::Utc::now() - Instant::now().saturating_duration_since(at);
     Timestamp {
-        seconds: now.timestamp(),
-        nanos: now.timestamp_subsec_nanos() as i32,
+        seconds: time.timestamp(),
+        nanos: time.timestamp_subsec_nanos() as i32,
     }
 }
 
@@ -388,6 +395,36 @@ mod tests {
             assert_eq!(next_value(&mut fast), Some(expected));
         }
         assert_eq!(next_value(&mut fast), None);
+    }
+
+    #[test]
+    fn samples_carry_the_scheduled_time_and_the_time_since_the_previous_one() {
+        let subscriptions = Subscriptions::new();
+        let mut rx = subscriptions
+            .add(&SubscribeRequest {
+                interval_seconds: 15.0,
+                ..Default::default()
+            })
+            .unwrap();
+        let start = Instant::now() - Duration::from_secs(60);
+        for secs in [0, 15, 32] {
+            let sample = Sample {
+                averages: vec![(Field::NetworkSent, 1.0)],
+                ..Default::default()
+            };
+            subscriptions.deliver(&sample, start + Duration::from_secs(secs), 1.0);
+        }
+
+        let samples: Vec<SystemMetricsRecord> =
+            std::iter::from_fn(|| rx.try_recv().ok()?.ok()?.sample).collect();
+        let intervals: Vec<u32> = samples.iter().map(|sample| sample.interval_ms).collect();
+        assert_eq!(intervals, [0, 15_000, 17_000]);
+        let seconds = |sample: &SystemMetricsRecord| {
+            let time = sample.timestamp.expect("no timestamp");
+            time.seconds as f64 + f64::from(time.nanos) / 1e9
+        };
+        let elapsed = seconds(&samples[2]) - seconds(&samples[0]);
+        assert!((elapsed - 32.0).abs() < 0.5, "{elapsed}");
     }
 
     #[test]

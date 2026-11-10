@@ -711,13 +711,16 @@ pub struct LegacyKey {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SystemMetricsRecord {
+    /// When the sweep that produced the sample was scheduled, not when its
+    /// collection finished.
     #[prost(message, optional, tag = "1")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
-    /// The subscriber's sampling interval.
+    /// The time since the subscriber's previous sample, which is what the
+    /// sample's averages cover. 0 for a subscriber's first sample.
     #[prost(uint32, tag = "2")]
     pub interval_ms: u32,
     /// Samples dropped before this one because the subscriber did not read
-    /// them. Each one is a gap of interval_ms.
+    /// them. Each one is a gap of one sampling interval.
     #[prost(uint32, tag = "3")]
     pub dropped_samples: u32,
     /// Who wrote the sample. Set by wandb-core.
