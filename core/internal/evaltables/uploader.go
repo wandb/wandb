@@ -480,16 +480,7 @@ type rowBatch struct {
 // It stops after the first error from rows.
 func rowBatches(rows iter.Seq2[[]byte, error]) iter.Seq2[rowBatch, error] {
 	return func(yield func(rowBatch, error) bool) {
-		var body bytes.Buffer
-		nrows := 0
-
-		flush := func() bool {
-			body.WriteString(rowBatchSuffix)
-			batch := rowBatch{body: bytes.Clone(body.Bytes()), rows: nrows}
-			body.Reset()
-			nrows = 0
-			return yield(batch, nil)
-		}
+		var batch rowBatchBuilder
 
 		for row, err := range rows {
 			if err != nil {
@@ -497,27 +488,50 @@ func rowBatches(rows iter.Seq2[[]byte, error]) iter.Seq2[rowBatch, error] {
 				return
 			}
 
-			if nrows > 0 &&
-				(nrows >= maxRowsPerBatch ||
-					body.Len()+1+len(row)+len(rowBatchSuffix) > targetRowBatchBytes) {
-				if !flush() {
-					return
-				}
+			if !batch.fits(row) && !yield(batch.take(), nil) {
+				return
 			}
-
-			if nrows == 0 {
-				body.WriteString(rowBatchPrefix)
-			} else {
-				body.WriteByte(',')
-			}
-			body.Write(row)
-			nrows++
+			batch.add(row)
 		}
 
-		if nrows > 0 {
-			flush()
+		if batch.nrows > 0 {
+			yield(batch.take(), nil)
 		}
 	}
+}
+
+// rowBatchBuilder builds a row append request body.
+type rowBatchBuilder struct {
+	body  bytes.Buffer
+	nrows int
+}
+
+// fits reports whether row can be added within the batch limits.
+//
+// Any row fits in an empty batch.
+func (b *rowBatchBuilder) fits(row []byte) bool {
+	return b.nrows == 0 ||
+		b.nrows < maxRowsPerBatch &&
+			b.body.Len()+1+len(row)+len(rowBatchSuffix) <= targetRowBatchBytes
+}
+
+func (b *rowBatchBuilder) add(row []byte) {
+	if b.nrows == 0 {
+		b.body.WriteString(rowBatchPrefix)
+	} else {
+		b.body.WriteByte(',')
+	}
+	b.body.Write(row)
+	b.nrows++
+}
+
+// take returns the batch and empties the builder.
+func (b *rowBatchBuilder) take() rowBatch {
+	b.body.WriteString(rowBatchSuffix)
+	batch := rowBatch{body: bytes.Clone(b.body.Bytes()), rows: b.nrows}
+	b.body.Reset()
+	b.nrows = 0
+	return batch
 }
 
 type idempotencyKeys struct {
