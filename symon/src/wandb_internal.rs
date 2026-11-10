@@ -3255,6 +3255,9 @@ pub enum ServerFeature {
     ArtifactMembershipOnArtifactPayload = 39,
     /// Indicates that the server supports automation event SANDBOX_STATE.
     AutomationEventSandboxState = 40,
+    /// Indicates that the server supports paginating
+    /// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+    ArtifactMembershipAliasesPagination = 41,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3329,6 +3332,9 @@ impl ServerFeature {
                 "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD"
             }
             Self::AutomationEventSandboxState => "AUTOMATION_EVENT_SANDBOX_STATE",
+            Self::ArtifactMembershipAliasesPagination => {
+                "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3408,6 +3414,9 @@ impl ServerFeature {
                 Some(Self::ArtifactMembershipOnArtifactPayload)
             }
             "AUTOMATION_EVENT_SANDBOX_STATE" => Some(Self::AutomationEventSandboxState),
+            "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION" => {
+                Some(Self::ArtifactMembershipAliasesPagination)
+            }
             _ => None,
         }
     }

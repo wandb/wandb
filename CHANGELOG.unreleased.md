@@ -25,6 +25,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
+- `wandb.Api().artifact(...)` now defers fetching an artifact's collection membership aliases until `Artifact.aliases` is accessed, then fetches them in 1,000-alias pages (@ibindlish in https://github.com/wandb/wandb/pull/13183)
 - Unparseable automations are skipped when listing automations via `Api.automations()` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13287)
 - Identity token logins now stay signed in after the identity token has been used, when the JWT issuer is configured to allow it: the W&B server returns a refresh token that renews the access token until the issuer's session timeout (@ckacal in https://github.com/wandb/wandb/pull/13082)
 
