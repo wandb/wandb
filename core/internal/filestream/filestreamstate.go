@@ -18,6 +18,10 @@ type FileStreamState struct {
 	// in bytes.
 	MaxRequestSizeBytes int
 
+	// SizeLimit, if set, can lower MaxRequestSizeBytes while running,
+	// such as after the server rejects a request as too large.
+	SizeLimit *RequestSizeLimit
+
 	// MaxFileLineSize is an approximate maximum per-line size in bytes for
 	// the "Files" uploaded in FileStream.
 	MaxFileLineSize int
@@ -58,21 +62,35 @@ type FileStreamState struct {
 	ConsoleLineOffset int
 }
 
+// maxRequestSizeBytes is the current approximate maximum request size.
+func (s *FileStreamState) maxRequestSizeBytes() int {
+	return s.SizeLimit.Apply(s.MaxRequestSizeBytes)
+}
+
+// jsonLineSize is the number of bytes a line adds to a request's JSON:
+// the line encoded as a JSON string plus a separating comma.
+func jsonLineSize(line string) int {
+	return jsonStringLen(line) + 1
+}
+
 // IsAtSizeLimit returns true if the next JSON chunk of the request could
 // contain more than around maxBytes of data.
+//
+// It uses raw line lengths, which is cheap but underestimates the JSON size.
+// Pop measures the JSON size and enforces the limit.
 func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	approxSize := 0
 
 	for _, line := range request.HistoryLines {
 		approxSize += len(line)
-		if approxSize >= s.MaxRequestSizeBytes {
+		if approxSize >= s.maxRequestSizeBytes() {
 			return true
 		}
 	}
 
 	for _, line := range request.EventsLines {
 		approxSize += len(line)
-		if approxSize >= s.MaxRequestSizeBytes {
+		if approxSize >= s.maxRequestSizeBytes() {
 			return true
 		}
 	}
@@ -82,14 +100,14 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	// to track its size incrementally.
 	if !request.SummaryUpdates.IsEmpty() || s.UnsentSummary != "" {
 		approxSize += s.LastRunSummarySize
-		if approxSize >= s.MaxRequestSizeBytes {
+		if approxSize >= s.maxRequestSizeBytes() {
 			return true
 		}
 	}
 
 	for line := range request.ConsoleLines.FirstRunValues() {
 		approxSize += len(line)
-		if approxSize >= s.MaxRequestSizeBytes {
+		if approxSize >= s.maxRequestSizeBytes() {
 			return true
 		}
 	}
@@ -107,7 +125,7 @@ func (s *FileStreamState) Pop(
 	printer *observability.Printer,
 ) (*FileStreamRequestJSON, bool) {
 	builder := &requestJSONBuilder{}
-	builder.MaxSizeBytes = s.MaxRequestSizeBytes
+	builder.MaxSizeBytes = s.maxRequestSizeBytes()
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
@@ -142,7 +160,7 @@ func (s *FileStreamState) popHistory(
 	for len(request.HistoryLines) > 0 {
 		line := request.HistoryLines[0]
 
-		if !builder.TryAddSize(len(line)) {
+		if !builder.TryAddSize(jsonLineSize(line)) {
 			builder.HasMore = true
 			return
 		}
@@ -171,7 +189,7 @@ func (s *FileStreamState) popEvents(
 	for len(request.EventsLines) > 0 {
 		line := request.EventsLines[0]
 
-		if !builder.TryAddSize(len(line)) {
+		if !builder.TryAddSize(jsonLineSize(line)) {
 			builder.HasMore = true
 			return
 		}
@@ -244,7 +262,7 @@ func (s *FileStreamState) popSummary(
 		return
 	}
 
-	if !builder.TryAddSize(len(s.UnsentSummary)) {
+	if !builder.TryAddSize(jsonLineSize(s.UnsentSummary)) {
 		builder.HasMore = true
 		return
 	}
@@ -262,7 +280,7 @@ func (s *FileStreamState) popConsoleLines(
 		s.ConsoleLineOffset + request.ConsoleLines.FirstIndex()
 
 	for idx, line := range request.ConsoleLines.FirstRun() {
-		if !builder.TryAddSize(len(line)) {
+		if !builder.TryAddSize(jsonLineSize(line)) {
 			builder.HasMore = true
 			return
 		}

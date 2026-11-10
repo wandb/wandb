@@ -72,14 +72,15 @@ func (fs *fileStream) startTransmitting(
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
 	state := &FileStreamState{
-		MaxRequestSizeBytes: max(
-			int(fs.settings.GetFileStreamMaxBytes()),
+		MaxRequestSizeBytes: settingOrDefault(
+			fs.settings.GetFileStreamMaxBytes(),
 			defaultMaxRequestSizeBytes,
 		),
-		MaxFileLineSize: max(
-			int(fs.settings.GetFileStreamMaxLineBytes()),
+		MaxFileLineSize: settingOrDefault(
+			fs.settings.GetFileStreamMaxLineBytes(),
 			defaultMaxFileLineBytes,
 		),
+		SizeLimit: fs.sizeLimit,
 	}
 
 	if initialOffsets != nil {
@@ -97,7 +98,7 @@ func (fs *fileStream) startTransmitting(
 
 	feedback := TransmitLoop{
 		HeartbeatPeriod:        fs.heartbeatPeriod,
-		Send:                   fs.send,
+		Send:                   fs.sendSplittingIfTooLarge,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
 	}.Start(transmissions)
 
@@ -230,6 +231,21 @@ func (fs *fileStream) send(
 			err,
 			resp,
 		)
+	case resp.StatusCode == http.StatusRequestEntityTooLarge:
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+		_ = resp.Body.Close()
+
+		return &requestTooLargeError{
+			WireBytes: len(requestBody),
+			JSONBytes: len(jsonData),
+			err: fmt.Errorf(
+				"filestream: failed to upload: %v url=%v: %s",
+				resp.Status,
+				req.URL,
+				string(body),
+			),
+		}
+
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
@@ -244,6 +260,11 @@ func (fs *fileStream) send(
 		)
 
 	default:
+		fs.largestAcceptedWireBytes = max(
+			fs.largestAcceptedWireBytes,
+			len(requestBody),
+		)
+
 		if shouldLogStartAndEnd {
 			// Log after sending to record that the backend responded and should
 			// have the data in the request.
@@ -347,4 +368,13 @@ func (fs *fileStream) logRequestSummary(data *FileStreamRequestJSON) {
 	}
 
 	fs.logger.Info("filestream: sending request", attrs...)
+}
+
+// settingOrDefault returns the setting if it is positive, and otherwise
+// the default.
+func settingOrDefault(setting int32, defaultValue int) int {
+	if setting > 0 {
+		return int(setting)
+	}
+	return defaultValue
 }

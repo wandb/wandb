@@ -131,6 +131,13 @@ type fileStream struct {
 	// to prove the run is still alive.
 	heartbeatPeriod time.Duration
 
+	// sizeLimit lowers the request size cap after a 413 response.
+	sizeLimit *RequestSizeLimit
+
+	// largestAcceptedWireBytes is the size of the largest request body the
+	// server has accepted. It is only used by the transmit goroutine.
+	largestAcceptedWireBytes int
+
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
@@ -190,6 +197,7 @@ func (f *FileStreamFactory) New(
 		processChan:     make(chan Update, BufferSize),
 		feedbackWait:    &sync.WaitGroup{},
 		deadChanOnce:    &sync.Once{},
+		sizeLimit:       &RequestSizeLimit{},
 		deadChan:        make(chan struct{}),
 		stats:           f.Stats,
 	}
