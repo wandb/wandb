@@ -110,13 +110,16 @@ extend google.protobuf.EnumValueOptions {
 //
 // A field that was not measured is absent, never zero.
 message SystemMetricsRecord {
+  // When the sweep that produced the sample was scheduled, not when its
+  // collection finished.
   google.protobuf.Timestamp timestamp = 1;
 
-  // The subscriber's sampling interval.
+  // The time since the subscriber's previous sample, which is what the
+  // sample's averages cover. 0 for a subscriber's first sample.
   uint32 interval_ms = 2;
 
   // Samples dropped before this one because the subscriber did not read
-  // them. Each one is a gap of interval_ms.
+  // them. Each one is a gap of one sampling interval.
   uint32 dropped_samples = 3;
 
   // Who wrote the sample. Set by wandb-core.
