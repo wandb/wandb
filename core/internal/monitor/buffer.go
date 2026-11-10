@@ -63,11 +63,15 @@ func (mb *Buffer) Push(metrics *spb.StatsRecord) {
 		ts := metrics.Timestamp
 		v := item.ValueJson
 
-		// unmashal the value to a float64 and push it to the buffer
-		if v, err := simplejsonext.UnmarshalString(v); err == nil {
-			if v, ok := v.(float64); ok {
-				mb.push(k, ts, v)
-			}
+		value, err := simplejsonext.UnmarshalString(v)
+		if err != nil {
+			continue
+		}
+		switch value := value.(type) {
+		case float64:
+			mb.push(k, ts, value)
+		case int64:
+			mb.push(k, ts, float64(value))
 		}
 	}
 }

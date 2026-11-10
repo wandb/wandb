@@ -1020,6 +1020,14 @@ class Settings(BaseModel, validate_assignment=True):
     in development and release-candidate versions, off in releases.
     """
 
+    x_stats_typed: bool = False
+    """Store system metrics as typed records in the transaction log.
+
+    The sender uploads them as the legacy stats records to W&B servers that do
+    not support typed system metrics. When `False`, system metrics are stored
+    as legacy stats records.
+    """
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
 
