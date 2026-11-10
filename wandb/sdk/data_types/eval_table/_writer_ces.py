@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import gzip
+import itertools
 import logging
 import math
 import os
@@ -136,8 +137,8 @@ def _add_rows(
     The file is deleted when the context exits. wandb-core only reads it,
     and responds after the upload finishes.
     """
-    rows_bytes = sum(row.ByteSize() for row in rows)
-    if rows_bytes <= _ROWS_FILE_THRESHOLD_BYTES:
+    cumulative_bytes = itertools.accumulate(row.ByteSize() for row in rows)
+    if all(size <= _ROWS_FILE_THRESHOLD_BYTES for size in cumulative_bytes):
         request.rows.extend(rows)
         yield
         return
