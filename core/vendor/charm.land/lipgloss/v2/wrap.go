@@ -12,9 +12,12 @@ import (
 func Wrap(s string, width int, breakpoints string) string {
 	var buf bytes.Buffer
 	s = ansi.Wrap(s, width, breakpoints)
+	// The writer only inserts resets around newlines, so the output is
+	// the same length as the input plus a little. Size it once.
+	buf.Grow(len(s) + len(s)/8)
 	w := NewWrapWriter(&buf)
-	defer w.Close() //nolint:errcheck
 	_, _ = io.WriteString(w, s)
+	_ = w.Close()
 	return buf.String()
 }
 
@@ -69,27 +72,39 @@ func (w *WrapWriter) Write(p []byte) (int, error) {
 		// nested writer chains; treat it as a no-op rather than panicking.
 		return len(p), nil
 	}
+	// Bytes are forwarded in runs rather than one at a time: only a
+	// newline needs anything written around it, so everything between
+	// newlines is a single downstream Write instead of one per byte.
+	start := 0
 	for i := range p {
 		b := p[i]
 		w.p.Advance(b)
-		if b == '\n' {
-			if !w.style.IsZero() {
-				_, _ = w.w.Write([]byte(ansi.ResetStyle))
-			}
-			if !w.link.IsZero() {
-				_, _ = w.w.Write([]byte(ansi.ResetHyperlink()))
-			}
+		if b != '\n' {
+			continue
 		}
 
-		_, _ = w.w.Write([]byte{b})
-		if b == '\n' {
-			if !w.link.IsZero() {
-				_, _ = w.w.Write([]byte(ansi.SetHyperlink(w.link.URL, w.link.Params)))
-			}
-			if !w.style.IsZero() {
-				_, _ = w.w.Write([]byte(w.style.String()))
-			}
+		if i > start {
+			_, _ = w.w.Write(p[start:i])
 		}
+		if !w.style.IsZero() {
+			_, _ = w.w.Write([]byte(ansi.ResetStyle))
+		}
+		if !w.link.IsZero() {
+			_, _ = w.w.Write([]byte(ansi.ResetHyperlink()))
+		}
+
+		_, _ = w.w.Write(p[i : i+1])
+		start = i + 1
+
+		if !w.link.IsZero() {
+			_, _ = w.w.Write([]byte(ansi.SetHyperlink(w.link.URL, w.link.Params)))
+		}
+		if !w.style.IsZero() {
+			_, _ = w.w.Write([]byte(w.style.String()))
+		}
+	}
+	if start < len(p) {
+		_, _ = w.w.Write(p[start:])
 	}
 
 	return len(p), nil

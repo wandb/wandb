@@ -196,7 +196,7 @@ func (k JSONWebKey) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON reads a key from its JSON representation.
 //
-// Returns ErrUnsupportedKeyType for unrecognized or unsupported "kty" header values.
+// Returns ErrUnsupportedKeyType for unsupported key types or parameters.
 //
 // Directly unmarshaling a JWK is not safe for untrusted input.
 func (k *JSONWebKey) UnmarshalJSON(data []byte) error {
@@ -577,7 +577,7 @@ func rsaPublicKey(N, E *byteBuffer) (*rsa.PublicKey, error) {
 
 	n := N.bigInt()
 	if n.BitLen() > MaxRSAModulusBits {
-		return nil, fmt.Errorf("go-jose/go-jose: invalid RSA key, modulus too large")
+		return nil, ErrUnsupportedKeyType
 	}
 
 	e := new(big.Int).SetBytes(E.bytes())
@@ -626,7 +626,7 @@ func (key rawJSONWebKey) ecPublicKey() (*ecdsa.PublicKey, error) {
 	case "P-521":
 		curve = elliptic.P521()
 	default:
-		return nil, fmt.Errorf("go-jose/go-jose: unsupported elliptic curve '%s'", key.Crv)
+		return nil, ErrUnsupportedKeyType
 	}
 
 	if key.X == nil || key.Y == nil {
@@ -833,7 +833,7 @@ func (key rawJSONWebKey) ecPrivateKey() (*ecdsa.PrivateKey, error) {
 	case "P-521":
 		curve = elliptic.P521()
 	default:
-		return nil, fmt.Errorf("go-jose/go-jose: unsupported elliptic curve '%s'", key.Crv)
+		return nil, ErrUnsupportedKeyType
 	}
 
 	var missing []string
