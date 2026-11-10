@@ -154,7 +154,9 @@ def _add_rows(
         request.rows_file_path = file.name
         yield
     finally:
-        with contextlib.suppress(FileNotFoundError):
+        # On Windows, removal fails if an interrupted upload still has the
+        # file open. That must not replace the original error.
+        with contextlib.suppress(OSError):
             os.remove(file.name)
 
 
