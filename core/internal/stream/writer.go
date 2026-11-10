@@ -57,6 +57,10 @@ type Writer struct {
 
 	// syncFile, if set, replaces the transaction log's Sync in tests.
 	syncFile func() error
+
+	// exitSync tracks the fsync started after the exit record, which must
+	// finish before the transaction log is closed.
+	exitSync sync.WaitGroup
 }
 
 // New returns a new Writer.
@@ -94,6 +98,7 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 		select {
 		case work, ok := <-allWork:
 			if !ok {
+				w.exitSync.Wait()
 				w.finish()
 				return
 			}
@@ -144,9 +149,9 @@ func (w *Writer) process(work runwork.Work) {
 	//
 	// This runs after the exit record is passed on so that a slow fsync
 	// does not delay the Sender, which starts the run's finish timeout.
-	// Closing the log waits for it.
+	// Do waits for it before closing the log.
 	if savedWork.IsSaved && record.GetExit() != nil {
-		go w.syncOnExit()
+		w.exitSync.Go(w.syncOnExit)
 	}
 }
 
