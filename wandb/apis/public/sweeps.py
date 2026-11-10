@@ -1042,6 +1042,7 @@ def _get_sweep_state(
     return response["project"]["sweep"]["state"]
 
 
+@normalize_exceptions
 def _set_sweep_state(
     api: Api,
     sweep: str,
@@ -1054,9 +1055,9 @@ def _set_sweep_state(
     s = _sweep_with_runs(api, sweep, "{}", entity=entity, project=project)
     curr_state = s["state"].upper()
     if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-        raise Exception(f"Cannot pause {curr_state.lower()} sweep.")
+        raise UsageError(f"Cannot pause {curr_state.lower()} sweep.")
     elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-        raise Exception(f"Sweep already {curr_state.lower()}.")
+        raise UsageError(f"Sweep already {curr_state.lower()}.")
     mutation = """
     mutation UpsertSweep(
         $id: ID,
