@@ -279,7 +279,7 @@ func (x TpuRuntimeMetrics_DistributionKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TpuRuntimeMetrics_DistributionKind.Descriptor instead.
 func (TpuRuntimeMetrics_DistributionKind) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{22, 0}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{23, 0}
 }
 
 type MetricInfo struct {
@@ -1001,8 +1001,11 @@ func (x *SwapMetrics) GetUsedRatio() float64 {
 type CpuMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Per logical core. Host details only.
-	Cores         []*CpuCoreMetrics `protobuf:"bytes,1,rep,name=cores,proto3" json:"cores,omitempty"`
-	TemperatureC  *float64          `protobuf:"fixed64,2,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
+	Cores        []*CpuCoreMetrics `protobuf:"bytes,1,rep,name=cores,proto3" json:"cores,omitempty"`
+	TemperatureC *float64          `protobuf:"fixed64,2,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
+	// Per CPU package. Linux reads the packages from sysfs; other platforms
+	// report one, without times.
+	Sockets       []*CpuSocketMetrics `protobuf:"bytes,3,rep,name=sockets,proto3" json:"sockets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1051,6 +1054,100 @@ func (x *CpuMetrics) GetTemperatureC() float64 {
 	return 0
 }
 
+func (x *CpuMetrics) GetSockets() []*CpuSocketMetrics {
+	if x != nil {
+		return x.Sockets
+	}
+	return nil
+}
+
+type CpuSocketMetrics struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The physical package id.
+	Index         uint32  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Model         string  `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	PhysicalCores *uint32 `protobuf:"varint,3,opt,name=physical_cores,json=physicalCores,proto3,oneof" json:"physical_cores,omitempty"`
+	LogicalCpus   *uint32 `protobuf:"varint,4,opt,name=logical_cpus,json=logicalCpus,proto3,oneof" json:"logical_cpus,omitempty"`
+	// CPU seconds of every core in the package since the first sample. User
+	// includes nice; system includes irq and softirq.
+	UserTimeS     *float64 `protobuf:"fixed64,5,opt,name=user_time_s,json=userTimeS,proto3,oneof" json:"user_time_s,omitempty"`
+	SystemTimeS   *float64 `protobuf:"fixed64,6,opt,name=system_time_s,json=systemTimeS,proto3,oneof" json:"system_time_s,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CpuSocketMetrics) Reset() {
+	*x = CpuSocketMetrics{}
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CpuSocketMetrics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CpuSocketMetrics) ProtoMessage() {}
+
+func (x *CpuSocketMetrics) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CpuSocketMetrics.ProtoReflect.Descriptor instead.
+func (*CpuSocketMetrics) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CpuSocketMetrics) GetIndex() uint32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *CpuSocketMetrics) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *CpuSocketMetrics) GetPhysicalCores() uint32 {
+	if x != nil && x.PhysicalCores != nil {
+		return *x.PhysicalCores
+	}
+	return 0
+}
+
+func (x *CpuSocketMetrics) GetLogicalCpus() uint32 {
+	if x != nil && x.LogicalCpus != nil {
+		return *x.LogicalCpus
+	}
+	return 0
+}
+
+func (x *CpuSocketMetrics) GetUserTimeS() float64 {
+	if x != nil && x.UserTimeS != nil {
+		return *x.UserTimeS
+	}
+	return 0
+}
+
+func (x *CpuSocketMetrics) GetSystemTimeS() float64 {
+	if x != nil && x.SystemTimeS != nil {
+		return *x.SystemTimeS
+	}
+	return 0
+}
+
 type CpuCoreMetrics struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Index            uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
@@ -1061,7 +1158,7 @@ type CpuCoreMetrics struct {
 
 func (x *CpuCoreMetrics) Reset() {
 	*x = CpuCoreMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[9]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1073,7 +1170,7 @@ func (x *CpuCoreMetrics) String() string {
 func (*CpuCoreMetrics) ProtoMessage() {}
 
 func (x *CpuCoreMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[9]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1086,7 +1183,7 @@ func (x *CpuCoreMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CpuCoreMetrics.ProtoReflect.Descriptor instead.
 func (*CpuCoreMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{9}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CpuCoreMetrics) GetIndex() uint32 {
@@ -1114,7 +1211,7 @@ type LoadMetrics struct {
 
 func (x *LoadMetrics) Reset() {
 	*x = LoadMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1126,7 +1223,7 @@ func (x *LoadMetrics) String() string {
 func (*LoadMetrics) ProtoMessage() {}
 
 func (x *LoadMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1139,7 +1236,7 @@ func (x *LoadMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadMetrics.ProtoReflect.Descriptor instead.
 func (*LoadMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{10}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *LoadMetrics) GetOneMinute() float64 {
@@ -1175,7 +1272,7 @@ type DiskUsageMetrics struct {
 
 func (x *DiskUsageMetrics) Reset() {
 	*x = DiskUsageMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1187,7 +1284,7 @@ func (x *DiskUsageMetrics) String() string {
 func (*DiskUsageMetrics) ProtoMessage() {}
 
 func (x *DiskUsageMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1200,7 +1297,7 @@ func (x *DiskUsageMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskUsageMetrics.ProtoReflect.Descriptor instead.
 func (*DiskUsageMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{11}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DiskUsageMetrics) GetPath() string {
@@ -1237,7 +1334,7 @@ type DiskIoMetrics struct {
 
 func (x *DiskIoMetrics) Reset() {
 	*x = DiskIoMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1249,7 +1346,7 @@ func (x *DiskIoMetrics) String() string {
 func (*DiskIoMetrics) ProtoMessage() {}
 
 func (x *DiskIoMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1262,7 +1359,7 @@ func (x *DiskIoMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskIoMetrics.ProtoReflect.Descriptor instead.
 func (*DiskIoMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{12}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DiskIoMetrics) GetDevice() string {
@@ -1299,7 +1396,7 @@ type NetworkMetrics struct {
 
 func (x *NetworkMetrics) Reset() {
 	*x = NetworkMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1311,7 +1408,7 @@ func (x *NetworkMetrics) String() string {
 func (*NetworkMetrics) ProtoMessage() {}
 
 func (x *NetworkMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1324,7 +1421,7 @@ func (x *NetworkMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkMetrics.ProtoReflect.Descriptor instead.
 func (*NetworkMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{13}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *NetworkMetrics) GetSentBytes() uint64 {
@@ -1364,7 +1461,7 @@ type AppleHostMetrics struct {
 
 func (x *AppleHostMetrics) Reset() {
 	*x = AppleHostMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +1473,7 @@ func (x *AppleHostMetrics) String() string {
 func (*AppleHostMetrics) ProtoMessage() {}
 
 func (x *AppleHostMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1389,7 +1486,7 @@ func (x *AppleHostMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppleHostMetrics.ProtoReflect.Descriptor instead.
 func (*AppleHostMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{14}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AppleHostMetrics) GetMemoryUsedBytes() uint64 {
@@ -1465,13 +1562,21 @@ type ProcessMetrics struct {
 	// User and system CPU time over the same capacity. Not on Windows.
 	CpuUserRatio   *float64 `protobuf:"fixed64,7,opt,name=cpu_user_ratio,json=cpuUserRatio,proto3,oneof" json:"cpu_user_ratio,omitempty"`
 	CpuSystemRatio *float64 `protobuf:"fixed64,8,opt,name=cpu_system_ratio,json=cpuSystemRatio,proto3,oneof" json:"cpu_system_ratio,omitempty"`
+	// The CPUs the cgroup may use: the lower of cpu.max's quota and the
+	// cpuset, when either limits the process. Linux only.
+	CgroupCpuLimit *float64 `protobuf:"fixed64,9,opt,name=cgroup_cpu_limit,json=cgroupCpuLimit,proto3,oneof" json:"cgroup_cpu_limit,omitempty"`
+	// CPU seconds of the tree in user and system mode since the first sample.
+	// Summed from each process's own times, so a process that exits keeps
+	// what it used. Not on Windows.
+	CpuUserTimeS   *float64 `protobuf:"fixed64,10,opt,name=cpu_user_time_s,json=cpuUserTimeS,proto3,oneof" json:"cpu_user_time_s,omitempty"`
+	CpuSystemTimeS *float64 `protobuf:"fixed64,11,opt,name=cpu_system_time_s,json=cpuSystemTimeS,proto3,oneof" json:"cpu_system_time_s,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ProcessMetrics) Reset() {
 	*x = ProcessMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1483,7 +1588,7 @@ func (x *ProcessMetrics) String() string {
 func (*ProcessMetrics) ProtoMessage() {}
 
 func (x *ProcessMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1496,7 +1601,7 @@ func (x *ProcessMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessMetrics.ProtoReflect.Descriptor instead.
 func (*ProcessMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{15}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ProcessMetrics) GetCpuRatio() float64 {
@@ -1555,6 +1660,27 @@ func (x *ProcessMetrics) GetCpuSystemRatio() float64 {
 	return 0
 }
 
+func (x *ProcessMetrics) GetCgroupCpuLimit() float64 {
+	if x != nil && x.CgroupCpuLimit != nil {
+		return *x.CgroupCpuLimit
+	}
+	return 0
+}
+
+func (x *ProcessMetrics) GetCpuUserTimeS() float64 {
+	if x != nil && x.CpuUserTimeS != nil {
+		return *x.CpuUserTimeS
+	}
+	return 0
+}
+
+func (x *ProcessMetrics) GetCpuSystemTimeS() float64 {
+	if x != nil && x.CpuSystemTimeS != nil {
+		return *x.CpuSystemTimeS
+	}
+	return 0
+}
+
 type SdkMetrics struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	CpuRatio *float64               `protobuf:"fixed64,1,opt,name=cpu_ratio,json=cpuRatio,proto3,oneof" json:"cpu_ratio,omitempty"`
@@ -1568,7 +1694,7 @@ type SdkMetrics struct {
 
 func (x *SdkMetrics) Reset() {
 	*x = SdkMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1580,7 +1706,7 @@ func (x *SdkMetrics) String() string {
 func (*SdkMetrics) ProtoMessage() {}
 
 func (x *SdkMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1593,7 +1719,7 @@ func (x *SdkMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdkMetrics.ProtoReflect.Descriptor instead.
 func (*SdkMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{16}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SdkMetrics) GetCpuRatio() float64 {
@@ -1681,7 +1807,7 @@ type AcceleratorMetrics struct {
 
 func (x *AcceleratorMetrics) Reset() {
 	*x = AcceleratorMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[17]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1693,7 +1819,7 @@ func (x *AcceleratorMetrics) String() string {
 func (*AcceleratorMetrics) ProtoMessage() {}
 
 func (x *AcceleratorMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[17]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1706,7 +1832,7 @@ func (x *AcceleratorMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceleratorMetrics.ProtoReflect.Descriptor instead.
 func (*AcceleratorMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{17}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AcceleratorMetrics) GetType() AcceleratorType {
@@ -1973,7 +2099,7 @@ type NvidiaMetrics struct {
 
 func (x *NvidiaMetrics) Reset() {
 	*x = NvidiaMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[18]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1985,7 +2111,7 @@ func (x *NvidiaMetrics) String() string {
 func (*NvidiaMetrics) ProtoMessage() {}
 
 func (x *NvidiaMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[18]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1998,7 +2124,7 @@ func (x *NvidiaMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NvidiaMetrics.ProtoReflect.Descriptor instead.
 func (*NvidiaMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{18}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *NvidiaMetrics) GetSmClockHz() float64 {
@@ -2151,7 +2277,7 @@ type AmdMetrics struct {
 
 func (x *AmdMetrics) Reset() {
 	*x = AmdMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[19]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2163,7 +2289,7 @@ func (x *AmdMetrics) String() string {
 func (*AmdMetrics) ProtoMessage() {}
 
 func (x *AmdMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[19]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2176,7 +2302,7 @@ func (x *AmdMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AmdMetrics.ProtoReflect.Descriptor instead.
 func (*AmdMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{19}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AmdMetrics) GetMemoryOverdriveRatio() float64 {
@@ -2200,7 +2326,7 @@ type TpuMetrics struct {
 
 func (x *TpuMetrics) Reset() {
 	*x = TpuMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[20]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2212,7 +2338,7 @@ func (x *TpuMetrics) String() string {
 func (*TpuMetrics) ProtoMessage() {}
 
 func (x *TpuMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[20]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2225,7 +2351,7 @@ func (x *TpuMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TpuMetrics.ProtoReflect.Descriptor instead.
 func (*TpuMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{20}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TpuMetrics) GetDutyCycleRatio() float64 {
@@ -2277,7 +2403,7 @@ type TrainiumMetrics struct {
 
 func (x *TrainiumMetrics) Reset() {
 	*x = TrainiumMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[21]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2289,7 +2415,7 @@ func (x *TrainiumMetrics) String() string {
 func (*TrainiumMetrics) ProtoMessage() {}
 
 func (x *TrainiumMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[21]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2302,7 +2428,7 @@ func (x *TrainiumMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrainiumMetrics.ProtoReflect.Descriptor instead.
 func (*TrainiumMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{21}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *TrainiumMetrics) GetMemoryConstantsBytes() uint64 {
@@ -2351,7 +2477,7 @@ type TpuRuntimeMetrics struct {
 
 func (x *TpuRuntimeMetrics) Reset() {
 	*x = TpuRuntimeMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[22]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2363,7 +2489,7 @@ func (x *TpuRuntimeMetrics) String() string {
 func (*TpuRuntimeMetrics) ProtoMessage() {}
 
 func (x *TpuRuntimeMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[22]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2376,7 +2502,7 @@ func (x *TpuRuntimeMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TpuRuntimeMetrics.ProtoReflect.Descriptor instead.
 func (*TpuRuntimeMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{22}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *TpuRuntimeMetrics) GetDistributions() []*TpuRuntimeMetrics_Distribution {
@@ -2408,7 +2534,7 @@ type TrainiumHostMetrics struct {
 
 func (x *TrainiumHostMetrics) Reset() {
 	*x = TrainiumHostMetrics{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[23]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2420,7 +2546,7 @@ func (x *TrainiumHostMetrics) String() string {
 func (*TrainiumHostMetrics) ProtoMessage() {}
 
 func (x *TrainiumHostMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[23]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2433,7 +2559,7 @@ func (x *TrainiumHostMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrainiumHostMetrics.ProtoReflect.Descriptor instead.
 func (*TrainiumHostMetrics) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{23}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *TrainiumHostMetrics) GetHostMemoryBytes() uint64 {
@@ -2498,7 +2624,7 @@ type GenericMetric struct {
 
 func (x *GenericMetric) Reset() {
 	*x = GenericMetric{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[24]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +2636,7 @@ func (x *GenericMetric) String() string {
 func (*GenericMetric) ProtoMessage() {}
 
 func (x *GenericMetric) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[24]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +2649,7 @@ func (x *GenericMetric) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenericMetric.ProtoReflect.Descriptor instead.
 func (*GenericMetric) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{24}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GenericMetric) GetSource() string {
@@ -2578,7 +2704,7 @@ type MetricLabel struct {
 
 func (x *MetricLabel) Reset() {
 	*x = MetricLabel{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[25]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2590,7 +2716,7 @@ func (x *MetricLabel) String() string {
 func (*MetricLabel) ProtoMessage() {}
 
 func (x *MetricLabel) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[25]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2603,7 +2729,7 @@ func (x *MetricLabel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricLabel.ProtoReflect.Descriptor instead.
 func (*MetricLabel) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{25}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *MetricLabel) GetKey() string {
@@ -2641,7 +2767,7 @@ type TpuRuntimeMetrics_Distribution struct {
 
 func (x *TpuRuntimeMetrics_Distribution) Reset() {
 	*x = TpuRuntimeMetrics_Distribution{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[26]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2653,7 +2779,7 @@ func (x *TpuRuntimeMetrics_Distribution) String() string {
 func (*TpuRuntimeMetrics_Distribution) ProtoMessage() {}
 
 func (x *TpuRuntimeMetrics_Distribution) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[26]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2666,7 +2792,7 @@ func (x *TpuRuntimeMetrics_Distribution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TpuRuntimeMetrics_Distribution.ProtoReflect.Descriptor instead.
 func (*TpuRuntimeMetrics_Distribution) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{22, 0}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{23, 0}
 }
 
 func (x *TpuRuntimeMetrics_Distribution) GetKind() TpuRuntimeMetrics_DistributionKind {
@@ -2735,7 +2861,7 @@ type TpuRuntimeMetrics_QueueSize struct {
 
 func (x *TpuRuntimeMetrics_QueueSize) Reset() {
 	*x = TpuRuntimeMetrics_QueueSize{}
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[27]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2747,7 +2873,7 @@ func (x *TpuRuntimeMetrics_QueueSize) String() string {
 func (*TpuRuntimeMetrics_QueueSize) ProtoMessage() {}
 
 func (x *TpuRuntimeMetrics_QueueSize) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[27]
+	mi := &file_wandb_proto_wandb_system_metrics_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2760,7 +2886,7 @@ func (x *TpuRuntimeMetrics_QueueSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TpuRuntimeMetrics_QueueSize.ProtoReflect.Descriptor instead.
 func (*TpuRuntimeMetrics_QueueSize) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{22, 1}
+	return file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP(), []int{23, 1}
 }
 
 func (x *TpuRuntimeMetrics_QueueSize) GetLabel() string {
@@ -2922,15 +3048,33 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x011\x12\tSwap Used\"\x16\x1a\x11swap.used_percent\"\x01%1\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B8\x12\x19system.paging.utilization\x1a\x1b\n" +
 	"\x13system.paging.state\x12\x04usedH\x01R\tusedRatio\x88\x01\x01B\r\n" +
 	"\v_used_bytesB\r\n" +
-	"\v_used_ratio\"\xe6\x01\n" +
+	"\v_used_ratio\"\xa2\x02\n" +
 	"\n" +
 	"CpuMetrics\x124\n" +
 	"\x05cores\x18\x01 \x03(\v2\x1e.wandb_internal.CpuCoreMetricsR\x05cores\x12\x8f\x01\n" +
 	"\rtemperature_c\x18\x02 \x01(\x01Beʲ\x1ca\n" +
 	"\x03Cel\x12\x0fCPU Temperature\"\x0e\x1a\fcpu.avg_tempB9\x12\x0ehw.temperature\x1a\f\n" +
 	"\x05hw.id\x12\x03cpu\x1a\x19\n" +
-	"\x12hw.sensor_location\x12\x03cpuH\x00R\ftemperatureC\x88\x01\x01B\x10\n" +
-	"\x0e_temperature_c\"\xf0\x01\n" +
+	"\x12hw.sensor_location\x12\x03cpuH\x00R\ftemperatureC\x88\x01\x01\x12:\n" +
+	"\asockets\x18\x03 \x03(\v2 .wandb_internal.CpuSocketMetricsR\asocketsB\x10\n" +
+	"\x0e_temperature_c\"\xd2\x04\n" +
+	"\x10CpuSocketMetrics\x122\n" +
+	"\x05index\x18\x01 \x01(\rB\x1cҲ\x1c\x18com.coreweave.cpu.socketR\x05index\x12\"\n" +
+	"\x05model\x18\x02 \x01(\tB\fҲ\x1c\bhw.modelR\x05model\x12h\n" +
+	"\x0ephysical_cores\x18\x03 \x01(\rB<ʲ\x1c8\n" +
+	"\x05{cpu}\x12\x12CPU Physical CoresB\x1b\x12\x19system.cpu.physical.countH\x00R\rphysicalCores\x88\x01\x01\x12b\n" +
+	"\flogical_cpus\x18\x04 \x01(\rB:ʲ\x1c6\n" +
+	"\x05{cpu}\x12\x11CPU Logical CoresB\x1a\x12\x18system.cpu.logical.countH\x01R\vlogicalCpus\x88\x01\x01\x12d\n" +
+	"\vuser_time_s\x18\x05 \x01(\x01B?ʲ\x1c;\n" +
+	"\x01s\x12\x0fCPU Time (User)\x18\x01B#\x12\x0fsystem.cpu.time\x1a\x10\n" +
+	"\bcpu.mode\x12\x04userH\x02R\tuserTimeS\x88\x01\x01\x12l\n" +
+	"\rsystem_time_s\x18\x06 \x01(\x01BCʲ\x1c?\n" +
+	"\x01s\x12\x11CPU Time (System)\x18\x01B%\x12\x0fsystem.cpu.time\x1a\x12\n" +
+	"\bcpu.mode\x12\x06systemH\x03R\vsystemTimeS\x88\x01\x01B\x11\n" +
+	"\x0f_physical_coresB\x0f\n" +
+	"\r_logical_cpusB\x0e\n" +
+	"\f_user_time_sB\x10\n" +
+	"\x0e_system_time_s\"\xf0\x01\n" +
 	"\x0eCpuCoreMetrics\x12,\n" +
 	"\x05index\x18\x01 \x01(\rB\x16Ҳ\x1c\x12cpu.logical_numberR\x05index\x12\x99\x01\n" +
 	"\x11utilization_ratio\x18\x02 \x01(\x01Bgʲ\x1cc\n" +
@@ -3018,7 +3162,7 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x17_pcpu_utilization_ratioB\x14\n" +
 	"\x12_pcpu_frequency_hzB\x0e\n" +
 	"\f_cpu_power_wB\x11\n" +
-	"\x0f_system_power_w\"\xe2\t\n" +
+	"\x0f_system_power_w\"\x81\r\n" +
 	"\x0eProcessMetrics\x12u\n" +
 	"\tcpu_ratio\x18\x01 \x01(\x01BSʲ\x1cO\n" +
 	"\x011\x12\x17Process CPU Utilization\"\b\x1a\x03cpu\"\x01%B'\x12%com.coreweave.process.cpu.utilizationH\x00R\bcpuRatio\x88\x01\x01\x12t\n" +
@@ -3037,7 +3181,17 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\bcpu.mode\x12\x04userH\x06R\fcpuUserRatio\x88\x01\x01\x12\x87\x01\n" +
 	"\x10cpu_system_ratio\x18\b \x01(\x01BXʲ\x1cT\n" +
 	"\x011\x12 Process CPU Utilization (System)B-\x12\x17process.cpu.utilization\x1a\x12\n" +
-	"\bcpu.mode\x12\x06systemH\aR\x0ecpuSystemRatio\x88\x01\x01B\f\n" +
+	"\bcpu.mode\x12\x06systemH\aR\x0ecpuSystemRatio\x88\x01\x01\x12j\n" +
+	"\x10cgroup_cpu_limit\x18\t \x01(\x01B;ʲ\x1c7\n" +
+	"\x05{cpu}\x12\tCPU LimitB#\x12!com.coreweave.container.cpu.limitH\bR\x0ecgroupCpuLimit\x88\x01\x01\x12t\n" +
+	"\x0fcpu_user_time_s\x18\n" +
+	" \x01(\x01BHʲ\x1cD\n" +
+	"\x01s\x12\x17Process CPU Time (User)\x18\x01B$\x12\x10process.cpu.time\x1a\x10\n" +
+	"\bcpu.mode\x12\x04userH\tR\fcpuUserTimeS\x88\x01\x01\x12|\n" +
+	"\x11cpu_system_time_s\x18\v \x01(\x01BLʲ\x1cH\n" +
+	"\x01s\x12\x19Process CPU Time (System)\x18\x01B&\x12\x10process.cpu.time\x1a\x12\n" +
+	"\bcpu.mode\x12\x06systemH\n" +
+	"R\x0ecpuSystemTimeS\x88\x01\x01B\f\n" +
 	"\n" +
 	"_cpu_ratioB\f\n" +
 	"\n" +
@@ -3048,7 +3202,10 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x1b_cgroup_cpu_throttled_ratioB\x13\n" +
 	"\x11_cgroup_oom_killsB\x11\n" +
 	"\x0f_cpu_user_ratioB\x13\n" +
-	"\x11_cpu_system_ratio\"\xce\x05\n" +
+	"\x11_cpu_system_ratioB\x13\n" +
+	"\x11_cgroup_cpu_limitB\x12\n" +
+	"\x10_cpu_user_time_sB\x14\n" +
+	"\x12_cpu_system_time_s\"\xce\x05\n" +
 	"\n" +
 	"SdkMetrics\x12\x9a\x01\n" +
 	"\tcpu_ratio\x18\x01 \x01(\x01Bxʲ\x1ct\n" +
@@ -3389,7 +3546,7 @@ func file_wandb_proto_wandb_system_metrics_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_system_metrics_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_wandb_proto_wandb_system_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_wandb_proto_wandb_system_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_wandb_proto_wandb_system_metrics_proto_goTypes = []any{
 	(Binding)(0),                            // 0: wandb_internal.Binding
 	(AcceleratorType)(0),                    // 1: wandb_internal.AcceleratorType
@@ -3404,77 +3561,79 @@ var file_wandb_proto_wandb_system_metrics_proto_goTypes = []any{
 	(*MemoryMetrics)(nil),                   // 10: wandb_internal.MemoryMetrics
 	(*SwapMetrics)(nil),                     // 11: wandb_internal.SwapMetrics
 	(*CpuMetrics)(nil),                      // 12: wandb_internal.CpuMetrics
-	(*CpuCoreMetrics)(nil),                  // 13: wandb_internal.CpuCoreMetrics
-	(*LoadMetrics)(nil),                     // 14: wandb_internal.LoadMetrics
-	(*DiskUsageMetrics)(nil),                // 15: wandb_internal.DiskUsageMetrics
-	(*DiskIoMetrics)(nil),                   // 16: wandb_internal.DiskIoMetrics
-	(*NetworkMetrics)(nil),                  // 17: wandb_internal.NetworkMetrics
-	(*AppleHostMetrics)(nil),                // 18: wandb_internal.AppleHostMetrics
-	(*ProcessMetrics)(nil),                  // 19: wandb_internal.ProcessMetrics
-	(*SdkMetrics)(nil),                      // 20: wandb_internal.SdkMetrics
-	(*AcceleratorMetrics)(nil),              // 21: wandb_internal.AcceleratorMetrics
-	(*NvidiaMetrics)(nil),                   // 22: wandb_internal.NvidiaMetrics
-	(*AmdMetrics)(nil),                      // 23: wandb_internal.AmdMetrics
-	(*TpuMetrics)(nil),                      // 24: wandb_internal.TpuMetrics
-	(*TrainiumMetrics)(nil),                 // 25: wandb_internal.TrainiumMetrics
-	(*TpuRuntimeMetrics)(nil),               // 26: wandb_internal.TpuRuntimeMetrics
-	(*TrainiumHostMetrics)(nil),             // 27: wandb_internal.TrainiumHostMetrics
-	(*GenericMetric)(nil),                   // 28: wandb_internal.GenericMetric
-	(*MetricLabel)(nil),                     // 29: wandb_internal.MetricLabel
-	(*TpuRuntimeMetrics_Distribution)(nil),  // 30: wandb_internal.TpuRuntimeMetrics.Distribution
-	(*TpuRuntimeMetrics_QueueSize)(nil),     // 31: wandb_internal.TpuRuntimeMetrics.QueueSize
-	(*timestamppb.Timestamp)(nil),           // 32: google.protobuf.Timestamp
-	(*XRecordInfo)(nil),                     // 33: wandb_internal._RecordInfo
-	(*descriptorpb.FieldOptions)(nil),       // 34: google.protobuf.FieldOptions
-	(*descriptorpb.EnumValueOptions)(nil),   // 35: google.protobuf.EnumValueOptions
+	(*CpuSocketMetrics)(nil),                // 13: wandb_internal.CpuSocketMetrics
+	(*CpuCoreMetrics)(nil),                  // 14: wandb_internal.CpuCoreMetrics
+	(*LoadMetrics)(nil),                     // 15: wandb_internal.LoadMetrics
+	(*DiskUsageMetrics)(nil),                // 16: wandb_internal.DiskUsageMetrics
+	(*DiskIoMetrics)(nil),                   // 17: wandb_internal.DiskIoMetrics
+	(*NetworkMetrics)(nil),                  // 18: wandb_internal.NetworkMetrics
+	(*AppleHostMetrics)(nil),                // 19: wandb_internal.AppleHostMetrics
+	(*ProcessMetrics)(nil),                  // 20: wandb_internal.ProcessMetrics
+	(*SdkMetrics)(nil),                      // 21: wandb_internal.SdkMetrics
+	(*AcceleratorMetrics)(nil),              // 22: wandb_internal.AcceleratorMetrics
+	(*NvidiaMetrics)(nil),                   // 23: wandb_internal.NvidiaMetrics
+	(*AmdMetrics)(nil),                      // 24: wandb_internal.AmdMetrics
+	(*TpuMetrics)(nil),                      // 25: wandb_internal.TpuMetrics
+	(*TrainiumMetrics)(nil),                 // 26: wandb_internal.TrainiumMetrics
+	(*TpuRuntimeMetrics)(nil),               // 27: wandb_internal.TpuRuntimeMetrics
+	(*TrainiumHostMetrics)(nil),             // 28: wandb_internal.TrainiumHostMetrics
+	(*GenericMetric)(nil),                   // 29: wandb_internal.GenericMetric
+	(*MetricLabel)(nil),                     // 30: wandb_internal.MetricLabel
+	(*TpuRuntimeMetrics_Distribution)(nil),  // 31: wandb_internal.TpuRuntimeMetrics.Distribution
+	(*TpuRuntimeMetrics_QueueSize)(nil),     // 32: wandb_internal.TpuRuntimeMetrics.QueueSize
+	(*timestamppb.Timestamp)(nil),           // 33: google.protobuf.Timestamp
+	(*XRecordInfo)(nil),                     // 34: wandb_internal._RecordInfo
+	(*descriptorpb.FieldOptions)(nil),       // 35: google.protobuf.FieldOptions
+	(*descriptorpb.EnumValueOptions)(nil),   // 36: google.protobuf.EnumValueOptions
 }
 var file_wandb_proto_wandb_system_metrics_proto_depIdxs = []int32{
 	2,  // 0: wandb_internal.MetricInfo.kind:type_name -> wandb_internal.MetricInfo.Kind
 	6,  // 1: wandb_internal.MetricInfo.legacy:type_name -> wandb_internal.LegacyKey
 	5,  // 2: wandb_internal.MetricInfo.names:type_name -> wandb_internal.MetricName
 	1,  // 3: wandb_internal.MetricName.accelerator_type:type_name -> wandb_internal.AcceleratorType
-	29, // 4: wandb_internal.MetricName.attributes:type_name -> wandb_internal.MetricLabel
+	30, // 4: wandb_internal.MetricName.attributes:type_name -> wandb_internal.MetricLabel
 	1,  // 5: wandb_internal.LegacyKey.accelerator_type:type_name -> wandb_internal.AcceleratorType
-	32, // 6: wandb_internal.SystemMetricsRecord.timestamp:type_name -> google.protobuf.Timestamp
+	33, // 6: wandb_internal.SystemMetricsRecord.timestamp:type_name -> google.protobuf.Timestamp
 	8,  // 7: wandb_internal.SystemMetricsRecord.writer:type_name -> wandb_internal.WriterInfo
 	9,  // 8: wandb_internal.SystemMetricsRecord.host:type_name -> wandb_internal.HostMetrics
-	19, // 9: wandb_internal.SystemMetricsRecord.process:type_name -> wandb_internal.ProcessMetrics
-	20, // 10: wandb_internal.SystemMetricsRecord.sdk:type_name -> wandb_internal.SdkMetrics
-	21, // 11: wandb_internal.SystemMetricsRecord.accelerators:type_name -> wandb_internal.AcceleratorMetrics
-	26, // 12: wandb_internal.SystemMetricsRecord.tpu_runtime:type_name -> wandb_internal.TpuRuntimeMetrics
-	27, // 13: wandb_internal.SystemMetricsRecord.trainium_host:type_name -> wandb_internal.TrainiumHostMetrics
-	28, // 14: wandb_internal.SystemMetricsRecord.generic:type_name -> wandb_internal.GenericMetric
-	33, // 15: wandb_internal.SystemMetricsRecord._info:type_name -> wandb_internal._RecordInfo
+	20, // 9: wandb_internal.SystemMetricsRecord.process:type_name -> wandb_internal.ProcessMetrics
+	21, // 10: wandb_internal.SystemMetricsRecord.sdk:type_name -> wandb_internal.SdkMetrics
+	22, // 11: wandb_internal.SystemMetricsRecord.accelerators:type_name -> wandb_internal.AcceleratorMetrics
+	27, // 12: wandb_internal.SystemMetricsRecord.tpu_runtime:type_name -> wandb_internal.TpuRuntimeMetrics
+	28, // 13: wandb_internal.SystemMetricsRecord.trainium_host:type_name -> wandb_internal.TrainiumHostMetrics
+	29, // 14: wandb_internal.SystemMetricsRecord.generic:type_name -> wandb_internal.GenericMetric
+	34, // 15: wandb_internal.SystemMetricsRecord._info:type_name -> wandb_internal._RecordInfo
 	10, // 16: wandb_internal.HostMetrics.memory:type_name -> wandb_internal.MemoryMetrics
 	11, // 17: wandb_internal.HostMetrics.swap:type_name -> wandb_internal.SwapMetrics
 	12, // 18: wandb_internal.HostMetrics.cpu:type_name -> wandb_internal.CpuMetrics
-	15, // 19: wandb_internal.HostMetrics.disk_usage:type_name -> wandb_internal.DiskUsageMetrics
-	16, // 20: wandb_internal.HostMetrics.disk_io:type_name -> wandb_internal.DiskIoMetrics
-	17, // 21: wandb_internal.HostMetrics.network:type_name -> wandb_internal.NetworkMetrics
-	18, // 22: wandb_internal.HostMetrics.apple:type_name -> wandb_internal.AppleHostMetrics
-	14, // 23: wandb_internal.HostMetrics.load:type_name -> wandb_internal.LoadMetrics
-	13, // 24: wandb_internal.CpuMetrics.cores:type_name -> wandb_internal.CpuCoreMetrics
-	1,  // 25: wandb_internal.AcceleratorMetrics.type:type_name -> wandb_internal.AcceleratorType
-	0,  // 26: wandb_internal.AcceleratorMetrics.binding:type_name -> wandb_internal.Binding
-	22, // 27: wandb_internal.AcceleratorMetrics.nvidia:type_name -> wandb_internal.NvidiaMetrics
-	23, // 28: wandb_internal.AcceleratorMetrics.amd:type_name -> wandb_internal.AmdMetrics
-	24, // 29: wandb_internal.AcceleratorMetrics.tpu:type_name -> wandb_internal.TpuMetrics
-	25, // 30: wandb_internal.AcceleratorMetrics.trainium:type_name -> wandb_internal.TrainiumMetrics
-	30, // 31: wandb_internal.TpuRuntimeMetrics.distributions:type_name -> wandb_internal.TpuRuntimeMetrics.Distribution
-	31, // 32: wandb_internal.TpuRuntimeMetrics.hlo_queue_sizes:type_name -> wandb_internal.TpuRuntimeMetrics.QueueSize
-	29, // 33: wandb_internal.GenericMetric.labels:type_name -> wandb_internal.MetricLabel
-	2,  // 34: wandb_internal.GenericMetric.kind:type_name -> wandb_internal.MetricInfo.Kind
-	3,  // 35: wandb_internal.TpuRuntimeMetrics.Distribution.kind:type_name -> wandb_internal.TpuRuntimeMetrics.DistributionKind
-	34, // 36: wandb_internal.metric:extendee -> google.protobuf.FieldOptions
-	34, // 37: wandb_internal.attribute:extendee -> google.protobuf.FieldOptions
-	35, // 38: wandb_internal.distribution:extendee -> google.protobuf.EnumValueOptions
-	4,  // 39: wandb_internal.metric:type_name -> wandb_internal.MetricInfo
-	4,  // 40: wandb_internal.distribution:type_name -> wandb_internal.MetricInfo
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	39, // [39:41] is the sub-list for extension type_name
-	36, // [36:39] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	16, // 19: wandb_internal.HostMetrics.disk_usage:type_name -> wandb_internal.DiskUsageMetrics
+	17, // 20: wandb_internal.HostMetrics.disk_io:type_name -> wandb_internal.DiskIoMetrics
+	18, // 21: wandb_internal.HostMetrics.network:type_name -> wandb_internal.NetworkMetrics
+	19, // 22: wandb_internal.HostMetrics.apple:type_name -> wandb_internal.AppleHostMetrics
+	15, // 23: wandb_internal.HostMetrics.load:type_name -> wandb_internal.LoadMetrics
+	14, // 24: wandb_internal.CpuMetrics.cores:type_name -> wandb_internal.CpuCoreMetrics
+	13, // 25: wandb_internal.CpuMetrics.sockets:type_name -> wandb_internal.CpuSocketMetrics
+	1,  // 26: wandb_internal.AcceleratorMetrics.type:type_name -> wandb_internal.AcceleratorType
+	0,  // 27: wandb_internal.AcceleratorMetrics.binding:type_name -> wandb_internal.Binding
+	23, // 28: wandb_internal.AcceleratorMetrics.nvidia:type_name -> wandb_internal.NvidiaMetrics
+	24, // 29: wandb_internal.AcceleratorMetrics.amd:type_name -> wandb_internal.AmdMetrics
+	25, // 30: wandb_internal.AcceleratorMetrics.tpu:type_name -> wandb_internal.TpuMetrics
+	26, // 31: wandb_internal.AcceleratorMetrics.trainium:type_name -> wandb_internal.TrainiumMetrics
+	31, // 32: wandb_internal.TpuRuntimeMetrics.distributions:type_name -> wandb_internal.TpuRuntimeMetrics.Distribution
+	32, // 33: wandb_internal.TpuRuntimeMetrics.hlo_queue_sizes:type_name -> wandb_internal.TpuRuntimeMetrics.QueueSize
+	30, // 34: wandb_internal.GenericMetric.labels:type_name -> wandb_internal.MetricLabel
+	2,  // 35: wandb_internal.GenericMetric.kind:type_name -> wandb_internal.MetricInfo.Kind
+	3,  // 36: wandb_internal.TpuRuntimeMetrics.Distribution.kind:type_name -> wandb_internal.TpuRuntimeMetrics.DistributionKind
+	35, // 37: wandb_internal.metric:extendee -> google.protobuf.FieldOptions
+	35, // 38: wandb_internal.attribute:extendee -> google.protobuf.FieldOptions
+	36, // 39: wandb_internal.distribution:extendee -> google.protobuf.EnumValueOptions
+	4,  // 40: wandb_internal.metric:type_name -> wandb_internal.MetricInfo
+	4,  // 41: wandb_internal.distribution:type_name -> wandb_internal.MetricInfo
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	40, // [40:42] is the sub-list for extension type_name
+	37, // [37:40] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_system_metrics_proto_init() }
@@ -3497,27 +3656,28 @@ func file_wandb_proto_wandb_system_metrics_proto_init() {
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[14].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[15].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[16].OneofWrappers = []any{}
-	file_wandb_proto_wandb_system_metrics_proto_msgTypes[17].OneofWrappers = []any{
+	file_wandb_proto_wandb_system_metrics_proto_msgTypes[17].OneofWrappers = []any{}
+	file_wandb_proto_wandb_system_metrics_proto_msgTypes[18].OneofWrappers = []any{
 		(*AcceleratorMetrics_Nvidia)(nil),
 		(*AcceleratorMetrics_Amd)(nil),
 		(*AcceleratorMetrics_Tpu)(nil),
 		(*AcceleratorMetrics_Trainium)(nil),
 	}
-	file_wandb_proto_wandb_system_metrics_proto_msgTypes[18].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[19].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[20].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[21].OneofWrappers = []any{}
-	file_wandb_proto_wandb_system_metrics_proto_msgTypes[23].OneofWrappers = []any{}
+	file_wandb_proto_wandb_system_metrics_proto_msgTypes[22].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[24].OneofWrappers = []any{}
-	file_wandb_proto_wandb_system_metrics_proto_msgTypes[26].OneofWrappers = []any{}
+	file_wandb_proto_wandb_system_metrics_proto_msgTypes[25].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[27].OneofWrappers = []any{}
+	file_wandb_proto_wandb_system_metrics_proto_msgTypes[28].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_system_metrics_proto_rawDesc), len(file_wandb_proto_wandb_system_metrics_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   28,
+			NumMessages:   29,
 			NumExtensions: 3,
 			NumServices:   0,
 		},

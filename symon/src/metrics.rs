@@ -5,9 +5,9 @@ use std::time::Duration;
 use prost::Message;
 
 use crate::wandb_internal::{
-    AcceleratorMetrics, AcceleratorType, DiskIoMetrics, HostMetrics, NetworkMetrics, NvidiaMetrics,
-    ProcessMetrics, ProcessStats, SdkMetrics, SubscribeRequest, SystemMetricsRecord,
-    accelerator_metrics::Vendor,
+    AcceleratorMetrics, AcceleratorType, CpuMetrics, CpuSocketMetrics, DiskIoMetrics, HostMetrics,
+    NetworkMetrics, NvidiaMetrics, ProcessMetrics, ProcessStats, SdkMetrics, SubscribeRequest,
+    SystemMetricsRecord, accelerator_metrics::Vendor,
 };
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -99,6 +99,8 @@ pub enum Field {
     ProcessCpuSystem,
     ProcessCgroupCpuThrottled,
     ProcessCgroupOomKills,
+    ProcessCpuUserTime,
+    ProcessCpuSystemTime,
     SdkCpu,
     SdkCpuUser,
     SdkCpuSystem,
@@ -107,6 +109,9 @@ pub enum Field {
     NetworkSent,
     NetworkRecv,
     NetworkTcpRetransmits,
+    /// The user or system CPU seconds of the CPU package with this index.
+    CpuSocketUser(u32),
+    CpuSocketSystem(u32),
     /// A rate of the NVIDIA GPU with this index from this source.
     #[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
     Nvidia(&'static str, u32, NvidiaRate),
@@ -163,6 +168,8 @@ impl Field {
                 process(record).cgroup_cpu_throttled_ratio = Some(value)
             }
             Field::ProcessCgroupOomKills => process(record).cgroup_oom_kills = Some(count),
+            Field::ProcessCpuUserTime => process(record).cpu_user_time_s = Some(value),
+            Field::ProcessCpuSystemTime => process(record).cpu_system_time_s = Some(value),
             Field::SdkCpu => sdk(record).cpu_ratio = Some(value),
             Field::SdkCpuUser => sdk(record).cpu_user_ratio = Some(value),
             Field::SdkCpuSystem => sdk(record).cpu_system_ratio = Some(value),
@@ -187,6 +194,8 @@ impl Field {
             Field::NetworkSent => network(record).sent_bytes = Some(count),
             Field::NetworkRecv => network(record).recv_bytes = Some(count),
             Field::NetworkTcpRetransmits => network(record).tcp_retransmits = Some(count),
+            Field::CpuSocketUser(index) => socket(record, *index).user_time_s = Some(value),
+            Field::CpuSocketSystem(index) => socket(record, *index).system_time_s = Some(value),
             Field::Nvidia(source, index, rate) => rate.set(nvidia(record, source, *index), value),
         }
     }
@@ -231,6 +240,27 @@ fn nvidia<'a>(
         Some(Vendor::Nvidia(nvidia)) => nvidia,
         _ => unreachable!(),
     }
+}
+
+/// The CPU package with `index`, added if missing.
+fn socket(record: &mut SystemMetricsRecord, index: u32) -> &mut CpuSocketMetrics {
+    let sockets = &mut record
+        .host
+        .get_or_insert_with(HostMetrics::default)
+        .cpu
+        .get_or_insert_with(CpuMetrics::default)
+        .sockets;
+    let position = match sockets.iter().position(|socket| socket.index == index) {
+        Some(position) => position,
+        None => {
+            sockets.push(CpuSocketMetrics {
+                index,
+                ..Default::default()
+            });
+            sockets.len() - 1
+        }
+    };
+    &mut sockets[position]
 }
 
 fn network(record: &mut SystemMetricsRecord) -> &mut NetworkMetrics {
