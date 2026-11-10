@@ -300,6 +300,18 @@ class TestWait:
         with raises(WaitTimeoutError):
             imp.wait(timeout=15.0)
 
+    def test_no_refresh_after_deadline(self, service_api, gql, mocker: MockerFixture):
+        sleep = mocker.patch("time.sleep")
+        mocker.patch("time.monotonic", side_effect=[0.0, 0.0, 1.0])
+        mocker.patch("wandb.apis.public.registries.huggingface.termlog")
+        imp = make_import(service_api)
+
+        with raises(WaitTimeoutError):
+            imp.wait(timeout=1.0, poll_interval=5.0)
+
+        sleep.assert_called_once_with(1.0)
+        assert gql.calls == []
+
     def test_keyboard_interrupt(self, service_api, mocker: MockerFixture):
         mocker.patch("time.sleep", side_effect=KeyboardInterrupt)
         mocker.patch("time.monotonic")
