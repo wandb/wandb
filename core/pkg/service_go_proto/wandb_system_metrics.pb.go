@@ -537,12 +537,15 @@ func (x *LegacyKey) GetUnit() string {
 //
 // A field that was not measured is absent, never zero.
 type SystemMetricsRecord struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// When the sweep that produced the sample was scheduled, not when its
+	// collection finished.
 	Timestamp *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	// The subscriber's sampling interval.
+	// The time since the subscriber's previous sample, which is what the
+	// sample's averages cover. 0 for a subscriber's first sample.
 	IntervalMs uint32 `protobuf:"varint,2,opt,name=interval_ms,json=intervalMs,proto3" json:"interval_ms,omitempty"`
 	// Samples dropped before this one because the subscriber did not read
-	// them. Each one is a gap of interval_ms.
+	// them. Each one is a gap of one sampling interval.
 	DroppedSamples uint32 `protobuf:"varint,3,opt,name=dropped_samples,json=droppedSamples,proto3" json:"dropped_samples,omitempty"`
 	// Who wrote the sample. Set by wandb-core.
 	Writer *WriterInfo  `protobuf:"bytes,4,opt,name=writer,proto3" json:"writer,omitempty"`
