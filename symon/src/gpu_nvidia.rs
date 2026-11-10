@@ -745,7 +745,7 @@ impl NvidiaGpu {
 
         Ok(Sample {
             metrics,
-            averages,
+            averages: averages.into_iter().map(|(k, v)| (k.into(), v)).collect(),
             gpu_pids,
             ..Default::default()
         })

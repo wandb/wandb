@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Instant;
 
 use log::warn;
 use sysinfo::{
@@ -17,14 +18,13 @@ use sysinfo::{
     ProcessRefreshKind, ProcessesToUpdate, System,
 };
 
-use crate::metrics::{self, Readings, Sample, Scope};
+use crate::metrics::{self, Field, Key, Readings, Sample, Scope};
 use crate::monitors::Collector;
 use crate::wandb_internal::{
-    CpuInfo, DiskInfo, EnvironmentRecord, GetMetadataRequest, MemoryInfo, ProcessStats,
+    CpuCoreMetrics, CpuInfo, CpuMetrics, DiskInfo, DiskUsageMetrics, EnvironmentRecord,
+    GetMetadataRequest, HostMetrics, LoadMetrics, MemoryInfo, MemoryMetrics, ProcessMetrics,
+    ProcessStats, SdkMetrics, SwapMetrics, SystemMetricsRecord,
 };
-
-const MIB: f64 = 1024.0 * 1024.0;
-const GIB: f64 = MIB * 1024.0;
 
 /// The host collector and the state it keeps between sweeps.
 pub struct Host {
@@ -45,6 +45,17 @@ struct State {
     cgroups: HashMap<u32, Option<Cgroup>>,
     /// nr_periods and nr_throttled of each cpu.stat at the previous sweep.
     cpu_stat: HashMap<PathBuf, (u64, u64)>,
+    /// The user and system CPU seconds of each process at the previous sweep.
+    cpu_times: HashMap<u32, (f64, f64)>,
+    swept_at: Option<Instant>,
+}
+
+/// CPU times between the previous sweep and this one.
+struct CpuTimes<'a> {
+    previous: &'a HashMap<u32, (f64, f64)>,
+    next: HashMap<u32, (f64, f64)>,
+    /// Seconds since the previous sweep; 0 on the first.
+    elapsed: f64,
 }
 
 /// A set of processes whose readings are summed.
@@ -85,6 +96,9 @@ struct TreeReading {
     rss: u64,
     /// CPU use since the previous sweep in percent of one core.
     cpu: f64,
+    /// User and system CPU seconds since the previous sweep, when the
+    /// platform reports them for some process of the set.
+    cpu_split: Option<(f64, f64)>,
     threads: u64,
 }
 
@@ -130,7 +144,15 @@ impl Host {
             seen,
             cgroups,
             cpu_stat,
+            cpu_times,
+            swept_at,
         } = &mut *state;
+        let now = Instant::now();
+        let mut times = CpuTimes {
+            previous: cpu_times,
+            next: HashMap::new(),
+            elapsed: swept_at.map_or(0.0, |at| now.duration_since(at).as_secs_f64()),
+        };
         let (physical, logical) = self.cpus;
         let host_details = scopes.iter().any(|scope| scope.host_details);
         // The Apple collector reports swap on Apple Silicon.
@@ -153,7 +175,7 @@ impl Host {
         let details = if host_details {
             host_details_metrics(system, swap)
         } else {
-            Vec::new()
+            HostMetrics::default()
         };
         let mut next_cgroups = HashMap::new();
         let mut next_cpu_stat = HashMap::new();
@@ -192,6 +214,7 @@ impl Host {
                 system,
                 &children,
                 &mut trees,
+                &mut times,
                 seen,
                 denominator,
                 capacity,
@@ -200,7 +223,13 @@ impl Host {
             disk_readings(scope, disks, &mut readings);
 
             if scope.host_details {
-                readings.metrics.extend(details.iter().cloned());
+                metrics::merge(
+                    &mut readings.record,
+                    &SystemMetricsRecord {
+                        host: Some(details.clone()),
+                        ..Default::default()
+                    },
+                );
             }
 
             sample.scoped.insert(scope.clone(), readings);
@@ -209,6 +238,8 @@ impl Host {
         *seen = trees.into_keys().collect();
         *cgroups = next_cgroups;
         *cpu_stat = next_cpu_stat;
+        *cpu_times = times.next;
+        *swept_at = Some(now);
         sample
     }
 
@@ -311,9 +342,18 @@ fn refresh(
     networks.refresh(true);
 }
 
-/// Reports `memory_percent` and `proc.memory.availableMB` against the cgroup's
+fn host_memory(readings: &mut Readings) -> &mut MemoryMetrics {
+    readings
+        .record
+        .host
+        .get_or_insert_with(HostMetrics::default)
+        .memory
+        .get_or_insert_with(MemoryMetrics::default)
+}
+
+/// Reports the used and available memory against the cgroup's
 /// memory limit when it has one, else against the host, and returns the
-/// denominator for `proc.memory.percent`.
+/// denominator for the process memory percent.
 fn memory_readings(
     cgroup: Option<&Cgroup>,
     total: u64,
@@ -327,19 +367,17 @@ fn memory_readings(
     });
     match cgroup_memory {
         Some((current, limit)) => {
-            readings.metric("memory_percent", current as f64 / limit as f64 * 100.0);
-            readings.metric(
-                "proc.memory.availableMB",
-                limit.saturating_sub(current) as f64 / MIB,
-            );
+            *host_memory(readings) = MemoryMetrics {
+                used_ratio: Some(current as f64 / limit as f64),
+                available_bytes: Some(limit.saturating_sub(current)),
+            };
             limit
         }
         None => {
-            readings.metric(
-                "memory_percent",
-                total.saturating_sub(available) as f64 / total as f64 * 100.0,
-            );
-            readings.metric("proc.memory.availableMB", available as f64 / MIB);
+            *host_memory(readings) = MemoryMetrics {
+                used_ratio: Some(total.saturating_sub(available) as f64 / total as f64),
+                available_bytes: Some(available),
+            };
             total
         }
     }
@@ -364,8 +402,8 @@ fn cgroup_readings(
                 && throttled >= last_throttled
             {
                 readings.average(
-                    "proc.cpu.throttledPercent",
-                    (throttled - last_throttled) as f64 / (periods - last_periods) as f64 * 100.0,
+                    Field::ProcessCgroupCpuThrottled,
+                    (throttled - last_throttled) as f64 / (periods - last_periods) as f64,
                 );
             }
             next_cpu_stat.insert(path, (periods, throttled));
@@ -374,7 +412,7 @@ fn cgroup_readings(
     if let Some(kills) = read_key_values(&cgroup.dir.join("memory.events"))
         .and_then(|values| values.get("oom_kill").copied())
     {
-        readings.counter("proc.memory.oomKills", kills as f64);
+        readings.counter(Field::ProcessCgroupOomKills, kills as f64);
     }
 }
 
@@ -386,12 +424,25 @@ fn process_readings(
     system: &System,
     children: &HashMap<Pid, Vec<Pid>>,
     trees: &mut HashMap<Tree, TreeReading>,
+    times: &mut CpuTimes,
     seen: &HashSet<Tree>,
     denominator: u64,
     capacity: Option<f64>,
     readings: &mut Readings,
 ) {
-    let normalized = |cpu: f64| capacity.map_or(cpu, |capacity| cpu / capacity);
+    // Busy cores over the capacity.
+    let ratio = |cores: f64| capacity.map_or(cores, |capacity| cores / capacity);
+    let elapsed = times.elapsed;
+    let cpu = |readings: &mut Readings, reading: &TreeReading, fields: [Field; 3]| {
+        let [total, user, system] = fields;
+        readings.average(total, ratio(reading.cpu / 100.0));
+        if let Some((user_s, system_s)) = reading.cpu_split
+            && elapsed > 0.0
+        {
+            readings.average(user, ratio(user_s / elapsed));
+            readings.average(system, ratio(system_s / elapsed));
+        }
+    };
     if scope.pid > 0 {
         readings.pids = descendants(children, Pid::from_u32(scope.pid))
             .into_iter()
@@ -403,18 +454,24 @@ fn process_readings(
         };
         let reading = trees
             .entry(tree.clone())
-            .or_insert_with(|| read_tree(system, &tree.pids(children)));
+            .or_insert_with(|| read_tree(system, &tree.pids(children), times));
         if reading.root {
-            readings.metric("proc.memory.rssMB", reading.rss as f64 / MIB);
-            readings.metric(
-                "proc.memory.percent",
-                reading.rss as f64 / denominator as f64 * 100.0,
-            );
+            let process = readings
+                .record
+                .process
+                .get_or_insert_with(ProcessMetrics::default);
+            process.rss_bytes = Some(reading.rss);
+            process.memory_ratio = Some(reading.rss as f64 / denominator as f64);
             if reading.threads > 0 {
-                readings.metric("proc.cpu.threads", reading.threads as f64);
+                process.threads = Some(reading.threads as u32);
             }
             if seen.contains(&tree) {
-                readings.average("cpu", normalized(reading.cpu));
+                let fields = [
+                    Field::ProcessCpu,
+                    Field::ProcessCpuUser,
+                    Field::ProcessCpuSystem,
+                ];
+                cpu(readings, reading, fields);
             }
         } else {
             skip("process");
@@ -425,10 +482,18 @@ fn process_readings(
         let tree = Tree::Wandb(scope.wandb_pids.clone());
         let reading = trees
             .entry(tree.clone())
-            .or_insert_with(|| read_tree(system, &tree.pids(children)));
-        readings.metric("wandb.memory.rssMB", reading.rss as f64 / MIB);
+            .or_insert_with(|| read_tree(system, &tree.pids(children), times));
+        readings
+            .record
+            .sdk
+            .get_or_insert_with(SdkMetrics::default)
+            .rss_bytes = Some(reading.rss);
         if seen.contains(&tree) {
-            readings.average("wandb.cpu", normalized(reading.cpu));
+            cpu(
+                readings,
+                reading,
+                [Field::SdkCpu, Field::SdkCpuUser, Field::SdkCpuSystem],
+            );
         }
     }
 }
@@ -440,8 +505,16 @@ fn disk_readings(scope: &Scope, disks: &Disks, readings: &mut Readings) {
     for path in &scope.disk_paths {
         match usage(disks, path) {
             Some(usage) => {
-                readings.metric(format!("disk.{path}.usagePercent"), usage.used_percent());
-                readings.metric(format!("disk.{path}.usageGB"), usage.used as f64 / GIB);
+                readings
+                    .record
+                    .host
+                    .get_or_insert_with(HostMetrics::default)
+                    .disk_usage
+                    .push(DiskUsageMetrics {
+                        path: path.clone(),
+                        used_ratio: Some(usage.used_ratio()),
+                        used_bytes: Some(usage.used),
+                    });
             }
             None => skip("disk usage"),
         }
@@ -469,8 +542,8 @@ fn disk_readings(scope: &Scope, disks: &Disks, readings: &mut Readings) {
         }
     }
     for (device, (read, written)) in devices {
-        readings.counter(format!("disk.{device}.in"), read as f64 / MIB);
-        readings.counter(format!("disk.{device}.out"), written as f64 / MIB);
+        readings.counter(Field::DiskRead(device.clone()), read as f64);
+        readings.counter(Field::DiskWrite(device), written as f64);
     }
 }
 
@@ -479,41 +552,55 @@ fn disk_readings(scope: &Scope, disks: &Disks, readings: &mut Readings) {
 /// The host-wide readings wandb leet symon shows: the use of every core
 /// since the previous sweep, the load averages, uptime, swap when `swap`
 /// and, on Linux, the CPU temperature.
-fn host_details_metrics(system: &System, swap: bool) -> Vec<(String, f64)> {
-    let mut details: Vec<(String, f64)> = system
-        .cpus()
-        .iter()
-        .enumerate()
-        .map(|(i, cpu)| (format!("cpu.{i}.cpu_percent"), f64::from(cpu.cpu_usage())))
-        .collect();
-    // sysinfo has no load average on Windows.
-    if !cfg!(target_os = "windows") {
-        let load = System::load_average();
-        details.push(("system.load1".into(), load.one));
-        details.push(("system.load5".into(), load.five));
-        details.push(("system.load15".into(), load.fifteen));
-    }
-    details.push(("system.uptime".into(), System::uptime() as f64));
-    if swap {
-        let (used, total) = (system.used_swap(), system.total_swap());
-        let percent = if total > 0 {
-            used as f64 / total as f64 * 100.0
-        } else {
-            0.0
-        };
-        details.push(("swap.used".into(), used as f64));
-        details.push(("swap.used_percent".into(), percent));
-    }
+fn host_details_metrics(system: &System, swap: bool) -> HostMetrics {
     #[cfg(target_os = "linux")]
-    {
+    let temperature_c = {
         let components = sysinfo::Components::new_with_refreshed_list();
         let sensors = components
             .list()
             .iter()
             .filter_map(|component| Some((component.label(), component.temperature()?)));
-        if let Some(temp) = cpu_temperature(sensors).or_else(thermal_zone_temperature) {
-            details.push(("cpu.avg_temp".into(), temp));
-        }
+        cpu_temperature(sensors).or_else(thermal_zone_temperature)
+    };
+    #[cfg(not(target_os = "linux"))]
+    let temperature_c = None;
+    let cores = system
+        .cpus()
+        .iter()
+        .enumerate()
+        .map(|(i, cpu)| CpuCoreMetrics {
+            index: i as u32,
+            utilization_ratio: Some(f64::from(cpu.cpu_usage()) / 100.0),
+        })
+        .collect();
+    let mut details = HostMetrics {
+        cpu: Some(CpuMetrics {
+            cores,
+            temperature_c,
+        }),
+        uptime_s: Some(System::uptime() as f64),
+        ..Default::default()
+    };
+    // sysinfo has no load average on Windows.
+    if !cfg!(target_os = "windows") {
+        let load = System::load_average();
+        details.load = Some(LoadMetrics {
+            one_minute: Some(load.one),
+            five_minutes: Some(load.five),
+            fifteen_minutes: Some(load.fifteen),
+        });
+    }
+    if swap {
+        let (used, total) = (system.used_swap(), system.total_swap());
+        let ratio = if total > 0 {
+            used as f64 / total as f64
+        } else {
+            0.0
+        };
+        details.swap = Some(SwapMetrics {
+            used_bytes: Some(used),
+            used_ratio: Some(ratio),
+        });
     }
     details
 }
@@ -655,7 +742,7 @@ fn descendants(children: &HashMap<Pid, Vec<Pid>>, root: Pid) -> Vec<Pid> {
     pids
 }
 
-fn read_tree(system: &System, pids: &[Pid]) -> TreeReading {
+fn read_tree(system: &System, pids: &[Pid], times: &mut CpuTimes) -> TreeReading {
     let mut reading = TreeReading::default();
     for (i, pid) in pids.iter().enumerate() {
         let Some(process) = system.process(*pid) else {
@@ -664,25 +751,68 @@ fn read_tree(system: &System, pids: &[Pid]) -> TreeReading {
         reading.root |= i == 0;
         reading.rss += process.memory();
         reading.cpu += f64::from(process.cpu_usage());
-        reading.threads += threads(pid.as_u32()).unwrap_or(0);
+        let Some(stat) = proc_stat(pid.as_u32()) else {
+            continue;
+        };
+        reading.threads += stat.threads;
+        let now = (stat.user_s, stat.system_s);
+        times.next.insert(pid.as_u32(), now);
+        if let Some(&(user_s, system_s)) = times.previous.get(&pid.as_u32()) {
+            let (user, system) = reading.cpu_split.get_or_insert((0.0, 0.0));
+            *user += (now.0 - user_s).max(0.0);
+            *system += (now.1 - system_s).max(0.0);
+        }
     }
     reading
 }
 
-/// The thread count of a process, where the platform has a cheap way to read it.
+/// A process's thread count and CPU seconds in user and system mode, where
+/// the platform has a cheap way to read them.
+struct ProcStat {
+    threads: u64,
+    user_s: f64,
+    system_s: f64,
+}
+
 #[cfg(target_os = "linux")]
-fn threads(pid: u32) -> Option<u64> {
+fn proc_stat(pid: u32) -> Option<ProcStat> {
+    use std::sync::OnceLock;
+    static TICKS: OnceLock<f64> = OnceLock::new();
+    let ticks = *TICKS.get_or_init(|| {
+        nix::unistd::sysconf(nix::unistd::SysconfVar::CLK_TCK)
+            .ok()
+            .flatten()
+            .map_or(100.0, |ticks| ticks as f64)
+    });
+
     let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    stat.rsplit_once(')')?
-        .1
-        .split_whitespace()
-        .nth(17)?
-        .parse()
-        .ok()
+    // The fields after the command, from the state (field 3) on.
+    let fields: Vec<&str> = stat.rsplit_once(')')?.1.split_whitespace().collect();
+    let seconds = |i: usize| Some(fields.get(i)?.parse::<u64>().ok()? as f64 / ticks);
+    Some(ProcStat {
+        threads: fields.get(17)?.parse().ok()?,
+        user_s: seconds(11)?,
+        system_s: seconds(12)?,
+    })
 }
 
 #[cfg(target_os = "macos")]
-fn threads(pid: u32) -> Option<u64> {
+#[allow(deprecated)] // libc's mach_timebase_info points at the mach2 crate.
+fn proc_stat(pid: u32) -> Option<ProcStat> {
+    use std::sync::OnceLock;
+    // proc_taskinfo times are in Mach absolute time units.
+    static NANOS_PER_TICK: OnceLock<f64> = OnceLock::new();
+    let nanos_per_tick = *NANOS_PER_TICK.get_or_init(|| {
+        let mut timebase = libc::mach_timebase_info { numer: 0, denom: 0 };
+        // SAFETY: mach_timebase_info only writes the struct it is given.
+        let ok = unsafe { libc::mach_timebase_info(&mut timebase) } == 0;
+        if ok && timebase.denom > 0 {
+            f64::from(timebase.numer) / f64::from(timebase.denom)
+        } else {
+            1.0
+        }
+    });
+
     let mut info = std::mem::MaybeUninit::<libc::proc_taskinfo>::uninit();
     let size = std::mem::size_of::<libc::proc_taskinfo>() as libc::c_int;
     // SAFETY: proc_pidinfo writes at most `size` bytes into `info` and
@@ -696,11 +826,21 @@ fn threads(pid: u32) -> Option<u64> {
             size,
         )
     };
-    (written == size).then(|| unsafe { info.assume_init() }.pti_threadnum as u64)
+    if written != size {
+        return None;
+    }
+    // SAFETY: proc_pidinfo filled `info`.
+    let info = unsafe { info.assume_init() };
+    let seconds = |ticks: u64| ticks as f64 * nanos_per_tick / 1e9;
+    Some(ProcStat {
+        threads: info.pti_threadnum as u64,
+        user_s: seconds(info.pti_total_user),
+        system_s: seconds(info.pti_total_system),
+    })
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn threads(_pid: u32) -> Option<u64> {
+fn proc_stat(_pid: u32) -> Option<ProcStat> {
     None
 }
 
@@ -824,7 +964,7 @@ fn read_key_values(path: &Path) -> Option<HashMap<String, u64>> {
 
 /// Bytes sent and received over the interfaces that are not loopback and
 /// not enslaved to a bond, bridge or team master, which reports them.
-fn network_counters(networks: &Networks) -> Vec<(String, f64)> {
+fn network_counters(networks: &Networks) -> Vec<(Key, f64)> {
     let (mut sent, mut recv) = (0u64, 0u64);
     for (name, data) in networks.list() {
         if name.starts_with("lo")
@@ -839,11 +979,11 @@ fn network_counters(networks: &Networks) -> Vec<(String, f64)> {
         recv += data.total_received();
     }
     let mut counters = vec![
-        ("network.sent".to_string(), sent as f64),
-        ("network.recv".to_string(), recv as f64),
+        (Field::NetworkSent.into(), sent as f64),
+        (Field::NetworkRecv.into(), recv as f64),
     ];
     if let Some(retransmits) = tcp_retransmits() {
-        counters.push(("network.tcpRetransmits".to_string(), retransmits as f64));
+        counters.push((Field::NetworkTcpRetransmits.into(), retransmits as f64));
     }
     counters
 }
@@ -876,10 +1016,10 @@ struct DiskUsage {
 }
 
 impl DiskUsage {
-    fn used_percent(&self) -> f64 {
+    fn used_ratio(&self) -> f64 {
         match self.used + self.free {
             0 => 0.0,
-            capacity => self.used as f64 / capacity as f64 * 100.0,
+            capacity => self.used as f64 / capacity as f64,
         }
     }
 }
@@ -1000,14 +1140,6 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    fn value(readings: &Readings, key: &str) -> Option<f64> {
-        [&readings.metrics, &readings.averages, &readings.counters]
-            .into_iter()
-            .flatten()
-            .find(|(k, _)| k == key)
-            .map(|(_, v)| *v)
-    }
-
     #[test]
     fn cgroup_limits_come_from_the_leaf_cgroup() {
         let dir = tempfile::tempdir().unwrap();
@@ -1070,17 +1202,32 @@ mod tests {
             host_details: true,
             ..Default::default()
         };
+        let cpu = Key::Field(Field::ProcessCpu);
         let first = host.sweep(std::slice::from_ref(&scope));
         let readings = &first.scoped[&scope];
-        assert!(value(readings, "proc.memory.rssMB").unwrap() > 0.0);
-        let percent = value(readings, "memory_percent").unwrap();
-        assert!(percent > 0.0 && percent <= 100.0);
-        assert_eq!(value(readings, "cpu"), None);
+        assert!(readings.record.process.as_ref().unwrap().rss_bytes.unwrap() > 0);
+        let host_metrics = readings.record.host.as_ref().unwrap();
+        let ratio = host_metrics.memory.as_ref().unwrap().used_ratio.unwrap();
+        assert!(ratio > 0.0 && ratio <= 1.0);
+        assert!(!host_metrics.cpu.as_ref().unwrap().cores.is_empty());
+        assert!(!readings.averages.iter().any(|(key, _)| *key == cpu));
 
-        std::thread::sleep(Duration::from_millis(300));
+        // Busy enough that the CPU time advances.
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_millis(300) {
+            std::hint::black_box(start.elapsed());
+        }
         let second = host.sweep(std::slice::from_ref(&scope));
-        assert!(value(&second.scoped[&scope], "cpu").is_some());
-        assert!(value(&second.scoped[&scope], "cpu.0.cpu_percent").is_some());
+        let averaged = |field: Field| {
+            second.scoped[&scope]
+                .averages
+                .iter()
+                .any(|(key, _)| *key == Key::Field(field.clone()))
+        };
+        assert!(averaged(Field::ProcessCpu));
+        if cfg!(any(target_os = "linux", target_os = "macos")) {
+            assert!(averaged(Field::ProcessCpuUser) && averaged(Field::ProcessCpuSystem));
+        }
         assert!(!second.processes.is_empty());
     }
 }
