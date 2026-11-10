@@ -97,7 +97,12 @@ class EvalTable(Table):
                 auto-summarize any numeric and boolean scores.
             backend: Optional storage-backend override. Weave is the default. Pass
                 "ces" to write through the CoreWeave Evaluation Service instead, which
-                is not yet released.
+                is not yet released. CES input and output columns accept lists of
+                up to 128 wandb.Image values, preserving order and duplicates.
+                Empty lists use the resolved column dtype. All-empty or all-null
+                image-list columns need an explicit ListType(wandb.Image) dtype.
+                A complete media cell reaching 3,500,000 UTF-8 JSON bytes is logged
+                as null with a warning. Image file bytes are stored separately.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -368,7 +373,14 @@ class EvalTable(Table):
                 output = None
 
             scores = {columns_by_name[col]: values[col] for col in self._score_columns}
-            rows.append(WriteRow(inputs=inputs, output=output, scores=scores))
+            rows.append(
+                WriteRow(
+                    inputs=inputs,
+                    output=output,
+                    scores=scores,
+                    column_types=self._column_types.params["type_map"],
+                )
+            )
 
         return self._writer.write(
             name=self._run_log_key,

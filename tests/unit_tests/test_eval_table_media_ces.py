@@ -11,6 +11,7 @@ import pytest
 import wandb
 from PIL import Image as PILImage
 from wandb.errors import UsageError
+from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.eval_table import _media_ces, _writer, _writer_ces
 
 pytestmark = pytest.mark.usefixtures("coreweave_evaluations_module")
@@ -72,6 +73,10 @@ def run_factory(mock_run, tmp_path):
 
 @pytest.fixture
 def mock_ces_client(monkeypatch, coreweave_evaluations_module):
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
     client = MagicMock()
     client.__enter__.return_value = client
     client.eval_tables.create.return_value = SimpleNamespace(
@@ -1009,6 +1014,130 @@ def test_eval_table_writes_supported_media_extensions_to_ces(
     assert inputs["image"]["format"] == "png"
     assert inputs["audio"]["extension_type"] == "wandb-audio"
     assert inputs["video"]["extension_type"] == "wandb-video"
+
+
+def test_image_list_preserves_128_duplicates_and_uploads_content_once(
+    run_factory, tmp_path
+):
+    run = run_factory("image-list")
+    image = wandb.Image(_png(tmp_path), caption="Repeated image")
+
+    prepared = _media_ces.prepare_media([image] * 128, run, _IMAGE_FIELD)
+
+    assert prepared.extension_type == "wandb-image-list"
+    assert prepared.value["schema_version"] == 1
+    assert len(prepared.value["items"]) == 128
+    assert all(item == prepared.value["items"][0] for item in prepared.value["items"])
+    assert prepared.encoded_size < _media_ces.CES_MAX_CELL_BYTES
+    run._publish_file.assert_called_once()
+
+
+def test_eval_table_image_lists_infer_empty_cells_and_preserve_nulls(
+    run_factory, mock_ces_client, tmp_path
+):
+    run = run_factory("image-list")
+    first = wandb.Image(_png(tmp_path, "first.png"), caption="First")
+    second = wandb.Image(_png(tmp_path, "second.png"), caption="Second")
+    table = wandb.EvalTable(
+        columns=["images", "generated"],
+        data=[[[], []], [[first, second, first], [second]], [None, None]],
+        input_columns=["images"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    fields = mock_ces_client.eval_tables.columns.create.call_args.kwargs[
+        "dataset_fields"
+    ]
+    assert [
+        (field["source"], field["name"], field["extension_type"]) for field in fields
+    ] == [
+        ("input", "images", "wandb-image-list"),
+        ("output", "generated", "wandb-image-list"),
+    ]
+    rows = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"]
+    assert rows[0]["input"]["images"]["items"] == []
+    assert [item["caption"] for item in rows[1]["input"]["images"]["items"]] == [
+        "First",
+        "Second",
+        "First",
+    ]
+    assert rows[1]["output"]["generated"]["items"][0]["caption"] == "Second"
+    assert rows[2]["input"]["images"] is None
+    assert rows[2]["output"]["generated"] is None
+
+
+@pytest.mark.parametrize("values", [[[]], [None]])
+def test_all_empty_image_list_column_uses_explicit_dtype(
+    run_factory, mock_ces_client, values
+):
+    run = run_factory("empty-image-list")
+    table = wandb.EvalTable(
+        columns=["images"],
+        dtype=[_dtypes.ListType(wandb.Image)],
+        data=[values],
+        input_columns=["images"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    fields = mock_ces_client.eval_tables.columns.create.call_args.kwargs[
+        "dataset_fields"
+    ]
+    assert fields[0]["extension_type"] == "wandb-image-list"
+    row = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]
+    assert row["input"]["images"] == (
+        None
+        if values[0] is None
+        else {"extension_type": "wandb-image-list", "schema_version": 1, "items": []}
+    )
+
+
+def test_untyped_empty_image_list_explains_required_dtype(run_factory, mock_ces_client):
+    run = run_factory("empty-image-list")
+    table = wandb.EvalTable(
+        columns=["images"], data=[[[]]], input_columns=["images"], backend="ces"
+    )
+
+    with pytest.raises(UsageError, match=r"Set its dtype to ListType\(wandb.Image\)"):
+        run.log({"eval": table})
+
+    mock_ces_client.eval_tables.rows.add.assert_not_called()
+
+
+@pytest.mark.parametrize("invalid", ["too_many", "null_item", "mixed_media"])
+def test_invalid_image_list_fails_before_uploads(run_factory, tmp_path, invalid):
+    run = run_factory("invalid-image-list")
+    image = wandb.Image(_png(tmp_path))
+    values = {
+        "too_many": [image] * 129,
+        "null_item": [image, None],
+        "mixed_media": [image, "text"],
+    }[invalid]
+
+    with pytest.raises(UsageError, match="at most 128|only wandb.Image"):
+        _media_ces.prepare_media(values, run, _IMAGE_FIELD)
+
+    assert image._run is None
+    run._publish_file.assert_not_called()
+
+
+def test_image_list_byte_limit_applies_to_whole_cell(
+    run_factory, tmp_path, monkeypatch
+):
+    run = run_factory("image-list-bytes")
+    image = wandb.Image(_png(tmp_path), caption="Unicode: 猫")
+    prepared = _media_ces.prepare_media([image, image], run, _IMAGE_FIELD)
+    monkeypatch.setattr(_media_ces, "CES_MAX_CELL_BYTES", prepared.encoded_size + 1)
+    assert _media_ces.prepare_media([image, image], run, _IMAGE_FIELD).value is not None
+
+    monkeypatch.setattr(_media_ces, "CES_MAX_CELL_BYTES", prepared.encoded_size)
+    oversized = _media_ces.prepare_media([image, image], run, _IMAGE_FIELD)
+    assert oversized.oversized
+    assert oversized.value is None
+    assert oversized.encoded_size == prepared.encoded_size
 
 
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
