@@ -351,7 +351,7 @@ func TestState_Pop_ConsoleLinesMoreThanOneRun(t *testing.T) {
 }
 
 func TestState_Pop_UploadedFiles(t *testing.T) {
-	state := &FileStreamState{}
+	state := &FileStreamState{MaxRequestSizeBytes: 1000}
 	request := &FileStreamRequest{}
 	request.UploadedFiles = map[string]struct{}{
 		"file1": {},

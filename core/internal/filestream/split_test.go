@@ -2,6 +2,7 @@ package filestream
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -140,30 +141,31 @@ func TestSettingOrDefault(t *testing.T) {
 	assert.Equal(t, 30, settingOrDefault(30, 10))
 }
 
-func TestSplitRequest_SplitsUploadedFilesKeepingExitStateLast(t *testing.T) {
-	r := &FileStreamRequestJSON{
-		Uploaded: []string{"a", "b", "c"},
-		Complete: ptr(true),
-		ExitCode: ptr(int32(0)),
+func TestPop_LimitsUploadedFileNamesToSizeCap(t *testing.T) {
+	request := &FileStreamRequest{UploadedFiles: map[string]struct{}{}}
+	for i := range 1000 {
+		request.UploadedFiles[fmt.Sprintf("media/images/sample_%04d.png", i)] = struct{}{}
 	}
+	request.Complete = true
+	state := &FileStreamState{MaxRequestSizeBytes: 10_000}
+	logger := observability.NewNoOpLogger()
+	printer := observability.NewPrinter(0)
 
-	first, second, ok := splitRequest(r)
+	var sent []string
+	for i := 0; ; i++ {
+		require.Less(t, i, 100, "too many requests")
+		json1, hasMore := state.Pop(request, logger, printer)
 
-	require.True(t, ok)
-	assert.Equal(t, []string{"a"}, first.Uploaded)
-	assert.Nil(t, first.Complete)
-	assert.Equal(t, []string{"b", "c"}, second.Uploaded)
-	assert.True(t, *second.Complete)
-}
+		body, err := json.Marshal(json1)
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(body), 10_000+100)
+		assert.Equal(t, !hasMore, json1.Complete != nil, "complete only on the last request")
 
-func TestSplitRequest_SeparatesSingleUploadedFileFromExitState(t *testing.T) {
-	r := &FileStreamRequestJSON{Uploaded: []string{"a"}, Complete: ptr(true)}
-
-	first, second, ok := splitRequest(r)
-
-	require.True(t, ok)
-	assert.Equal(t, []string{"a"}, first.Uploaded)
-	assert.Nil(t, first.Complete)
-	assert.Empty(t, second.Uploaded)
-	assert.True(t, *second.Complete)
+		sent = append(sent, json1.Uploaded...)
+		if !hasMore {
+			break
+		}
+	}
+	assert.Len(t, sent, 1000)
+	assert.Empty(t, request.UploadedFiles)
 }

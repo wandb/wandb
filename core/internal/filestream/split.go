@@ -70,7 +70,7 @@ func (e *requestTooLargeError) Unwrap() error { return e.err }
 // After a rejection, later requests are built at most half the rejected size.
 //
 // It returns an error, which stops the uploader, if a rejected part cannot be
-// split (a single line or file name), or is no larger than a request that was
+// split (a single line, or only uploaded file names), or is no larger than a request that was
 // already accepted or than minRejectedRequestBytes, since splitting is then
 // unlikely to help. Parts after a failed part are not sent, so the run is
 // never marked complete with data missing.
@@ -127,11 +127,6 @@ func hasMetadata(r *FileStreamRequestJSON) bool {
 		r.ExitCode != nil
 }
 
-// hasFlags reports whether the request has a preempting or exit state.
-func hasFlags(r *FileStreamRequestJSON) bool {
-	return r.Preempting != nil || r.Complete != nil || r.ExitCode != nil
-}
-
 // fileOrder is the order in which files are split off a request.
 var fileOrder = map[string]int{
 	HistoryFileName: 0,
@@ -143,13 +138,14 @@ var fileOrder = map[string]int{
 // splitRequest splits a request into two that, sent in order, have the
 // same effect.
 //
-// It splits off one file if there are several, otherwise splits the file's
-// lines in half, and otherwise splits the list of uploaded files in half.
-// The second request keeps the preempting flag and exit state, so a run is
-// only marked complete after all of its data is sent.
+// It splits off one file if there are several, and otherwise splits the
+// file's lines in half. The second request keeps the uploaded file names,
+// preempting flag and exit state, so a run is only marked complete after
+// all of its data is sent.
 //
-// It returns false if the request has only one line, or only one uploaded
-// file, and nothing else.
+// It returns false if the request has at most one line, or has no lines.
+// Pop already limits the uploaded file names to the size cap, so they are
+// not split here.
 func splitRequest(
 	r *FileStreamRequestJSON,
 ) (first, second *FileStreamRequestJSON, ok bool) {
@@ -204,17 +200,6 @@ func splitRequest(
 	case len(names) == 1 && hasMetadata(r):
 		first = &FileStreamRequestJSON{Files: r.Files}
 		second.Files = nil
-		return first, second, true
-
-	case len(names) == 0 && len(r.Uploaded) >= 2:
-		half := len(r.Uploaded) / 2
-		first = &FileStreamRequestJSON{Uploaded: r.Uploaded[:half]}
-		second.Uploaded = r.Uploaded[half:]
-		return first, second, true
-
-	case len(names) == 0 && len(r.Uploaded) == 1 && hasFlags(r):
-		first = &FileStreamRequestJSON{Uploaded: r.Uploaded}
-		second.Uploaded = nil
 		return first, second, true
 
 	default:

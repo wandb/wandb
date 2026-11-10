@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
@@ -85,7 +86,11 @@ func makeHistoryLines(n, size int) []string {
 }
 
 // startFileStream starts uploading to the server.
-func startFileStream(t *testing.T, server *sizeLimitedServer) filestream.FileStream {
+func startFileStream(
+	t *testing.T,
+	server *sizeLimitedServer,
+	settingsProto *spb.Settings,
+) filestream.FileStream {
 	t.Helper()
 	httpServer := httptest.NewServer(server)
 	t.Cleanup(httpServer.Close)
@@ -98,7 +103,7 @@ func startFileStream(t *testing.T, server *sizeLimitedServer) filestream.FileStr
 		FeatureProvider: featurechecker.New(nil, logger),
 		Logger:          logger,
 		Printer:         observability.NewPrinter(0),
-		Settings:        settings.From(&spb.Settings{}),
+		Settings:        settings.From(settingsProto),
 	}
 	fs := factory.New(
 		api.NewClient(api.ClientOptions{
@@ -135,7 +140,18 @@ func runFileStream(
 	updates ...filestream.Update,
 ) {
 	t.Helper()
-	fs := startFileStream(t, server)
+	runFileStreamWithSettings(t, server, &spb.Settings{}, updates...)
+}
+
+// runFileStreamWithSettings is runFileStream with the given settings.
+func runFileStreamWithSettings(
+	t *testing.T,
+	server *sizeLimitedServer,
+	settingsProto *spb.Settings,
+	updates ...filestream.Update,
+) {
+	t.Helper()
+	fs := startFileStream(t, server, settingsProto)
 	for _, update := range updates {
 		fs.StreamUpdate(update)
 	}
@@ -201,7 +217,7 @@ func TestFileStream_SplitsRequestsRejectedAsTooLarge(t *testing.T) {
 
 func TestFileStream_LowersSizeCapAfterRejection(t *testing.T) {
 	server := &sizeLimitedServer{limit: 300 << 10}
-	fs := startFileStream(t, server)
+	fs := startFileStream(t, server, &spb.Settings{})
 
 	first := makeHistoryLines(400, 4<<10)
 	fs.StreamUpdate(historyLines(first))
@@ -254,6 +270,14 @@ func TestFileStream_SmallRequestRejectedAsTooLargeIsFatal(t *testing.T) {
 	assert.Equal(t, 1, server.rejections)
 }
 
+func makeUploadedNames(n int) []string {
+	names := make([]string, n)
+	for i := range names {
+		names[i] = fmt.Sprintf("media/images/sample_%06d_%s.png", i, strings.Repeat("x", 16))
+	}
+	return names
+}
+
 // uploadedFiles is an Update that reports uploaded run files.
 type uploadedFiles []string
 
@@ -266,34 +290,33 @@ func (u uploadedFiles) Apply(ctx filestream.UpdateContext) error {
 	return nil
 }
 
-func TestFileStream_SplitsRejectedRequestWithOnlyUploadedFiles(t *testing.T) {
+func TestFileStream_UploadedFileNamesRespectSizeCap(t *testing.T) {
+	// With the cap under the proxy's limit, a long list of uploaded file
+	// names is spread over several requests instead of being rejected.
 	server := &sizeLimitedServer{limit: 100 << 10}
-	names := make([]string, 4000)
-	for i := range names {
-		names[i] = fmt.Sprintf("media/images/sample_%06d_%s.png", i, strings.Repeat("x", 16))
-	}
+	names := makeUploadedNames(4000)
 
-	runFileStream(t, server, uploadedFiles(names))
+	runFileStreamWithSettings(t, server,
+		&spb.Settings{XFileStreamMaxBytes: wrapperspb.Int32(90 << 10)},
+		uploadedFiles(names))
 
 	var got []string
 	for _, request := range server.accepted {
 		got = append(got, request.Uploaded...)
 	}
 	assert.ElementsMatch(t, names, got)
+	assert.Zero(t, server.rejections)
 	requireCompleteOnlyLast(t, server)
 }
 
-func TestFileStream_UnsplittableNonLineRequestIsFatal(t *testing.T) {
-	// One uploaded file name too long for the proxy cannot be split, so the
-	// uploader must stop rather than report success for data it dropped.
+func TestFileStream_UploadedFileNamesOverProxyLimitAreFatal(t *testing.T) {
+	// Known limitation: uploaded file names are limited by the SDK's cap,
+	// not split after a 413. If the proxy's limit is below the cap, the
+	// request fails, uploads stop and the run is never marked complete.
 	server := &sizeLimitedServer{limit: 100 << 10}
 
-	runFileStream(t, server, uploadedFiles{strings.Repeat("x", 200<<10)})
+	runFileStream(t, server, uploadedFiles(makeUploadedNames(4000)))
 
 	assert.Empty(t, server.accepted)
 	requireNeverComplete(t, server)
-	// Depending on batching, the exit state is either in the rejected
-	// request, which is split once more, or would have followed it.
-	assert.GreaterOrEqual(t, server.rejections, 1)
-	assert.LessOrEqual(t, server.rejections, 2)
 }

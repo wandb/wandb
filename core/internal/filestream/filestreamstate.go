@@ -112,6 +112,13 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 		}
 	}
 
+	for name := range request.UploadedFiles {
+		approxSize += len(name)
+		if approxSize >= s.maxRequestSizeBytes() {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -302,8 +309,16 @@ func (s *FileStreamState) popUploadedFiles(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
 ) {
-	builder.Uploaded = slices.Collect(maps.Keys(request.UploadedFiles))
-	request.UploadedFiles = nil
+	// Sorted so that the names left for the next request are predictable.
+	for _, name := range slices.Sorted(maps.Keys(request.UploadedFiles)) {
+		if !builder.TryAddSize(jsonLineSize(name)) {
+			builder.HasMore = true
+			return
+		}
+
+		builder.Uploaded = append(builder.Uploaded, name)
+		delete(request.UploadedFiles, name)
+	}
 }
 
 func (s *FileStreamState) popPreempting(
