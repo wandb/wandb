@@ -167,12 +167,3 @@ func TestSplitRequest_SeparatesSingleUploadedFileFromExitState(t *testing.T) {
 	assert.Empty(t, second.Uploaded)
 	assert.True(t, *second.Complete)
 }
-
-func TestIsSingleLine(t *testing.T) {
-	line := map[string]OffsetAndContent{HistoryFileName: {Content: []string{"a"}}}
-
-	assert.True(t, isSingleLine(&FileStreamRequestJSON{Files: line}))
-	assert.False(t, isSingleLine(&FileStreamRequestJSON{Files: line, Complete: ptr(true)}))
-	assert.False(t, isSingleLine(&FileStreamRequestJSON{Uploaded: []string{"a"}}))
-	assert.False(t, isSingleLine(&FileStreamRequestJSON{}))
-}

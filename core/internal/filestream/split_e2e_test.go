@@ -172,6 +172,14 @@ func requireCompleteOnlyLast(t *testing.T, s *sizeLimitedServer) {
 	}
 }
 
+// requireNeverComplete checks that no accepted request marks the run complete.
+func requireNeverComplete(t *testing.T, s *sizeLimitedServer) {
+	t.Helper()
+	for i, request := range s.accepted {
+		require.Nil(t, request.Complete, "request %d marks the run complete", i)
+	}
+}
+
 func TestFileStream_SplitsRequestsRejectedAsTooLarge(t *testing.T) {
 	server := &sizeLimitedServer{limit: 300 << 10}
 	lines := makeHistoryLines(400, 4<<10) // about 3.2 MB of JSON
@@ -216,23 +224,23 @@ func TestFileStream_LowersSizeCapAfterRejection(t *testing.T) {
 	requireCompleteOnlyLast(t, server)
 }
 
-func TestFileStream_SkipsSingleLineRejectedAsTooLarge(t *testing.T) {
+func TestFileStream_SingleLineRejectedAsTooLargeIsFatal(t *testing.T) {
 	server := &sizeLimitedServer{limit: 100 << 10}
 	lines := makeHistoryLines(20, 1<<10)
 	lines[10] = makeHistoryLines(1, 200<<10)[0] // too large for the proxy
 
 	runFileStream(t, server, historyLines(lines))
 
+	// Lines before the oversized one are delivered at their offsets. The
+	// oversized line cannot be split, which stops the uploader: nothing
+	// after it is sent, and the run is never marked complete.
 	got := acceptedHistory(t, server)
-	require.Len(t, got, len(lines)-1)
-	for i, line := range lines {
-		if i == 10 {
-			require.NotContains(t, got, 10)
-			continue
-		}
-		require.Equal(t, line, got[i], "offset %d", i)
+	for offset, line := range got {
+		require.Less(t, offset, 10, "nothing at or after the oversized line")
+		require.Equal(t, lines[offset], line)
 	}
-	requireCompleteOnlyLast(t, server)
+	require.NotEmpty(t, got, "control: earlier parts are still delivered")
+	requireNeverComplete(t, server)
 }
 
 func TestFileStream_SmallRequestRejectedAsTooLargeIsFatal(t *testing.T) {
@@ -276,14 +284,14 @@ func TestFileStream_SplitsRejectedRequestWithOnlyUploadedFiles(t *testing.T) {
 }
 
 func TestFileStream_UnsplittableNonLineRequestIsFatal(t *testing.T) {
-	// One uploaded file name too long for the proxy cannot be split, and it
-	// is not a line that can be skipped, so the uploader must stop rather
-	// than report success for data it dropped.
+	// One uploaded file name too long for the proxy cannot be split, so the
+	// uploader must stop rather than report success for data it dropped.
 	server := &sizeLimitedServer{limit: 100 << 10}
 
 	runFileStream(t, server, uploadedFiles{strings.Repeat("x", 200<<10)})
 
-	assert.Empty(t, server.accepted, "the exit state must not be sent after dropping data")
+	assert.Empty(t, server.accepted)
+	requireNeverComplete(t, server)
 	// Depending on batching, the exit state is either in the rejected
 	// request, which is split once more, or would have followed it.
 	assert.GreaterOrEqual(t, server.rejections, 1)

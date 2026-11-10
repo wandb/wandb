@@ -7,7 +7,6 @@ import (
 	"maps"
 	"slices"
 	"sync/atomic"
-	"time"
 )
 
 // minRejectedRequestBytes is the request size at or below which a 413
@@ -69,10 +68,12 @@ func (e *requestTooLargeError) Unwrap() error { return e.err }
 // each part in order if the server rejects it as too large.
 //
 // After a rejection, later requests are built at most half the rejected size.
-// A single line that is still rejected is skipped with a warning, as lines
-// over the line size limit are. A rejected request no larger than one that
-// was already accepted, or than minRejectedRequestBytes, is a fatal error,
-// since splitting is unlikely to help.
+//
+// It returns an error, which stops the uploader, if a rejected part cannot be
+// split (a single line or file name), or is no larger than a request that was
+// already accepted or than minRejectedRequestBytes, since splitting is then
+// unlikely to help. Parts after a failed part are not sent, so the run is
+// never marked complete with data missing.
 func (fs *fileStream) sendSplittingIfTooLarge(
 	data *FileStreamRequestJSON,
 	feedbackChan chan<- map[string]any,
@@ -97,12 +98,7 @@ func (fs *fileStream) sendSplittingIfTooLarge(
 	fs.sizeLimit.Lower(max(tooLarge.JSONBytes/2, minRejectedRequestBytes))
 
 	first, second, ok := splitRequest(data)
-	switch {
-	case ok:
-	case isSingleLine(data):
-		fs.skipRejectedLine(data, tooLarge)
-		return nil
-	default:
+	if !ok {
 		return fmt.Errorf(
 			"filestream: request of %d bytes rejected as too large"+
 				" cannot be split: %w",
@@ -123,17 +119,6 @@ func (fs *fileStream) sendSplittingIfTooLarge(
 	return fs.sendSplittingIfTooLarge(second, feedbackChan)
 }
 
-// isSingleLine reports whether the request is one file line and nothing else.
-func isSingleLine(r *FileStreamRequestJSON) bool {
-	if len(r.Files) != 1 || hasMetadata(r) {
-		return false
-	}
-	for _, chunk := range r.Files {
-		return len(chunk.Content) == 1
-	}
-	return false
-}
-
 // hasMetadata reports whether the request has anything besides files.
 func hasMetadata(r *FileStreamRequestJSON) bool {
 	return len(r.Uploaded) > 0 ||
@@ -145,28 +130,6 @@ func hasMetadata(r *FileStreamRequestJSON) bool {
 // hasFlags reports whether the request has a preempting or exit state.
 func hasFlags(r *FileStreamRequestJSON) bool {
 	return r.Preempting != nil || r.Complete != nil || r.ExitCode != nil
-}
-
-// skipRejectedLine reports a single-line request that is too large to send.
-func (fs *fileStream) skipRejectedLine(
-	data *FileStreamRequestJSON,
-	tooLarge *requestTooLargeError,
-) {
-	for name := range data.Files {
-		fs.logger.CaptureWarn(
-			"filestream: line rejected as too large, skipping",
-			"file", name,
-			"wire_bytes", tooLarge.WireBytes,
-		)
-		fs.printer.
-			AtMostEvery(time.Minute).
-			Warnf(
-				"Skipped uploading %s data that the server rejected"+
-					" as too large (%d bytes).",
-				name,
-				tooLarge.WireBytes,
-			)
-	}
 }
 
 // fileOrder is the order in which files are split off a request.
