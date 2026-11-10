@@ -7,6 +7,8 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLInput
 
+from .enums import RegistryHuggingFaceImportRepoType
+
 
 class AddAliasesInput(GQLInput):
     aliases: list[ArtifactCollectionAliasInput]
@@ -43,6 +45,25 @@ class CreateProjectMembersInput(GQLInput):
     project_id: GQLId = Field(alias="projectId")
     team_ids: list[GQLId] | None = Field(alias="teamIds", default=None)
     user_ids: list[GQLId] | None = Field(alias="userIds", default=None)
+
+
+class CreateRegistryHuggingFaceImportInput(GQLInput):
+    aliases: list[str] | None = None
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    entity_name: str = Field(alias="entityName")
+    file_paths: list[str] | None = Field(alias="filePaths", default=None)
+    hf_repo_id: str = Field(alias="hfRepoId", max_length=256)
+    hf_repo_type: RegistryHuggingFaceImportRepoType = Field(alias="hfRepoType")
+    hf_resolved_revision: str | None = Field(
+        alias="hfResolvedRevision", default=None, max_length=64
+    )
+    hf_revision: str | None = Field(alias="hfRevision", default=None, max_length=256)
+    hf_token_secret_name: str | None = Field(
+        alias="hfTokenSecretName", default=None, max_length=128
+    )
+    idempotency_key: str = Field(alias="idempotencyKey", max_length=128)
+    project_name: str = Field(alias="projectName", max_length=128)
+    registry: RegistryHuggingFaceImportRegistryInput
 
 
 class DeleteAliasesInput(GQLInput):
@@ -119,6 +140,11 @@ class RateLimitsInput(GQLInput):
     sdk_graphql_query_seconds: float | None = Field(
         alias="sdkGraphqlQuerySeconds", default=None
     )
+
+
+class RegistryHuggingFaceImportRegistryInput(GQLInput):
+    collection_name: str = Field(alias="collectionName", max_length=128)
+    registry_name: str = Field(alias="registryName", max_length=128)
 
 
 class RenameProjectInput(GQLInput):
@@ -213,6 +239,7 @@ class UpsertModelInput(GQLInput):
 
 AddAliasesInput.model_rebuild()
 CreateArtifactCollectionTagAssignmentsInput.model_rebuild()
+CreateRegistryHuggingFaceImportInput.model_rebuild()
 DeleteAliasesInput.model_rebuild()
 DeleteArtifactCollectionTagAssignmentsInput.model_rebuild()
 LinkArtifactInput.model_rebuild()

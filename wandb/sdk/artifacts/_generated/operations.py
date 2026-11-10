@@ -12,6 +12,7 @@ __all__ = [
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
+    "CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL",
     "CREATE_REGISTRY_MEMBERS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAGS_GQL",
@@ -35,6 +36,9 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
     "REGISTRY_COLLECTIONS_GQL",
+    "REGISTRY_HUGGING_FACE_IMPORTS_GQL",
+    "REGISTRY_HUGGING_FACE_IMPORT_GQL",
+    "REGISTRY_HUGGING_FACE_SOURCE_GQL",
     "REGISTRY_TEAM_MEMBERS_GQL",
     "REGISTRY_USER_MEMBERS_GQL",
     "REGISTRY_VERSIONS_GQL",
@@ -1822,6 +1826,195 @@ DELETE_REGISTRY_GQL = """
 mutation DeleteRegistry($id: String!) {
   deleteModel(input: {id: $id}) {
     success
+  }
+}
+"""
+
+REGISTRY_HUGGING_FACE_SOURCE_GQL = """
+query RegistryHuggingFaceSource($organization: String!, $hfRepoId: String!, $hfRevision: String, $hfTokenSecretName: String, $entityName: String) {
+  organization(name: $organization) {
+    registryHuggingFaceSource(
+      hfRepoType: MODEL
+      hfRepoId: $hfRepoId
+      hfRevision: $hfRevision
+      hfTokenSecretName: $hfTokenSecretName
+      entityName: $entityName
+    ) {
+      status
+      message
+      resolvedRevision
+      sizeBytes
+      files {
+        path
+        sizeBytes
+      }
+    }
+  }
+}
+"""
+
+CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL = """
+mutation CreateRegistryHuggingFaceImport($input: CreateRegistryHuggingFaceImportInput!) {
+  createRegistryHuggingFaceImport(input: $input) {
+    registryHuggingFaceImport {
+      ...RegistryHuggingFaceImportFragment
+    }
+  }
+}
+
+fragment RegistryHuggingFaceImportFragment on RegistryHuggingFaceImport {
+  __typename
+  id
+  state
+  phase
+  errorCode
+  errorMessage
+  stats
+  createdAt
+  terminalAt
+  hfRepoId
+  hfRequestedRevision
+  hfResolvedRevision
+  entity {
+    name
+  }
+  project {
+    name
+  }
+  registryProject {
+    name
+  }
+  registryCollectionName
+  artifact {
+    id
+  }
+  artifactRef
+  registryRef
+  events {
+    edges {
+      node {
+        id
+        time
+        name
+        message
+      }
+    }
+  }
+}
+"""
+
+REGISTRY_HUGGING_FACE_IMPORT_GQL = """
+query RegistryHuggingFaceImport($id: ID!) {
+  registryHuggingFaceImport(id: $id) {
+    ...RegistryHuggingFaceImportFragment
+  }
+}
+
+fragment RegistryHuggingFaceImportFragment on RegistryHuggingFaceImport {
+  __typename
+  id
+  state
+  phase
+  errorCode
+  errorMessage
+  stats
+  createdAt
+  terminalAt
+  hfRepoId
+  hfRequestedRevision
+  hfResolvedRevision
+  entity {
+    name
+  }
+  project {
+    name
+  }
+  registryProject {
+    name
+  }
+  registryCollectionName
+  artifact {
+    id
+  }
+  artifactRef
+  registryRef
+  events {
+    edges {
+      node {
+        id
+        time
+        name
+        message
+      }
+    }
+  }
+}
+"""
+
+REGISTRY_HUGGING_FACE_IMPORTS_GQL = """
+query RegistryHuggingFaceImports($organization: String!, $cursor: String, $perPage: Int, $states: [RegistryHuggingFaceImportState!], $includeDeleted: Boolean) {
+  organization(name: $organization) {
+    registryHuggingFaceImports(
+      first: $perPage
+      after: $cursor
+      states: $states
+      includeDeleted: $includeDeleted
+    ) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...RegistryHuggingFaceImportFragment
+        }
+      }
+    }
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment RegistryHuggingFaceImportFragment on RegistryHuggingFaceImport {
+  __typename
+  id
+  state
+  phase
+  errorCode
+  errorMessage
+  stats
+  createdAt
+  terminalAt
+  hfRepoId
+  hfRequestedRevision
+  hfResolvedRevision
+  entity {
+    name
+  }
+  project {
+    name
+  }
+  registryProject {
+    name
+  }
+  registryCollectionName
+  artifact {
+    id
+  }
+  artifactRef
+  registryRef
+  events {
+    edges {
+      node {
+        id
+        time
+        name
+        message
+      }
+    }
   }
 }
 """

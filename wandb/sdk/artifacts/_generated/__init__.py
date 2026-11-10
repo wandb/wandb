@@ -14,6 +14,7 @@ __all__ = [
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
+    "CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL",
     "CREATE_REGISTRY_MEMBERS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAGS_GQL",
@@ -37,6 +38,9 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
     "REGISTRY_COLLECTIONS_GQL",
+    "REGISTRY_HUGGING_FACE_IMPORTS_GQL",
+    "REGISTRY_HUGGING_FACE_IMPORT_GQL",
+    "REGISTRY_HUGGING_FACE_SOURCE_GQL",
     "REGISTRY_TEAM_MEMBERS_GQL",
     "REGISTRY_USER_MEMBERS_GQL",
     "REGISTRY_VERSIONS_GQL",
@@ -92,6 +96,10 @@ __all__ = [
     "RenameRegistry",
     "UpsertRegistry",
     "DeleteRegistry",
+    "RegistryHuggingFaceSource",
+    "CreateRegistryHuggingFaceImport",
+    "RegistryHuggingFaceImport",
+    "RegistryHuggingFaceImports",
     "RegistryUserMembers",
     "RegistryTeamMembers",
     "CreateRegistryMembers",
@@ -104,6 +112,7 @@ __all__ = [
     "ArtifactTypeInput",
     "CreateArtifactCollectionTagAssignmentsInput",
     "CreateProjectMembersInput",
+    "CreateRegistryHuggingFaceImportInput",
     "DeleteAliasesInput",
     "DeleteArtifactCollectionTagAssignmentsInput",
     "DeleteArtifactInput",
@@ -112,6 +121,7 @@ __all__ = [
     "MoveArtifactSequenceInput",
     "ProjectIconInput",
     "RateLimitsInput",
+    "RegistryHuggingFaceImportRegistryInput",
     "RenameProjectInput",
     "TagInput",
     "UnlinkArtifactInput",
@@ -137,6 +147,7 @@ __all__ = [
     "ProjectInfoFragment",
     "RegistryCollectionFragment",
     "RegistryFragment",
+    "RegistryHuggingFaceImportFragment",
     "RegistryRoleFragment",
     "RunInfoFragment",
     "SourceCollectionInfoFragment",
@@ -149,6 +160,9 @@ __all__ = [
     "ArtifactCollectionType",
     "ArtifactDigestAlgorithm",
     "ArtifactState",
+    "RegistryHuggingFaceImportRepoType",
+    "RegistryHuggingFaceImportState",
+    "RegistryHuggingFaceSourceStatus",
 ]
 if TYPE_CHECKING:
     from .add_aliases import AddAliases
@@ -161,6 +175,7 @@ if TYPE_CHECKING:
     from .artifact_type import ArtifactType
     from .artifact_type_artifact_collections import ArtifactTypeArtifactCollections
     from .artifact_used_by import ArtifactUsedBy
+    from .create_registry_hugging_face_import import CreateRegistryHuggingFaceImport
     from .create_registry_members import CreateRegistryMembers
     from .delete_aliases import DeleteAliases
     from .delete_artifact import DeleteArtifact
@@ -174,6 +189,9 @@ if TYPE_CHECKING:
         ArtifactCollectionType,
         ArtifactDigestAlgorithm,
         ArtifactState,
+        RegistryHuggingFaceImportRepoType,
+        RegistryHuggingFaceImportState,
+        RegistryHuggingFaceSourceStatus,
     )
     from .fetch_advanced_registry_features import FetchAdvancedRegistryFeatures
     from .fetch_artifact_manifest import FetchArtifactManifest
@@ -199,6 +217,7 @@ if TYPE_CHECKING:
         ProjectInfoFragment,
         RegistryCollectionFragment,
         RegistryFragment,
+        RegistryHuggingFaceImportFragment,
         RegistryRoleFragment,
         RunInfoFragment,
         SourceCollectionInfoFragment,
@@ -216,6 +235,7 @@ if TYPE_CHECKING:
         ArtifactTypeInput,
         CreateArtifactCollectionTagAssignmentsInput,
         CreateProjectMembersInput,
+        CreateRegistryHuggingFaceImportInput,
         DeleteAliasesInput,
         DeleteArtifactCollectionTagAssignmentsInput,
         DeleteArtifactInput,
@@ -224,6 +244,7 @@ if TYPE_CHECKING:
         MoveArtifactSequenceInput,
         ProjectIconInput,
         RateLimitsInput,
+        RegistryHuggingFaceImportRegistryInput,
         RenameProjectInput,
         TagInput,
         UnlinkArtifactInput,
@@ -246,6 +267,7 @@ if TYPE_CHECKING:
         ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
         ARTIFACT_TYPE_GQL,
         ARTIFACT_USED_BY_GQL,
+        CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL,
         CREATE_REGISTRY_MEMBERS_GQL,
         DELETE_ALIASES_GQL,
         DELETE_ARTIFACT_COLLECTION_TAGS_GQL,
@@ -269,6 +291,9 @@ if TYPE_CHECKING:
         PROJECT_ARTIFACT_TYPES_GQL,
         PROJECT_ARTIFACTS_GQL,
         REGISTRY_COLLECTIONS_GQL,
+        REGISTRY_HUGGING_FACE_IMPORT_GQL,
+        REGISTRY_HUGGING_FACE_IMPORTS_GQL,
+        REGISTRY_HUGGING_FACE_SOURCE_GQL,
         REGISTRY_TEAM_MEMBERS_GQL,
         REGISTRY_USER_MEMBERS_GQL,
         REGISTRY_VERSIONS_GQL,
@@ -290,6 +315,9 @@ if TYPE_CHECKING:
     from .project_artifact_types import ProjectArtifactTypes
     from .project_artifacts import ProjectArtifacts
     from .registry_collections import RegistryCollections
+    from .registry_hugging_face_import import RegistryHuggingFaceImport
+    from .registry_hugging_face_imports import RegistryHuggingFaceImports
+    from .registry_hugging_face_source import RegistryHuggingFaceSource
     from .registry_team_members import RegistryTeamMembers
     from .registry_user_members import RegistryUserMembers
     from .registry_versions import RegistryVersions
@@ -315,6 +343,7 @@ _LAZY_IMPORTS = {
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL": ".operations",
     "ARTIFACT_TYPE_GQL": ".operations",
     "ARTIFACT_USED_BY_GQL": ".operations",
+    "CREATE_REGISTRY_HUGGING_FACE_IMPORT_GQL": ".operations",
     "CREATE_REGISTRY_MEMBERS_GQL": ".operations",
     "DELETE_ALIASES_GQL": ".operations",
     "DELETE_ARTIFACT_COLLECTION_TAGS_GQL": ".operations",
@@ -338,6 +367,9 @@ _LAZY_IMPORTS = {
     "PROJECT_ARTIFACT_TYPES_GQL": ".operations",
     "PROJECT_ARTIFACT_TYPE_GQL": ".operations",
     "REGISTRY_COLLECTIONS_GQL": ".operations",
+    "REGISTRY_HUGGING_FACE_IMPORTS_GQL": ".operations",
+    "REGISTRY_HUGGING_FACE_IMPORT_GQL": ".operations",
+    "REGISTRY_HUGGING_FACE_SOURCE_GQL": ".operations",
     "REGISTRY_TEAM_MEMBERS_GQL": ".operations",
     "REGISTRY_USER_MEMBERS_GQL": ".operations",
     "REGISTRY_VERSIONS_GQL": ".operations",
@@ -393,6 +425,10 @@ _LAZY_IMPORTS = {
     "RenameRegistry": ".rename_registry",
     "UpsertRegistry": ".upsert_registry",
     "DeleteRegistry": ".delete_registry",
+    "RegistryHuggingFaceSource": ".registry_hugging_face_source",
+    "CreateRegistryHuggingFaceImport": ".create_registry_hugging_face_import",
+    "RegistryHuggingFaceImport": ".registry_hugging_face_import",
+    "RegistryHuggingFaceImports": ".registry_hugging_face_imports",
     "RegistryUserMembers": ".registry_user_members",
     "RegistryTeamMembers": ".registry_team_members",
     "CreateRegistryMembers": ".create_registry_members",
@@ -405,6 +441,7 @@ _LAZY_IMPORTS = {
     "ArtifactTypeInput": ".input_types",
     "CreateArtifactCollectionTagAssignmentsInput": ".input_types",
     "CreateProjectMembersInput": ".input_types",
+    "CreateRegistryHuggingFaceImportInput": ".input_types",
     "DeleteAliasesInput": ".input_types",
     "DeleteArtifactCollectionTagAssignmentsInput": ".input_types",
     "DeleteArtifactInput": ".input_types",
@@ -413,6 +450,7 @@ _LAZY_IMPORTS = {
     "MoveArtifactSequenceInput": ".input_types",
     "ProjectIconInput": ".input_types",
     "RateLimitsInput": ".input_types",
+    "RegistryHuggingFaceImportRegistryInput": ".input_types",
     "RenameProjectInput": ".input_types",
     "TagInput": ".input_types",
     "UnlinkArtifactInput": ".input_types",
@@ -438,6 +476,7 @@ _LAZY_IMPORTS = {
     "ProjectInfoFragment": ".fragments",
     "RegistryCollectionFragment": ".fragments",
     "RegistryFragment": ".fragments",
+    "RegistryHuggingFaceImportFragment": ".fragments",
     "RegistryRoleFragment": ".fragments",
     "RunInfoFragment": ".fragments",
     "SourceCollectionInfoFragment": ".fragments",
@@ -450,6 +489,9 @@ _LAZY_IMPORTS = {
     "ArtifactCollectionType": ".enums",
     "ArtifactDigestAlgorithm": ".enums",
     "ArtifactState": ".enums",
+    "RegistryHuggingFaceImportRepoType": ".enums",
+    "RegistryHuggingFaceImportState": ".enums",
+    "RegistryHuggingFaceSourceStatus": ".enums",
 }
 
 
