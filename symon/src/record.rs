@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 
 use crate::metrics::{self, Field, Readings, Sample};
-use crate::wandb_internal::{Binding, StatsItem, SystemMetricsRecord};
+use crate::wandb_internal::{AcceleratorType, Binding, StatsItem, SystemMetricsRecord};
 
 /// Metrics repeated under `gpu.process.<i>.` when the monitored process uses GPU `i`.
 const PROCESS_METRICS: &[&str] = &[
@@ -36,7 +36,11 @@ pub fn typed_record(
     let gpus_in_use = gpus_in_use(sample, pids);
     let mut record = sample.record.clone();
     record.accelerators.retain(|device| {
-        gpu_device_ids.is_empty() || gpu_device_ids.contains(&(device.index as i32))
+        let gpu = matches!(
+            device.r#type(),
+            AcceleratorType::NvidiaGpu | AcceleratorType::AmdGpu | AcceleratorType::AppleGpu
+        );
+        !gpu || gpu_device_ids.is_empty() || gpu_device_ids.contains(&(device.index as i32))
     });
     for device in &mut record.accelerators {
         if sample.gpu_pids.contains_key(&device.index) {
