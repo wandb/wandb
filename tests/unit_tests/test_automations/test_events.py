@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 from hypothesis import given
-from pytest import mark
-from wandb.apis.public import Project
+from pydantic import ValidationError
+from pytest import mark, raises
+from wandb.apis.public import Organization, Project, Registry, Team
 from wandb.automations import (
     ArtifactEvent,
     EventType,
@@ -15,10 +18,13 @@ from wandb.automations import (
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
+    OnSandboxState,
     RunEvent,
+    SandboxEvent,
     ScopeType,
 )
 from wandb.automations._generated import EventTriggeringConditionType
+from wandb.automations.events import SavedEvent
 
 from ._strategies import (
     metric_change_filters,
@@ -289,3 +295,66 @@ def test_add_artifact_alias_events(scope):
     event = OnAddArtifactAlias(scope=scope, filter=declared_filter)
 
     assert expected_filter_dict == event.filter.model_dump()
+
+
+# The W&B App reads and edits a sandbox state filter as a flat `$in`, and the
+# server compares states case-sensitively.
+@mark.parametrize(
+    "expr, expected_states",
+    [
+        (SandboxEvent.state.in_(["failed", "Completed"]), ["COMPLETED", "FAILED"]),
+        (SandboxEvent.state.in_(["FAILED", "failed"]), ["FAILED"]),
+        (SandboxEvent.state.eq("created"), ["CREATED"]),
+        (SandboxEvent.state == "completed", ["COMPLETED"]),
+    ],
+)
+def test_sandbox_state_filter(project: Project, expr, expected_states):
+    event = OnSandboxState(scope=project, filter=expr)
+
+    assert {"state": {"$in": expected_states}} == event.filter.model_dump()
+
+
+def test_sandbox_state_filter_rejects_unknown_states():
+    with raises(ValueError):
+        SandboxEvent.state.in_(["running"])
+
+
+# Exclusions aren't normalized, so a lowercase `!= "failed"` would still match
+# failed sandboxes on the server; only `==` and `in_()` are allowed.
+def test_sandbox_state_filter_rejects_other_operators():
+    with raises(TypeError):
+        SandboxEvent.state != "failed"  # noqa: B015
+    with raises(TypeError):
+        SandboxEvent.state == ["failed"]  # noqa: B015
+    for op in ("not_in", "ne", "matches_regex", "contains", "gt"):
+        assert not hasattr(SandboxEvent.state, op)
+
+
+def test_sandbox_state_events_accept_project_and_team_scopes(
+    project: Project, team: Team
+):
+    for scope in (project, team):
+        event = OnSandboxState(scope=scope, filter=SandboxEvent.state == "failed")
+        assert event.event_type is EventType.SANDBOX_STATE
+
+
+# Sandbox events match sandboxes by the project they were created in, so org
+# and registry scopes would never fire.
+def test_sandbox_state_events_reject_org_and_registry_scopes(
+    org: Organization, registry: Registry
+):
+    for scope in (org, registry):
+        with raises(ValidationError):
+            OnSandboxState(scope=scope, filter=SandboxEvent.state == "failed")
+
+
+# The server stores a sandbox state filter as a JSON string under "filter",
+# so one created in the W&B App reads back like any other saved event.
+def test_saved_sandbox_state_event():
+    saved = SavedEvent(
+        event_type=EventType.SANDBOX_STATE,
+        filter=json.dumps({"filter": json.dumps({"state": {"$in": ["FAILED"]}})}),
+    )
+
+    assert saved.event_type is EventType.SANDBOX_STATE
+    assert {"state": {"$in": ["FAILED"]}} == saved.filter.filter.model_dump()

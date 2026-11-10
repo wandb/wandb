@@ -79,6 +79,12 @@ fragment AriaActionFields on ARIATriggeredAction {
   prompt
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 # ------------------------------------------------------------------------------
 fragment TriggerFields on Trigger {
   __typename
@@ -106,6 +112,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
