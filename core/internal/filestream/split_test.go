@@ -139,3 +139,40 @@ func TestSettingOrDefault(t *testing.T) {
 	assert.Equal(t, 3, settingOrDefault(3, 10), "a setting can lower the default")
 	assert.Equal(t, 30, settingOrDefault(30, 10))
 }
+
+func TestSplitRequest_SplitsUploadedFilesKeepingExitStateLast(t *testing.T) {
+	r := &FileStreamRequestJSON{
+		Uploaded: []string{"a", "b", "c"},
+		Complete: ptr(true),
+		ExitCode: ptr(int32(0)),
+	}
+
+	first, second, ok := splitRequest(r)
+
+	require.True(t, ok)
+	assert.Equal(t, []string{"a"}, first.Uploaded)
+	assert.Nil(t, first.Complete)
+	assert.Equal(t, []string{"b", "c"}, second.Uploaded)
+	assert.True(t, *second.Complete)
+}
+
+func TestSplitRequest_SeparatesSingleUploadedFileFromExitState(t *testing.T) {
+	r := &FileStreamRequestJSON{Uploaded: []string{"a"}, Complete: ptr(true)}
+
+	first, second, ok := splitRequest(r)
+
+	require.True(t, ok)
+	assert.Equal(t, []string{"a"}, first.Uploaded)
+	assert.Nil(t, first.Complete)
+	assert.Empty(t, second.Uploaded)
+	assert.True(t, *second.Complete)
+}
+
+func TestIsSingleLine(t *testing.T) {
+	line := map[string]OffsetAndContent{HistoryFileName: {Content: []string{"a"}}}
+
+	assert.True(t, isSingleLine(&FileStreamRequestJSON{Files: line}))
+	assert.False(t, isSingleLine(&FileStreamRequestJSON{Files: line, Complete: ptr(true)}))
+	assert.False(t, isSingleLine(&FileStreamRequestJSON{Uploaded: []string{"a"}}))
+	assert.False(t, isSingleLine(&FileStreamRequestJSON{}))
+}

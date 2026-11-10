@@ -97,9 +97,18 @@ func (fs *fileStream) sendSplittingIfTooLarge(
 	fs.sizeLimit.Lower(max(tooLarge.JSONBytes/2, minRejectedRequestBytes))
 
 	first, second, ok := splitRequest(data)
-	if !ok {
+	switch {
+	case ok:
+	case isSingleLine(data):
 		fs.skipRejectedLine(data, tooLarge)
 		return nil
+	default:
+		return fmt.Errorf(
+			"filestream: request of %d bytes rejected as too large"+
+				" cannot be split: %w",
+			tooLarge.WireBytes,
+			err,
+		)
 	}
 
 	fs.logger.Info(
@@ -112,6 +121,30 @@ func (fs *fileStream) sendSplittingIfTooLarge(
 		return err
 	}
 	return fs.sendSplittingIfTooLarge(second, feedbackChan)
+}
+
+// isSingleLine reports whether the request is one file line and nothing else.
+func isSingleLine(r *FileStreamRequestJSON) bool {
+	if len(r.Files) != 1 || hasMetadata(r) {
+		return false
+	}
+	for _, chunk := range r.Files {
+		return len(chunk.Content) == 1
+	}
+	return false
+}
+
+// hasMetadata reports whether the request has anything besides files.
+func hasMetadata(r *FileStreamRequestJSON) bool {
+	return len(r.Uploaded) > 0 ||
+		r.Preempting != nil ||
+		r.Complete != nil ||
+		r.ExitCode != nil
+}
+
+// hasFlags reports whether the request has a preempting or exit state.
+func hasFlags(r *FileStreamRequestJSON) bool {
+	return r.Preempting != nil || r.Complete != nil || r.ExitCode != nil
 }
 
 // skipRejectedLine reports a single-line request that is too large to send.
@@ -147,12 +180,13 @@ var fileOrder = map[string]int{
 // splitRequest splits a request into two that, sent in order, have the
 // same effect.
 //
-// It splits off one file if there are several, and otherwise splits the
-// file's lines in half. The second request keeps the uploaded files,
-// preempting flag and exit state, so a run is only marked complete after
-// all of its data is sent.
+// It splits off one file if there are several, otherwise splits the file's
+// lines in half, and otherwise splits the list of uploaded files in half.
+// The second request keeps the preempting flag and exit state, so a run is
+// only marked complete after all of its data is sent.
 //
-// It returns false if the request has at most one line and nothing else.
+// It returns false if the request has only one line, or only one uploaded
+// file, and nothing else.
 func splitRequest(
 	r *FileStreamRequestJSON,
 ) (first, second *FileStreamRequestJSON, ok bool) {
@@ -171,11 +205,6 @@ func splitRequest(
 			return cmp.Compare(a, b)
 		}
 	})
-
-	hasMetadata := len(r.Uploaded) > 0 ||
-		r.Preempting != nil ||
-		r.Complete != nil ||
-		r.ExitCode != nil
 
 	second = &FileStreamRequestJSON{
 		Files:      maps.Clone(r.Files),
@@ -209,9 +238,20 @@ func splitRequest(
 		}
 		return first, second, true
 
-	case len(names) == 1 && hasMetadata:
+	case len(names) == 1 && hasMetadata(r):
 		first = &FileStreamRequestJSON{Files: r.Files}
 		second.Files = nil
+		return first, second, true
+
+	case len(names) == 0 && len(r.Uploaded) >= 2:
+		half := len(r.Uploaded) / 2
+		first = &FileStreamRequestJSON{Uploaded: r.Uploaded[:half]}
+		second.Uploaded = r.Uploaded[half:]
+		return first, second, true
+
+	case len(names) == 0 && len(r.Uploaded) == 1 && hasFlags(r):
+		first = &FileStreamRequestJSON{Uploaded: r.Uploaded}
+		second.Uploaded = nil
 		return first, second, true
 
 	default:

@@ -245,3 +245,47 @@ func TestFileStream_SmallRequestRejectedAsTooLargeIsFatal(t *testing.T) {
 	assert.Empty(t, server.accepted)
 	assert.Equal(t, 1, server.rejections)
 }
+
+// uploadedFiles is an Update that reports uploaded run files.
+type uploadedFiles []string
+
+func (u uploadedFiles) Apply(ctx filestream.UpdateContext) error {
+	files := make(map[string]struct{}, len(u))
+	for _, name := range u {
+		files[name] = struct{}{}
+	}
+	ctx.MakeRequest(&filestream.FileStreamRequest{UploadedFiles: files})
+	return nil
+}
+
+func TestFileStream_SplitsRejectedRequestWithOnlyUploadedFiles(t *testing.T) {
+	server := &sizeLimitedServer{limit: 100 << 10}
+	names := make([]string, 4000)
+	for i := range names {
+		names[i] = fmt.Sprintf("media/images/sample_%06d_%s.png", i, strings.Repeat("x", 16))
+	}
+
+	runFileStream(t, server, uploadedFiles(names))
+
+	var got []string
+	for _, request := range server.accepted {
+		got = append(got, request.Uploaded...)
+	}
+	assert.ElementsMatch(t, names, got)
+	requireCompleteOnlyLast(t, server)
+}
+
+func TestFileStream_UnsplittableNonLineRequestIsFatal(t *testing.T) {
+	// One uploaded file name too long for the proxy cannot be split, and it
+	// is not a line that can be skipped, so the uploader must stop rather
+	// than report success for data it dropped.
+	server := &sizeLimitedServer{limit: 100 << 10}
+
+	runFileStream(t, server, uploadedFiles{strings.Repeat("x", 200<<10)})
+
+	assert.Empty(t, server.accepted, "the exit state must not be sent after dropping data")
+	// Depending on batching, the exit state is either in the rejected
+	// request, which is split once more, or would have followed it.
+	assert.GreaterOrEqual(t, server.rejections, 1)
+	assert.LessOrEqual(t, server.rejections, 2)
+}
