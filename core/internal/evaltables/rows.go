@@ -264,6 +264,9 @@ func columnKind(column rowColumn) string {
 }
 
 // appendJSONFloat appends f as encoding/json would encode it.
+//
+// This and appendJSONString avoid encoding/json's allocation per value,
+// since a table can have millions of cells.
 func appendJSONFloat(buf []byte, f float64) ([]byte, error) {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return nil, fmt.Errorf("unsupported number %v", f)
