@@ -1,0 +1,28 @@
+query RegistryHuggingFaceSource($organization: String!, $hfRepoId: String!, $hfRevision: String, $hfTokenSecretName: String, $entityName: String) {
+  organization(name: $organization) {
+    registryHuggingFaceSource(hfRepoType: MODEL, hfRepoId: $hfRepoId, hfRevision: $hfRevision, hfTokenSecretName: $hfTokenSecretName, entityName: $entityName) {
+      status message resolvedRevision sizeBytes files { path sizeBytes }
+    }
+  }
+}
+mutation CreateRegistryHuggingFaceImport($input: CreateRegistryHuggingFaceImportInput!) {
+  createRegistryHuggingFaceImport(input: $input) { registryHuggingFaceImport { ...RegistryHuggingFaceImportFragment } }
+}
+query RegistryHuggingFaceImport($id: ID!) {
+  registryHuggingFaceImport(id: $id) { ...RegistryHuggingFaceImportFragment }
+}
+query RegistryHuggingFaceImports($organization: String!, $cursor: String, $perPage: Int, $states: [RegistryHuggingFaceImportState!], $includeDeleted: Boolean) {
+  organization(name: $organization) {
+    registryHuggingFaceImports(first: $perPage, after: $cursor, states: $states, includeDeleted: $includeDeleted) {
+      pageInfo { ...PageInfoFragment }
+      edges { node { ...RegistryHuggingFaceImportFragment } }
+    }
+  }
+}
+fragment RegistryHuggingFaceImportFragment on RegistryHuggingFaceImport {
+  __typename id state phase errorCode errorMessage stats createdAt terminalAt
+  hfRepoId hfRequestedRevision hfResolvedRevision
+  entity { name } project { name } registryProject { name } registryCollectionName
+  artifact { id } artifactRef registryRef
+  events { edges { node { id time name message } } }
+}

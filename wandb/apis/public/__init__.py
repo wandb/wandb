@@ -15,6 +15,12 @@ __all__ = (
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
+    "HuggingFaceImport",
+    "HuggingFaceImportError",
+    "HuggingFaceImportEvent",
+    "HuggingFaceImports",  # doc:exclude
+    "HuggingFaceSource",
+    "HuggingFaceSourceFile",
     "IncompleteRunHistoryError",
     "Integrations",  # doc:exclude
     "SlackIntegrations",  # doc:exclude
@@ -77,7 +83,16 @@ from wandb.apis.public.jobs import (
 from wandb.apis.public.organizations import Organization
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
-from wandb.apis.public.registries import Registries, Registry
+from wandb.apis.public.registries import (
+    HuggingFaceImport,
+    HuggingFaceImportError,
+    HuggingFaceImportEvent,
+    HuggingFaceImports,
+    HuggingFaceSource,
+    HuggingFaceSourceFile,
+    Registries,
+    Registry,
+)
 from wandb.apis.public.reports import (
     BetaReport,
     PanelMetricsHelper,
