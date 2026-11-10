@@ -21,15 +21,19 @@ use sysinfo::{
 use crate::metrics::{self, Field, Readings, Sample, Scope};
 use crate::monitors::Collector;
 use crate::wandb_internal::{
-    CpuCoreMetrics, CpuInfo, CpuMetrics, DiskInfo, DiskUsageMetrics, EnvironmentRecord,
-    GetMetadataRequest, HostMetrics, LoadMetrics, MemoryInfo, MemoryMetrics, ProcessMetrics,
-    ProcessStats, SdkMetrics, SwapMetrics, SystemMetricsRecord,
+    CpuCoreMetrics, CpuInfo, CpuMetrics, CpuSocketMetrics, DiskInfo, DiskUsageMetrics,
+    EnvironmentRecord, GetMetadataRequest, HostMetrics, LoadMetrics, MemoryInfo, MemoryMetrics,
+    ProcessMetrics, ProcessStats, SdkMetrics, SwapMetrics, SystemMetricsRecord,
 };
 
 /// The host collector and the state it keeps between sweeps.
 pub struct Host {
     /// Physical and logical CPU counts; 0 when unknown.
     cpus: (u32, u32),
+    /// The identity of each CPU package.
+    sockets: Vec<CpuSocketMetrics>,
+    /// The package of each logical CPU, where sysfs reports it (Linux).
+    package_of: HashMap<u32, u32>,
     state: Mutex<State>,
 }
 
@@ -47,6 +51,8 @@ struct State {
     cpu_stat: HashMap<PathBuf, (u64, u64)>,
     /// The user and system CPU seconds of each process at the previous sweep.
     cpu_times: HashMap<u32, (f64, f64)>,
+    /// The user and system CPU seconds of each process set so far.
+    cpu_totals: HashMap<Tree, (f64, f64)>,
     swept_at: Option<Instant>,
 }
 
@@ -54,6 +60,8 @@ struct State {
 struct CpuTimes<'a> {
     previous: &'a HashMap<u32, (f64, f64)>,
     next: HashMap<u32, (f64, f64)>,
+    totals: &'a HashMap<Tree, (f64, f64)>,
+    next_totals: HashMap<Tree, (f64, f64)>,
     /// Seconds since the previous sweep; 0 on the first.
     elapsed: f64,
 }
@@ -99,6 +107,9 @@ struct TreeReading {
     /// User and system CPU seconds since the previous sweep, when the
     /// platform reports them for some process of the set.
     cpu_split: Option<(f64, f64)>,
+    /// The same, counting a process the previous sweep did not read from
+    /// its start.
+    cpu_used: Option<(f64, f64)>,
     threads: u64,
 }
 
@@ -125,8 +136,12 @@ impl Host {
             System::physical_core_count().unwrap_or(0) as u32,
             system.cpus().len() as u32,
         );
+        let (sockets, package_of) =
+            cpu_packages(Path::new("/sys/devices/system/cpu"), &system, cpus);
         Self {
             cpus,
+            sockets,
+            package_of,
             state: Mutex::new(State {
                 system,
                 ..Default::default()
@@ -145,12 +160,15 @@ impl Host {
             cgroups,
             cpu_stat,
             cpu_times,
+            cpu_totals,
             swept_at,
         } = &mut *state;
         let now = Instant::now();
         let mut times = CpuTimes {
             previous: cpu_times,
             next: HashMap::new(),
+            totals: cpu_totals,
+            next_totals: HashMap::new(),
             elapsed: swept_at.map_or(0.0, |at| now.duration_since(at).as_secs_f64()),
         };
         let (physical, logical) = self.cpus;
@@ -177,6 +195,7 @@ impl Host {
         } else {
             HostMetrics::default()
         };
+        let socket_times = read_socket_times(&self.package_of);
         let mut next_cgroups = HashMap::new();
         let mut next_cpu_stat = HashMap::new();
         let mut trees: HashMap<Tree, TreeReading> = HashMap::new();
@@ -208,6 +227,24 @@ impl Host {
                 .or((physical > 0).then_some(physical as f64));
             if let Some(cgroup) = cgroup {
                 cgroup_readings(cgroup, cpu_stat, &mut next_cpu_stat, &mut readings);
+                if scope.pid > 0 && cgroup.cpu_limit > 0.0 {
+                    readings
+                        .record
+                        .process
+                        .get_or_insert_with(ProcessMetrics::default)
+                        .cgroup_cpu_limit = Some(cgroup.cpu_limit);
+                }
+            }
+            readings
+                .record
+                .host
+                .get_or_insert_with(HostMetrics::default)
+                .cpu
+                .get_or_insert_with(CpuMetrics::default)
+                .sockets = self.sockets.clone();
+            for (&index, &(user, system)) in &socket_times {
+                readings.counter(Field::CpuSocketUser(index), user);
+                readings.counter(Field::CpuSocketSystem(index), system);
             }
             process_readings(
                 scope,
@@ -238,7 +275,11 @@ impl Host {
         *seen = trees.into_keys().collect();
         *cgroups = next_cgroups;
         *cpu_stat = next_cpu_stat;
-        *cpu_times = times.next;
+        let CpuTimes {
+            next, next_totals, ..
+        } = times;
+        *cpu_times = next;
+        *cpu_totals = next_totals;
         *swept_at = Some(now);
         sample
     }
@@ -465,6 +506,15 @@ fn process_readings(
             if reading.threads > 0 {
                 process.threads = Some(reading.threads as u32);
             }
+            if let Some((user, system)) = reading.cpu_used {
+                let (user, system) = *times.next_totals.entry(tree.clone()).or_insert_with(|| {
+                    let (total_user, total_system) =
+                        times.totals.get(&tree).copied().unwrap_or_default();
+                    (total_user + user, total_system + system)
+                });
+                readings.counter(Field::ProcessCpuUserTime, user);
+                readings.counter(Field::ProcessCpuSystemTime, system);
+            }
             if seen.contains(&tree) {
                 let fields = [
                     Field::ProcessCpu,
@@ -577,6 +627,7 @@ fn host_details_metrics(system: &System, swap: bool) -> HostMetrics {
         cpu: Some(CpuMetrics {
             cores,
             temperature_c,
+            ..Default::default()
         }),
         uptime_s: Some(System::uptime() as f64),
         ..Default::default()
@@ -757,11 +808,16 @@ fn read_tree(system: &System, pids: &[Pid], times: &mut CpuTimes) -> TreeReading
         reading.threads += stat.threads;
         let now = (stat.user_s, stat.system_s);
         times.next.insert(pid.as_u32(), now);
-        if let Some(&(user_s, system_s)) = times.previous.get(&pid.as_u32()) {
+        let previous = times.previous.get(&pid.as_u32()).copied();
+        if let Some((user_s, system_s)) = previous {
             let (user, system) = reading.cpu_split.get_or_insert((0.0, 0.0));
             *user += (now.0 - user_s).max(0.0);
             *system += (now.1 - system_s).max(0.0);
         }
+        let (user_s, system_s) = previous.unwrap_or_default();
+        let (user, system) = reading.cpu_used.get_or_insert((0.0, 0.0));
+        *user += (now.0 - user_s).max(0.0);
+        *system += (now.1 - system_s).max(0.0);
     }
     reading
 }
@@ -774,17 +830,22 @@ struct ProcStat {
     system_s: f64,
 }
 
+/// The kernel's clock ticks per second, the unit of /proc CPU times.
 #[cfg(target_os = "linux")]
-fn proc_stat(pid: u32) -> Option<ProcStat> {
+fn clock_ticks() -> f64 {
     use std::sync::OnceLock;
     static TICKS: OnceLock<f64> = OnceLock::new();
-    let ticks = *TICKS.get_or_init(|| {
+    *TICKS.get_or_init(|| {
         nix::unistd::sysconf(nix::unistd::SysconfVar::CLK_TCK)
             .ok()
             .flatten()
             .map_or(100.0, |ticks| ticks as f64)
-    });
+    })
+}
 
+#[cfg(target_os = "linux")]
+fn proc_stat(pid: u32) -> Option<ProcStat> {
+    let ticks = clock_ticks();
     let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     // The fields after the command, from the state (field 3) on.
     let fields: Vec<&str> = stat.rsplit_once(')')?.1.split_whitespace().collect();
@@ -842,6 +903,116 @@ fn proc_stat(pid: u32) -> Option<ProcStat> {
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn proc_stat(_pid: u32) -> Option<ProcStat> {
     None
+}
+
+// ===== CPU packages =====
+
+/// The identity of each CPU package and the package of each logical CPU.
+/// Linux reads the topology from `sysfs`; elsewhere, or without it, the host
+/// is one package.
+fn cpu_packages(
+    sysfs: &Path,
+    system: &System,
+    (physical, logical): (u32, u32),
+) -> (Vec<CpuSocketMetrics>, HashMap<u32, u32>) {
+    let model = |cpu: Option<u32>| {
+        let name = cpu.map(|cpu| format!("cpu{cpu}"));
+        let cpus = system.cpus();
+        cpus.iter()
+            .find(|c| Some(c.name()) == name.as_deref())
+            .or(cpus.first())
+            .map_or_else(String::new, |c| c.brand().trim().to_string())
+    };
+    let mut package_of = HashMap::new();
+    // Each package's core ids and logical CPUs.
+    let mut packages: BTreeMap<u32, (HashSet<u32>, Vec<u32>)> = BTreeMap::new();
+    if cfg!(any(target_os = "linux", test)) {
+        for entry in fs::read_dir(sysfs).into_iter().flatten().flatten() {
+            let name = entry.file_name();
+            let Some(cpu) = name
+                .to_str()
+                .and_then(|name| name.strip_prefix("cpu"))
+                .and_then(|n| n.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            let topology = entry.path().join("topology");
+            let Some(package) = read_u64(&topology.join("physical_package_id")) else {
+                continue;
+            };
+            let core = read_u64(&topology.join("core_id")).unwrap_or(u64::from(cpu));
+            package_of.insert(cpu, package as u32);
+            let (cores, cpus) = packages.entry(package as u32).or_default();
+            cores.insert(core as u32);
+            cpus.push(cpu);
+        }
+    }
+    if packages.is_empty() {
+        let socket = CpuSocketMetrics {
+            index: 0,
+            model: model(None),
+            physical_cores: (physical > 0).then_some(physical),
+            logical_cpus: (logical > 0).then_some(logical),
+            ..Default::default()
+        };
+        return (vec![socket], package_of);
+    }
+    let sockets = packages
+        .into_iter()
+        .map(|(index, (cores, cpus))| CpuSocketMetrics {
+            index,
+            model: model(cpus.iter().min().copied()),
+            physical_cores: Some(cores.len() as u32),
+            logical_cpus: Some(cpus.len() as u32),
+            ..Default::default()
+        })
+        .collect();
+    (sockets, package_of)
+}
+
+#[cfg(target_os = "linux")]
+fn read_socket_times(package_of: &HashMap<u32, u32>) -> BTreeMap<u32, (f64, f64)> {
+    if package_of.is_empty() {
+        return BTreeMap::new();
+    }
+    fs::read_to_string("/proc/stat")
+        .map(|stat| socket_times(&stat, package_of, clock_ticks()))
+        .unwrap_or_default()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn read_socket_times(_package_of: &HashMap<u32, u32>) -> BTreeMap<u32, (f64, f64)> {
+    BTreeMap::new()
+}
+
+/// The user and system CPU seconds of each package, summed over the cpuN
+/// lines of /proc/stat. User includes nice; system includes irq and softirq.
+#[cfg(any(target_os = "linux", test))]
+fn socket_times(
+    stat: &str,
+    package_of: &HashMap<u32, u32>,
+    ticks: f64,
+) -> BTreeMap<u32, (f64, f64)> {
+    let mut times = BTreeMap::new();
+    for line in stat.lines() {
+        let mut fields = line.split_whitespace();
+        let Some(&package) = fields
+            .next()
+            .and_then(|name| name.strip_prefix("cpu"))
+            .and_then(|n| n.parse::<u32>().ok())
+            .and_then(|cpu| package_of.get(&cpu))
+        else {
+            continue;
+        };
+        let values: Vec<u64> = fields.take(7).filter_map(|f| f.parse().ok()).collect();
+        let [user, nice, system, _idle, _iowait, irq, softirq] = values[..] else {
+            continue;
+        };
+        let (user_s, system_s) = times.entry(package).or_insert((0.0, 0.0));
+        *user_s += (user + nice) as f64 / ticks;
+        *system_s += (system + irq + softirq) as f64 / ticks;
+    }
+    times
 }
 
 // ===== cgroup v2 =====
@@ -1227,7 +1398,46 @@ mod tests {
         assert!(averaged(Field::ProcessCpu));
         if cfg!(any(target_os = "linux", target_os = "macos")) {
             assert!(averaged(Field::ProcessCpuUser) && averaged(Field::ProcessCpuSystem));
+            let user_time = |sample: &Sample| {
+                sample.scoped[&scope]
+                    .counters
+                    .iter()
+                    .find(|(key, _)| *key == Field::ProcessCpuUserTime)
+                    .map(|(_, value)| *value)
+                    .unwrap()
+            };
+            assert!(user_time(&second) > user_time(&first));
         }
         assert!(!second.processes.is_empty());
+    }
+
+    #[test]
+    fn cpu_packages_and_their_times_come_from_sysfs_and_proc_stat() {
+        let dir = tempfile::tempdir().unwrap();
+        for (cpu, package, core) in [(0, 0, 0), (1, 0, 0), (2, 1, 0), (3, 1, 1)] {
+            let topology = dir.path().join(format!("cpu{cpu}/topology"));
+            fs::create_dir_all(&topology).unwrap();
+            fs::write(topology.join("physical_package_id"), format!("{package}\n")).unwrap();
+            fs::write(topology.join("core_id"), format!("{core}\n")).unwrap();
+        }
+        fs::create_dir_all(dir.path().join("cpufreq")).unwrap();
+
+        let (sockets, package_of) = cpu_packages(dir.path(), &System::new(), (3, 4));
+        let counts: Vec<_> = sockets
+            .iter()
+            .map(|socket| (socket.index, socket.physical_cores, socket.logical_cpus))
+            .collect();
+        assert_eq!(counts, [(0, Some(1), Some(2)), (1, Some(2), Some(2))]);
+
+        let stat = "cpu  9 9 9 9 9 9 9 0 0 0\n\
+                    cpu0 100 10 50 7 7 5 5 3 0 0\n\
+                    cpu1 100 0 50 0 0 0 0 0 0 0\n\
+                    cpu2 200 0 0 0 0 0 0 0 0 0\n\
+                    cpu3 0 0 100 0 0 0 0 0 0 0\n\
+                    intr 1 2\n";
+        assert_eq!(
+            socket_times(stat, &package_of, 1.0),
+            BTreeMap::from([(0, (210.0, 110.0)), (1, (200.0, 100.0))])
+        );
     }
 }

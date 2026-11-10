@@ -820,6 +820,29 @@ pub struct CpuMetrics {
     pub cores: ::prost::alloc::vec::Vec<CpuCoreMetrics>,
     #[prost(double, optional, tag = "2")]
     pub temperature_c: ::core::option::Option<f64>,
+    /// Per CPU package. Linux reads the packages from sysfs; other platforms
+    /// report one, without times.
+    #[prost(message, repeated, tag = "3")]
+    pub sockets: ::prost::alloc::vec::Vec<CpuSocketMetrics>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CpuSocketMetrics {
+    /// The physical package id.
+    #[prost(uint32, tag = "1")]
+    pub index: u32,
+    #[prost(string, tag = "2")]
+    pub model: ::prost::alloc::string::String,
+    #[prost(uint32, optional, tag = "3")]
+    pub physical_cores: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "4")]
+    pub logical_cpus: ::core::option::Option<u32>,
+    /// CPU seconds of every core in the package since the first sample. User
+    /// includes nice; system includes irq and softirq.
+    #[prost(double, optional, tag = "5")]
+    pub user_time_s: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub system_time_s: ::core::option::Option<f64>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
@@ -920,6 +943,17 @@ pub struct ProcessMetrics {
     pub cpu_user_ratio: ::core::option::Option<f64>,
     #[prost(double, optional, tag = "8")]
     pub cpu_system_ratio: ::core::option::Option<f64>,
+    /// The CPUs the cgroup may use: the lower of cpu.max's quota and the
+    /// cpuset, when either limits the process. Linux only.
+    #[prost(double, optional, tag = "9")]
+    pub cgroup_cpu_limit: ::core::option::Option<f64>,
+    /// CPU seconds of the tree in user and system mode since the first sample.
+    /// Summed from each process's own times, so a process that exits keeps
+    /// what it used. Not on Windows.
+    #[prost(double, optional, tag = "10")]
+    pub cpu_user_time_s: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "11")]
+    pub cpu_system_time_s: ::core::option::Option<f64>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
