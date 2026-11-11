@@ -2527,7 +2527,12 @@ class Artifact:
         from wandb import Api
 
         from ._generated import LINK_ARTIFACT_GQL, LinkArtifact, LinkArtifactInput
-        from ._validators import ArtifactPath, FullArtifactPath, validate_aliases
+        from ._validators import (
+            ArtifactPath,
+            FullArtifactPath,
+            validate_aliases,
+            warn_if_link_target_name_has_colon,
+        )
 
         if self.is_link:
             wandb.termwarn(
@@ -2551,6 +2556,7 @@ class Artifact:
         target = ArtifactPath.from_str(target_path).with_defaults(
             project=env.get_project(global_settings.project) or "uncategorized",
         )
+        warn_if_link_target_name_has_colon(target.name)
 
         # Parse the entity (first part of the path) appropriately,
         # depending on whether we're linking to a registry

@@ -9,6 +9,7 @@ from wandb.sdk.artifacts._validators import (
     validate_artifact_root_name,
     validate_artifact_type,
     validate_project_name,
+    warn_if_link_target_name_has_colon,
 )
 from wandb.sdk.lib.paths import StrPath
 
@@ -226,3 +227,23 @@ def test_artifact_path_roundtrip_from_str(path_str: str):
 def test_artifact_path_roundtrip_from_instance(path_obj: ArtifactPath):
     """Check that the roundtrip conversion ArtifactPath -> str -> ArtifactPath preserves the original."""
     assert ArtifactPath.from_str(path_obj.to_str()) == path_obj
+
+
+@mark.parametrize("name", ["my-coll:prod", "checkpoint:latest:latest"])
+def test_warn_if_link_target_name_has_colon_warns(mock_wandb_log, name: str):
+    warn_if_link_target_name_has_colon(name)
+
+    mock_wandb_log.assert_warned(f"Target collection name {name!r} contains ':'")
+
+
+def test_warn_if_link_target_name_has_colon_ignores_valid_name(mock_wandb_log):
+    warn_if_link_target_name_has_colon("my-coll")
+
+    assert not mock_wandb_log._termwarn.called
+
+
+def test_link_target_alias_suffix_stays_in_name():
+    """The SDK sends a `coll:alias` target as the collection name unchanged."""
+    path = ArtifactPath.from_str("wandb-registry-model/my-coll:prod")
+
+    assert path.name == "my-coll:prod"

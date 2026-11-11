@@ -167,9 +167,12 @@ class CustomBuildHook(BuildHookInterface):
 
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)
         with_race_detection = _get_env_bool(_WANDB_BUILD_GORACEDETECT, default=False)
-        with_cgo = _get_env_bool(_WANDB_ENABLE_CGO, default=False)
-
         plat = self._target_platform()
+
+        # Android needs cgo: purego's dlopen and Go's DNS resolver use libc.
+        with_cgo = (
+            _get_env_bool(_WANDB_ENABLE_CGO, default=False) or plat.goos == "android"
+        )
 
         self.app.display_waiting("Building wandb-core Go binary...")
         hatch_core.build_wandb_core(
@@ -207,7 +210,11 @@ class CustomBuildHook(BuildHookInterface):
         # _PYTHON_HOST_PLATFORM environment variable which is also a good way
         # of manually testing this function.
         plat = sysconfig.get_platform()
-        if target := _parse_target_platform(plat, is_musl=_is_musl_host()):
+        if target := _parse_target_platform(
+            plat,
+            is_musl=_is_musl_host(),
+            is_android=_is_android_host(),
+        ):
             return target
 
         self.app.display_warning(
@@ -255,6 +262,7 @@ def _parse_target_platform(
     platform_name: str,
     *,
     is_musl: bool,
+    is_android: bool,
 ) -> TargetPlatform | None:
     """Parse a Python platform name into Go and Rust compiler targets."""
     platform_name = platform_name.lower()
@@ -263,7 +271,10 @@ def _parse_target_platform(
         goos = "darwin"
     elif platform_name.startswith("win-"):
         goos = "windows"
-    elif platform_name.startswith(("linux-", "manylinux_", "musllinux_")):
+    elif platform_name.startswith("linux-"):
+        # Termux's Python reports linux-<arch> like any other Linux build.
+        goos = "android" if is_android else "linux"
+    elif platform_name.startswith(("manylinux_", "musllinux_")):
         goos = "linux"
     else:
         return None
@@ -301,6 +312,8 @@ def _to_rust_target(goos: str, goarch: str, *, is_musl: bool) -> str | None:
     if goos == "linux":
         libc = "musl" if is_musl else "gnu"
         return f"{rust_arch}-unknown-linux-{libc}"
+    if goos == "android":
+        return f"{rust_arch}-linux-android"
     return None
 
 
@@ -314,6 +327,10 @@ def _platform_goarch(platform_name: str) -> str:
 
 def _is_musl_host() -> bool:
     return any(pathlib.Path("/lib").glob("ld-musl-*.so.1"))
+
+
+def _is_android_host() -> bool:
+    return "android" in (sysconfig.get_config_var("HOST_GNU_TYPE") or "")
 
 
 def _to_goarch(arch: str) -> str:

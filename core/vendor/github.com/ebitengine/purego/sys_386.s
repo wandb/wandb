@@ -45,8 +45,13 @@ TEXT syscallX(SB), NOSPLIT|NOFRAME, $0-0
 
 	// Allocate stack space for C function arguments
 	// i386 SysV: all 32 args on stack = 32 * 4 = 128 bytes
-	// Plus 16 bytes for alignment and local storage
+	// Plus local storage for the fn and args pointers
+	// The i386 System V ABI requires SP to be 16-byte aligned at the call.
+	// Align it here regardless of the caller's alignment, and keep the
+	// unaligned SP in BP, which is callee-saved, to restore it after the call.
+	MOVL SP, BP
 	SUBL $STACK_SIZE, SP
+	ANDL $~15, SP
 	MOVL BX, PTR_ADDRESS(SP) // save args pointer
 
 	// Load function pointer
@@ -137,7 +142,7 @@ TEXT syscallX(SB), NOSPLIT|NOFRAME, $0-0
 	FMOVDP F0, syscallArgs_f1(BX)
 
 	// Clean up stack
-	ADDL $STACK_SIZE, SP
+	MOVL BP, SP
 
 	// Restore callee-saved registers
 	POPL DI
