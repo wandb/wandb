@@ -135,6 +135,15 @@ message SystemMetricsRecord {
   TrainiumHostMetrics trainium_host = 10;
   repeated GenericMetric generic = 11;
 
+  // The sample's number among its writer's samples, starting at 1. Dropped
+  // samples are counted, so a jump of more than one is a gap. Set by
+  // wandb-core.
+  uint64 sequence = 12;
+
+  // The sampling interval the subscriber asked for. interval_ms is longer
+  // than this after a late sweep, a stall, or dropped samples.
+  uint32 sampling_interval_ms = 13;
+
   _RecordInfo _info = 200;
 }
 

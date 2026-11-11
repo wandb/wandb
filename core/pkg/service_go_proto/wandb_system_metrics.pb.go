@@ -559,14 +559,21 @@ type SystemMetricsRecord struct {
 	// The monitored process tree (x_stats_pid).
 	Process *ProcessMetrics `protobuf:"bytes,6,opt,name=process,proto3" json:"process,omitempty"`
 	// W&B's own processes (x_stats_self_usage).
-	Sdk           *SdkMetrics           `protobuf:"bytes,7,opt,name=sdk,proto3" json:"sdk,omitempty"`
-	Accelerators  []*AcceleratorMetrics `protobuf:"bytes,8,rep,name=accelerators,proto3" json:"accelerators,omitempty"`
-	TpuRuntime    *TpuRuntimeMetrics    `protobuf:"bytes,9,opt,name=tpu_runtime,json=tpuRuntime,proto3" json:"tpu_runtime,omitempty"`
-	TrainiumHost  *TrainiumHostMetrics  `protobuf:"bytes,10,opt,name=trainium_host,json=trainiumHost,proto3" json:"trainium_host,omitempty"`
-	Generic       []*GenericMetric      `protobuf:"bytes,11,rep,name=generic,proto3" json:"generic,omitempty"`
-	XInfo         *XRecordInfo          `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Sdk          *SdkMetrics           `protobuf:"bytes,7,opt,name=sdk,proto3" json:"sdk,omitempty"`
+	Accelerators []*AcceleratorMetrics `protobuf:"bytes,8,rep,name=accelerators,proto3" json:"accelerators,omitempty"`
+	TpuRuntime   *TpuRuntimeMetrics    `protobuf:"bytes,9,opt,name=tpu_runtime,json=tpuRuntime,proto3" json:"tpu_runtime,omitempty"`
+	TrainiumHost *TrainiumHostMetrics  `protobuf:"bytes,10,opt,name=trainium_host,json=trainiumHost,proto3" json:"trainium_host,omitempty"`
+	Generic      []*GenericMetric      `protobuf:"bytes,11,rep,name=generic,proto3" json:"generic,omitempty"`
+	// The sample's number among its writer's samples, starting at 1. Dropped
+	// samples are counted, so a jump of more than one is a gap. Set by
+	// wandb-core.
+	Sequence uint64 `protobuf:"varint,12,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// The sampling interval the subscriber asked for. interval_ms is longer
+	// than this after a late sweep, a stall, or dropped samples.
+	SamplingIntervalMs uint32       `protobuf:"varint,13,opt,name=sampling_interval_ms,json=samplingIntervalMs,proto3" json:"sampling_interval_ms,omitempty"`
+	XInfo              *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SystemMetricsRecord) Reset() {
@@ -674,6 +681,20 @@ func (x *SystemMetricsRecord) GetGeneric() []*GenericMetric {
 		return x.Generic
 	}
 	return nil
+}
+
+func (x *SystemMetricsRecord) GetSequence() uint64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *SystemMetricsRecord) GetSamplingIntervalMs() uint32 {
+	if x != nil {
+		return x.SamplingIntervalMs
+	}
+	return 0
 }
 
 func (x *SystemMetricsRecord) GetXInfo() *XRecordInfo {
@@ -3000,7 +3021,7 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x10accelerator_type\x18\x01 \x01(\x0e2\x1f.wandb_internal.AcceleratorTypeR\x0facceleratorType\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1a\n" +
 	"\btemplate\x18\x03 \x01(\tR\btemplate\x12\x12\n" +
-	"\x04unit\x18\x04 \x01(\tR\x04unit\"\xa8\x05\n" +
+	"\x04unit\x18\x04 \x01(\tR\x04unit\"\xf6\x05\n" +
 	"\x13SystemMetricsRecord\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1f\n" +
 	"\vinterval_ms\x18\x02 \x01(\rR\n" +
@@ -3015,7 +3036,9 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"tpuRuntime\x12H\n" +
 	"\rtrainium_host\x18\n" +
 	" \x01(\v2#.wandb_internal.TrainiumHostMetricsR\ftrainiumHost\x127\n" +
-	"\ageneric\x18\v \x03(\v2\x1d.wandb_internal.GenericMetricR\ageneric\x121\n" +
+	"\ageneric\x18\v \x03(\v2\x1d.wandb_internal.GenericMetricR\ageneric\x12\x1a\n" +
+	"\bsequence\x18\f \x01(\x04R\bsequence\x120\n" +
+	"\x14sampling_interval_ms\x18\r \x01(\rR\x12samplingIntervalMs\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xac\x04\n" +
 	"\n" +
 	"WriterInfo\x12+\n" +

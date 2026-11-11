@@ -259,6 +259,7 @@ impl Subscriptions {
             }
             typed.timestamp = Some(timestamp);
             typed.interval_ms = since_last.as_millis() as u32;
+            typed.sampling_interval_ms = sub.interval.as_millis() as u32;
             typed.dropped_samples = sub.dropped;
             let response = SubscribeResponse {
                 record: None,
@@ -423,6 +424,7 @@ mod tests {
             std::iter::from_fn(|| rx.try_recv().ok()?.ok()?.sample).collect();
         let intervals: Vec<u32> = samples.iter().map(|sample| sample.interval_ms).collect();
         assert_eq!(intervals, [0, 15_000, 17_000]);
+        assert!(samples.iter().all(|s| s.sampling_interval_ms == 15_000));
         let seconds = |sample: &SystemMetricsRecord| {
             let time = sample.timestamp.expect("no timestamp");
             time.seconds as f64 + f64::from(time.nanos) / 1e9
