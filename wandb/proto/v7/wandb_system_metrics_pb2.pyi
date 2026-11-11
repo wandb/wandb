@@ -97,7 +97,7 @@ class LegacyKey(_message.Message):
     def __init__(self, accelerator_type: _Optional[_Union[AcceleratorType, str]] = ..., source: _Optional[str] = ..., template: _Optional[str] = ..., unit: _Optional[str] = ...) -> None: ...
 
 class SystemMetricsRecord(_message.Message):
-    __slots__ = ("timestamp", "interval_ms", "dropped_samples", "writer", "host", "process", "sdk", "accelerators", "tpu_runtime", "trainium_host", "generic", "_info")
+    __slots__ = ("timestamp", "interval_ms", "dropped_samples", "writer", "host", "process", "sdk", "accelerators", "tpu_runtime", "trainium_host", "generic", "sequence", "sampling_interval_ms", "_info")
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
     DROPPED_SAMPLES_FIELD_NUMBER: _ClassVar[int]
@@ -109,6 +109,8 @@ class SystemMetricsRecord(_message.Message):
     TPU_RUNTIME_FIELD_NUMBER: _ClassVar[int]
     TRAINIUM_HOST_FIELD_NUMBER: _ClassVar[int]
     GENERIC_FIELD_NUMBER: _ClassVar[int]
+    SEQUENCE_FIELD_NUMBER: _ClassVar[int]
+    SAMPLING_INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     timestamp: _timestamp_pb2.Timestamp
     interval_ms: int
@@ -121,8 +123,10 @@ class SystemMetricsRecord(_message.Message):
     tpu_runtime: TpuRuntimeMetrics
     trainium_host: TrainiumHostMetrics
     generic: _containers.RepeatedCompositeFieldContainer[GenericMetric]
+    sequence: int
+    sampling_interval_ms: int
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., interval_ms: _Optional[int] = ..., dropped_samples: _Optional[int] = ..., writer: _Optional[_Union[WriterInfo, _Mapping]] = ..., host: _Optional[_Union[HostMetrics, _Mapping]] = ..., process: _Optional[_Union[ProcessMetrics, _Mapping]] = ..., sdk: _Optional[_Union[SdkMetrics, _Mapping]] = ..., accelerators: _Optional[_Iterable[_Union[AcceleratorMetrics, _Mapping]]] = ..., tpu_runtime: _Optional[_Union[TpuRuntimeMetrics, _Mapping]] = ..., trainium_host: _Optional[_Union[TrainiumHostMetrics, _Mapping]] = ..., generic: _Optional[_Iterable[_Union[GenericMetric, _Mapping]]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., interval_ms: _Optional[int] = ..., dropped_samples: _Optional[int] = ..., writer: _Optional[_Union[WriterInfo, _Mapping]] = ..., host: _Optional[_Union[HostMetrics, _Mapping]] = ..., process: _Optional[_Union[ProcessMetrics, _Mapping]] = ..., sdk: _Optional[_Union[SdkMetrics, _Mapping]] = ..., accelerators: _Optional[_Iterable[_Union[AcceleratorMetrics, _Mapping]]] = ..., tpu_runtime: _Optional[_Union[TpuRuntimeMetrics, _Mapping]] = ..., trainium_host: _Optional[_Union[TrainiumHostMetrics, _Mapping]] = ..., generic: _Optional[_Iterable[_Union[GenericMetric, _Mapping]]] = ..., sequence: _Optional[int] = ..., sampling_interval_ms: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class WriterInfo(_message.Message):
     __slots__ = ("id", "label", "hostname", "rank", "local_rank", "node_rank", "world_size", "scheduler_job")

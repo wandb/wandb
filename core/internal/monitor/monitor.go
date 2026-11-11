@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -90,6 +91,11 @@ type SystemMonitor struct {
 	// writer is set on typed records, which are stored only when
 	// x_stats_typed is on.
 	writer *spb.WriterInfo
+
+	// sequence numbers the writer's samples, counting the ones symon dropped.
+	// It lives here because pausing and resuming the monitor starts a new
+	// subscription for the same writer.
+	sequence atomic.Uint64
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -472,6 +478,7 @@ func (sm *SystemMonitor) publish(ctx context.Context, response *spb.SubscribeRes
 	var records []*spb.Record
 	if sample := response.GetSample(); sm.writer != nil && sample != nil {
 		sample.Writer = sm.writer
+		sample.Sequence = sm.sequence.Add(uint64(sample.GetDroppedSamples()) + 1)
 		records = append(records, &spb.Record{
 			RecordType: &spb.Record_SystemMetrics{SystemMetrics: sample},
 		})

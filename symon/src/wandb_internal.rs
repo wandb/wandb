@@ -742,6 +742,15 @@ pub struct SystemMetricsRecord {
     pub trainium_host: ::core::option::Option<TrainiumHostMetrics>,
     #[prost(message, repeated, tag = "11")]
     pub generic: ::prost::alloc::vec::Vec<GenericMetric>,
+    /// The sample's number among its writer's samples, starting at 1. Dropped
+    /// samples are counted, so a jump of more than one is a gap. Set by
+    /// wandb-core.
+    #[prost(uint64, tag = "12")]
+    pub sequence: u64,
+    /// The sampling interval the subscriber asked for. interval_ms is longer
+    /// than this after a late sweep, a stall, or dropped samples.
+    #[prost(uint32, tag = "13")]
+    pub sampling_interval_ms: u32,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
