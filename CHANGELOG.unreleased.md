@@ -30,6 +30,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- On Windows, a file path containing `|` is now rejected as an invalid filename, as the error message already said, and a path given as an integer no longer raises `TypeError` (@paolo-perrone in https://github.com/wandb/wandb/pull/13356)
 - `Artifact.link()` and `Run.link_artifact()` warn when the target collection name contains `:` (for example `my-coll:prod`) and point to the `aliases` argument for adding aliases (@mrobers1982 in https://github.com/wandb/wandb/pull/13321)
 - `Api.automations()` lists push notification automations (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13282)
 - Installing `wandb` from source on Android (Termux) now builds for Android instead of failing on a glibc Linux Rust target (@dmitryduev in https://github.com/wandb/wandb/pull/13289)

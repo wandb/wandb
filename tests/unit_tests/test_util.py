@@ -492,6 +492,26 @@ def test_is_uri():
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="fixme: make this work on windows"
 )
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("plain_name.txt", True),
+        ("a/b/c.png", True),
+        (5, True),
+        ("a|b", False),
+        ("a<b", False),
+        ("a>b", False),
+        ("a:b", False),
+        ('a"b', False),
+        ("a?b", False),
+        ("a*b", False),
+        ("a\\b", False),
+    ],
+)
+def test_check_windows_valid_filename(path, expected):
+    assert util.check_windows_valid_filename(path) is expected
+
+
 def test_local_file_uri_to_path():
     assert util.local_file_uri_to_path("file:///foo.com") == "/foo.com"
     assert util.local_file_uri_to_path("file://foo.com") == ""
