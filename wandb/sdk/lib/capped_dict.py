@@ -25,4 +25,6 @@ class CappedDict(collections.OrderedDict):
         if len(self) >= max_size:
             diff = len(self) - max_size
             for k in list(self.keys())[:diff]:
-                del self[k]
+                # Another thread may have pruned the same key after the
+                # snapshot above was taken, so don't fail if it's gone.
+                self.pop(k, None)
