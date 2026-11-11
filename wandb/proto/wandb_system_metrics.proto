@@ -141,7 +141,8 @@ message SystemMetricsRecord {
   uint64 sequence = 12;
 
   // The sampling interval the subscriber asked for. interval_ms is longer
-  // than this after a late sweep, a stall, or dropped samples.
+  // than this after a late sweep or a stall. It does not span a dropped
+  // sample: the next sample's interval starts at the dropped sweep.
   uint32 sampling_interval_ms = 13;
 
   _RecordInfo _info = 200;

@@ -569,7 +569,8 @@ type SystemMetricsRecord struct {
 	// wandb-core.
 	Sequence uint64 `protobuf:"varint,12,opt,name=sequence,proto3" json:"sequence,omitempty"`
 	// The sampling interval the subscriber asked for. interval_ms is longer
-	// than this after a late sweep, a stall, or dropped samples.
+	// than this after a late sweep or a stall. It does not span a dropped
+	// sample: the next sample's interval starts at the dropped sweep.
 	SamplingIntervalMs uint32       `protobuf:"varint,13,opt,name=sampling_interval_ms,json=samplingIntervalMs,proto3" json:"sampling_interval_ms,omitempty"`
 	XInfo              *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields      protoimpl.UnknownFields

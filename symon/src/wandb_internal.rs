@@ -748,7 +748,8 @@ pub struct SystemMetricsRecord {
     #[prost(uint64, tag = "12")]
     pub sequence: u64,
     /// The sampling interval the subscriber asked for. interval_ms is longer
-    /// than this after a late sweep, a stall, or dropped samples.
+    /// than this after a late sweep or a stall. It does not span a dropped
+    /// sample: the next sample's interval starts at the dropped sweep.
     #[prost(uint32, tag = "13")]
     pub sampling_interval_ms: u32,
     #[prost(message, optional, tag = "200")]
