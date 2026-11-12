@@ -23,7 +23,7 @@ import time
 import urllib.parse
 import webbrowser
 from collections.abc import Callable, Generator
-from typing import Any, cast
+from typing import IO, Any, cast
 
 import requests
 from typing_extensions import final, override
@@ -168,7 +168,7 @@ def can_open_browser() -> bool:
         return False
 
     # Non-interactive processes, including most CI, should not wait.
-    if not (sys.stdin.isatty() and sys.stderr.isatty()):
+    if not (_is_tty(sys.stdin) and _is_tty(sys.stderr)):
         return False
 
     # Without a display, webbrowser may pick a terminal browser.
@@ -185,8 +185,23 @@ def can_open_browser() -> bool:
     return True
 
 
+def _is_tty(stream: IO[str] | None) -> bool:
+    """Returns whether a standard stream is a terminal.
+
+    A standard stream is None when the process has no console, as under
+    pythonw, and isatty() raises if the stream has been closed.
+    """
+    if stream is None:
+        return False
+
+    try:
+        return stream.isatty()
+    except ValueError:
+        return False
+
+
 def load_credentials(
-    credentials_file: str | pathlib.Path,
+    credentials_file: pathlib.Path,
     host: HostUrl,
 ) -> TokenSet | None:
     """Returns the browser login stored for a host, if there is one.
@@ -195,7 +210,7 @@ def load_credentials(
         credentials_file: The path to the credentials file.
         host: The W&B server the login is for.
     """
-    contents = _read_file(pathlib.Path(credentials_file))
+    contents = _read_file(credentials_file)
     entry = _user_credentials(contents).get(host.url)
     if not isinstance(entry, dict):
         return None
@@ -225,7 +240,7 @@ def load_credentials(
 
 
 def save_credentials(
-    credentials_file: str | pathlib.Path,
+    credentials_file: pathlib.Path,
     host: HostUrl,
     tokens: TokenSet,
 ) -> None:
@@ -236,15 +251,14 @@ def save_credentials(
         host: The W&B server the login is for.
         tokens: The tokens to store.
     """
-    path = pathlib.Path(credentials_file)
-    with _credentials_lock(path):
-        contents = _read_file(path, strict=True)
+    with _credentials_lock(credentials_file):
+        contents = _read_file(credentials_file, strict=True)
         _user_credentials(contents)[host.url] = tokens.to_json()
-        _write_file(path, contents)
+        _write_file(credentials_file, contents)
 
 
 def clear_credentials(
-    credentials_file: str | pathlib.Path,
+    credentials_file: pathlib.Path,
     host: HostUrl,
 ) -> TokenSet | None:
     """Removes the stored login for a host and returns what was removed.
@@ -255,12 +269,11 @@ def clear_credentials(
         credentials_file: The path to the credentials file.
         host: The W&B server the login is for.
     """
-    path = pathlib.Path(credentials_file)
-    with _credentials_lock(path):
-        contents = _read_file(path, strict=True)
-        existing = load_credentials(path, host)
+    with _credentials_lock(credentials_file):
+        contents = _read_file(credentials_file, strict=True)
+        existing = load_credentials(credentials_file, host)
         if _user_credentials(contents).pop(host.url, None) is not None:
-            _write_file(path, contents)
+            _write_file(credentials_file, contents)
         return existing
 
 
@@ -272,7 +285,7 @@ def _credentials_lock(path: pathlib.Path) -> Generator[None]:
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(str(path) + ".lock", os.O_RDWR | os.O_CREAT, 0o666)
+        fd = os.open(path.with_name(f"{path.name}.lock"), os.O_RDWR | os.O_CREAT, 0o666)
     except OSError:
         yield
         return
@@ -399,17 +412,18 @@ def _write_file(path: pathlib.Path, contents: dict[str, Any]) -> None:
     temp_path = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        handle, temp_path = tempfile.mkstemp(
-            dir=str(path.parent),
+        handle, temp_name = tempfile.mkstemp(
+            dir=path.parent,
             prefix=".credentials-",
             suffix=".json",
         )
+        temp_path = pathlib.Path(temp_name)
         with os.fdopen(handle, "w") as file:
             json.dump(contents, file, indent=2)
             file.flush()
             os.fsync(file.fileno())
-        os.chmod(temp_path, 0o600)
-        os.replace(temp_path, path)
+        temp_path.chmod(0o600)
+        temp_path.replace(path)
     except OSError as e:
         raise AuthenticationError(
             f"Could not write the credentials file {path}: {e}"
@@ -418,7 +432,7 @@ def _write_file(path: pathlib.Path, contents: dict[str, Any]) -> None:
         # Gone already after a successful replace.
         if temp_path:
             with contextlib.suppress(OSError):
-                os.unlink(temp_path)
+                temp_path.unlink(missing_ok=True)
 
 
 def _pkce_pair() -> tuple[str, str]:
