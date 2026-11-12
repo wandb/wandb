@@ -109,5 +109,4 @@
 
 # CoreWeave Evaluations Service (CES) EvalTables
 /core/internal/evaltables/                 @wandb/cw-eval-service-team @wandb/sdk-team
-/core/third_party/cwevals-go/              @wandb/cw-eval-service-team @wandb/sdk-team
 /core/vendor/github.com/wandb/cwevals-go/  @wandb/cw-eval-service-team @wandb/sdk-team
