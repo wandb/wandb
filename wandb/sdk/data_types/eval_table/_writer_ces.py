@@ -154,8 +154,9 @@ def _add_rows(
         request.rows_file_path = file.name
         yield
     finally:
-        # On Windows, removal fails if an interrupted upload still has the
-        # file open. That must not replace the original error.
+        # Removal is best effort, so that a failure to remove the file,
+        # such as while wandb-core still has it open, can't replace the
+        # upload's result or error.
         with contextlib.suppress(OSError):
             os.remove(file.name)
 
