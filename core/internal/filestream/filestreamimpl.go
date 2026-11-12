@@ -230,7 +230,7 @@ func (fs *fileStream) send(
 			err,
 			resp,
 		)
-	case resp.StatusCode < 200 || resp.StatusCode > 300:
+	case resp.StatusCode < 200 || resp.StatusCode >= 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))

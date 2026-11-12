@@ -288,10 +288,18 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
+		runDir := fs.settings.GetSyncDir()
+		if runDir == "" {
+			runDir = "<run directory>"
+		}
+
+		// `wandb sync` skips online runs unless told to include them.
 		fs.printer.Errorf(
-			"Fatal error while uploading data. Some run data will" +
-				" not be synced, but it will still be written to disk. Use" +
-				" `wandb sync` at the end of the run to try uploading.",
+			"Fatal error while uploading data. Some run data will"+
+				" not be synced, but it will still be written to disk. Use"+
+				" `wandb sync --include-online %s` at the end of the run"+
+				" to try uploading.",
+			runDir,
 		)
 	})
 }
