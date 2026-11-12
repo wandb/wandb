@@ -115,7 +115,11 @@ func (u *Uploader) Encode(
 		return nil, usageError{err}
 	}
 
-	rowsJSON, err := newRowEncoder(request, runPath).encodeRows(request.GetRows())
+	encoder, err := newRowEncoder(request, runPath)
+	if err != nil {
+		return nil, usageError{err}
+	}
+	rowsJSON, err := encoder.encodeRows(request.GetRows())
 	if err != nil {
 		return nil, usageError{err}
 	}
@@ -286,9 +290,9 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-// validateColumns checks that the request's columns have known types,
-// which the CES SDK doesn't check, and that their CES request fits
-// CES's size limit.
+// validateColumns checks that the request's columns have known types and
+// that their CES request fits CES's size limit, so that an invalid table
+// fails before any CES request.
 func validateColumns(
 	request *spb.UploadEvalTableRequest,
 	columns *ces.EvalTableColumnNewParams,
