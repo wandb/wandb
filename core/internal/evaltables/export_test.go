@@ -27,6 +27,7 @@ func (t *EncodedTable) ColumnsJSON(tb testing.TB) string {
 }
 
 // RowsJSON returns the table's CES rows as a JSON array.
-func (t *EncodedTable) RowsJSON() string {
+func (t *EncodedTable) RowsJSON(tb testing.TB) string {
+	tb.Helper()
 	return "[" + string(bytes.Join(t.rowsJSON, []byte(","))) + "]"
 }
