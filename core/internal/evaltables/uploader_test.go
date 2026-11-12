@@ -365,7 +365,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"scores":{"passed":null,"votes":null,"accuracy":null,"rank":null,"grade":null},`+
 			`"example_key":"2"}`+
 			`]`,
-		table.RowsJSON())
+		table.RowsJSON(t))
 }
 
 func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
@@ -410,7 +410,7 @@ func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t,
 		`[{"input":{`+strings.Join(want, ",")+`},"output":null,"scores":{}}]`,
-		table.RowsJSON())
+		table.RowsJSON(t))
 }
 
 // encodeJSON encodes v like encoding/json without HTML escaping.
@@ -763,7 +763,6 @@ func TestEncode_RejectsOversizedRow(t *testing.T) {
 }
 
 func TestEncode_ConvertsMedia(t *testing.T) {
-
 	// W&B media JSON, as from Python's Media.to_json.
 	image := `{` +
 		`"_type":"image-file",` +
@@ -903,7 +902,7 @@ func TestEncode_ConvertsMedia(t *testing.T) {
 			}
 		},
 		"scores": {}
-	}]`, table.RowsJSON())
+	}]`, table.RowsJSON(t))
 }
 
 // TestEncode_ConvertsPythonMedia converts a request recorded from the Python
@@ -981,7 +980,7 @@ func TestEncode_ConvertsPythonMedia(t *testing.T) {
 		},
 		"output": null,
 		"scores": {}
-	}]`, table.RowsJSON())
+	}]`, table.RowsJSON(t))
 }
 
 func TestEncode_KeepsNullMedia(t *testing.T) {
@@ -1002,7 +1001,7 @@ func TestEncode_KeepsNullMedia(t *testing.T) {
 			`{"input":{"image":null},"output":null,"scores":{}},`+
 			`{"input":null,"output":{"image":null},"scores":{}}`+
 			`]`,
-		table.RowsJSON())
+		table.RowsJSON(t))
 }
 
 func TestEncode_RejectsInvalidMedia(t *testing.T) {
