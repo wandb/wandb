@@ -76,7 +76,7 @@ flowchart TB
 | User-facing API | `wandb.init`, `Run`, `Config`, `Summary`, media/data types | none | none |
 | Settings | Parse public settings, env vars, config files | Convert proto settings to core settings | none |
 | IPC | Start/connect to core, frame protobuf messages, wait for responses | Listen, parse frames, route requests | none |
-| Run lifecycle | Construct `Run`, send run/init/start/exit records, print progress | Upsert run, manage stream, finish upload work | none |
+| Run lifecycle | Construct `Run`, send run/init/exit records, print progress | Upsert run, manage stream, finish upload work | none |
 | History and summary | Serialize user values to proto items | Accumulate partial history, derive summary, stream JSONL | none |
 | Files | Materialize `run.save()` paths into run files dir | Watch, schedule, upload, report progress | none |
 | Artifacts | User object model and API ergonomics | Save/link/download artifact work | none |
@@ -120,7 +120,6 @@ sequenceDiagram
     I->>G: deliver RunRecord
     G->>G: InitRun / UpsertBucket
     G-->>I: RunUpdateResult
-    I->>G: deliver RunStartRequest
     G->>G: start filestream, system monitor, code save
     I-->>U: Run
 ```
@@ -136,7 +135,6 @@ interface = service.inform_init(
 run = Run(config=..., settings=settings, ...)
 run._set_backend(interface)
 run_init_handle = interface.deliver_run(run)
-run_start_handle = interface.deliver_run_start(run)
 ```
 
 Core receives the `inform_init`, injects a stream, starts it, and responds. Regular run records then flow through `handleInformRecord()` into that stream.
@@ -147,7 +145,7 @@ There are three nested concepts that are easy to confuse:
 
 - `ServerRequest`: an outer envelope used on the Python-to-core socket. It contains control requests like `inform_init`, `sync`, `api_request`, or a run `record_publish`.
 - `Record`: the per-run protobuf message, defined in `wandb_internal.proto`, used for history, summary, config, files, artifacts, output, exit, and request messages. Persisted in the transaction log.
-- `Request`: a `Record` subtype that expects a run-level response, such as `RunStart`, `PartialHistory`, `PollExit`, `GetSummary`, or artifact operations. Not persisted in the transaction log.
+- `Request`: a `Record` subtype that expects a run-level response, such as `PartialHistory`, `PollExit`, `GetSummary`, or artifact operations. Not persisted in the transaction log.
 
 `publish` means "send and do not wait for a response". `deliver` means "send and return a mailbox handle for the response".
 
@@ -164,7 +162,7 @@ flowchart LR
 
 | User action | Python emits | Core owner | Backend/local effect |
 | --- | --- | --- | --- |
-| `wandb.init()` | `RunRecord`, `RunStartRequest` | `runupserter`, `Handler`, `Sender` | Upsert run, start filestream and monitors |
+| `wandb.init()` | `RunRecord` | `runupserter`, `Handler`, `Sender` | Upsert run, start filestream and monitors |
 | `run.log()` | `PartialHistoryRequest` | `Handler` then `Sender` | Accumulate/flush history, update summary, stream JSONL |
 | `run.summary[...] = ...` | `SummaryRecord` | `Sender` | Update summary and stream `wandb-summary.json` data |
 | `run.save()` | `FilesRecord` | `runfiles.Uploader` | Watch/link/copy files, upload by policy |

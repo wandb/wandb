@@ -485,6 +485,8 @@ func (s *Sender) startFileStreamAfterRunInit() {
 	}
 
 	s.fileStreamStart.Go(func() {
+		defer s.logger.Reraise("stream")
+
 		select {
 		case <-s.receivedExitCh:
 			return
@@ -495,7 +497,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 		if err != nil {
 			s.logger.CaptureError(
 				"stream",
-				fmt.Errorf("sender: sendRequestRunStart: %v", err),
+				fmt.Errorf("sender: startFileStreamAfterRunInit: %v", err),
 			)
 			return
 		}

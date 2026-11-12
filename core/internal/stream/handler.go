@@ -193,9 +193,9 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 	select {
 	case <-h.receivedExitCh: // expected
 	default:
+		h.logger.CaptureError("stream", errors.New("handler: no exit"))
 		close(h.receivedExitCh)
 		h.beforeExitWG.Wait()
-		h.logger.CaptureError("stream", errors.New("handler: no exit"))
 	}
 
 	h.Close()
