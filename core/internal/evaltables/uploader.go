@@ -110,7 +110,6 @@ type EncodedTable struct {
 	rowsFilePath string
 }
 
-// rows returns the table's CES row JSON.
 func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 	if t.rowsFilePath != "" {
 		return t.encoder.encodeRows(rowsFromFile(t.rowsFilePath))
@@ -339,8 +338,6 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-// requestRows returns the rows in the request's rows file if it has one,
-// or else its inline rows.
 func requestRows(
 	request *spb.UploadEvalTableRequest,
 ) iter.Seq2[*spb.EvalTableRow, error] {
@@ -505,14 +502,11 @@ func rowBatches(rows iter.Seq2[[]byte, error]) iter.Seq2[rowBatch, error] {
 	}
 }
 
-// rowBatchBuilder builds a row append request body.
 type rowBatchBuilder struct {
 	body  bytes.Buffer
 	nrows int
 }
 
-// fits reports whether row can be added within the batch limits.
-//
 // Any row fits in an empty batch.
 func (b *rowBatchBuilder) fits(row []byte) bool {
 	return b.nrows == 0 ||
@@ -530,7 +524,6 @@ func (b *rowBatchBuilder) add(row []byte) {
 	b.nrows++
 }
 
-// take returns the batch and empties the builder.
 func (b *rowBatchBuilder) take() rowBatch {
 	b.body.WriteString(rowBatchSuffix)
 	batch := rowBatch{body: bytes.Clone(b.body.Bytes()), rows: b.nrows}
@@ -562,7 +555,6 @@ func newIdempotencyKeys() idempotencyKeys {
 	}
 }
 
-// option returns a request option setting the key for an operation.
 func (k idempotencyKeys) option(operation string) option.RequestOption {
 	return option.WithHeader("Idempotency-Key", k.prefix+"-"+operation)
 }
