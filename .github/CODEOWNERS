@@ -106,3 +106,8 @@
 /wandb/sdk/data_types/eval_table/          @wandb/tables-reviewers @wandb/sdk-team
 /tests/unit_tests/test_eval_table*         @wandb/tables-reviewers @wandb/sdk-team
 /wandb/integration/weave/media_adapters.py @wandb/tables-reviewers @wandb/sdk-team
+
+# CoreWeave Evaluations Service (CES) EvalTables
+/core/internal/evaltables/                 @wandb/cw-eval-service-team @wandb/sdk-team
+/core/third_party/cwevals-go/              @wandb/cw-eval-service-team @wandb/sdk-team
+/core/vendor/github.com/wandb/cwevals-go/  @wandb/cw-eval-service-team @wandb/sdk-team
