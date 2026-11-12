@@ -670,6 +670,8 @@ func (h *Handler) handleRequestAttach(
 		defer h.logger.Reraise("stream")
 
 		select {
+		case <-request.Context().Done():
+			return
 		case <-h.receivedExitCh:
 			request.WillNotRespond()
 			return
@@ -1009,6 +1011,9 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		// TODO: Remove this when we don't need steps in the transaction log.
 		//
 		// This sets up the initial step for resumed/forked/rewound runs.
+		// It assumes that no records are sent until the initial RunRecord
+		// gets a response. This is true for now, but will be false when
+		// `wandb.init()` becomes async.
 		upserter, err := h.runHandle.Upserter()
 		if err != nil {
 			h.logger.CaptureError(
