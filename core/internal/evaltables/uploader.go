@@ -152,11 +152,16 @@ func (u *Uploader) Encode(
 		return nil, usageError{err}
 	}
 
+	encoder, err := newRowEncoder(request, runPath)
+	if err != nil {
+		return nil, usageError{err}
+	}
+
 	table := &EncodedTable{
 		name:         request.GetName(),
 		runPath:      runPath,
 		columns:      columns,
-		encoder:      newRowEncoder(request, runPath),
+		encoder:      encoder,
 		rowsFilePath: request.GetRowsFilePath(),
 	}
 	for rowJSON, err := range table.encoder.encodeRows(requestRows(request)) {
@@ -417,9 +422,9 @@ func readRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
 	return row, nil
 }
 
-// validateColumns checks that the request's columns have known types,
-// which the CES SDK doesn't check, and that their CES request fits
-// CES's size limit.
+// validateColumns checks that the request's columns have known types and
+// that their CES request fits CES's size limit, so that an invalid table
+// fails before any CES request.
 func validateColumns(
 	request *spb.UploadEvalTableRequest,
 	columns *ces.EvalTableColumnNewParams,

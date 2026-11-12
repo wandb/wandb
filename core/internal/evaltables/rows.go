@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	ces "github.com/wandb/cwevals-go"
+
 	"github.com/wandb/wandb/core/internal/runbranch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -43,18 +45,21 @@ type rowEncoder struct {
 func newRowEncoder(
 	request *spb.UploadEvalTableRequest,
 	runPath runbranch.RunPath,
-) *rowEncoder {
+) (*rowEncoder, error) {
 	e := &rowEncoder{media: &mediaConverter{runPath: runPath}}
 
 	for _, field := range request.GetDatasetFields() {
 		column := newRowColumn(
 			field.GetName(), field.GetValueType(), field.GetWandbMediaType())
 
-		// validateColumns checked that the source is "input" or "output".
-		if field.GetSource() == "input" {
+		switch source := ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource()); source {
+		case ces.EvalTableColumnNewParamsDatasetFieldsSourceInput:
 			e.inputs = append(e.inputs, column)
-		} else {
+		case ces.EvalTableColumnNewParamsDatasetFieldsSourceOutput:
 			e.outputs = append(e.outputs, column)
+		default:
+			return nil, fmt.Errorf(
+				"field %q has unsupported source %q", field.GetName(), source)
 		}
 	}
 
@@ -63,7 +68,7 @@ func newRowEncoder(
 			newRowColumn(scorer.GetName(), scorer.GetValueType(), ""))
 	}
 
-	return e
+	return e, nil
 }
 
 func newRowColumn(name, valueType, mediaType string) rowColumn {
