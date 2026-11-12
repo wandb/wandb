@@ -665,22 +665,19 @@ func TestUpload_ReportsRowsFileProgress(t *testing.T) {
 	assert.Equal(t, "2/2 rows", op.ToProto().GetProgress())
 }
 
-func TestUpload_RejectsInvalidRowInRowsFile(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+func TestEncode_RejectsInvalidRowInRowsFile(t *testing.T) {
 	path := writeRowsFile(t,
 		&spb.EvalTableRow{Output: values(stringValue("ok"))},
 		&spb.EvalTableRow{Output: values(numberValue(1))},
 	)
 
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	_, err := encode(t, &spb.UploadEvalTableRequest{
 		DatasetFields: outputFieldX,
 		RowsFilePath:  path,
 	})
 
 	assert.ErrorContains(t, err, "(row 1)")
 	assert.True(t, evaltables.IsUsageError(err))
-	assert.Empty(t, ces.Requests())
 }
 
 func TestUpload_RejectsBadRowsFile(t *testing.T) {
@@ -737,18 +734,14 @@ func TestUpload_RejectsBadRowsFile(t *testing.T) {
 	}
 }
 
-func TestUpload_RejectsBothRowsAndRowsFile(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+func TestEncode_RejectsBothRowsAndRowsFile(t *testing.T) {
+	_, err := encode(t, &spb.UploadEvalTableRequest{
 		Rows:         []*spb.EvalTableRow{{}},
 		RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}),
 	})
 
 	assert.ErrorContains(t, err, "both rows and a rows file")
 	assert.True(t, evaltables.IsUsageError(err))
-	assert.Empty(t, ces.Requests())
 }
 
 func TestUpload_NoCESURL(t *testing.T) {
