@@ -528,7 +528,7 @@ def test_save_waits_for_the_core_credentials_lock(tmp_path: pathlib.Path):
     import fcntl
 
     path = tmp_path / "credentials.json"
-    fd = os.open(str(path) + ".lock", os.O_RDWR | os.O_CREAT, 0o666)
+    fd = os.open(path.with_name(f"{path.name}.lock"), os.O_RDWR | os.O_CREAT, 0o666)
     fcntl.flock(fd, fcntl.LOCK_EX)
     finished = threading.Event()
 
@@ -555,7 +555,7 @@ def test_saving_reports_a_file_that_cannot_be_written(
     def deny(*args: object, **kwargs: object) -> None:
         raise PermissionError("denied")
 
-    monkeypatch.setattr(os, "replace", deny)
+    monkeypatch.setattr(pathlib.Path, "replace", deny)
 
     with pytest.raises(AuthenticationError, match="Could not write"):
         browser_login.save_credentials(
@@ -697,6 +697,10 @@ def browser_available(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _closed_isatty() -> bool:
+    raise ValueError("I/O operation on closed file")
+
+
 def _no_browser() -> object:
     raise webbrowser.Error("could not locate runnable browser")
 
@@ -728,6 +732,22 @@ def test_can_open_browser_when_nothing_prevents_it(browser_available: None):
         pytest.param(
             lambda mp: mp.setattr(browser_login.sys.stderr, "isatty", lambda: False),
             id="stderr-not-a-tty",
+        ),
+        pytest.param(
+            lambda mp: mp.setattr(browser_login.sys, "stdin", None),
+            id="stdin-is-none",
+        ),
+        pytest.param(
+            lambda mp: mp.setattr(browser_login.sys, "stderr", None),
+            id="stderr-is-none",
+        ),
+        pytest.param(
+            lambda mp: mp.setattr(browser_login.sys.stdin, "isatty", _closed_isatty),
+            id="stdin-is-closed",
+        ),
+        pytest.param(
+            lambda mp: mp.setattr(browser_login.sys.stderr, "isatty", _closed_isatty),
+            id="stderr-is-closed",
         ),
         pytest.param(lambda mp: mp.delenv("DISPLAY"), id="no-display"),
         pytest.param(
