@@ -167,6 +167,17 @@ func upload(
 	return uploader.Upload(ctx, table)
 }
 
+// encode validates and encodes an EvalTable without uploading it.
+func encode(
+	t *testing.T,
+	request *spb.UploadEvalTableRequest,
+) (*evaltables.EncodedTable, error) {
+	t.Helper()
+	uploader, _ := newTestUploaderWithSettings(
+		t, projectFoundJSON, settings.From(&spb.Settings{}))
+	return uploader.Encode(request)
+}
+
 func boolValue(v bool) *spb.EvalTableValue {
 	return &spb.EvalTableValue{Value: &spb.EvalTableValue_BoolValue{BoolValue: v}}
 }
@@ -275,11 +286,8 @@ func TestUpload(t *testing.T) {
 	assert.Equal(t, tablePath+"/eval-id/versions", requests[3].Path)
 }
 
-func TestUpload_EncodesAllValueTypes(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+func TestEncode_AllValueTypes(t *testing.T) {
+	table, err := encode(t, &spb.UploadEvalTableRequest{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "flag", ValueType: "boolean"},
@@ -326,8 +334,6 @@ func TestUpload_EncodesAllValueTypes(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	requests := ces.Requests()
-	require.Len(t, requests, 4)
 	assert.JSONEq(t, `{
 		"dataset_fields": [
 			{"source": "input", "name": "flag", "value_type": "boolean"},
@@ -345,10 +351,10 @@ func TestUpload_EncodesAllValueTypes(t *testing.T) {
 			{"name": "rank", "value_type": "number"},
 			{"name": "grade", "value_type": "string"}
 		]
-	}`, requests[1].Body)
+	}`, table.ColumnsJSON(t))
 	// Compare bytes, since JSONEq would decode the large integer as float64.
 	assert.Equal(t,
-		`{"rows":[`+
+		`[`+
 			`{"input":{`+
 			`"flag":true,`+
 			`"count":9007199254740993,`+
@@ -362,13 +368,11 @@ func TestUpload_EncodesAllValueTypes(t *testing.T) {
 			`{"input":null,"output":null,`+
 			`"scores":{"passed":null,"votes":null,"accuracy":null,"rank":null,"grade":null},`+
 			`"example_key":"2"}`+
-			`]}`,
-		requests[2].Body)
+			`]`,
+		table.RowsJSON())
 }
 
-func TestUpload_EncodesStringsAndNumbersLikeEncodingJSON(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
 	strs := []string{
 		"",
 		"plain",
@@ -402,17 +406,15 @@ func TestUpload_EncodesStringsAndNumbersLikeEncodingJSON(t *testing.T) {
 		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, n))
 	}
 
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	table, err := encode(t, &spb.UploadEvalTableRequest{
 		DatasetFields: fields,
 		Rows:          []*spb.EvalTableRow{{Input: values(row...)}},
 	})
 
 	require.NoError(t, err)
-	requests := ces.Requests()
-	require.Len(t, requests, 4)
 	assert.Equal(t,
-		`{"rows":[{"input":{`+strings.Join(want, ",")+`},"output":null,"scores":{}}]}`,
-		requests[2].Body)
+		`[{"input":{`+strings.Join(want, ",")+`},"output":null,"scores":{}}]`,
+		table.RowsJSON())
 }
 
 // encodeJSON encodes v like encoding/json without HTML escaping.
@@ -770,7 +772,7 @@ func TestUpload_ProjectNotFound(t *testing.T) {
 	assert.Empty(t, ces.Requests())
 }
 
-func TestUpload_RejectsUnknownColumnTypes(t *testing.T) {
+func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
 	testCases := []struct {
 		name    string
 		request *spb.UploadEvalTableRequest
@@ -805,35 +807,27 @@ func TestUpload_RejectsUnknownColumnTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ces := newFakeCES(t)
-			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-			_, err := upload(context.Background(), uploader, tc.request)
+			_, err := encode(t, tc.request)
 
 			assert.ErrorContains(t, err, tc.wantErr)
 			assert.True(t, evaltables.IsUsageError(err))
-			assert.Empty(t, ces.Requests())
 		})
 	}
 }
 
-func TestUpload_RejectsOversizedColumns(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
+func TestEncode_RejectsOversizedColumns(t *testing.T) {
 	// Each "<" is escaped to 6 bytes, so the name alone exceeds the limit.
 	name := strings.Repeat("<", 3<<20)
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	_, err := encode(t, &spb.UploadEvalTableRequest{
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: name, ValueType: "string"},
 		},
 	})
 
 	assert.ErrorContains(t, err, "columns request is")
-	assert.Empty(t, ces.Requests())
 }
 
-func TestUpload_RejectsRowsThatDontFitColumns(t *testing.T) {
+func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 	testCases := []struct {
 		name    string
 		field   *spb.EvalTableField
@@ -903,27 +897,20 @@ func TestUpload_RejectsRowsThatDontFitColumns(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ces := newFakeCES(t)
-			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-			_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+			_, err := encode(t, &spb.UploadEvalTableRequest{
 				DatasetFields: []*spb.EvalTableField{tc.field},
 				Rows:          []*spb.EvalTableRow{tc.row},
 			})
 
 			assert.ErrorContains(t, err, tc.wantErr)
 			assert.True(t, evaltables.IsUsageError(err))
-			assert.Empty(t, ces.Requests())
 		})
 	}
 }
 
-func TestUpload_RejectsOversizedRow(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
+func TestEncode_RejectsOversizedRow(t *testing.T) {
 	// Each "\n" is escaped to 2 bytes, so the encoded row exceeds 16 MiB.
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	_, err := encode(t, &spb.UploadEvalTableRequest{
 		DatasetFields: outputFieldX,
 		Rows: []*spb.EvalTableRow{
 			{Output: values(stringValue(strings.Repeat("\n", 8<<20)))},
@@ -933,12 +920,9 @@ func TestUpload_RejectsOversizedRow(t *testing.T) {
 	assert.ErrorContains(t, err, "row is")
 	assert.ErrorContains(t, err, "(row 0)")
 	assert.True(t, evaltables.IsUsageError(err))
-	assert.Empty(t, ces.Requests())
 }
 
-func TestUpload_ConvertsMedia(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+func TestEncode_ConvertsMedia(t *testing.T) {
 
 	// W&B media JSON, as from Python's Media.to_json.
 	image := `{` +
@@ -981,7 +965,7 @@ func TestUpload_ConvertsMedia(t *testing.T) {
 		`"height":48` +
 		`}`
 
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	table, err := encode(t, &spb.UploadEvalTableRequest{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "prompt", ValueType: "string"},
@@ -1002,8 +986,6 @@ func TestUpload_ConvertsMedia(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	requests := ces.Requests()
-	require.Len(t, requests, 4)
 	assert.JSONEq(t, `{
 		"dataset_fields": [
 			{"source": "input", "name": "prompt", "value_type": "string"},
@@ -1031,8 +1013,8 @@ func TestUpload_ConvertsMedia(t *testing.T) {
 			}
 		],
 		"scorers": []
-	}`, requests[1].Body)
-	assert.JSONEq(t, `{"rows": [{
+	}`, table.ColumnsJSON(t))
+	assert.JSONEq(t, `[{
 		"input": {"prompt": "draw a cat"},
 		"output": {
 			"answer": "a cat",
@@ -1081,30 +1063,25 @@ func TestUpload_ConvertsMedia(t *testing.T) {
 			}
 		},
 		"scores": {}
-	}]}`, requests[2].Body)
+	}]`, table.RowsJSON())
 }
 
-// TestUpload_ConvertsPythonMedia converts a request recorded from the Python
+// TestEncode_ConvertsPythonMedia converts a request recorded from the Python
 // SDK, so that it covers the W&B media JSON that Python actually sends.
 //
 // Python's test_eval_table_media_request_matches_core_fixture checks that the
 // fixture is up to date.
-func TestUpload_ConvertsPythonMedia(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
+func TestEncode_ConvertsPythonMedia(t *testing.T) {
 	fixture, err := os.ReadFile("testdata/upload_media_request.json")
 	require.NoError(t, err)
 	request := &spb.UploadEvalTableRequest{}
 	require.NoError(t, protojson.Unmarshal(fixture, request))
 	request.Name = "my-table"
 
-	_, err = upload(context.Background(), uploader, request)
+	table, err := encode(t, request)
 
 	require.NoError(t, err)
-	requests := ces.Requests()
-	require.Len(t, requests, 4)
-	assert.JSONEq(t, `{"rows": [{
+	assert.JSONEq(t, `[{
 		"input": {
 			"image": {
 				"extension_type": "wandb-image",
@@ -1164,14 +1141,11 @@ func TestUpload_ConvertsPythonMedia(t *testing.T) {
 		},
 		"output": null,
 		"scores": {}
-	}]}`, requests[2].Body)
+	}]`, table.RowsJSON())
 }
 
-func TestUpload_KeepsNullMedia(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+func TestEncode_KeepsNullMedia(t *testing.T) {
+	table, err := encode(t, &spb.UploadEvalTableRequest{
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
 			{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
@@ -1183,17 +1157,15 @@ func TestUpload_KeepsNullMedia(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	requests := ces.Requests()
-	require.Len(t, requests, 4)
 	assert.Equal(t,
-		`{"rows":[`+
+		`[`+
 			`{"input":{"image":null},"output":null,"scores":{}},`+
 			`{"input":null,"output":{"image":null},"scores":{}}`+
-			`]}`,
-		requests[2].Body)
+			`]`,
+		table.RowsJSON())
 }
 
-func TestUpload_RejectsInvalidMedia(t *testing.T) {
+func TestEncode_RejectsInvalidMedia(t *testing.T) {
 	testCases := []struct {
 		name      string
 		mediaType string
@@ -1235,10 +1207,7 @@ func TestUpload_RejectsInvalidMedia(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ces := newFakeCES(t)
-			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-			_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+			_, err := encode(t, &spb.UploadEvalTableRequest{
 				DatasetFields: []*spb.EvalTableField{{
 					Source:         "output",
 					Name:           "media",
@@ -1250,7 +1219,6 @@ func TestUpload_RejectsInvalidMedia(t *testing.T) {
 
 			assert.ErrorContains(t, err, tc.wantErr)
 			assert.True(t, evaltables.IsUsageError(err))
-			assert.Empty(t, ces.Requests())
 		})
 	}
 }
