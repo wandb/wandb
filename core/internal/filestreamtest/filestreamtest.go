@@ -73,3 +73,5 @@ func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {
 func (fs *FakeFileStream) IsStopped() bool {
 	return false
 }
+
+func (fs *FakeFileStream) Err() error { return nil }
