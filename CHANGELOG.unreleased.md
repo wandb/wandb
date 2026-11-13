@@ -22,7 +22,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
 - System metrics and hardware metadata are collected on Google TPU 8t and TPU 8i hosts (@dmitryduev in https://github.com/wandb/wandb/pull/13340)
 - The automations API supports sandbox events: `OnSandboxState` fires when a W&B sandbox in a project or team is created, completes or fails, filtered with `SandboxEvent.state` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13281)
-- The Optuna and Ax sweep schedulers support `log_uniform` parameters, and `q_log_uniform` parameters with `q: 1` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/TBD)
+- The Optuna and Ax sweep schedulers support `log_uniform` parameters, and `q_log_uniform` parameters with `q: 1` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13363)
 
 ### Changed
 
@@ -44,4 +44,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
-- The Optuna and Ax sweep schedulers sample `q_uniform` parameters at the multiples of `q` that W&B samples instead of at steps of `q` from `min`, as integers whenever `q` is a whole number (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/TBD)
+- The Optuna and Ax sweep schedulers sample `q_uniform` parameters at the multiples of `q` that W&B samples instead of at steps of `q` from `min`, as integers whenever `q` is a whole number (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13363)
