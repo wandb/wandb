@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
+from sweeps.params import HyperParameter
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
@@ -83,6 +85,43 @@ def make_run(
         summary_metrics=summary,
         history_metrics=history or [],
     )
+
+
+QUANTIZED_PARAMETERS: dict[str, dict[str, Any]] = {
+    "q_uniform_off_grid_min": {
+        "distribution": "q_uniform",
+        "min": 1,
+        "max": 10,
+        "q": 3,
+    },
+    "q_uniform_float_step": {
+        "distribution": "q_uniform",
+        "min": 0.05,
+        "max": 1.0,
+        "q": 0.1,
+    },
+    "q_uniform_float_bounds_int_step": {
+        "distribution": "q_uniform",
+        "min": 0.0,
+        "max": 10.0,
+        "q": 2,
+    },
+    "q_uniform_ends_past_bounds": {
+        "distribution": "q_uniform",
+        "min": 0.33,
+        "max": 2.71,
+        "q": 0.25,
+    },
+    "q_log_uniform": {"distribution": "q_log_uniform", "min": 1.1, "max": 3.3},
+}
+"""Quantized sweep parameters whose W&B grid does not start at `min`."""
+
+
+def wandb_sampled_values(parameter: dict[str, Any]) -> list[float]:
+    """Return every value W&B's own sampler draws for a quantized parameter."""
+    quantiles = np.linspace(0, 1, 20001)
+    samples = HyperParameter("p", parameter).ppf(quantiles)
+    return sorted({round(float(value), 9) for value in samples})
 
 
 def logger_state() -> dict[str, tuple[int, frozenset[logging.Handler]]]:

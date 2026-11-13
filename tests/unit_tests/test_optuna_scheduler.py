@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -19,7 +20,12 @@ from wandb.sdk.sweeps.scheduler.optuna import (
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import (
+    QUANTIZED_PARAMETERS,
+    make_run,
+    make_scheduler_grid_sweep,
+    wandb_sampled_values,
+)
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -139,8 +145,22 @@ class TestUnrepresentableIntRanges:
                 {"distribution": "int_uniform", "min": 1.5, "max": 5.5},
                 "'p' uses int_uniform with min=1.5",
             ),
+            (
+                {"distribution": "q_log_uniform", "min": 0, "max": 5, "q": 2},
+                "'p' uses q_log_uniform with q=2",
+            ),
+            (
+                {"distribution": "q_log_uniform", "min": -2, "max": 5},
+                "'p' uses q_log_uniform with min=-2",
+            ),
         ],
-        ids=["qlog_q_not_one", "qlog_min_below_one", "int_fractional_bounds"],
+        ids=[
+            "qlog_q_not_one",
+            "qlog_min_below_one",
+            "int_fractional_bounds",
+            "exp_qlog_q_not_one",
+            "exp_qlog_min_below_one",
+        ],
     )
     def test_raises_naming_the_parameter(
         self, parameter: dict[str, Any], match: str
@@ -154,6 +174,51 @@ class TestUnrepresentableIntRanges:
         )
 
         assert distribution == optuna.distributions.IntDistribution(1, 5)
+
+
+def _distribution_values(
+    distribution: optuna.distributions.BaseDistribution,
+) -> list[float]:
+    """Return every value a stepped optuna distribution can sample."""
+    if isinstance(distribution, optuna.distributions.IntDistribution):
+        values = range(distribution.low, distribution.high + 1, distribution.step)
+        return [float(value) for value in values]
+    assert isinstance(distribution, optuna.distributions.FloatDistribution)
+    assert distribution.step is not None
+    count = round((distribution.high - distribution.low) / distribution.step)
+    return [
+        round(distribution.low + i * distribution.step, 9) for i in range(count + 1)
+    ]
+
+
+class TestMatchesWandbSampling:
+    """Converted distributions sample the values W&B's own sampler draws."""
+
+    @pytest.mark.parametrize(
+        "parameter",
+        list(QUANTIZED_PARAMETERS.values()),
+        ids=list(QUANTIZED_PARAMETERS),
+    )
+    def test_samples_the_wandb_grid(self, parameter: dict[str, Any]) -> None:
+        distribution = sweep_parameter_to_distribution("p", parameter)
+
+        assert _distribution_values(distribution) == wandb_sampled_values(parameter)
+
+    def test_a_whole_step_samples_ints(self) -> None:
+        distribution = sweep_parameter_to_distribution(
+            "p", {"distribution": "q_uniform", "min": 0.0, "max": 10.0, "q": 2}
+        )
+
+        assert distribution == optuna.distributions.IntDistribution(0, 10, step=2)
+
+    def test_log_uniform_bounds_are_exponents(self) -> None:
+        distribution = sweep_parameter_to_distribution(
+            "p", {"distribution": "log_uniform", "min": -2.0, "max": 1.0}
+        )
+
+        assert distribution == optuna.distributions.FloatDistribution(
+            math.exp(-2.0), math.e, log=True
+        )
 
 
 class TestCreateStudyFromSweepConfig:
