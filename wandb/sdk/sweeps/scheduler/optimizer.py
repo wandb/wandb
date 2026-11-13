@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 import wandb
@@ -129,14 +131,13 @@ def q_log_uniform_values_bounds(
     Raises:
         ValueError: If `q` isn't 1, or the bounds aren't whole numbers >= 1.
     """
-    lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
-    if not _is_whole_number(q) or q != 1:
-        raise ValueError(
-            f"Sweep parameter {name!r} uses q_log_uniform_values with q={q!r}, "
-            "but a log scale can't be combined with a step. Remove q for a "
-            "log-scale int range, use log_uniform_values for a log-scale "
-            "float range, or use q_uniform for a stepped linear range."
-        )
+    lo, hi = parameter["min"], parameter["max"]
+    _check_unit_log_step(
+        name,
+        "q_log_uniform_values",
+        parameter.get("q", 1),
+        float_alternative="log_uniform_values",
+    )
     if not _is_whole_number(lo) or not _is_whole_number(hi) or lo < 1:
         raise ValueError(
             f"Sweep parameter {name!r} uses q_log_uniform_values with "
@@ -144,6 +145,84 @@ def q_log_uniform_values_bounds(
             "least 1, or use log_uniform_values for a log-scale float range."
         )
     return int(lo), int(hi)
+
+
+def q_log_uniform_bounds(name: str, parameter: dict[str, Any]) -> tuple[int, int]:
+    """Return a `q_log_uniform` spec's bounds as a log-scale int range.
+
+    `min` and `max` are exponents. With `q=1`, W&B samples
+    `round(exp(uniform(min, max)))`, so the range runs from
+    `round(exp(min))` to `round(exp(max))`.
+
+    Raises:
+        ValueError: If `q` isn't 1, or `exp(min)` rounds below 1.
+    """
+    _check_unit_log_step(
+        name,
+        "q_log_uniform",
+        parameter.get("q", 1),
+        float_alternative="log_uniform",
+    )
+    lo = round(math.exp(parameter["min"]))
+    hi = round(math.exp(parameter["max"]))
+    if lo < 1:
+        raise ValueError(
+            f"Sweep parameter {name!r} uses q_log_uniform with "
+            f"min={parameter['min']!r}, so its smallest value rounds to {lo};"
+            " set min to at least 0, or use log_uniform for a log-scale float"
+            " range."
+        )
+    return lo, hi
+
+
+def _check_unit_log_step(
+    name: str,
+    distribution: str,
+    q: Any,
+    *,
+    float_alternative: str,
+) -> None:
+    """Raise unless a log-scale spec's `q` is 1.
+
+    Optuna and Ax can't combine a log scale with a step.
+    """
+    if _is_whole_number(q) and q == 1:
+        return
+    raise ValueError(
+        f"Sweep parameter {name!r} uses {distribution} with q={q!r}, "
+        "but a log scale can't be combined with a step. Remove q for a "
+        f"log-scale int range, use {float_alternative} for a log-scale "
+        "float range, or use q_uniform for a stepped linear range."
+    )
+
+
+def log_uniform_bounds(parameter: dict[str, Any]) -> tuple[float, float]:
+    """Return a `log_uniform` spec's bounds as values rather than exponents.
+
+    W&B samples `exp(uniform(min, max))`, the same distribution as a
+    log-scale range from `exp(min)` to `exp(max)`.
+    """
+    return math.exp(parameter["min"]), math.exp(parameter["max"])
+
+
+def q_uniform_grid(
+    parameter: dict[str, Any],
+) -> tuple[int, int, int] | tuple[float, float, float]:
+    """Return the first point, last point and step of a `q_uniform` grid.
+
+    W&B rounds each uniform sample to the nearest multiple of `q`, so the
+    grid holds multiples of `q` rather than starting at `min`, and its ends
+    may fall just outside `min` and `max`. The points are ints when `q` is a
+    whole number, since every multiple of it is too, and floats otherwise.
+    """
+    lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
+    first, last = round(lo / q), round(hi / q)
+    if _is_whole_number(q):
+        q = int(q)
+        return first * q, last * q, q
+    # Exact decimal multiples keep the range divisible by q in optuna and Ax.
+    step = Decimal(str(q))
+    return float(first * step), float(last * step), float(q)
 
 
 class Optimizer(ABC):

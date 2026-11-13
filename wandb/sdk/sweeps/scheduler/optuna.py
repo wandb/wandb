@@ -21,7 +21,10 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunWithMetrics,
     int_uniform_bounds,
     is_terminal_state,
+    log_uniform_bounds,
+    q_log_uniform_bounds,
     q_log_uniform_values_bounds,
+    q_uniform_grid,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -126,17 +129,20 @@ def sweep_parameter_to_distribution(
     - `int_uniform` -> `IntDistribution(min, max)`
     - `uniform` -> `FloatDistribution(min, max)`
     - `log_uniform_values` -> `FloatDistribution(min, max, log=True)`
-    - `q_uniform` -> `IntDistribution(min, max, step=q)` when `min`, `max`,
-      and `q` are all integers, else `FloatDistribution(min, max, step=q)`
-      (`q` defaults to 1)
+    - `log_uniform` -> `FloatDistribution(exp(min), exp(max), log=True)`
+    - `q_uniform` -> the multiples of `q` W&B rounds samples to, as an
+      `IntDistribution` when `q` is a whole number, else a
+      `FloatDistribution` (`q` defaults to 1)
     - `q_log_uniform_values` -> `IntDistribution(min, max, log=True)`; `q`
       must be 1 (the default) and `min` at least 1
+    - `q_log_uniform` -> `IntDistribution(round(exp(min)),
+      round(exp(max)), log=True)`; `q` must be 1 (the default)
     - a numeric spec with no `distribution` key -> `int_uniform` or `uniform`,
       inferred from the `min`/`max` types as W&B does
 
     Sweep distributions with no optuna equivalent (e.g. `normal`, `beta`,
-    `inv_log_uniform`, and exponent-space `log_uniform`), and int ranges
-    optuna can't represent exactly, raise `ValueError`.
+    `inv_log_uniform`), and int ranges optuna can't represent exactly, raise
+    `ValueError`.
 
     Args:
         name: The parameter's name, used in error messages.
@@ -169,16 +175,23 @@ def sweep_parameter_to_distribution(
             parameter["min"], parameter["max"], log=True
         )
 
+    if dist == "log_uniform":
+        lo, hi = log_uniform_bounds(parameter)
+        return distributions.FloatDistribution(lo, hi, log=True)
+
     if dist == "q_uniform":
-        lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
-        # q_uniform is produced from both Int and Float stepped distributions;
-        # pick the int variant only when every bound is integral.
-        if _is_int(lo) and _is_int(hi) and _is_int(q):
-            return distributions.IntDistribution(lo, hi, step=q)
+        lo, hi, q = q_uniform_grid(parameter)
+        if isinstance(q, int):
+            # An int step means int ends, which the checker can't infer.
+            return distributions.IntDistribution(int(lo), int(hi), step=q)
         return distributions.FloatDistribution(lo, hi, step=q)
 
     if dist == "q_log_uniform_values":
         lo, hi = q_log_uniform_values_bounds(name, parameter)
+        return distributions.IntDistribution(lo, hi, log=True)
+
+    if dist == "q_log_uniform":
+        lo, hi = q_log_uniform_bounds(name, parameter)
         return distributions.IntDistribution(lo, hi, log=True)
 
     raise ValueError(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ pytest.importorskip("ax")
 
 import ax as ax_module
 from ax.api.client import Client
+from ax.core.parameter import ChoiceParameter, ParameterType, RangeParameter
 from ax.exceptions.core import DataRequiredError, OptimizationComplete
 from ax.exceptions.generation_strategy import MaxParallelismReachedException
 from wandb.sdk.sweeps.run_state import RunState
@@ -24,7 +26,12 @@ from wandb.sdk.sweeps.scheduler.ax import (
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import (
+    QUANTIZED_PARAMETERS,
+    make_run,
+    make_scheduler_grid_sweep,
+    wandb_sampled_values,
+)
 
 DEFAULT_CONFIG = {"metric": {"name": "loss", "goal": "minimize"}, "parameters": {}}
 
@@ -98,8 +105,22 @@ class TestUnrepresentableIntRanges:
                 {"distribution": "int_uniform", "min": 1.5, "max": 5.5},
                 "'p' uses int_uniform with min=1.5",
             ),
+            (
+                {"distribution": "q_log_uniform", "min": 0, "max": 5, "q": 2},
+                "'p' uses q_log_uniform with q=2",
+            ),
+            (
+                {"distribution": "q_log_uniform", "min": -2, "max": 5},
+                "'p' uses q_log_uniform with min=-2",
+            ),
         ],
-        ids=["qlog_q_not_one", "qlog_min_below_one", "int_fractional_bounds"],
+        ids=[
+            "qlog_q_not_one",
+            "qlog_min_below_one",
+            "int_fractional_bounds",
+            "exp_qlog_q_not_one",
+            "exp_qlog_min_below_one",
+        ],
     )
     def test_raises_naming_the_parameter(
         self, parameter: dict[str, Any], match: str
@@ -114,6 +135,57 @@ class TestUnrepresentableIntRanges:
 
         assert parameter == ax_module.RangeParameterConfig(
             name="p", bounds=(1, 5), parameter_type="int"
+        )
+
+
+def _search_space_parameter(parameter: dict[str, Any]) -> Any:
+    """Return the Ax parameter a client builds from a sweep parameter spec."""
+    client = Client()
+    client.configure_experiment(
+        parameters=[sweep_parameter_to_parameter("p", parameter)]
+    )
+    return _experiment(client).search_space.parameters["p"]
+
+
+def _parameter_values(parameter: Any) -> list[float]:
+    """Return every value a stepped or log-scale int Ax parameter can take."""
+    if isinstance(parameter, ChoiceParameter):
+        return sorted(round(float(value), 9) for value in parameter.values)
+    assert isinstance(parameter, RangeParameter)
+    assert parameter.parameter_type == ParameterType.INT
+    return [float(value) for value in range(parameter.lower, parameter.upper + 1)]
+
+
+class TestMatchesWandbSampling:
+    """Converted parameters sample the values W&B's own sampler draws."""
+
+    @pytest.mark.parametrize(
+        "parameter",
+        list(QUANTIZED_PARAMETERS.values()),
+        ids=list(QUANTIZED_PARAMETERS),
+    )
+    def test_samples_the_wandb_grid(self, parameter: dict[str, Any]) -> None:
+        values = _parameter_values(_search_space_parameter(parameter))
+
+        assert values == wandb_sampled_values(parameter)
+
+    def test_a_whole_step_samples_ints(self) -> None:
+        parameter = sweep_parameter_to_parameter(
+            "p", {"distribution": "q_uniform", "min": 0.0, "max": 10.0, "q": 2}
+        )
+
+        assert parameter.parameter_type == "int"
+
+    def test_log_uniform_bounds_are_exponents(self) -> None:
+        parameter = sweep_parameter_to_parameter(
+            "p", {"distribution": "log_uniform", "min": -2.0, "max": 1.0}
+        )
+
+        assert parameter == ax_module.RangeParameterConfig(
+            name="p",
+            bounds=(math.exp(-2.0), math.e),
+            parameter_type="float",
+            scaling="log",
         )
 
 
