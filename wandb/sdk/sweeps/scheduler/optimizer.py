@@ -111,8 +111,8 @@ def int_uniform_bounds(name: str, parameter: dict[str, Any]) -> tuple[int, int]:
     if not _is_whole_number(lo) or not _is_whole_number(hi):
         raise ValueError(
             f"Sweep parameter {name!r} uses int_uniform with min={lo!r}, "
-            f"max={hi!r}; set min and max to whole numbers, or use "
-            "distribution: uniform for a float range."
+            f"max={hi!r}. int_uniform requires min and max to be whole numbers. "
+            "Use distribution: uniform for a float range, or fix min and max."
         )
     return int(lo), int(hi)
 
@@ -133,15 +133,15 @@ def q_log_uniform_values_bounds(
     if not _is_whole_number(q) or q != 1:
         raise ValueError(
             f"Sweep parameter {name!r} uses q_log_uniform_values with q={q!r}, "
-            "but a log scale can't be combined with a step. Remove q for a "
-            "log-scale int range, use log_uniform_values for a log-scale "
-            "float range, or use q_uniform for a stepped linear range."
+            "only q=1 is supported. Float steps are not supported. "
+            "Remove q for a log-scale int range, use log_uniform_values for a "
+            "log-scale float range, or use q_uniform for a stepped linear range."
         )
     if not _is_whole_number(lo) or not _is_whole_number(hi) or lo < 1:
         raise ValueError(
             f"Sweep parameter {name!r} uses q_log_uniform_values with "
-            f"min={lo!r}, max={hi!r}; set min and max to whole numbers of at "
-            "least 1, or use log_uniform_values for a log-scale float range."
+            f"min={lo!r}, max={hi!r}. min and max must be whole numbers >= 1, "
+            "or use log_uniform_values for a log-scale float range."
         )
     return int(lo), int(hi)
 
