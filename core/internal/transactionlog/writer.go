@@ -21,6 +21,10 @@ type Writer struct {
 
 // OpenWriter opens a .wandb file for writing.
 //
+// The `version` is written into the file header. Callers must write
+// records that are readable by any reader supporting the version.
+// An unsupported version returns an error before the file is created.
+//
 // The file must not already exist. It is created with permissions 0o666
 // (meaning read and write permissions for user, group and others).
 //
@@ -31,14 +35,7 @@ type Writer struct {
 //
 // Wraps errors from the os.OpenFile() call so that they can be checked
 // with errors.Is().
-func OpenWriter(path string) (*Writer, error) {
-	return OpenWriterWithVersion(path, VersionLegacy)
-}
-
-// OpenWriterWithVersion creates a file with the specified format version.
-// It has the same creation and flush behavior as OpenWriter.
-// An unsupported version returns an error before file creation.
-func OpenWriterWithVersion(path string, version uint8) (*Writer, error) {
+func OpenWriter(path string, version uint8) (*Writer, error) {
 	if err := ensureSupportedVersion(version); err != nil {
 		return nil, err
 	}

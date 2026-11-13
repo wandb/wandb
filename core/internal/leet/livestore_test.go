@@ -25,7 +25,7 @@ func TestNewLiveStore_ValidFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "valid.wandb")
 
 	// Write a valid header to a tranaction log.
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	w.Close()
 
@@ -70,7 +70,7 @@ func TestLiveStore_ReadValidRecords(t *testing.T) {
 
 	// Write records using regular Store
 	// Write a valid header to a tranaction log.
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	records := []*spb.Record{
@@ -107,7 +107,7 @@ func TestLiveStore_ReadAfterClose(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "read-after-close.wandb")
 
 	// Create valid file with a record.
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	_ = w.Write(&spb.Record{Num: 1})
 	w.Close()
@@ -274,7 +274,7 @@ func TestLiveStore_LiveRead_OpenedBeforeWriter(t *testing.T) {
 func TestLiveStore_LargeRecord(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "large.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	// Create a large record
@@ -304,7 +304,7 @@ func TestLiveStore_PartialWrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "partial.wandb")
 
 	// Write header
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	// Write one complete record

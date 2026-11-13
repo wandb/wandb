@@ -22,7 +22,7 @@ func TestWatcherManager_FileChangeDetection(t *testing.T) {
 	require.False(t, wm.IsStarted())
 
 	path := filepath.Join(t.TempDir(), "test.wandb")
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	err = wm.Start(path)

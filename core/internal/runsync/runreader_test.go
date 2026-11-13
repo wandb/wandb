@@ -34,21 +34,8 @@ type testFixtures struct {
 
 // setup creates a RunReader and test objects.
 func setup(t *testing.T, records ...*spb.Record) testFixtures {
-	return setupVersion(t, transactionlog.VersionLegacy, records...)
-}
-
-func setupVersion(t *testing.T, version uint8, records ...*spb.Record) testFixtures {
 	t.Helper()
-
-	var transactionLog string
-	switch version {
-	case transactionlog.VersionLegacy, transactionlog.VersionTypedHistory:
-		transactionLog = txnlogtest.WandbFileVersion(t, version, records...)
-	default:
-		transactionLog = txnlogtest.WandbFileUnsupportedVersion(t, version, records...)
-	}
-
-	return setupForFile(t, transactionLog)
+	return setupForFile(t, txnlogtest.WandbFile(t, records...))
 }
 
 func setupForFile(t *testing.T, transactionLog string) testFixtures {
@@ -375,7 +362,7 @@ func Test_CorruptFileError(t *testing.T) {
 }
 
 func Test_UnsupportedVersionError(t *testing.T) {
-	x := setupVersion(t, 2)
+	x := setupForFile(t, txnlogtest.WandbFileUnsupportedVersion(t, 2))
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 

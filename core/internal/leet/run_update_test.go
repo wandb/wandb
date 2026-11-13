@@ -252,7 +252,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	// Create a wandb file with initial data
 	path := filepath.Join(t.TempDir(), "heartbeat.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	// Write initial records
@@ -329,7 +329,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		_ = os.Remove(path)
-		w, _ := transactionlog.OpenWriter(path)
+		w, _ := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 
 		for i := 5; i < 10; i++ {
 			h := &spb.HistoryRecord{
@@ -402,7 +402,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "reset.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(&spb.Record{
 		RecordType: &spb.Record_Run{

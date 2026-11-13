@@ -1,12 +1,26 @@
 // Package transactionlog implements reading and writing .wandb files.
 package transactionlog
 
+import "github.com/wandb/wandb/core/internal/settings"
+
 const (
 	// VersionLegacy permits readers that require JSON history values.
 	VersionLegacy uint8 = 0
 	// VersionTypedHistory requires a reader that supports typed history values.
 	VersionTypedHistory uint8 = 1
 )
+
+// VersionForSettings returns the version for a transaction log written
+// with the given settings.
+//
+// Readers that predate typed history values need JSON values, so only
+// files without JSON values require VersionTypedHistory.
+func VersionForSettings(s *settings.Settings) uint8 {
+	if s.IsHistoryValueEncodingJSON() {
+		return VersionLegacy
+	}
+	return VersionTypedHistory
+}
 
 // UnsupportedVersionError reports a file version that this SDK cannot read.
 type UnsupportedVersionError struct {

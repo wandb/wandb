@@ -46,7 +46,7 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "chunky.wandb")
 
 	// Write a valid header + two records (history, exit).
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	h := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -81,7 +81,7 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 func TestLevelDBHistorySource_CustomXAxis(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "custom-x.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	// Logged before the definition, so dropped.
 	require.NoError(t, w.Write(&spb.Record{
@@ -141,7 +141,7 @@ func TestLevelDBHistorySource_CustomXAxis(t *testing.T) {
 func TestLevelDBHistorySource_FileCompleteEmittedOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "complete-once.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	require.NoError(t,
 		w.Write(&spb.Record{
@@ -172,7 +172,7 @@ func TestLevelDBHistorySource_FileCompleteEmittedOnce(t *testing.T) {
 func TestLevelDBHistorySource_UnsupportedRecordsKeepChunking(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "unsupported-then-history.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	for range 2 {
 		require.NoError(t,
@@ -221,7 +221,7 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "readnext.wandb")
 
 	// Write valid header and various record types
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	records := []struct {
@@ -408,7 +408,7 @@ func TestParseStats_ComplexMetrics(t *testing.T) {
 func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "batch.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	// Write many history records
