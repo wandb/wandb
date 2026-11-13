@@ -82,3 +82,20 @@ func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
 	wg.Wait()
 	slog.Debug("all streams were closed")
 }
+
+// FlushTransactionLogs writes each stream's buffered transaction log records
+// to its file and waits for all of them.
+//
+// Streams are flushed concurrently, so one slow disk does not delay the
+// others. Streams added while this runs may be missed.
+func (sm *StreamMux) FlushTransactionLogs() {
+	sm.mutex.RLock()
+	streams := slices.Collect(maps.Values(sm.mux))
+	sm.mutex.RUnlock()
+
+	wg := sync.WaitGroup{}
+	for _, stream := range streams {
+		wg.Go(stream.FlushTransactionLog)
+	}
+	wg.Wait()
+}

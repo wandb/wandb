@@ -167,8 +167,9 @@ func serviceMain() int {
 
 	analytics.ConfigureOTelErrorHandler(slog.Default())
 
-	// Record certain signals in the log file for debugging.
-	signalCh := make(chan os.Signal, 1)
+	// Stop on SIGINT or SIGTERM. The buffer holds a second signal that
+	// arrives while the first one is being handled.
+	signalCh := make(chan os.Signal, 2)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 	srv := server.NewServer(
@@ -198,12 +199,32 @@ func serviceMain() int {
 			}
 		case sig := <-signalCh:
 			slog.Info("main: received shutdown signal", "signal", sig)
-			srv.ForceStop()
-			if err := <-srvCh; err != nil {
+			if err := stopOnSignal(srv, srvCh, signalCh); err != nil {
 				slog.Error("main: Serve() returned error", "error", err)
 			}
 			return exitCodeSignal
 		}
+	}
+}
+
+// stopOnSignal saves buffered run data, stops the server and waits for Serve
+// to return.
+//
+// A second signal while that is in progress stops the server right away.
+func stopOnSignal(
+	srv *server.Server,
+	srvCh <-chan error,
+	signalCh <-chan os.Signal,
+) error {
+	go srv.StopAfterFlushingLogs()
+
+	select {
+	case err := <-srvCh:
+		return err
+	case sig := <-signalCh:
+		slog.Info("main: received second signal, stopping now", "signal", sig)
+		srv.ForceStop()
+		return <-srvCh
 	}
 }
 

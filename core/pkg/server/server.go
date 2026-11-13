@@ -22,6 +22,11 @@ import (
 const (
 	BufferSize                         = 32
 	IntervalCheckParentPidMilliseconds = 100
+
+	// transactionLogFlushTimeout bounds how long StopAfterFlushingLogs waits
+	// for buffered transaction log records to reach disk, so that a stuck
+	// filesystem cannot keep the process alive.
+	transactionLogFlushTimeout = time.Second
 )
 
 // Server is the top-level object for the wandb-core process.
@@ -102,6 +107,33 @@ func (s *Server) ForceStop() {
 	s.stopServer()
 }
 
+// StopAfterFlushingLogs writes each run's buffered transaction log records
+// to its .wandb file, then calls ForceStop.
+//
+// This is for stopping on a signal or when the parent process is gone:
+// records the client already sent are saved so that `wandb sync` can upload
+// them later. Records still queued ahead of the writer are lost, as before,
+// and no uploads are attempted.
+//
+// It waits at most transactionLogFlushTimeout for the flush. A ForceStop
+// from elsewhere ends the wait early.
+func (s *Server) StopAfterFlushingLogs() {
+	flushed := make(chan struct{})
+	go func() {
+		defer close(flushed)
+		s.streamMux.FlushTransactionLogs()
+	}()
+
+	select {
+	case <-flushed:
+	case <-time.After(transactionLogFlushTimeout):
+		slog.Warn("server: stopped waiting for transaction logs to be written")
+	case <-s.serverLifetimeCtx.Done():
+	}
+
+	s.ForceStop()
+}
+
 type ServerParams struct {
 	Commit              string
 	EnableDCGMProfiling bool
@@ -144,9 +176,10 @@ func (s *Server) exitWhenParentIsGone() {
 
 	slog.Info("server: parent process exited, terminating service process")
 
-	// The user process has exited, so there's no need to sync
-	// uncommitted data, and we can quit immediately.
-	s.ForceStop()
+	// The user process has exited, so nobody is waiting for uploads. Data it
+	// already sent may still be in the transaction log writer's buffer, so
+	// save that to disk and then quit.
+	s.StopAfterFlushingLogs()
 }
 
 func closeAll(listenerList []net.Listener) {

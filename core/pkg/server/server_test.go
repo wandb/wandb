@@ -144,3 +144,39 @@ func TestServe_ForceStopReturnsWithoutWaitingForConnections(t *testing.T) {
 		t.Fatal("timed out waiting for Serve() to return")
 	}
 }
+
+func TestStopAfterFlushingLogs_StopsServer(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	s := NewServer(ServerParams{Detached: true})
+	srvCh := make(chan error, 1)
+	go func() { srvCh <- s.Serve(filepath.Join(tempRoot, "port.txt")) }()
+	addTestConnection(t, s)
+
+	s.StopAfterFlushingLogs()
+
+	select {
+	case err := <-srvCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Serve() to return")
+	}
+}
+
+func TestStopAfterFlushingLogs_ReturnsWhenAlreadyStopped(t *testing.T) {
+	s := newDetachedServerForTest(t, time.Minute)
+	s.ForceStop()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.StopAfterFlushingLogs()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("StopAfterFlushingLogs did not return")
+	}
+}
