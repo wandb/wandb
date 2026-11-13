@@ -275,7 +275,10 @@ func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
 	runDir := filepath.Join(wandbDir, "run-20260821_120000-abc123")
 	require.NoError(t, os.MkdirAll(runDir, 0o755))
 
-	w, err := transactionlog.OpenWriter(filepath.Join(runDir, "run-abc123.wandb"))
+	w, err := transactionlog.OpenWriter(
+		filepath.Join(runDir, "run-abc123.wandb"),
+		transactionlog.VersionLegacy,
+	)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(&spb.Record{
 		RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "abc123"}},

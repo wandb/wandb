@@ -93,7 +93,7 @@ func TestLoadingScreenAndQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	path := filepath.Join(t.TempDir(), "loading.wandb")
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = writer.Close() })
 
@@ -122,7 +122,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 
 	// Create a writable .wandb file and keep it open to simulate a live run.
 	path := filepath.Join(t.TempDir(), "test.wandb")
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = writer.Close() })
 
@@ -288,7 +288,7 @@ func writeWorkspaceRunWandbFile(
 	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
 	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
 
-	writer, err := transactionlog.OpenWriter(runFile)
+	writer, err := transactionlog.OpenWriter(runFile, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	// Minimal Run record (powers run overview preload + nicer UI).
@@ -478,7 +478,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 
 	// Create a writable .wandb file and keep it open to simulate a live run.
 	path := filepath.Join(t.TempDir(), "logs.wandb")
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = writer.Close() })
 
@@ -615,7 +615,7 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
 	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
 
-	writer, err := transactionlog.OpenWriter(runFile)
+	writer, err := transactionlog.OpenWriter(runFile, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	// Run record.

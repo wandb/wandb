@@ -236,7 +236,7 @@ func TestDumpRecords_JSONHistoryInvalidTypedJSON(t *testing.T) {
 func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "run-follow.wandb")
-		w, err := transactionlog.OpenWriterWithVersion(path, transactionlog.VersionTypedHistory)
+		w, err := transactionlog.OpenWriter(path, transactionlog.VersionTypedHistory)
 		require.NoError(t, err)
 		require.NoError(t, w.Write(&spb.Record{
 			RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "live"}},

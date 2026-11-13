@@ -161,26 +161,12 @@ func (r *Reader) Read() (*spb.Record, error) {
 
 // verifyWBHeaderBeforeFirstRead verifies the W&B header if it hasn't yet been
 // verified.
-func (r *Reader) verifyWBHeaderBeforeFirstRead() (err error) {
+func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
 	if r.headerVerified {
 		return nil
 	}
 	if r.headerError != nil {
 		return r.headerError
-	}
-
-	// Flow control can seek before its first read. Check the header at the
-	// start, then restore the requested offset, including after an error.
-	// Recovery from an empty source can leave offset 0 without a seek.
-	const firstRecordOffset = 7
-	if offset := r.reader.NextOffset(); offset > firstRecordOffset {
-		if err := r.reader.SeekRecord(firstRecordOffset); err != nil {
-			return fmt.Errorf("transactionlog: error seeking to header: %w", err)
-		}
-		defer func() {
-			r.reader.Recover()
-			err = errors.Join(err, r.reader.SeekRecord(offset))
-		}()
 	}
 
 	version, err := r.reader.VerifyWandbHeader()
