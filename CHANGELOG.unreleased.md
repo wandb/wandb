@@ -27,6 +27,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Unparseable automations are skipped when listing automations via `Api.automations()` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13287)
 - Identity token logins now stay signed in after the identity token has been used, when the JWT issuer is configured to allow it: the W&B server returns a refresh token that renews the access token until the issuer's session timeout (@ckacal in https://github.com/wandb/wandb/pull/13082)
+- The Optuna and Ax sweep schedulers reject `int_uniform` parameters with fractional `min` or `max`, and `q_log_uniform_values` parameters with `q` other than 1 or `min` below 1, instead of sampling values W&B would not. Optuna sampled floats for these (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13064)
 
 ### Fixed
 
