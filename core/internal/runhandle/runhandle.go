@@ -82,6 +82,10 @@ func (h *RunHandle) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 //
 // It is an error to call this more than once or after FailInit.
 func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
+	if upserter == nil {
+		return errors.New("runhandle: called Init with nil upserter")
+	}
+
 	return h.initOrFail(upserter)
 }
 
@@ -103,11 +107,12 @@ func (h *RunHandle) initOrFail(upserter *runupserter.RunUpserter) error {
 	}
 	close(h.ready)
 
-	if upserter != nil {
-		h.upserter = upserter
-	} else {
+	if upserter == nil {
 		h.initFailed = true
+		return nil
 	}
+
+	h.upserter = upserter
 
 	h.stopwatch.Adjust(upserter.StartRuntime())
 	h.stopwatch.Start()
