@@ -95,6 +95,109 @@ def is_terminal_state(state: RunState) -> bool:
     )
 
 
+NESTED_NAME_DELIMITER = "."
+"""Joins the path to a nested sweep parameter into its flat name."""
+
+
+def flatten_sweep_parameters(
+    parameters: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Flatten a sweep's `parameters` block into leaf specs by flat name.
+
+    W&B nests a parameter whose spec holds its own `parameters` block:
+    `optimizer: {parameters: {lr: ...}}` sets `config["optimizer"]["lr"]`.
+    Optuna and Ax search a flat space, so a nested leaf is named by its path
+    joined with `NESTED_NAME_DELIMITER`, here `optimizer.lr`.
+
+    Raises:
+        ValueError: If two parameters flatten to the same name.
+    """
+    return {name: spec for name, (_, spec) in _leaves_by_flat_name(parameters).items()}
+
+
+def _leaves_by_flat_name(
+    parameters: dict[str, Any],
+    prefix: tuple[str, ...] = (),
+    leaves: dict[str, tuple[tuple[str, ...], dict[str, Any]]] | None = None,
+) -> dict[str, tuple[tuple[str, ...], dict[str, Any]]]:
+    """Map each leaf parameter's flat name to its path and spec.
+
+    Leaves keep the order the sweep config declares them in.
+
+    Raises:
+        ValueError: If two parameters flatten to the same name.
+    """
+    if leaves is None:
+        leaves = {}
+    for key, spec in parameters.items():
+        path = (*prefix, key)
+        if "parameters" in spec:
+            _leaves_by_flat_name(spec["parameters"], path, leaves)
+            continue
+        name = NESTED_NAME_DELIMITER.join(path)
+        if name in leaves:
+            raise ValueError(
+                f"Sweep parameters {leaves[name][0]!r} and {path!r} both"
+                f" flatten to the name {name!r}; rename one of them."
+            )
+        leaves[name] = (path, spec)
+    return leaves
+
+
+@dataclass(frozen=True)
+class NestedParameters:
+    """Where each nested sweep parameter sits in a run's config.
+
+    Converts between the flat names Optuna and Ax search over (see
+    `flatten_sweep_parameters`) and the nested config a run receives.
+    """
+
+    paths: dict[str, tuple[str, ...]]
+    """The path of each nested leaf by flat name, without top-level ones."""
+
+    @classmethod
+    def from_sweep_parameters(cls, parameters: dict[str, Any]) -> NestedParameters:
+        """Find the nested leaves of a sweep's `parameters` block.
+
+        Raises:
+            ValueError: If two parameters flatten to the same name.
+        """
+        leaves = _leaves_by_flat_name(parameters)
+        return cls({name: path for name, (path, _) in leaves.items() if len(path) > 1})
+
+    def nest(self, values: dict[str, Any]) -> dict[str, Any]:
+        """Nest flat parameter values into the shape of a run's config.
+
+        Names that aren't nested sweep parameters stay at the top level.
+        """
+        config: dict[str, Any] = {}
+        for name, value in values.items():
+            *parents, leaf = self.paths.get(name, (name,))
+            node = config
+            for parent in parents:
+                node = node.setdefault(parent, {})
+            node[leaf] = value
+        return config
+
+    def flatten(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Name a run config's nested sweep parameter values by flat name.
+
+        The inverse of `nest`. A nested value missing from the config is left
+        out, and other top-level keys are kept as they are.
+        """
+        roots = {path[0] for path in self.paths.values()}
+        values = {key: value for key, value in config.items() if key not in roots}
+        for name, path in self.paths.items():
+            node: Any = config
+            for key in path:
+                if not isinstance(node, dict) or key not in node:
+                    break
+                node = node[key]
+            else:
+                values[name] = node
+        return values
+
+
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
