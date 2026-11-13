@@ -2696,8 +2696,17 @@ pub struct UploadEvalTableRequest {
     #[prost(message, repeated, tag = "3")]
     pub scorers: ::prost::alloc::vec::Vec<EvalTableScorer>,
     /// The table's rows in order.
+    ///
+    /// At most one of {rows, rows_file_path} may be set.
     #[prost(message, repeated, tag = "4")]
     pub rows: ::prost::alloc::vec::Vec<EvalTableRow>,
+    /// A gzipped file of the table's rows, as EvalTableRow messages, each
+    /// preceded by its size as a varint.
+    ///
+    /// It is used for tables too large to send inline. The client owns the
+    /// file and deletes it after the response; wandb-core only reads it.
+    #[prost(string, tag = "5")]
+    pub rows_file_path: ::prost::alloc::string::String,
     /// Run files that the table's media cells reference, relative to the run's
     /// files directory, for wandb-core to upload. Cells get their CES URIs
     /// from their media JSON, not from this list.

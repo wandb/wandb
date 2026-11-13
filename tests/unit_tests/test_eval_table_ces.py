@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gzip
 import json
+import os
 from collections.abc import Iterable
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import DEFAULT, MagicMock
 
 import pytest
 import wandb
@@ -72,6 +74,27 @@ def _rows(request: pb.UploadEvalTableRequest) -> list[dict[str, Any]]:
         if row.example_key:
             decoded["example_key"] = row.example_key
         rows.append(decoded)
+    return rows
+
+
+def _read_rows_file(path: str) -> list[pb.EvalTableRow]:
+    """Read a gzipped file of rows, each preceded by its size as a varint."""
+    with gzip.open(path) as file:
+        data = file.read()
+
+    rows = []
+    position = 0
+    while position < len(data):
+        size = shift = 0
+        while True:
+            byte = data[position]
+            position += 1
+            size |= (byte & 0x7F) << shift
+            shift += 7
+            if byte < 0x80:
+                break
+        rows.append(pb.EvalTableRow.FromString(data[position : position + size]))
+        position += size
     return rows
 
 
@@ -146,6 +169,71 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "dataset_id": "dataset-1",
         "dataset_version_id": "dataset-version-1",
     }
+
+
+def test_ces_eval_table_sends_large_tables_in_a_rows_file(
+    deliver_upload_eval_table,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    # Long enough for a multi-byte size.
+    long = "c" * 200
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[["a\nb"], [long]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    file_rows = []
+
+    def read_rows_file(request: pb.UploadEvalTableRequest) -> Any:
+        file_rows.extend(_read_rows_file(request.rows_file_path))
+        return DEFAULT
+
+    deliver_upload_eval_table.side_effect = read_rows_file
+
+    run.log({"eval": et})
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert not request.rows
+    assert not os.path.exists(request.rows_file_path)
+    request.rows.extend(file_rows)
+    assert _rows(request) == [
+        {
+            "input": None,
+            "output": {"value": "a\nb"},
+            "scores": {},
+            "example_key": "1",
+        },
+        {"input": None, "output": {"value": long}, "scores": {}, "example_key": "2"},
+    ]
+
+
+def test_ces_eval_table_deletes_rows_file_after_failed_upload(
+    deliver_upload_eval_table,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    deliver_upload_eval_table.return_value.wait_or.return_value = _upload_error(
+        pb.ErrorInfo.UNKNOWN, "failed"
+    )
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        output_columns=["value"],
+        backend="ces",
+    )
+    et.bind_to_run(run, "eval", 7)
+
+    with pytest.raises(CommError):
+        et.to_json(run)
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert request.rows_file_path
+    assert not os.path.exists(request.rows_file_path)
 
 
 def test_ces_eval_table_without_inputs_keys_rows_by_position(

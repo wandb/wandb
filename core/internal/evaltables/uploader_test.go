@@ -2,7 +2,9 @@ package evaltables_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/api"
@@ -592,6 +596,154 @@ func TestUpload_ReportsRowProgress(t *testing.T) {
 	assert.Equal(t, []string{"", "7/10 rows", "10/10 rows"}, progress)
 }
 
+// writeRowsFile writes rows to a gzipped file, each preceded by its size as
+// a varint.
+func writeRowsFile(t *testing.T, rows ...*spb.EvalTableRow) string {
+	t.Helper()
+	var data []byte
+	for _, row := range rows {
+		message, err := proto.Marshal(row)
+		require.NoError(t, err)
+		data = binary.AppendUvarint(data, uint64(len(message)))
+		data = append(data, message...)
+	}
+	return writeGzipFile(t, data)
+}
+
+func writeGzipFile(t *testing.T, data []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "rows.pb.gz")
+	file, err := os.Create(path)
+	require.NoError(t, err)
+	gzWriter := gzip.NewWriter(file)
+	_, err = gzWriter.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, gzWriter.Close())
+	require.NoError(t, file.Close())
+	return path
+}
+
+func TestUpload_ReadsRowsFile(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	// Larger than bufio.Reader's buffer.
+	long := strings.Repeat("a", 5_000)
+	path := writeRowsFile(t,
+		&spb.EvalTableRow{Output: values(stringValue("1"))},
+		&spb.EvalTableRow{Output: values(stringValue(long))},
+	)
+
+	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+		Name:          "t",
+		DatasetFields: outputFieldX,
+		RowsFilePath:  path,
+	})
+
+	require.NoError(t, err)
+	requests := ces.Requests()
+	require.Len(t, requests, 4)
+	assert.Equal(t,
+		`{"rows":[`+
+			`{"input":null,"output":{"x":"1"},"scores":{}},`+
+			`{"input":null,"output":{"x":"`+long+`"},"scores":{}}`+
+			`]}`,
+		requests[2].Body)
+}
+
+func TestUpload_ReportsRowsFileProgress(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	op := wboperation.NewOperations().New("uploading eval table t")
+
+	_, err := upload(op.Context(context.Background()), uploader,
+		&spb.UploadEvalTableRequest{
+			Name:         "t",
+			RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}, &spb.EvalTableRow{}),
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, "2/2 rows", op.ToProto().GetProgress())
+}
+
+func TestEncode_RejectsInvalidRowInRowsFile(t *testing.T) {
+	path := writeRowsFile(t,
+		&spb.EvalTableRow{Output: values(stringValue("ok"))},
+		&spb.EvalTableRow{Output: values(numberValue(1))},
+	)
+
+	_, err := encode(t, &spb.UploadEvalTableRequest{
+		DatasetFields: outputFieldX,
+		RowsFilePath:  path,
+	})
+
+	assert.ErrorContains(t, err, "(row 1)")
+	assert.True(t, evaltables.IsUsageError(err))
+}
+
+func TestUpload_RejectsBadRowsFile(t *testing.T) {
+	testCases := []struct {
+		name    string
+		write   func(t *testing.T) string
+		wantErr string
+	}{
+		{
+			name: "truncated row",
+			// A row's size, but not the row.
+			write:   func(t *testing.T) string { return writeGzipFile(t, binary.AppendUvarint(nil, 10)) },
+			wantErr: "truncated row",
+		},
+		{
+			name:    "oversized row",
+			write:   func(t *testing.T) string { return writeGzipFile(t, binary.AppendUvarint(nil, 1<<30)) },
+			wantErr: "row is 1073741824 bytes",
+		},
+		{
+			name: "not gzip",
+			write: func(t *testing.T) string {
+				path := filepath.Join(t.TempDir(), "rows.pb.gz")
+				require.NoError(t, os.WriteFile(path, []byte("not a gzip file"), 0o600))
+				return path
+			},
+			wantErr: "gzip: invalid header",
+		},
+		{
+			name: "gzip checksum mismatch",
+			write: func(t *testing.T) string {
+				path := writeRowsFile(t, &spb.EvalTableRow{})
+				data, err := os.ReadFile(path)
+				require.NoError(t, err)
+				data[len(data)-8] ^= 0xff // The CRC-32 in the gzip trailer.
+				require.NoError(t, os.WriteFile(path, data, 0o600))
+				return path
+			},
+			wantErr: "gzip: invalid checksum",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ces := newFakeCES(t)
+			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+			_, err := upload(context.Background(), uploader,
+				&spb.UploadEvalTableRequest{Name: "t", RowsFilePath: tc.write(t)})
+
+			assert.ErrorContains(t, err, "evaltables: failed to read rows: "+tc.wantErr)
+			assert.Empty(t, ces.Requests())
+		})
+	}
+}
+
+func TestEncode_RejectsBothRowsAndRowsFile(t *testing.T) {
+	_, err := encode(t, &spb.UploadEvalTableRequest{
+		Rows:         []*spb.EvalTableRow{{}},
+		RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}),
+	})
+
+	assert.ErrorContains(t, err, "both rows and a rows file")
+	assert.True(t, evaltables.IsUsageError(err))
+}
+
 func TestUpload_NoCESURL(t *testing.T) {
 	uploader, _ := newTestUploaderWithSettings(t, projectFoundJSON, settings.New())
 
@@ -760,6 +912,7 @@ func TestEncode_RejectsOversizedRow(t *testing.T) {
 
 	assert.ErrorContains(t, err, "row is")
 	assert.ErrorContains(t, err, "(row 0)")
+	assert.True(t, evaltables.IsUsageError(err))
 }
 
 func TestEncode_ConvertsMedia(t *testing.T) {

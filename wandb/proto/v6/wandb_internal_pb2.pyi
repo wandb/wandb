@@ -1533,20 +1533,22 @@ class LogArtifactResponse(_message.Message):
     def __init__(self, artifact_id: _Optional[str] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class UploadEvalTableRequest(_message.Message):
-    __slots__ = ("name", "dataset_fields", "scorers", "rows", "upload_media_paths", "_info")
+    __slots__ = ("name", "dataset_fields", "scorers", "rows", "rows_file_path", "upload_media_paths", "_info")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DATASET_FIELDS_FIELD_NUMBER: _ClassVar[int]
     SCORERS_FIELD_NUMBER: _ClassVar[int]
     ROWS_FIELD_NUMBER: _ClassVar[int]
+    ROWS_FILE_PATH_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_MEDIA_PATHS_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     name: str
     dataset_fields: _containers.RepeatedCompositeFieldContainer[EvalTableField]
     scorers: _containers.RepeatedCompositeFieldContainer[EvalTableScorer]
     rows: _containers.RepeatedCompositeFieldContainer[EvalTableRow]
+    rows_file_path: str
     upload_media_paths: _containers.RepeatedScalarFieldContainer[str]
     _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, name: _Optional[str] = ..., dataset_fields: _Optional[_Iterable[_Union[EvalTableField, _Mapping]]] = ..., scorers: _Optional[_Iterable[_Union[EvalTableScorer, _Mapping]]] = ..., rows: _Optional[_Iterable[_Union[EvalTableRow, _Mapping]]] = ..., upload_media_paths: _Optional[_Iterable[str]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., dataset_fields: _Optional[_Iterable[_Union[EvalTableField, _Mapping]]] = ..., scorers: _Optional[_Iterable[_Union[EvalTableScorer, _Mapping]]] = ..., rows: _Optional[_Iterable[_Union[EvalTableRow, _Mapping]]] = ..., rows_file_path: _Optional[str] = ..., upload_media_paths: _Optional[_Iterable[str]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class EvalTableRow(_message.Message):
     __slots__ = ("input", "output", "scores", "example_key")

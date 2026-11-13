@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"math"
 	"strconv"
 	"unicode/utf8"
@@ -79,17 +80,32 @@ func newRowColumn(name, valueType, mediaType string) rowColumn {
 	}
 }
 
-// encodeRows returns the CES row JSON of the request's rows.
-func (e *rowEncoder) encodeRows(rows []*spb.EvalTableRow) ([][]byte, error) {
-	encoded := make([][]byte, len(rows))
-	for i, row := range rows {
-		rowJSON, err := e.encodeRow(row)
-		if err != nil {
-			return nil, fmt.Errorf("%v (row %d)", err, i)
+// encodeRows returns the CES row JSON of rows.
+//
+// It stops after the first error. Errors encoding a row satisfy
+// IsUsageError.
+func (e *rowEncoder) encodeRows(
+	rows iter.Seq2[*spb.EvalTableRow, error],
+) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		i := 0
+		for row, err := range rows {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			rowJSON, err := e.encodeRow(row)
+			if err != nil {
+				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i)})
+				return
+			}
+			if !yield(rowJSON, nil) {
+				return
+			}
+			i++
 		}
-		encoded[i] = rowJSON
 	}
-	return encoded, nil
 }
 
 // encodeRow returns a row's CES row JSON, of the form

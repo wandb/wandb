@@ -9753,7 +9753,15 @@ type UploadEvalTableRequest struct {
 	DatasetFields []*EvalTableField      `protobuf:"bytes,2,rep,name=dataset_fields,json=datasetFields,proto3" json:"dataset_fields,omitempty"`
 	Scorers       []*EvalTableScorer     `protobuf:"bytes,3,rep,name=scorers,proto3" json:"scorers,omitempty"`
 	// The table's rows in order.
+	//
+	// At most one of {rows, rows_file_path} may be set.
 	Rows []*EvalTableRow `protobuf:"bytes,4,rep,name=rows,proto3" json:"rows,omitempty"`
+	// A gzipped file of the table's rows, as EvalTableRow messages, each
+	// preceded by its size as a varint.
+	//
+	// It is used for tables too large to send inline. The client owns the
+	// file and deletes it after the response; wandb-core only reads it.
+	RowsFilePath string `protobuf:"bytes,5,opt,name=rows_file_path,json=rowsFilePath,proto3" json:"rows_file_path,omitempty"`
 	// Run files that the table's media cells reference, relative to the run's
 	// files directory, for wandb-core to upload. Cells get their CES URIs
 	// from their media JSON, not from this list.
@@ -9819,6 +9827,13 @@ func (x *UploadEvalTableRequest) GetRows() []*EvalTableRow {
 		return x.Rows
 	}
 	return nil
+}
+
+func (x *UploadEvalTableRequest) GetRowsFilePath() string {
+	if x != nil {
+		return x.RowsFilePath
+	}
+	return ""
 }
 
 func (x *UploadEvalTableRequest) GetUploadMediaPaths() []string {
@@ -13331,12 +13346,13 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x13LogArtifactResponse\x12\x1f\n" +
 	"\vartifact_id\x18\x01 \x01(\tR\n" +
 	"artifactId\x12#\n" +
-	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\xc2\x02\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\xe8\x02\n" +
 	"\x16UploadEvalTableRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12E\n" +
 	"\x0edataset_fields\x18\x02 \x03(\v2\x1e.wandb_internal.EvalTableFieldR\rdatasetFields\x129\n" +
 	"\ascorers\x18\x03 \x03(\v2\x1f.wandb_internal.EvalTableScorerR\ascorers\x120\n" +
-	"\x04rows\x18\x04 \x03(\v2\x1c.wandb_internal.EvalTableRowR\x04rows\x12,\n" +
+	"\x04rows\x18\x04 \x03(\v2\x1c.wandb_internal.EvalTableRowR\x04rows\x12$\n" +
+	"\x0erows_file_path\x18\x05 \x01(\tR\frowsFilePath\x12,\n" +
 	"\x12upload_media_paths\x18\x06 \x03(\tR\x10uploadMediaPaths\x122\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\xdd\x01\n" +
 	"\fEvalTableRow\x128\n" +
