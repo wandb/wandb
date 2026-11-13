@@ -12,24 +12,9 @@ import (
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	txnlogtest "github.com/wandb/wandb/core/internal/transactionlogtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-// writeWandbFile writes the given records to a new .wandb file and returns
-// its path.
-func writeWandbFile(t *testing.T, records ...*spb.Record) string {
-	t.Helper()
-
-	path := filepath.Join(t.TempDir(), "run-test.wandb")
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
-	for _, record := range records {
-		require.NoError(t, w.Write(record))
-	}
-	require.NoError(t, w.Close())
-
-	return path
-}
 
 func inspectorTestRecords() []*spb.Record {
 	return []*spb.Record{
@@ -66,7 +51,7 @@ func scanBatch(t *testing.T, store *leet.LiveStore, startNum int) leet.Inspector
 }
 
 func TestReadInspectorBatch_ScanAndReadAt(t *testing.T) {
-	path := writeWandbFile(t, inspectorTestRecords()...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 	logger := observability.NewNoOpLogger()
 
 	scan, err := leet.NewLiveStore(path, logger)
@@ -146,7 +131,7 @@ func TestReadInspectorBatch_LiveAppend(t *testing.T) {
 }
 
 func TestDumpRecords(t *testing.T) {
-	path := writeWandbFile(t, inspectorTestRecords()...)
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 
 	var buf bytes.Buffer
 	require.NoError(t, leet.DumpRecords(path, "", &buf, &buf, leet.DumpOptions{}))

@@ -92,17 +92,18 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 			// While the spec says SDL must not (§3.5) explicitly define builtin
 			// scalars, it may (§3.13) define builtin directives. Here we check for
 			// that, and reject doubly-defined directives otherwise.
-			switch dir.Name {
-			case "include", "skip", "deprecated", "specifiedBy", "defer", "oneOf": // the builtins
-				// In principle here we might want to validate that the
-				// directives are the same. But they might not be, if the
-				// server has an older spec than we do. (Plus, validating this
-				// is a lot of work.) So we just keep the first one we saw.
-				// That's an arbitrary choice, but in theory the only way it
-				// fails is if the server is using features newer than this
-				// version of gqlparser, in which case they're in trouble
-				// anyway.
-			default:
+			//
+			// In principle here we might want to validate that the directives
+			// are the same. But they might not be, if the server has an older
+			// spec than we do. (Plus, validating this is a lot of work.) So we
+			// just keep the last one we saw. That's an arbitrary choice, but in
+			// theory the only way it fails is if the server is using features
+			// newer than this version of gqlparser, in which case they're in
+			// trouble anyway.
+			//
+			// The check is by name, not by source, so a schema loaded without
+			// the prelude may also declare a builtin directive twice.
+			if !isPreludeDirective(dir.Name) {
 				return nil, gqlerror.ErrorPosf(
 					dir.Position,
 					"Cannot redeclare directive %s.",
@@ -111,6 +112,18 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 			}
 		}
 		schema.Directives[dir.Name] = sd.Directives[i]
+	}
+
+	for _, ext := range sd.DirectiveExtensions {
+		def := schema.Directives[ext.Name]
+		if def == nil {
+			return nil, gqlerror.ErrorPosf(
+				ext.Position,
+				"Cannot extend directive @%s because it is not defined.",
+				ext.Name,
+			)
+		}
+		def.Directives = append(def.Directives, ext.Directives...)
 	}
 
 	if len(sd.Schema) > 1 {
@@ -242,20 +255,7 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 	}
 
 	if schema.Query != nil {
-		schema.Query.Fields = append(
-			schema.Query.Fields,
-			&FieldDefinition{
-				Name: "__schema",
-				Type: NonNullNamedType("__Schema", nil),
-			},
-			&FieldDefinition{
-				Name: "__type",
-				Type: NamedType("__Type", nil),
-				Arguments: ArgumentDefinitionList{
-					{Name: "name", Type: NonNullNamedType("String", nil)},
-				},
-			},
-		)
+		schema.Query.Fields = append(schema.Query.Fields, QueryIntrospectionFields()...)
 	}
 
 	return &schema, nil
@@ -412,6 +412,16 @@ func validateDirective(schema *Schema, def *DirectiveDefinition) *gqlerror.Error
 			dup.Name,
 		)
 	}
+	// def.Directives includes those of its extensions; see singleLocation.
+	if err := validateDirectives(
+		schema,
+		def.Directives,
+		LocationDirectiveDefinition,
+		def,
+		true,
+	); err != nil {
+		return err
+	}
 
 	return validateArgs(schema, def.Arguments, def)
 }
@@ -471,7 +481,15 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	}
 
-	for _, intf := range def.Interfaces {
+	for i, intf := range def.Interfaces {
+		if slices.Contains(def.Interfaces[:i], intf) {
+			return gqlerror.ErrorPosf(
+				def.Position,
+				"Type %s can only implement %s once.",
+				def.Name,
+				intf,
+			)
+		}
 		if err := validateImplements(schema, def, intf); err != nil {
 			return err
 		}
@@ -510,16 +528,18 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 			)
 		}
 		for _, value := range def.EnumValues {
-			for _, nonEnum := range [3]string{"true", "false", "null"} {
-				if value.Name == nonEnum {
-					return gqlerror.ErrorPosf(
-						def.Position,
-						"%s %s: non-enum value %s.",
-						def.Kind,
-						def.Name,
-						value.Name,
-					)
-				}
+			if err := validateName(value.Position, value.Name); err != nil {
+				return err
+			}
+			switch value.Name {
+			case "true", "false", "null":
+				return gqlerror.ErrorPosf(
+					value.Position,
+					"%s %s: non-enum value %s.",
+					def.Kind,
+					def.Name,
+					value.Name,
+				)
 			}
 			if err := validateDirectives(
 				schema,
@@ -552,6 +572,15 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 					)
 				}
 			}
+		}
+	case Union:
+		if len(def.Types) == 0 {
+			return gqlerror.WrapPos(
+				def.Position,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
+			)
 		}
 	}
 
@@ -682,12 +711,15 @@ func validateDirectives(
 	dirs DirectiveList,
 	location DirectiveLocation,
 	currentDirective *DirectiveDefinition,
-	// singleLocation is true when dirs come from a single authored location
-	// (one field, enum value, argument, or schema/extension node). A type's
-	// own directives are merged across its base definition and every extension
-	// (see the def.Directives append in LoadSchema), which the spec treats as
-	// distinct locations, so the non-repeatable check is skipped for that
-	// merged list to avoid rejecting a directive used once per location.
+	// singleLocation enables the non-repeatable check. It is true when dirs
+	// come from a single authored location (one field, enum value, argument,
+	// or schema/extension node). A type's own directives are merged across its
+	// base definition and every extension (see the def.Directives append in
+	// ValidateSchemaDocument), which the spec treats as distinct locations, so
+	// the check is skipped for that merged list to avoid rejecting a directive
+	// used once per location. A directive definition's merged list is the
+	// exception: it is checked, matching graphql-js, so a non-repeatable
+	// directive may appear once across the definition and its extensions.
 	singleLocation bool,
 ) *gqlerror.Error {
 	seen := make(map[string]bool, len(dirs))
@@ -815,6 +847,14 @@ func validateImplements(schema *Schema, def *Definition, intfName string) *gqler
 			intf.Kind,
 		)
 	}
+	// validateTypeImplementsAncestors can't catch this: def is trivially in
+	// its own implements list, so the transitive check passes.
+	if intf.Name == def.Name {
+		return gqlerror.ErrorPosf(def.Position,
+			`Type %s cannot implement itself because it would create a circular reference.`,
+			def.Name,
+		)
+	}
 	for _, requiredField := range intf.Fields {
 		foundField := def.Fields.ForName(requiredField.Name)
 		if foundField == nil {
@@ -884,7 +924,7 @@ func validateTypeImplementsAncestors(
 		return gqlerror.ErrorPosf(def.Position, "Undefined type %s.", strconv.Quote(intfName))
 	}
 	for _, transitive := range intf.Interfaces {
-		if !containsString(def.Interfaces, transitive) {
+		if !slices.Contains(def.Interfaces, transitive) {
 			if transitive == def.Name {
 				return gqlerror.ErrorPosf(def.Position,
 					`Type %s cannot implement %s because it would create a circular reference.`,
@@ -898,10 +938,6 @@ func validateTypeImplementsAncestors(
 		}
 	}
 	return nil
-}
-
-func containsString(slice []string, want string) bool {
-	return slices.Contains(slice, want)
 }
 
 func isCovariant(schema *Schema, required, actual *Type) bool {

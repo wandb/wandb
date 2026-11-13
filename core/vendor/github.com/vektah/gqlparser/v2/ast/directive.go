@@ -25,6 +25,7 @@ const (
 	LocationInputObject          DirectiveLocation = `INPUT_OBJECT`
 	LocationInputFieldDefinition DirectiveLocation = `INPUT_FIELD_DEFINITION`
 	LocationVariableDefinition   DirectiveLocation = `VARIABLE_DEFINITION`
+	LocationDirectiveDefinition  DirectiveLocation = `DIRECTIVE_DEFINITION`
 )
 
 type Directive struct {

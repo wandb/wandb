@@ -155,6 +155,40 @@ async def test_run_job_secure_mode(mocker, clean_agent, job, exception_type, err
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("runner", ["sagemaker", "vertex"])
+async def test_run_job_secure_mode_rejects_cloud_args_before_scheduling(
+    mocker, clean_agent, runner
+):
+    _setup(mocker)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config={
+            "entity": "test-entity",
+            "project": "test-project",
+            "secure_mode": True,
+        },
+        telemetry_recorder=TelemetryRecorder(),
+    )
+    task_run_job = mocker.patch.object(agent, "task_run_job", new=MagicMock())
+    create_task = mocker.patch("wandb.sdk.launch.agent.agent.asyncio.create_task")
+
+    with pytest.raises(
+        LaunchError, match=f"Unsupported resource_args runner '{runner}'"
+    ):
+        await agent.run_job(
+            {
+                "runSpec": {"resource": runner, "resource_args": {runner: {}}},
+                "runQueueItemId": "test-item",
+            },
+            "test-queue",
+            MagicMock(),
+        )
+
+    task_run_job.assert_not_called()
+    create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "resource_args,expected_field",
     [

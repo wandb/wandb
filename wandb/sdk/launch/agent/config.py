@@ -203,7 +203,10 @@ class AgentConfig(BaseModel):
     secure_mode: bool | None = Field(
         False,
         description="Whether to use secure mode for this agent. If True, the "
-        "agent will reject runs that attempt to override the entrypoint or image.",
+        "agent will reject runs that attempt to override the entrypoint or image, "
+        "and resource arguments for runners without a secure-mode policy. "
+        "SageMaker and Vertex resource arguments, including queue defaults, "
+        "are not supported in secure mode.",
     )
     registry: RegistryConfig | None = Field(
         None,

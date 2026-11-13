@@ -99,6 +99,9 @@ class ProjectIconInput(GQLInput):
 
 class RateLimitsInput(GQLInput):
     create_artifacts: int | None = Field(alias="createArtifacts", default=None)
+    create_artifacts_collection_request_count: int | None = Field(
+        alias="createArtifactsCollectionRequestCount", default=None
+    )
     create_artifacts_request_count: int | None = Field(
         alias="createArtifactsRequestCount", default=None
     )

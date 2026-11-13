@@ -23,10 +23,39 @@ type parser struct {
 
 	tokenCount    int
 	maxTokenLimit int
+
+	// depth is the number of selection sets, list and object values, and
+	// list types enclosing the current token. It never exceeds
+	// MaxNestingDepth; see enterNested.
+	depth int
 }
+
+// MaxNestingDepth is the deepest that selection sets, list and object
+// values, and list types may nest, all counted together. The parser
+// recurses once per level, and exhausting the goroutine stack is a fatal
+// runtime error that recover cannot catch, so deeper input is rejected with
+// a parse error instead. Real documents nest a few dozen levels; the stack
+// runs out at several hundred thousand.
+const MaxNestingDepth = 1000
 
 func (p *parser) SetMaxTokenLimit(maxToken int) {
 	p.maxTokenLimit = maxToken
+}
+
+// enterNested reports whether the parser may descend one more nesting
+// level. If so, it increments depth and the caller must defer leaveNested.
+// If not, it records an error and leaves depth unchanged.
+func (p *parser) enterNested() bool {
+	if p.depth >= MaxNestingDepth {
+		p.error(p.peek(), "exceeded maximum nesting depth of %d", MaxNestingDepth)
+		return false
+	}
+	p.depth++
+	return true
+}
+
+func (p *parser) leaveNested() {
+	p.depth--
 }
 
 func (p *parser) consumeComment() (*ast.Comment, bool) {

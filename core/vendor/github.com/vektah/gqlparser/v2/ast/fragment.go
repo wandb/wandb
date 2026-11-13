@@ -25,7 +25,8 @@ type InlineFragment struct {
 }
 
 type FragmentDefinition struct {
-	Name string
+	Description string
+	Name        string
 	// Note: fragment variable definitions are experimental and may be changed
 	// or removed in the future.
 	VariableDefinition VariableDefinitionList

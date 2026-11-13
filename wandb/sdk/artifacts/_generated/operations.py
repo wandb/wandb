@@ -1212,6 +1212,9 @@ mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean =
     artifact {
       ...ArtifactFragment
     }
+    artifactMembership @include(if: true) {
+      ...ArtifactMembershipFragment
+    }
   }
 }
 
@@ -1252,6 +1255,22 @@ fragment ArtifactFragment on Artifact {
       ...CollectionInfoFragment
     }
     ...ArtifactAliasFragment
+  }
+}
+
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+  __typename
+  id
+  versionIndex
+  createdAt
+  aliases {
+    ...ArtifactAliasFragment
+  }
+  artifactCollection {
+    ...CollectionInfoFragment
+  }
+  artifact {
+    ...ArtifactFragment
   }
 }
 

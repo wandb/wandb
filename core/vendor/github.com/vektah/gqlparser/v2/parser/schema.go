@@ -119,6 +119,7 @@ func (p *parser) parseDescription() descriptionWithComment {
 		return desc
 	}
 
+	desc.present = true
 	desc.comment = p.comment
 	desc.text = p.next().Value
 	return desc
@@ -432,6 +433,11 @@ func (p *parser) parseTypeSystemExtension(doc *SchemaDocument) {
 		doc.Extensions = append(doc.Extensions, p.parseEnumTypeExtension(comment))
 	case "input":
 		doc.Extensions = append(doc.Extensions, p.parseInputObjectTypeExtension(comment))
+	case "directive":
+		doc.DirectiveExtensions = append(
+			doc.DirectiveExtensions,
+			p.parseDirectiveExtension(comment),
+		)
 	default:
 		p.unexpectedError()
 	}
@@ -493,9 +499,10 @@ func (p *parser) parseInterfaceTypeExtension(comment *CommentGroup) *Definition 
 	def.AfterDescriptionComment = comment
 	def.Kind = Interface
 	def.Name = p.parseName()
+	def.Interfaces = p.parseImplementsInterfaces()
 	def.Directives = p.parseDirectives(true)
 	def.Fields, def.EndOfDefinitionComment = p.parseFieldsDefinition()
-	if len(def.Directives) == 0 && len(def.Fields) == 0 {
+	if len(def.Interfaces) == 0 && len(def.Directives) == 0 && len(def.Fields) == 0 {
 		p.unexpectedError()
 	}
 	return &def
@@ -561,6 +568,7 @@ func (p *parser) parseDirectiveDefinition(description descriptionWithComment) *D
 	def.AfterDescriptionComment = comment
 	def.Name = p.parseName()
 	def.Arguments = p.parseArgumentDefs()
+	def.Directives = p.parseDirectives(true)
 
 	if peek := p.peek(); peek.Kind == lexer.Name && peek.Value == "repeatable" {
 		def.IsRepeatable = true
@@ -569,6 +577,21 @@ func (p *parser) parseDirectiveDefinition(description descriptionWithComment) *D
 
 	p.expectKeyword("on")
 	def.Locations = p.parseDirectiveLocations()
+	return &def
+}
+
+func (p *parser) parseDirectiveExtension(comment *CommentGroup) *DirectiveDefinition {
+	p.expectKeyword("directive")
+	p.expect(lexer.At)
+
+	var def DirectiveDefinition
+	def.Position = p.peekPos()
+	def.AfterDescriptionComment = comment
+	def.Name = p.parseName()
+	def.Directives = p.parseDirectives(true)
+	if len(def.Directives) == 0 {
+		p.unexpectedError()
+	}
 	return &def
 }
 
@@ -626,6 +649,8 @@ func (p *parser) parseDirectiveLocation() DirectiveLocation {
 		return LocationInputObject
 	case `INPUT_FIELD_DEFINITION`:
 		return LocationInputFieldDefinition
+	case `DIRECTIVE_DEFINITION`:
+		return LocationDirectiveDefinition
 	}
 
 	p.unexpectedToken(name)
@@ -635,4 +660,7 @@ func (p *parser) parseDirectiveLocation() DirectiveLocation {
 type descriptionWithComment struct {
 	text    string
 	comment *CommentGroup
+	// present reports whether a description string was read, so an empty
+	// "" still counts where the grammar forbids a description.
+	present bool
 }

@@ -6,8 +6,10 @@ import (
 	"maps"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -131,7 +133,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, ensureSafeURL(task.Url), nil)
 	if err != nil {
 		return err
 	}
@@ -281,4 +283,15 @@ func getUploadRequestBody(
 		)
 	}
 	return requestBody, nil
+}
+
+// ensureSafeURL returns a download URL that is safe to use.
+//
+// A URL that net/url already accepts is returned unchanged. Otherwise the
+// URL is repaired by percent-encoding every '%' as "%25".
+func ensureSafeURL(rawURL string) string {
+	if _, err := url.Parse(rawURL); err == nil {
+		return rawURL
+	}
+	return strings.ReplaceAll(rawURL, "%", "%25")
 }

@@ -265,6 +265,42 @@ type extensions:
       message: "Unexpected <EOF>"
       locations: [{ line: 1, column: 18 }]
 
+  - name: interface extension without any fields
+    input: "extend interface Hello implements Greeting"
+    ast: |
+      <SchemaDocument>
+        Extensions: [Definition]
+        - <Definition>
+            Kind: DefinitionKind("INTERFACE")
+            Name: "Hello"
+            Interfaces: [string]
+            - "Greeting"
+
+  - name: interface extension with interfaces and fields
+    input: |
+      extend interface Hello implements Greeting & Named {
+        name: String
+      }
+    ast: |
+      <SchemaDocument>
+        Extensions: [Definition]
+        - <Definition>
+            Kind: DefinitionKind("INTERFACE")
+            Name: "Hello"
+            Interfaces: [string]
+            - "Greeting"
+            - "Named"
+            Fields: [FieldDefinition]
+            - <FieldDefinition>
+                Name: "name"
+                Type: String
+
+  - name: interface extension without anything errors
+    input: "extend interface Hello"
+    error:
+      message: "Unexpected <EOF>"
+      locations: [{ line: 1, column: 23 }]
+
   - name: can have descriptions # hmm, this might not be spec compliant...
     input: |
       "Description"
@@ -746,6 +782,72 @@ directives:
     error:
       message: 'Unexpected Name "INCORRECT_LOCATION"'
       locations: [{ line: 1, column: 27 }]
+
+  - name: with directives
+    input: "directive @foo(arg: Int) @bar @baz(a: 1) repeatable on FIELD"
+    ast: |
+      <SchemaDocument>
+        Directives: [DirectiveDefinition]
+        - <DirectiveDefinition>
+            Name: "foo"
+            Arguments: [ArgumentDefinition]
+            - <ArgumentDefinition>
+                Name: "arg"
+                Type: Int
+            Directives: [Directive]
+            - <Directive>
+                Name: "bar"
+            - <Directive>
+                Name: "baz"
+                Arguments: [Argument]
+                - <Argument>
+                    Name: "a"
+                    Value: 1
+            Locations: [DirectiveLocation]
+            - DirectiveLocation("FIELD")
+            IsRepeatable: true
+
+  - name: directive definition location
+    input: directive @foo on DIRECTIVE_DEFINITION
+    ast: |
+      <SchemaDocument>
+        Directives: [DirectiveDefinition]
+        - <DirectiveDefinition>
+            Name: "foo"
+            Locations: [DirectiveLocation]
+            - DirectiveLocation("DIRECTIVE_DEFINITION")
+            IsRepeatable: false
+
+directive extensions:
+  - name: with directives
+    input: "extend directive @foo @bar @baz(a: 1)"
+    ast: |
+      <SchemaDocument>
+        DirectiveExtensions: [DirectiveDefinition]
+        - <DirectiveDefinition>
+            Name: "foo"
+            Directives: [Directive]
+            - <Directive>
+                Name: "bar"
+            - <Directive>
+                Name: "baz"
+                Arguments: [Argument]
+                - <Argument>
+                    Name: "a"
+                    Value: 1
+            IsRepeatable: false
+
+  - name: without directives errors
+    input: extend directive @foo
+    error:
+      message: "Unexpected <EOF>"
+      locations: [{ line: 1, column: 22 }]
+
+  - name: with arguments errors
+    input: "extend directive @foo(arg: Int) @bar"
+    error:
+      message: 'Unexpected ('
+      locations: [{ line: 1, column: 22 }]
 
 fuzzer:
   - name: 1

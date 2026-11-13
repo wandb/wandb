@@ -277,6 +277,10 @@ mutation UpdateArtifact(
     artifact {
       ...ArtifactFragment
     }
+    artifactMembership @include(if: true) {
+      # Workaround: ensures generated pydantic field defaults to `None`
+      ...ArtifactMembershipFragment
+    }
   }
 }
 

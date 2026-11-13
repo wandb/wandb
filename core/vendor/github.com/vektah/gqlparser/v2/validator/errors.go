@@ -14,24 +14,21 @@ type EmptyDefinitionError struct {
 
 // Error implements [error].
 func (n *EmptyDefinitionError) Error() string {
+	var what string
 	switch n.Definition.Kind {
 	case ast.InputObject:
-		return fmt.Sprintf(
-			"%s %s: must define one or more input fields.",
-			n.Definition.Kind,
-			n.Definition.Name,
-		)
+		what = "input fields"
 	case ast.Enum:
-		return fmt.Sprintf(
-			"%s %s: must define one or more unique enum values.",
-			n.Definition.Kind,
-			n.Definition.Name,
-		)
+		what = "unique enum values"
+	case ast.Union:
+		what = "member types"
 	default:
-		return fmt.Sprintf(
-			"%s %s: must define one or more fields.",
-			n.Definition.Kind,
-			n.Definition.Name,
-		)
+		what = "fields"
 	}
+	return fmt.Sprintf(
+		"%s %s: must define one or more %s.",
+		n.Definition.Kind,
+		n.Definition.Name,
+		what,
+	)
 }
