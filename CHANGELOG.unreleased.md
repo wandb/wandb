@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- The Optuna and Ax sweep schedulers support `log_uniform` parameters, and `q_log_uniform` parameters with `q: 1` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/TBD)
+- The Optuna and Ax sweep schedulers support `log_uniform` parameters, and `q_log_uniform` parameters with `q: 1` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13363)
 
 ### Changed
 
@@ -24,4 +24,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- The Optuna and Ax sweep schedulers sample `q_uniform` parameters at the multiples of `q` that W&B samples instead of at steps of `q` from `min`, as integers whenever `q` is a whole number (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/TBD)
+- The Optuna and Ax sweep schedulers sample `q_uniform` parameters at the multiples of `q` that W&B samples instead of at steps of `q` from `min`, as integers whenever `q` is a whole number (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13363)
