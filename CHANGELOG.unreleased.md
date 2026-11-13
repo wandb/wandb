@@ -42,4 +42,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
-- When the Ax sweep scheduler resumes a sweep, it skips a previous run that set an integer parameter to a fractional value instead of rounding the value down (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/TBD)
+- When the Ax sweep scheduler resumes a sweep, it skips a previous run that set an integer parameter to a fractional value instead of rounding the value down (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13361)
