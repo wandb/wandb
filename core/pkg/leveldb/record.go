@@ -351,15 +351,24 @@ func (r *Reader) isShortBlock() bool {
 
 // VerifyWandbHeader checks for the presence of a valid W&B header.
 //
-// The reader must be positioned at the start.
+// If the reader is past the first block, it seeks to the start to read the
+// header and then seeks back, so that NextOffset is unchanged even on error.
+// This requires the underlying reader to be an io.Seeker.
 //
 // The error wraps EOF if there's no data at all and ErrUnexpectedEOF
 // if there's not enough data to hold a header.
 //
 // On success, returns the file version number in the header.
-func (r *Reader) VerifyWandbHeader() (uint8, error) {
+func (r *Reader) VerifyWandbHeader() (version uint8, err error) {
 	if r.blockOffset != 0 {
-		return 0, errors.New("leveldb/record: reader not in first block")
+		offset := r.NextOffset()
+		if err = r.SeekRecord(0); err != nil {
+			return
+		}
+		defer func() {
+			r.Recover()
+			err = errors.Join(err, r.SeekRecord(offset))
+		}()
 	}
 
 	if r.n == 0 {
@@ -372,7 +381,8 @@ func (r *Reader) VerifyWandbHeader() (uint8, error) {
 		return 0, io.ErrUnexpectedEOF
 	}
 
-	identBytes, magicBytes, version := r.buf[0:4], r.buf[4:6], r.buf[6]
+	identBytes, magicBytes := r.buf[0:4], r.buf[4:6]
+	version = r.buf[6]
 
 	if string(identBytes) != wandbHeaderIdent {
 		return 0, fmt.Errorf(

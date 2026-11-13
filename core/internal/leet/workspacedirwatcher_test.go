@@ -24,7 +24,7 @@ func createRunWandbFile(t *testing.T, wandbDir, runKey string, records []*spb.Re
 	require.NoError(t, os.MkdirAll(runDir, 0o755))
 
 	wandbFile := filepath.Join(runDir, "run-"+runID+".wandb")
-	w, err := transactionlog.OpenWriter(wandbFile)
+	w, err := transactionlog.OpenWriter(wandbFile, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	for _, rec := range records {

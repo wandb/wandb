@@ -32,8 +32,7 @@ func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
 // Metrics that cannot be marshalled to JSON are skipped without affecting
 // other metrics.
 //
-// If includeTyped is true, the records will include the typed value in
-// addition to the JSON value.
+// includeTyped and includeJSON independently select the output value fields.
 //
 // TODO: Don't convert history back to protos. Delete this method.
 func (rh *RunHistory) ToRecords(includeTyped, includeJSON bool) ([]*spb.HistoryItem, error) {

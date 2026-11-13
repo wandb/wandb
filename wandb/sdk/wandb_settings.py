@@ -1255,11 +1255,12 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_history_value_encoding", mode="after")
     @classmethod
     def validate_x_history_value_encoding(cls, value: str) -> str:
-        """Normalize the history value encoding. Reject typed-only values.
+        """Normalize the history value encoding.
 
         <!-- lazydoc-ignore -->
         """
-        forms = [form.strip().lower() for form in value.split(",")]
+        # Remove duplicates, normalize case. dict.fromkeys() preserves order of first occurrence.
+        forms = list(dict.fromkeys(form.strip().lower() for form in value.split(",")))
 
         if any(form not in HISTORY_VALUE_ENCODINGS for form in forms):
             wandb.termwarn(
@@ -1268,11 +1269,6 @@ class Settings(BaseModel, validate_assignment=True):
                 repeat=False,
             )
             return HISTORY_VALUE_ENCODING_DEFAULT
-
-        if HISTORY_VALUE_ENCODING_JSON not in forms:
-            raise ValueError(
-                "Typed-only history encoding is unavailable. Use 'json,typed' or 'json'."
-            )
 
         # Store the stripped, lowercased forms so that a reader can split
         # on "," and compare without parsing again.

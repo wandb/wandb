@@ -212,15 +212,7 @@ def test_syncs_run(
         assert "test_file.txt" in files
 
 
-# This test is a reminder to add typed-only case to
-# test_syncs_history_values_from_completed_offline_run below.
-def test_rejects_typed_only_history_value_encoding():
-    with pytest.raises(ValueError, match="Use 'json,typed'"):
-        wandb.Settings(x_history_value_encoding="typed")
-
-
-# TODO: when typed-only encoding is available, add it to this paramter list
-@pytest.mark.parametrize("encoding", ("json", "json,typed"))
+@pytest.mark.parametrize("encoding", ("json", "typed", "json,typed"))
 def test_syncs_history_values_from_completed_offline_run(
     encoding: str,
     wandb_backend_spy: WandbBackendSpy,
