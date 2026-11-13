@@ -18,7 +18,7 @@ _RECORD_BLOCK = re.compile(
 def _transaction_log_version(path: str) -> int:
     with open(path, "rb") as f:
         header = f.read(7)
-    assert header[:6] == _WANDB_HEADER_PREFIX, header
+    assert header[:6] == _WANDB_HEADER_PREFIX
     return header[6]
 
 
@@ -80,11 +80,11 @@ def test_transaction_log_history_encoding(
     assert history_items
     for item in history_items:
         if want_json:
-            assert item.value_json == "0.5", item
+            assert item.value_json == "0.5"
         else:
-            assert item.value_json == "", item
+            assert item.value_json == ""
         if want_typed:
-            assert item.WhichOneof("value") == "number", item
-            assert item.number == 0.5, item
+            assert item.WhichOneof("value") == "number"
+            assert item.number == 0.5
         else:
-            assert item.WhichOneof("value") is None, item
+            assert item.WhichOneof("value") is None

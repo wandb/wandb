@@ -63,11 +63,11 @@ func NewWriter(t *testing.T, options *WriterOptions) (*transactionlog.Writer, st
 	var w *transactionlog.Writer
 	var err error
 	if options.AllowUnsupportedVersion {
-		w, err = transactionlog.OpenWriter(path)
+		w, err = transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 		require.NoError(t, err)
 		writeVersion(t, path, options.Version)
 	} else {
-		w, err = transactionlog.OpenWriterWithVersion(path, options.Version)
+		w, err = transactionlog.OpenWriter(path, options.Version)
 		require.NoError(t, err)
 	}
 	for _, record := range options.Records {
@@ -93,7 +93,7 @@ func ReaderWriter(t *testing.T) (
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "just-the-header.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
 	require.NoError(t, err)
 
 	r, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
