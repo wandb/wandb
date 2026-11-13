@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/evaltables"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
@@ -126,6 +127,14 @@ type Sender struct {
 
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
+
+	// evalTableUploader uploads EvalTables to CES.
+	//
+	// It is nil in offline mode.
+	evalTableUploader *evaltables.Uploader
+
+	// evalTableWG is a wait group for EvalTable upload goroutines.
+	evalTableWG sync.WaitGroup
 
 	// runHandle is parts of the Stream initialized after the first RunRecord
 	runHandle *runhandle.RunHandle
@@ -266,6 +275,16 @@ func (f *SenderFactory) NewWithFileStream(
 		stats:             f.Stats,
 	}
 	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
+
+	if !s.settings.IsOffline() {
+		s.evalTableUploader = evaltables.NewUploader(evaltables.UploaderParams{
+			CredentialProvider: f.CredentialProvider,
+			GraphqlClient:      f.GraphqlClient,
+			Logger:             f.Logger,
+			RunHandle:          f.RunHandle,
+			Settings:           f.Settings,
+		})
+	}
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -452,6 +471,9 @@ func (s *Sender) sendRequest(
 		s.sendLinkArtifact(x.LinkArtifact, request)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(x.DownloadArtifact, request)
+
+	case *spb.Request_UploadEvalTable:
+		s.sendRequestUploadEvalTable(x.UploadEvalTable, request)
 
 	case *spb.Request_SenderRead:
 		// TODO: implement this
@@ -674,6 +696,7 @@ func (s *Sender) finishRunSync(
 	// Wait for artifacts operations to complete here to detect
 	// code artifacts, then upload the code (aka "job") artifact, if any.
 	s.artifactWG.Wait()
+	s.evalTableWG.Wait()
 
 	s.mu.Lock()
 	if upserter != nil {
@@ -1357,6 +1380,92 @@ func (s *Sender) sendRequestLogArtifact(
 				},
 			})
 	}()
+}
+
+func (s *Sender) sendRequestUploadEvalTable(
+	msg *spb.UploadEvalTableRequest,
+	request *runwork.Request,
+) {
+	respond := func(response *spb.UploadEvalTableResponse) {
+		s.respond(request,
+			&spb.Response{
+				ResponseType: &spb.Response_UploadEvalTableResponse{
+					UploadEvalTableResponse: response,
+				},
+			})
+	}
+
+	if s.evalTableUploader == nil {
+		respond(&spb.UploadEvalTableResponse{
+			Error: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_UNSUPPORTED,
+				Message: "cannot log an EvalTable in offline mode",
+			},
+		})
+		return
+	}
+
+	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetName()))
+	ctx, cancel := context.WithCancel(op.Context(s.runWork.BeforeEndCtx()))
+	if request != nil {
+		// Stop uploading if the client cancels the request.
+		context.AfterFunc(request.Context(), cancel)
+	}
+
+	s.evalTableWG.Add(1)
+	go func() {
+		defer s.evalTableWG.Done()
+		defer cancel()
+
+		response, err := s.uploadEvalTable(ctx, msg)
+		op.Finish()
+
+		switch {
+		case evaltables.IsUsageError(err):
+			response = &spb.UploadEvalTableResponse{
+				Error: &spb.ErrorInfo{
+					Code:    spb.ErrorInfo_USAGE,
+					Message: err.Error(),
+				},
+			}
+		case err != nil:
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
+			)
+			response = &spb.UploadEvalTableResponse{
+				Error: &spb.ErrorInfo{Message: err.Error()},
+			}
+		}
+
+		respond(response)
+	}()
+}
+
+// uploadEvalTable validates an EvalTable, then uploads it and the run
+// files that its media cells reference.
+func (s *Sender) uploadEvalTable(
+	ctx context.Context,
+	msg *spb.UploadEvalTableRequest,
+) (*spb.UploadEvalTableResponse, error) {
+	table, err := s.evalTableUploader.Encode(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	if mediaPaths := msg.GetUploadMediaPaths(); len(mediaPaths) > 0 {
+		files := &spb.FilesRecord{}
+		for _, path := range mediaPaths {
+			files.Files = append(files.Files, &spb.FilesItem{
+				Path:   path,
+				Policy: spb.FilesItem_NOW,
+				Type:   spb.FilesItem_MEDIA,
+			})
+		}
+		s.runfilesUploader.Process(files)
+	}
+
+	return s.evalTableUploader.Upload(ctx, table)
 }
 
 func (s *Sender) sendRequestDownloadArtifact(

@@ -1,0 +1,6 @@
+# Looks up a project's internal ID, which CES uses as the project's scope ID.
+query ProjectInternalID($entityName: String!, $projectName: String!) {
+  project(entityName: $entityName, name: $projectName) {
+    internalId
+  }
+}

@@ -703,7 +703,7 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 85
+// Next ID: 86
 message Request {
   reserved 18, 22, 75, 76, 79, 80;
 
@@ -751,6 +751,9 @@ message Request {
     // Requests collecting information about the system environment and resources.
     ProbeSystemInfoRequest probe_system_info = 83;
 
+    // Uploads an EvalTable to CES.
+    UploadEvalTableRequest upload_eval_table = 85;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -758,7 +761,7 @@ message Request {
 /*
  * Response: all non persistent responses to Requests
  *
- * Next ID: 75
+ * Next ID: 77
  */
 message Response {
   reserved 32, 72, 73;
@@ -790,6 +793,7 @@ message Response {
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
     OperationStatsResponse operations_response = 74;
+    UploadEvalTableResponse upload_eval_table_response = 76;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -1285,6 +1289,106 @@ message LogArtifactRequest {
 message LogArtifactResponse {
   string artifact_id = 1;
   string error_message = 2;
+}
+
+/*
+ * UploadEvalTable:
+ *
+ * Uploads an EvalTable to the CoreWeave Evaluation Service (CES).
+ */
+message UploadEvalTableRequest {
+  string name = 1;
+
+  repeated EvalTableField dataset_fields = 2;
+  repeated EvalTableScorer scorers = 3;
+
+  // The table's rows in order.
+  repeated EvalTableRow rows = 4;
+
+  // Run files that the table's media cells reference, relative to the run's
+  // files directory, for wandb-core to upload. Cells get their CES URIs
+  // from their media JSON, not from this list.
+  repeated string upload_media_paths = 6;
+
+  _RequestInfo _info = 200;
+}
+
+message EvalTableRow {
+  // Values of the "input" dataset fields, in their order in dataset_fields.
+  // Unset if the row has no inputs.
+  EvalTableRowValues input = 1;
+
+  // Values of the "output" dataset fields, in their order in dataset_fields.
+  // Unset if the row has no outputs.
+  EvalTableRowValues output = 2;
+
+  // Values of the scorers, in their order in scorers.
+  repeated EvalTableValue scores = 3;
+
+  // Identifies a row without inputs. CES derives the key of other rows
+  // from their inputs.
+  string example_key = 4;
+}
+
+message EvalTableRowValues {
+  repeated EvalTableValue values = 1;
+}
+
+// A cell's value, which must match its column's declared type, except
+// that int_value is also allowed in "number" columns.
+// An unset value is null.
+message EvalTableValue {
+  oneof value {
+    bool bool_value = 1;
+    int64 int_value = 2;
+    double number_value = 3;
+    string string_value = 4;
+
+    // An encoded JSON value, for "json" columns.
+    string json_value = 5;
+
+    // W&B media JSON, as produced by the media's `to_json`, with a `path`
+    // in the run's files directory or an `artifact_path`. Only for columns
+    // with a wandb_media_type. wandb-core converts it to a CES extension
+    // value.
+    string wandb_media_json = 6;
+  }
+}
+
+message EvalTableField {
+  // "input" or "output".
+  // One of: cwevals.EvalTableColumnNewParamsDatasetFieldsSource
+  string source = 1;
+  string name = 2;
+
+  // A CES value type: "boolean", "integer", "number", "string", or "json".
+  // One of: cwevals.EvalTableColumnNewParamsDatasetFieldsValueType
+  string value_type = 3;
+
+  // The `_type` of a media column's W&B media, like "image-file", or unset
+  // for other columns. wandb-core converts the column's values to CES
+  // extension values.
+  string wandb_media_type = 4;
+}
+
+message EvalTableScorer {
+  string name = 1;
+
+  // A CES primitive value type: "boolean", "integer", "number", or "string".
+  // One of: cwevals.EvalTableColumnNewParamsScorersValueType
+  string value_type = 2;
+}
+
+message UploadEvalTableResponse {
+  string evaluation_id = 1;
+  string evaluation_version_id = 2;
+  string dataset_id = 3;
+  string dataset_version_id = 4;
+
+  // Set if the upload failed, in which case the IDs are unset.
+  //
+  // The code is USAGE if the request's table is invalid.
+  ErrorInfo error = 5;
 }
 
 /*
