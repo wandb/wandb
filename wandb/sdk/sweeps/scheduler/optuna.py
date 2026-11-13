@@ -19,7 +19,9 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    int_uniform_bounds,
     is_terminal_state,
+    q_log_uniform_values_bounds,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -111,6 +113,7 @@ def _categorical_distribution(
 
 
 def sweep_parameter_to_distribution(
+    name: str,
     parameter: dict[str, Any],
 ) -> optuna.distributions.BaseDistribution:
     """Convert a W&B sweep parameter spec into an optuna distribution.
@@ -126,15 +129,18 @@ def sweep_parameter_to_distribution(
     - `q_uniform` -> `IntDistribution(min, max, step=q)` when `min`, `max`,
       and `q` are all integers, else `FloatDistribution(min, max, step=q)`
       (`q` defaults to 1)
-    - `q_log_uniform_values` -> `IntDistribution(min, max, log=True, step=q)`
-      (`q` defaults to 1), or `FloatDistribution(min, max, log=True)` with a
-      `termwarn` (dropping `q`) when optuna can't represent it as a
-      log-scale int distribution -- i.e. `q != 1` or `min < 1`
+    - `q_log_uniform_values` -> `IntDistribution(min, max, log=True)`; `q`
+      must be 1 (the default) and `min` at least 1
     - a numeric spec with no `distribution` key -> `int_uniform` or `uniform`,
       inferred from the `min`/`max` types as W&B does
 
     Sweep distributions with no optuna equivalent (e.g. `normal`, `beta`,
-    `inv_log_uniform`, and exponent-space `log_uniform`) raise `ValueError`.
+    `inv_log_uniform`, and exponent-space `log_uniform`), and int ranges
+    optuna can't represent exactly, raise `ValueError`.
+
+    Args:
+        name: The parameter's name, used in error messages.
+        parameter: The parameter's sweep config spec.
     """
     distributions = optuna.distributions
 
@@ -153,7 +159,7 @@ def sweep_parameter_to_distribution(
         return _categorical_distribution(parameter)
 
     if dist == "int_uniform":
-        return distributions.IntDistribution(parameter["min"], parameter["max"])
+        return distributions.IntDistribution(*int_uniform_bounds(name, parameter))
 
     if dist == "uniform":
         return distributions.FloatDistribution(parameter["min"], parameter["max"])
@@ -172,20 +178,8 @@ def sweep_parameter_to_distribution(
         return distributions.FloatDistribution(lo, hi, step=q)
 
     if dist == "q_log_uniform_values":
-        # optuna forbids step+log on floats, so this maps to a log-scale int
-        # space -- but optuna also rejects IntDistribution(log=True) when
-        # step != 1 or low < 1, so fall back to a (step-less) float space.
-        lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
-        if q != 1 or lo < 1:
-            wandb.termwarn(
-                "Sweep parameter has a q_log_uniform_values distribution "
-                f"with min={lo!r}, q={q!r} that optuna cannot represent as "
-                "a log-scale int distribution (it requires step=1 and "
-                "min>=1). Converting to a FloatDistribution(log=True) "
-                "instead; q will be ignored."
-            )
-            return distributions.FloatDistribution(lo, hi, log=True)
-        return distributions.IntDistribution(lo, hi, log=True, step=int(q))
+        lo, hi = q_log_uniform_values_bounds(name, parameter)
+        return distributions.IntDistribution(lo, hi, log=True)
 
     raise ValueError(
         f"Sweep distribution {dist!r} has no optuna equivalent and cannot be converted."
@@ -200,7 +194,8 @@ def search_space_from_sweep_config(
     Maps each `name -> spec` entry onto a `name -> distribution` entry.
     """
     return {
-        name: sweep_parameter_to_distribution(spec) for name, spec in parameters.items()
+        name: sweep_parameter_to_distribution(name, spec)
+        for name, spec in parameters.items()
     }
 
 
