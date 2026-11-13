@@ -42,3 +42,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
+- `artifact.download()` no longer returns or overwrites files from an earlier `artifact.download(skip_cache=True)` call in the same process (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13115)
+  - With `skip_cache=True`, files referenced from another artifact (`wandb-artifact://`) are also downloaded directly to the destination instead of being staged in the referenced artifact's download root.
