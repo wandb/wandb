@@ -488,7 +488,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 		select {
 		case <-s.receivedExitCh:
 			return
-		case <-s.runHandle.Ready():
+		case <-s.runHandle.ReadyOrFailed():
 		}
 
 		upserter, err := s.runHandle.Upserter()
