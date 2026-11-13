@@ -36,8 +36,8 @@ class EvalTableWriter(Protocol):
         """
         ...
 
-    def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
-        """Bind backend state before `write` to this run-history location."""
+    def bind_to_run(self, run: LocalRun, key: str) -> None:
+        """Bind backend state before `write` to this run and history key."""
         ...
 
     def write(

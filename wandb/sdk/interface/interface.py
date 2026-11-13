@@ -687,6 +687,19 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
+    def deliver_upload_eval_table(
+        self,
+        upload_eval_table: pb.UploadEvalTableRequest,
+    ) -> MailboxHandle[pb.Result]:
+        return self._deliver_upload_eval_table(upload_eval_table)
+
+    @abc.abstractmethod
+    def _deliver_upload_eval_table(
+        self,
+        upload_eval_table: pb.UploadEvalTableRequest,
+    ) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError
+
     def deliver_download_artifact(
         self,
         artifact_id: str,

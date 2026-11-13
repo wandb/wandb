@@ -133,10 +133,8 @@ class WeaveWriter:
         )
         self._unsupported_media_mode = unsupported_media_mode
 
-    def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
-        # Other writers use run/key/step to derive stable idempotency keys, so
-        # keep the full logging location in the shared protocol.
-        del key, step
+    def bind_to_run(self, run: LocalRun, key: str) -> None:
+        del key
 
         # Now that we have run context, initialize/validate Weave for this project.
         weave_integration.init_weave(run.entity, run.project)

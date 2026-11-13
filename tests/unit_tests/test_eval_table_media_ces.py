@@ -1,54 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
-import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
-from unittest.mock import ANY, MagicMock, call
+from types import SimpleNamespace
+from unittest.mock import MagicMock, call
 
 import pytest
 import wandb
+from google.protobuf.json_format import MessageToDict
 from PIL import Image as PILImage
 from wandb.errors import UsageError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table import _media_ces, _writer, _writer_ces
-
-pytestmark = pytest.mark.usefixtures("coreweave_evaluations_module")
-
-
-@pytest.fixture
-def coreweave_evaluations_module(monkeypatch):
-    client_module = ModuleType("coreweave_evaluations")
-    client_module.__path__ = []
-    client_module.Client = MagicMock
-
-    types_module = ModuleType("coreweave_evaluations.types")
-    types_module.__path__ = []
-    audio_module = ModuleType("coreweave_evaluations.types.wandb_audio_v1_param")
-    audio_module.WandbAudioV1Param = dict
-    image_module = ModuleType("coreweave_evaluations.types.wandb_image_v1_param")
-    image_module.WandbImageV1Param = dict
-    video_module = ModuleType("coreweave_evaluations.types.wandb_video_v1_param")
-    video_module.WandbVideoV1Param = dict
-
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations.types", types_module)
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_audio_v1_param",
-        audio_module,
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_image_v1_param",
-        image_module,
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_video_v1_param",
-        video_module,
-    )
-    return client_module
 
 
 @pytest.fixture
@@ -63,42 +28,10 @@ def run_factory(mock_run, tmp_path):
                 "mode": "online",
             }
         )
-        run._publish_file = MagicMock()
         run._add_singleton = MagicMock()
         return run
 
     return make
-
-
-@pytest.fixture
-def mock_ces_client(monkeypatch, coreweave_evaluations_module):
-    client = MagicMock()
-    client.__enter__.return_value = client
-    client.eval_tables.create.return_value = SimpleNamespace(
-        dataset_id="dataset-1",
-        evaluation_id="evaluation-1",
-    )
-    client.eval_tables.versions.create.return_value = SimpleNamespace(
-        dataset_version_id="dataset-version-1",
-        evaluation_version_id="evaluation-version-1",
-    )
-    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
-    monkeypatch.setattr(coreweave_evaluations_module, "Client", MagicMock)
-    monkeypatch.setattr(
-        _writer_ces.CESWriter,
-        "_resolve_scope_context",
-        lambda self, bound: _writer_ces._CESScopeContext(
-            scope_id="scope-ref",
-            api_key=None,
-            access_token="token",
-        ),
-    )
-    monkeypatch.setattr(
-        _writer_ces.CESWriter,
-        "_create_client",
-        lambda self, client_type, base_url, scope: client,
-    )
-    return client
 
 
 def _png(tmp_path, name="image.png", color=(10, 20, 30)):
@@ -253,20 +186,6 @@ def _image_from_external_reference_artifact(
     return image
 
 
-def test_run_file_uri_preserves_eval_table_key_path():
-    run = SimpleNamespace(entity="team-name", project="project-1", id="run-1")
-
-    uri = _media_ces._run_file_uri(
-        run,
-        "media/eval_tables/images/eval/key/image.png",
-    )
-
-    assert uri == (
-        "wandb-run-file://team-name/project-1/run-1/"
-        "media/eval_tables/images/eval/key/image.png"
-    )
-
-
 def test_committed_artifact_media_returns_artifact_ref_url(tmp_path, monkeypatch):
     image = wandb.Image(_png(tmp_path))
     artifact_ref_url = "wandb-artifact://abc123/media/images/image.png"
@@ -296,7 +215,6 @@ def test_media_binds_to_explicit_run_path(run_factory, tmp_path):
     assert image._run is run
     assert image._path == destination
     assert Path(destination).read_bytes() == source.read_bytes()
-    run._publish_file.assert_called_once_with(logical_path)
 
 
 def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_path):
@@ -305,11 +223,7 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
     image = wandb.Image(path)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    uri = _media_ces._ensure_eval_table_run_file(
-        image,
-        run,
-        "eval/key",
-    )
+    run_file_path = _media_ces._ensure_eval_table_run_file(image, run, "eval/key")
 
     expected_path = os.path.join(
         "media",
@@ -321,8 +235,7 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
     )
     assert image._run is run
     assert image._path == os.path.join(run.dir, expected_path)
-    assert uri.endswith(expected_path.replace(os.sep, "/"))
-    run._publish_file.assert_called_once_with(expected_path)
+    assert run_file_path == expected_path.replace(os.sep, "/")
 
 
 def test_repeated_media_content_is_placed_once(run_factory, tmp_path):
@@ -331,20 +244,12 @@ def test_repeated_media_content_is_placed_once(run_factory, tmp_path):
     first = wandb.Image(path)
     second = wandb.Image(path)
 
-    _media_ces._ensure_eval_table_run_file(
-        first,
-        run,
-        "eval",
-    )
-    _media_ces._ensure_eval_table_run_file(
-        second,
-        run,
-        "eval",
-    )
+    first_path = _media_ces._ensure_eval_table_run_file(first, run, "eval")
+    second_path = _media_ces._ensure_eval_table_run_file(second, run, "eval")
 
     assert second._run is run
     assert second._path == first._path
-    run._publish_file.assert_called_once()
+    assert second_path == first_path
 
 
 def test_media_already_bound_to_active_run_reuses_existing_path(
@@ -355,19 +260,13 @@ def test_media_already_bound_to_active_run_reuses_existing_path(
     image = wandb.Image(_png(tmp_path))
     image.bind_to_run(run, "legacy", 7)
     existing_path = image._path
-    run._publish_file.reset_mock()
 
     working_image = _media_ces._media_for_run(image, run)
-    uri = _media_ces._ensure_eval_table_run_file(
-        working_image,
-        run,
-        "eval",
-    )
+    run_file_path = _media_ces._ensure_eval_table_run_file(working_image, run, "eval")
 
     assert working_image is image
     assert image._path == existing_path
-    assert "/media/images/legacy_7_" in uri
-    run._publish_file.assert_not_called()
+    assert run_file_path.startswith("media/images/legacy_7_")
 
 
 def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
@@ -378,7 +277,7 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     original_path = image._path
 
     working_image = _media_ces._media_for_run(image, destination_run)
-    uri = _media_ces._ensure_eval_table_run_file(
+    run_file_path = _media_ces._ensure_eval_table_run_file(
         working_image,
         destination_run,
         "eval",
@@ -387,8 +286,8 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     assert image._run is source_run
     assert image._path == original_path
     assert working_image is not image
-    assert uri.startswith("wandb-run-file://entity/project/destination-run/")
-    destination_run._publish_file.assert_called_once()
+    assert working_image._run is destination_run
+    assert run_file_path.startswith("media/eval_tables/images/eval/")
 
 
 def test_ces_eval_table_supports_registered_media_types():
@@ -399,7 +298,7 @@ def test_ces_eval_table_supports_registered_media_types():
     )
 
 
-def test_prepare_media_creates_ces_image_extension_value(run_factory, tmp_path):
+def test_prepare_media_returns_image_media_json(run_factory, tmp_path):
     run = run_factory("run-one")
     path = _png(tmp_path)
     image = wandb.Image(path, grouping=7)
@@ -407,33 +306,31 @@ def test_prepare_media_creates_ces_image_extension_value(run_factory, tmp_path):
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value == {
+    assert prepared.media_type == "image-file"
+    assert json.loads(prepared.media_json) == {
+        "_type": "image-file",
         "sha256": digest,
         "size": path.stat().st_size,
-        "format": "png",
-        "width": 2,
-        "height": 2,
-        "extension_type": "wandb-image",
-        "schema_version": 1,
-        "wb_media_type": "image-file",
-        "uri": (
-            "wandb-run-file://entity/project/run-one/"
+        "path": (
             "media/eval_tables/images/eval/"
             f"{digest[: _media_ces._DIGEST_PATH_LENGTH]}.png"
         ),
+        "format": "png",
+        "width": 2,
+        "height": 2,
+        "grouping": 7,
     }
     assert image._run is None
     assert image._path == str(path)
 
 
 @pytest.mark.parametrize(
-    ("media_kind", "caption", "subdir", "extension_type", "wb_media_type", "extra"),
+    ("media_kind", "caption", "subdir", "media_type", "extra"),
     [
         pytest.param(
             "audio",
             "a sound",
             "audio",
-            "wandb-audio",
             "audio-file",
             {},
             id="audio",
@@ -442,19 +339,17 @@ def test_prepare_media_creates_ces_image_extension_value(run_factory, tmp_path):
             "video",
             "a clip",
             "videos",
-            "wandb-video",
             "video-file",
             {"width": 640, "height": 480},
             id="video",
         ),
     ],
 )
-def test_prepare_audio_and_video_creates_ces_extension_value(
+def test_prepare_audio_and_video_returns_media_json(
     media_kind,
     caption,
     subdir,
-    extension_type,
-    wb_media_type,
+    media_type,
     extra,
     run_factory,
     tmp_path,
@@ -481,15 +376,13 @@ def test_prepare_audio_and_video_creates_ces_extension_value(
         "key",
         f"{digest[: _media_ces._DIGEST_PATH_LENGTH]}{path.suffix}",
     )
-    assert prepared.value == {
+    assert prepared.media_type == media_type
+    assert json.loads(prepared.media_json) == {
+        "_type": media_type,
         "caption": caption,
         "sha256": digest,
         "size": path.stat().st_size,
-        "extension_type": extension_type,
-        "schema_version": 1,
-        "wb_media_type": wb_media_type,
-        "uri": "wandb-run-file://entity/project/run-one/"
-        + expected_path.replace(os.sep, "/"),
+        "path": expected_path.replace(os.sep, "/"),
         **extra,
     }
     assert media._run is None
@@ -508,9 +401,9 @@ def test_committed_artifact_image_preserves_artifact_ref_url(
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value["uri"] == artifact_uri
+    assert json.loads(prepared.media_json)["artifact_path"] == artifact_uri
     assert image._run is None
-    run._publish_file.assert_not_called()
+    assert prepared.run_files == ()
 
 
 def test_external_reference_artifact_image_is_null_by_default(
@@ -523,22 +416,21 @@ def test_external_reference_artifact_image_is_null_by_default(
     warning = MagicMock()
     monkeypatch.setattr(wandb, "termwarn", warning)
     writer = _writer_ces.CESWriter()
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
 
     prepared = writer._build_write_payloads(
         name="eval",
         rows=_image_write_rows(image),
     )
 
-    assert prepared.row_batches[0][0]["input"]["image"] is None
+    assert prepared.rows[0].input.values[0].WhichOneof("value") is None
     assert prepared.dataset_fields == [
-        {
-            "source": "input",
-            "name": "image",
-            "value_type": "json",
-            "extension_type": "wandb-image",
-            "extension_schema_version": 1,
-        }
+        pb.EvalTableField(
+            source="input",
+            name="image",
+            value_type="json",
+            wandb_media_type="image-file",
+        )
     ]
     warning.assert_called_once()
 
@@ -551,7 +443,7 @@ def test_external_reference_artifact_image_raises_in_raise_mode(
     run = run_factory("run-one")
     image = _image_from_external_reference_artifact(tmp_path, monkeypatch)
     writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
 
     with pytest.raises(TypeError, match="external reference artifacts"):
         writer._build_write_payloads(
@@ -566,22 +458,21 @@ def test_external_reference_audio_is_null_by_default(run_factory, monkeypatch):
     warning = MagicMock()
     monkeypatch.setattr(wandb, "termwarn", warning)
     writer = _writer_ces.CESWriter()
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
 
     prepared = writer._build_write_payloads(
         name="eval",
         rows=_audio_write_rows(audio),
     )
 
-    assert prepared.row_batches[0][0]["input"]["audio"] is None
+    assert prepared.rows[0].input.values[0].WhichOneof("value") is None
     assert prepared.dataset_fields == [
-        {
-            "source": "input",
-            "name": "audio",
-            "value_type": "json",
-            "extension_type": "wandb-audio",
-            "extension_schema_version": 1,
-        }
+        pb.EvalTableField(
+            source="input",
+            name="audio",
+            value_type="json",
+            wandb_media_type="audio-file",
+        )
     ]
     warning.assert_called_once()
 
@@ -590,7 +481,7 @@ def test_external_reference_audio_raises_in_raise_mode(run_factory):
     run = run_factory("run-one")
     audio = wandb.Audio("s3://bucket/sound.wav")
     writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
 
     with pytest.raises(TypeError, match="reference external storage"):
         writer._build_write_payloads(
@@ -613,9 +504,10 @@ def test_artifact_rehydrated_image_mask_registers_parent_class_labels(
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value["uri"] == artifact_uri
-    mask = prepared.value["masks"]["predictions"]
-    assert mask["uri"].startswith("wandb-run-file://entity/project/run-one/")
+    media_json = json.loads(prepared.media_json)
+    assert media_json["artifact_path"] == artifact_uri
+    mask = media_json["masks"]["predictions"]
+    assert mask["path"].startswith("media/eval_tables/")
     assert run._add_singleton.call_args == call(
         "mask/class_labels",
         "eval/inputs/image_wandb_delimeter_predictions",
@@ -658,9 +550,10 @@ def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    assert prepared.value["uri"] == artifact_uri
-    boxes = prepared.value["boxes"]["predictions"]
-    assert boxes["uri"].startswith("wandb-run-file://entity/project/run-one/")
+    media_json = json.loads(prepared.media_json)
+    assert media_json["artifact_path"] == artifact_uri
+    boxes = media_json["boxes"]["predictions"]
+    assert boxes["path"].startswith("media/eval_tables/")
     assert run._add_singleton.call_args == call(
         "bounding_box/class_labels",
         "eval/inputs/image_wandb_delimeter_predictions",
@@ -668,7 +561,7 @@ def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
     )
 
 
-def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
+def test_image_with_masks_and_boxes_uses_run_file_paths(run_factory, tmp_path):
     run = run_factory("run-one")
     image = wandb.Image(
         _png(tmp_path),
@@ -683,17 +576,12 @@ def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
 
     prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
-    box = prepared.value["boxes"]["predictions"]
-    mask = prepared.value["masks"]["predictions"]
-    assert box["uri"].startswith(
-        "wandb-run-file://entity/project/run-one/media/eval_tables/metadata/boxes2D/eval/"
-    )
-    assert "path" not in box
-    assert mask["uri"].startswith(
-        "wandb-run-file://entity/project/run-one/media/eval_tables/images/mask/eval/"
-    )
-    assert "path" not in mask
-    assert run._publish_file.call_count == 3
+    media_json = json.loads(prepared.media_json)
+    box = media_json["boxes"]["predictions"]
+    mask = media_json["masks"]["predictions"]
+    assert box["path"].startswith("media/eval_tables/metadata/boxes2D/eval/")
+    assert mask["path"].startswith("media/eval_tables/images/mask/eval/")
+    assert prepared.run_files == (media_json["path"], box["path"], mask["path"])
     assert run._add_singleton.call_count == 2
     assert image._run is None
     assert image._path == image_path
@@ -705,7 +593,7 @@ def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
 
 def test_image_overlay_keys_register_distinct_class_labels(
     run_factory,
-    mock_ces_client,
+    deliver_upload_eval_table,
     tmp_path,
 ):
     run = run_factory("run-one")
@@ -761,7 +649,7 @@ def test_image_overlay_keys_register_distinct_class_labels(
 
 def test_image_rows_merge_overlay_class_labels(
     run_factory,
-    mock_ces_client,
+    deliver_upload_eval_table,
     tmp_path,
 ):
     run = run_factory("run-one")
@@ -803,7 +691,7 @@ def test_image_rows_merge_overlay_class_labels(
 
 def test_image_overlay_class_labels_merge_with_resumed_string_ids(
     run_factory,
-    mock_ces_client,
+    deliver_upload_eval_table,
     tmp_path,
 ):
     run = run_factory("run-one")
@@ -839,7 +727,7 @@ def test_image_overlay_class_labels_merge_with_resumed_string_ids(
 
 def test_image_columns_register_distinct_overlay_class_labels(
     run_factory,
-    mock_ces_client,
+    deliver_upload_eval_table,
     tmp_path,
     artifact_image_factory,
 ):
@@ -903,15 +791,15 @@ def test_external_reference_artifact_image_overlays_are_null_by_default(
     warning = MagicMock()
     monkeypatch.setattr(wandb, "termwarn", warning)
     writer = _writer_ces.CESWriter()
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
 
     prepared = writer._build_write_payloads(
         name="eval",
         rows=_image_write_rows(image),
     )
 
-    assert prepared.row_batches[0][0]["input"]["image"] is None
-    assert prepared.dataset_fields[0]["extension_type"] == "wandb-image"
+    assert prepared.rows[0].input.values[0].WhichOneof("value") is None
+    assert prepared.dataset_fields[0].wandb_media_type == "image-file"
     warning.assert_called_once()
 
 
@@ -927,7 +815,7 @@ def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
         boxes={"predictions": {"box_data": [], "class_labels": {}}},
     )
     writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
 
     with pytest.raises(TypeError, match="external reference artifacts"):
         writer._build_write_payloads(
@@ -952,70 +840,130 @@ def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
     result = _media_ces.prepare_media(second, run, _IMAGE_FIELD)
 
     assert result.encoded_size == first_result.encoded_size
-    assert result.value is None
+    assert result.media_json is None
     assert result.oversized
 
 
-def test_eval_table_writes_supported_media_extensions_to_ces(
+# wandb-core's tests convert this request, so that they cover the W&B media
+# JSON that Python actually sends.
+_CORE_MEDIA_FIXTURE = (
+    Path(__file__).parents[2]
+    / "core/internal/evaltables/testdata/upload_media_request.json"
+)
+
+
+def _json_shape(value):
+    """Return the JSON value with each primitive replaced by its type name.
+
+    W&B media JSON strings are replaced by the shape of their JSON.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _json_shape(json.loads(item) if key == "wandb_media_json" else item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_json_shape(item) for item in value]
+    return type(value).__name__
+
+
+def test_eval_table_media_request_matches_core_fixture(
     run_factory,
-    mock_ces_client,
+    deliver_upload_eval_table,
     tmp_path,
+    monkeypatch,
 ):
     run = run_factory("run-one")
-    image = wandb.Image(_png(tmp_path))
-    audio, _ = _audio_or_video_with_local_file(tmp_path, "audio")
-    video, _ = _audio_or_video_with_local_file(tmp_path, "video")
+    image = wandb.Image(
+        _png(tmp_path),
+        caption="a cat",
+        boxes={"predictions": _box_overlay({1: "cat"})},
+        masks={"predictions": _mask_overlay({0: "background"}, fill=0)},
+    )
+    artifact_image = wandb.Image(_png(tmp_path, "artifact.png", color=(1, 2, 3)))
+    monkeypatch.setattr(
+        artifact_image,
+        "_get_artifact_entry_ref_url",
+        lambda: "wandb-artifact://abc123/media/images/artifact.png",
+    )
+    audio, _ = _audio_or_video_with_local_file(tmp_path, "audio", caption="meow")
+    video, _ = _audio_or_video_with_local_file(tmp_path, "video", caption="a clip")
     table = wandb.EvalTable(
-        columns=["image", "audio", "video"],
-        data=[[image, audio, video]],
-        input_columns=["image", "audio", "video"],
+        columns=["image", "artifact_image", "audio", "video"],
+        data=[[image, artifact_image, audio, video]],
+        input_columns=["image", "artifact_image", "audio", "video"],
         backend="ces",
     )
 
     run.log({"eval": table})
 
-    mock_ces_client.eval_tables.columns.create.assert_called_once_with(
-        "evaluation-1",
-        namespace="wandb",
-        scope_id="scope-ref",
-        dataset_fields=[
-            {
-                "source": "input",
-                "name": "image",
-                "value_type": "json",
-                "extension_type": "wandb-image",
-                "extension_schema_version": 1,
-            },
-            {
-                "source": "input",
-                "name": "audio",
-                "value_type": "json",
-                "extension_type": "wandb-audio",
-                "extension_schema_version": 1,
-            },
-            {
-                "source": "input",
-                "name": "video",
-                "value_type": "json",
-                "extension_type": "wandb-video",
-                "extension_schema_version": 1,
-            },
+    [request] = [call.args[0] for call in deliver_upload_eval_table.call_args_list]
+    actual = {
+        "dataset_fields": [
+            MessageToDict(field, preserving_proto_field_name=True)
+            for field in request.dataset_fields
         ],
-        scorers=[],
-        idempotency_key=ANY,
+        "rows": [
+            MessageToDict(row, preserving_proto_field_name=True) for row in request.rows
+        ],
+    }
+    if os.environ.get("WANDB_UPDATE_TEST_FIXTURES"):
+        _CORE_MEDIA_FIXTURE.write_text(json.dumps(actual, indent=2) + "\n")
+
+    # Hashes and paths depend on how PIL encodes images, so only compare the
+    # rows' shape. Rerun with WANDB_UPDATE_TEST_FIXTURES=1 to update the
+    # fixture, then rerun wandb-core's tests.
+    expected = json.loads(_CORE_MEDIA_FIXTURE.read_text())
+    assert actual["dataset_fields"] == expected["dataset_fields"]
+    assert _json_shape(actual["rows"]) == _json_shape(expected["rows"])
+
+    image, _, audio, video = (
+        json.loads(value.wandb_media_json) for value in request.rows[0].input.values
     )
-    inputs = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]["input"]
-    assert inputs["image"]["extension_type"] == "wandb-image"
-    assert inputs["image"]["format"] == "png"
-    assert inputs["audio"]["extension_type"] == "wandb-audio"
-    assert inputs["video"]["extension_type"] == "wandb-video"
+    assert request.upload_media_paths == [
+        image["path"],
+        image["boxes"]["predictions"]["path"],
+        image["masks"]["predictions"]["path"],
+        audio["path"],
+        video["path"],
+    ]
+
+
+def test_retry_after_failed_upload_resends_placed_media(
+    run_factory,
+    deliver_upload_eval_table,
+    tmp_path,
+):
+    run = run_factory("run-one")
+    wait_or = deliver_upload_eval_table.return_value.wait_or
+    invalid = pb.Result(
+        response=pb.Response(
+            upload_eval_table_response=pb.UploadEvalTableResponse(
+                error=pb.ErrorInfo(code=pb.ErrorInfo.USAGE, message="invalid")
+            )
+        )
+    )
+    wait_or.side_effect = [invalid, wait_or.return_value]
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[[wandb.Image(_png(tmp_path))]],
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="invalid"):
+        run.log({"eval": table})
+    run.log({"eval": table})
+
+    first, retry = (call.args[0] for call in deliver_upload_eval_table.call_args_list)
+    assert len(first.upload_media_paths) == 1
+    assert retry.upload_media_paths == first.upload_media_paths
 
 
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
     run = run_factory("run-one")
     image = wandb.Image(_png(tmp_path))
     writer = _writer_ces.CESWriter()
-    writer.bind_to_run(run, "eval", 0)
+    writer.bind_to_run(run, "eval")
     rows = [
         _writer.WriteRow(
             inputs={"value": "x"},

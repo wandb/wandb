@@ -1,61 +1,29 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import math
-import os
-from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
-from wandb.errors import UsageError
+from wandb.errors import CommError, UsageError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.eval_table import _media_ces
-from wandb.sdk.data_types.eval_table._media_ces import _encode_json
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
-from wandb.sdk.lib import urls
 
 if TYPE_CHECKING:
-    from coreweave_evaluations import Client as EvaluationsClientT
-    from coreweave_evaluations.types.eval_tables.column_create_params import (
-        DatasetField as _CESDatasetField,
-    )
-    from coreweave_evaluations.types.eval_tables.column_create_params import (
-        Scorer as _CESScorer,
-    )
-    from coreweave_evaluations.types.eval_tables.row_add_params import Row as _CESRow
-
-    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
 _logger = logging.getLogger(__name__)
 
-_CES_BASE_URL_ENV = "CES_BASE_URL"
-_MTSAAS_WANDB_BASE_URL = "https://api.wandb.ai"
-_MTSAAS_CES_BASE_URL = "https://evaluations.wandb.ai"
-_WANDB_SCOPE_NAMESPACE = "wandb"
-_PROJECT_SCOPE_QUERY = """
-query EvalTableProjectScope($entity: String!, $project: String!) {
-  project(entityName: $entity, name: $project) {
-    internalId
-  }
-}
-"""
-# Server request-body limit.
-_MAX_REQUEST_BODY_BYTES = 16 << 20
-_MAX_REQUEST_BODY_SIZE = "16 MiB"
-# The byte target leaves headroom below the hard request limit. See
-# `_idempotency_key` for when a change here requires a key-version bump.
-_TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
-_MAX_ROWS_PER_BATCH = 10_000
 # Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
@@ -65,6 +33,9 @@ _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
 _MAX_OVERSIZED_MEDIA_LOCATIONS = 5
+# EvalTableValue.int_value is an int64.
+_MIN_INT64 = -(2**63)
+_MAX_INT64 = 2**63 - 1
 
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 _CESFieldSource = Literal["input", "output"]
@@ -75,121 +46,98 @@ class _CESFieldType:
     """Track a column's value schema and build its CES field declaration."""
 
     value_type: PrimitiveValueType | Literal["json"]
-    extension_type: _media_ces.CESExtensionType | None = None
-    extension_schema_version: int | None = None
+    media_type: _media_ces.MediaType | None = None
 
-    def declaration(self, source: _CESFieldSource, name: str) -> _CESDatasetField:
-        """Build the CES client field declaration for this observed column type."""
-        result: _CESDatasetField = {
-            "source": source,
-            "name": name,
-            "value_type": self.value_type,
-        }
-        if self.extension_type is not None:
-            result["extension_type"] = self.extension_type
-        if self.extension_schema_version is not None:
-            result["extension_schema_version"] = self.extension_schema_version
+    def declaration(self, source: _CESFieldSource, name: str) -> pb.EvalTableField:
+        """Build the CES field declaration for this observed column type."""
+        result = pb.EvalTableField(
+            source=source,
+            name=name,
+            value_type=self.value_type,
+        )
+        if self.media_type is not None:
+            result.wandb_media_type = self.media_type
         return result
 
 
 @dataclass(frozen=True)
 class _BoundRun:
-    entity: str
-    project: str
-    service_api: ServiceApi
-    idempotency_scope: str
     run: LocalRun
     eval_table_key: str
 
 
 @dataclass(frozen=True)
 class _CESWritePayloads:
-    dataset_fields: list[_CESDatasetField]
-    scorers: list[_CESScorer]
-    row_batches: list[list[_CESRow]]
+    dataset_fields: list[pb.EvalTableField]
+    scorers: list[pb.EvalTableScorer]
+    rows: list[pb.EvalTableRow]
+    upload_media_paths: list[str]
     media_cells_examined: int
     oversized_media_cells: int
     oversized_locations: tuple[str, ...]
 
 
-@dataclass(frozen=True)
-class _CESScopeContext:
-    scope_id: str
-    api_key: str | None = field(repr=False)
-    access_token: str | None = field(repr=False)
-
-
-def _ces_base_url(wandb_base_url: str) -> str:
-    """Return the Evaluations service URL for a W&B server."""
-    base_url = os.environ.get(_CES_BASE_URL_ENV)
-    if base_url:
-        return base_url
-    if urls.forge_upstream_url(wandb_base_url) == _MTSAAS_WANDB_BASE_URL:
-        return _MTSAAS_CES_BASE_URL
-    # Dedicated servers route it under the W&B origin.
-    return f"{wandb_base_url}/evaluations"
-
-
-# Bytes in a row-add body other than encoded rows and their separating commas.
-_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
-
-
-def _ces_row(
+def _encode_rows(
+    rows: Sequence[WriteRow],
     *,
-    row_index: int,
-    inputs: dict[str, Any],
-    output: dict[str, Any] | None,
-    scores: dict[str, Any],
-) -> _CESRow:
-    """Build a row-add row, keying a row without inputs by position.
+    dataset_fields: Sequence[pb.EvalTableField],
+    scorers: Sequence[pb.EvalTableScorer],
+) -> list[pb.EvalTableRow]:
+    """Encode rows of typed cells, keyed by column name, in their columns' order.
 
     CES derives the example key of a row with inputs from a hash of its whole
-    input, so comparisons match rows with equal inputs.
+    input, so comparisons match rows with equal inputs. Rows without inputs are
+    keyed by position instead.
     """
-    if inputs:
-        return {"input": inputs, "output": output, "scores": scores}
-    return {
-        "input": None,
-        "output": output,
-        "scores": scores,
-        "example_key": str(row_index + 1),
-    }
+    input_names = [field.name for field in dataset_fields if field.source == "input"]
+    output_names = [field.name for field in dataset_fields if field.source == "output"]
+    scorer_names = [scorer.name for scorer in scorers]
+    return [
+        pb.EvalTableRow(
+            input=(
+                pb.EvalTableRowValues(values=_ordered(row.inputs, input_names))
+                if row.inputs
+                else None
+            ),
+            output=(
+                None
+                if row.output is None
+                else pb.EvalTableRowValues(values=_ordered(row.output, output_names))
+            ),
+            scores=_ordered(row.scores, scorer_names),
+            example_key="" if row.inputs else str(row_index + 1),
+        )
+        for row_index, row in enumerate(rows)
+    ]
 
 
-def _iter_row_batches(
-    rows: Sequence[_CESRow],
-    *,
-    max_request_body_bytes: int,
-    target_batch_body_bytes: int,
-    max_rows_per_batch: int,
-) -> Iterator[list[_CESRow]]:
-    """Yield ordered row batches within encoded-byte and row-count limits."""
-    batch: list[_CESRow] = []
-    batch_size = _ROW_BATCH_ENVELOPE_BYTES
+def _ordered(
+    values: Mapping[ColumnKey, pb.EvalTableValue],
+    names: Sequence[str],
+) -> list[pb.EvalTableValue]:
+    """Return a row's values for the named columns, null where missing."""
+    return [values.get(name, pb.EvalTableValue()) for name in names]
 
-    for row_index, row in enumerate(rows):
-        row_size = len(_encode_json(row))
-        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_request_body_bytes:
-            raise UsageError(
-                "CES EvalTable rows payload contains a row at index "
-                f"{row_index} whose encoded request must be smaller than "
-                f"{_MAX_REQUEST_BODY_SIZE}."
-            )
 
-        # An above-target batch contains exactly one row, which already passed
-        # the hard request-size check; the next row flushes it here.
-        if batch and (
-            len(batch) >= max_rows_per_batch
-            or batch_size + 1 + row_size > target_batch_body_bytes
-        ):
-            yield batch
-            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
+def _upload_eval_table(
+    run: LocalRun,
+    request: pb.UploadEvalTableRequest,
+) -> pb.UploadEvalTableResponse:
+    """Upload an EvalTable to CES through wandb-core and wait for the result.
 
-        batch_size += row_size + (1 if batch else 0)
-        batch.append(row)
+    Raises:
+        UsageError: If wandb-core rejects the table as invalid.
+        CommError: If the upload fails.
+    """
+    assert run._interface
 
-    if batch:
-        yield batch
+    handle = run._interface.deliver_upload_eval_table(request)
+    response = handle.wait_or(timeout=None).response.upload_eval_table_response
+    if not response.HasField("error"):
+        return response
+    if response.error.code == pb.ErrorInfo.USAGE:
+        raise UsageError(response.error.message)
+    raise CommError(f"Failed to upload EvalTable: {response.error.message}")
 
 
 class CESWriter:
@@ -198,10 +146,8 @@ class CESWriter:
     def __init__(
         self,
         *,
-        service_api: ServiceApi | None = None,
         unsupported_media_mode: str = "stub",
     ) -> None:
-        self._service_api = service_api
         self._unsupported_media_mode = unsupported_media_mode
         self._bound: _BoundRun | None = None
 
@@ -212,33 +158,11 @@ class CESWriter:
         if isinstance(value, WBValue):
             self._validate_wandb_value(value, column)
 
-    def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
-        """Bind the run and derive a stable retry identity for this log location."""
-        from wandb.apis.public.service_api import ServiceApi
-
+    def bind_to_run(self, run: LocalRun, key: str) -> None:
+        """Bind the run and the history key the table is logged at."""
         if not run.entity or not run.project:
             raise UsageError("CES EvalTable logging requires a W&B entity and project.")
-        # CES replays the same key and body, but rejects a reused key whose body
-        # differs, so a logging location is a stable retry identity, not an update.
-        identity = json.dumps(
-            {
-                "entity": run.entity,
-                "project": run.project,
-                "run_id": run.id,
-                "history_key": key,
-                "step": str(step),
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        self._bound = _BoundRun(
-            entity=run.entity,
-            project=run.project,
-            service_api=self._service_api or ServiceApi(run._settings),
-            idempotency_scope=hashlib.sha256(identity.encode()).hexdigest(),
-            run=run,
-            eval_table_key=key,
-        )
+        self._bound = _BoundRun(run=run, eval_table_key=key)
 
     def write(
         self,
@@ -250,15 +174,6 @@ class CESWriter:
     ) -> WriteResult:
         """Prepare and persist the CES resources, then return their history value."""
         bound_run = self._require_bound()
-        base_url = _ces_base_url(bound_run.service_api.base_url)
-
-        # Import lazily so the CES client only loads when a CES EvalTable is written.
-        try:
-            from coreweave_evaluations import Client
-        except ImportError as exc:
-            raise UsageError(
-                "CES EvalTable logging requires the coreweave_evaluations package."
-            ) from exc
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
         self._record_media_telemetry(write_payloads)
@@ -272,48 +187,21 @@ class CESWriter:
                 f"{_media_ces.CES_MAX_CELL_BYTES / 1_000_000:g} MB limit. "
                 f"First affected: {locations}.",
             )
-        scope = self._resolve_scope_context(bound_run)
-        with self._create_client(
-            client_type=Client,
-            base_url=base_url,
-            scope=scope,
-        ) as client:
-            created = client.eval_tables.create(
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_id=scope.scope_id,
+
+        response = _upload_eval_table(
+            bound_run.run,
+            pb.UploadEvalTableRequest(
                 name=name,
-                idempotency_key=self._idempotency_key(bound_run, "create"),
-            )
-            client.eval_tables.columns.create(
-                created.evaluation_id,
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_id=scope.scope_id,
                 dataset_fields=write_payloads.dataset_fields,
                 scorers=write_payloads.scorers,
-                idempotency_key=self._idempotency_key(bound_run, "columns"),
-            )
-            for batch_index, row_batch in enumerate(write_payloads.row_batches):
-                client.eval_tables.rows.add(
-                    created.evaluation_id,
-                    namespace=_WANDB_SCOPE_NAMESPACE,
-                    scope_id=scope.scope_id,
-                    rows=row_batch,
-                    idempotency_key=self._idempotency_key(
-                        bound_run, f"rows-{batch_index}"
-                    ),
-                )
-            version = client.eval_tables.versions.create(
-                created.evaluation_id,
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_id=scope.scope_id,
-                idempotency_key=self._idempotency_key(bound_run, "version"),
-            )
+                rows=write_payloads.rows,
+                upload_media_paths=write_payloads.upload_media_paths,
+            ),
+        )
 
         _logger.debug(
-            "CES EvalTable recorded namespace=%s scope_id=%s evaluation_version_id=%s",
-            _WANDB_SCOPE_NAMESPACE,
-            scope.scope_id,
-            version.evaluation_version_id,
+            "CES EvalTable recorded evaluation_version_id=%s",
+            response.evaluation_version_id,
         )
 
         return WriteResult(
@@ -324,12 +212,12 @@ class CESWriter:
                 "ncols": ncols,
                 "nrows": len(rows),
                 "log_mode": log_mode,
-                "evaluation_id": created.evaluation_id,
-                "evaluation_version_id": version.evaluation_version_id,
-                "dataset_id": created.dataset_id,
-                "dataset_version_id": version.dataset_version_id,
+                "evaluation_id": response.evaluation_id,
+                "evaluation_version_id": response.evaluation_version_id,
+                "dataset_id": response.dataset_id,
+                "dataset_version_id": response.dataset_version_id,
             },
-            logged_id=version.evaluation_version_id,
+            logged_id=response.evaluation_version_id,
         )
 
     def _require_bound(self) -> _BoundRun:
@@ -343,7 +231,7 @@ class CESWriter:
         name: str,
         rows: Sequence[WriteRow],
     ) -> _CESWritePayloads:
-        """Validate and normalize rows, infer schemas, and build request batches."""
+        """Validate and normalize rows, infer schemas, and encode the rows."""
         self._validate_name(
             "EvalTable",
             name,
@@ -362,55 +250,47 @@ class CESWriter:
         dataset_field_order: dict[tuple[_CESFieldSource, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
         scorer_order: dict[str, None] = {}
-        normalized_rows: list[_CESRow] = []
+        normalized_rows: list[WriteRow] = []
         media_cells_examined = 0
-        oversized_media_cells = 0
         oversized_locations: list[str] = []
+        # Deduplicated, as rows can share content-addressed media files.
+        upload_media_paths: dict[str, None] = {}
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
-            inputs, input_media, input_oversized = (
-                self._normalize_row_input_or_output_values(
-                    row.inputs,
-                    source="input",
+            inputs, input_media = self._normalize_row_input_or_output_values(
+                row.inputs,
+                source="input",
+                types=dataset_field_types,
+                order=dataset_field_order,
+                bound_run=bound_run,
+                row_index=row_index,
+                oversized_locations=oversized_locations,
+                upload_media_paths=upload_media_paths,
+                class_label_accumulator=class_label_accumulator,
+            )
+            media_cells_examined += input_media
+            output = None
+            if row.output is not None:
+                output, output_media = self._normalize_row_input_or_output_values(
+                    row.output,
+                    source="output",
                     types=dataset_field_types,
                     order=dataset_field_order,
                     bound_run=bound_run,
                     row_index=row_index,
                     oversized_locations=oversized_locations,
+                    upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
-            )
-            media_cells_examined += input_media
-            oversized_media_cells += input_oversized
-            output = None
-            if row.output is not None:
-                output, output_media, output_oversized = (
-                    self._normalize_row_input_or_output_values(
-                        row.output,
-                        source="output",
-                        types=dataset_field_types,
-                        order=dataset_field_order,
-                        bound_run=bound_run,
-                        row_index=row_index,
-                        oversized_locations=oversized_locations,
-                        class_label_accumulator=class_label_accumulator,
-                    )
-                )
                 media_cells_examined += output_media
-                oversized_media_cells += output_oversized
             scores = self._normalize_row_score_values(
                 row.scores,
                 types=scorer_types,
                 order=scorer_order,
             )
             normalized_rows.append(
-                _ces_row(
-                    row_index=row_index,
-                    inputs=inputs,
-                    output=output,
-                    scores=scores,
-                )
+                WriteRow(inputs=inputs, output=output, scores=scores)
             )
 
         missing_fields = [
@@ -440,34 +320,30 @@ class CESWriter:
                 f"CES EvalTable logging supports at most {_MAX_SCORERS} score columns."
             )
 
-        dataset_fields: list[_CESDatasetField] = [
+        dataset_fields = [
             dataset_field_types[(source, column_name)].declaration(source, column_name)
             for source, column_name in dataset_field_order
         ]
-        scorers: list[_CESScorer] = [
-            {"name": column_name, "value_type": scorer_types[column_name]}
+        scorers = [
+            pb.EvalTableScorer(name=column_name, value_type=scorer_types[column_name])
             for column_name in scorer_order
         ]
-        self._validate_body_size(
-            "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
-        )
-        # Materialize batches so every size error precedes config updates and requests.
-        row_batches = list(
-            _iter_row_batches(
-                normalized_rows,
-                max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
-                target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
-                max_rows_per_batch=_MAX_ROWS_PER_BATCH,
-            )
+        encoded_rows = _encode_rows(
+            normalized_rows,
+            dataset_fields=dataset_fields,
+            scorers=scorers,
         )
         class_label_accumulator.flush(bound_run.run)
         return _CESWritePayloads(
             dataset_fields=dataset_fields,
             scorers=scorers,
-            row_batches=row_batches,
+            rows=encoded_rows,
+            upload_media_paths=list(upload_media_paths),
             media_cells_examined=media_cells_examined,
-            oversized_media_cells=oversized_media_cells,
-            oversized_locations=tuple(oversized_locations),
+            oversized_media_cells=len(oversized_locations),
+            oversized_locations=tuple(
+                oversized_locations[:_MAX_OVERSIZED_MEDIA_LOCATIONS]
+            ),
         )
 
     def _normalize_row_input_or_output_values(
@@ -480,12 +356,16 @@ class CESWriter:
         bound_run: _BoundRun,
         row_index: int,
         oversized_locations: list[str],
+        upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
-    ) -> tuple[dict[str, Any], int, int]:
-        """Normalize one input/output mapping and accumulate its inferred types."""
-        normalized_values: dict[str, Any] = {}
+    ) -> tuple[dict[str, pb.EvalTableValue], int]:
+        """Normalize one input/output mapping and accumulate its inferred types.
+
+        Returns:
+            The normalized values and the number of media cells among them.
+        """
+        normalized_values: dict[str, pb.EvalTableValue] = {}
         media_cells = 0
-        oversized_cells = 0
         for column, value in values.items():
             name = str(column)
             key = (source, name)
@@ -503,15 +383,14 @@ class CESWriter:
                     bound_run,
                     source=source,
                     column_name=name,
+                    upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
                 if oversized_size is not None:
-                    oversized_cells += 1
-                    if len(oversized_locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
-                        oversized_locations.append(
-                            f"row {row_index}, {source} column {name!r} "
-                            f"({oversized_size} bytes)"
-                        )
+                    oversized_locations.append(
+                        f"row {row_index}, {source} column {name!r} "
+                        f"({oversized_size} bytes)"
+                    )
             else:
                 normalized, primitive_type = self._normalize_primitive(value, column)
                 value_type = (
@@ -522,7 +401,7 @@ class CESWriter:
             if value_type is not None:
                 types[key] = self._merge_field_type(column, types.get(key), value_type)
             normalized_values[name] = normalized
-        return normalized_values, media_cells, oversized_cells
+        return normalized_values, media_cells
 
     def _normalize_row_score_values(
         self,
@@ -530,9 +409,9 @@ class CESWriter:
         *,
         types: dict[str, PrimitiveValueType],
         order: dict[str, None],
-    ) -> dict[str, Any]:
+    ) -> dict[str, pb.EvalTableValue]:
         """Normalize one score mapping and accumulate its inferred types."""
-        normalized_values: dict[str, Any] = {}
+        normalized_values: dict[str, pb.EvalTableValue] = {}
         for column, value in values.items():
             name = str(column)
             if name not in order:
@@ -560,9 +439,13 @@ class CESWriter:
         *,
         source: _CESFieldSource,
         column_name: str,
+        upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
-    ) -> tuple[Any, _CESFieldType, int | None]:
-        """Return a CES extension value, its field type, and oversized byte count."""
+    ) -> tuple[pb.EvalTableValue, _CESFieldType, int | None]:
+        """Return the media's cell, its field type, and oversized byte count.
+
+        Adds the run files that the media references to `upload_media_paths`.
+        """
         try:
             media_cell = _media_ces.prepare_media(
                 value,
@@ -579,52 +462,58 @@ class CESWriter:
                 raise
             wandb.termwarn(error.stub_warning, repeat=False)
             return (
-                None,
+                pb.EvalTableValue(),
                 _CESFieldType(
                     value_type="json",
-                    extension_type=_media_ces.media_extension_type(value),
-                    extension_schema_version=1,
+                    media_type=_media_ces.media_type(value),
                 ),
                 None,
             )
-        field_type = _CESFieldType(
-            value_type="json",
-            extension_type=media_cell.extension_type,
-            extension_schema_version=media_cell.extension_schema_version,
-        )
+        upload_media_paths.update(dict.fromkeys(media_cell.run_files))
+        field_type = _CESFieldType(value_type="json", media_type=media_cell.media_type)
         oversized_size = media_cell.encoded_size if media_cell.oversized else None
-        return media_cell.value, field_type, oversized_size
+        return (
+            pb.EvalTableValue(wandb_media_json=media_cell.media_json),
+            field_type,
+            oversized_size,
+        )
 
     def _normalize_primitive(
         self,
         value: Any,
         column: ColumnKey,
-    ) -> tuple[Any, PrimitiveValueType | None]:
-        """Return a JSON-safe value and its observed CES primitive type."""
+    ) -> tuple[pb.EvalTableValue, PrimitiveValueType | None]:
+        """Return a value's typed cell and its observed CES primitive type."""
         if isinstance(value, WBValue):
             value = self._normalize_wandb_value(value, column)
-        if value is None:
-            return None, None
 
         np = wandb.util.np
-        if isinstance(value, bool) or (np is not None and isinstance(value, np.bool_)):
-            return bool(value), "boolean"
-        if isinstance(value, int) or (np is not None and isinstance(value, np.integer)):
-            return int(value), "integer"
-        if isinstance(value, float) or (
-            np is not None and isinstance(value, np.floating)
-        ):
-            normalized = float(value)
-            if math.isnan(normalized):
+        if np is not None and isinstance(value, np.generic):
+            # float() also converts np.longdouble, overflowing to inf if needed.
+            value = float(value) if isinstance(value, np.floating) else value.item()
+
+        if value is None:
+            return pb.EvalTableValue(), None
+        if isinstance(value, bool):
+            return pb.EvalTableValue(bool_value=value), "boolean"
+        if isinstance(value, int):
+            if not _MIN_INT64 <= value <= _MAX_INT64:
+                raise UsageError(
+                    f"CES EvalTable column {column!r} contains an integer outside "
+                    "the 64-bit range."
+                )
+            return pb.EvalTableValue(int_value=value), "integer"
+        if isinstance(value, float):
+            if math.isnan(value):
                 # JSON has no NaN literal; send null while retaining numeric schema.
-                return None, "number"
-            if not math.isfinite(normalized):
+                return pb.EvalTableValue(), "number"
+            if not math.isfinite(value):
                 raise UsageError(
                     f"CES EvalTable column {column!r} contains a non-finite number."
                 )
-            return normalized, "number"
-        if isinstance(value, str) or (np is not None and isinstance(value, np.str_)):
-            return str(value), "string"
+            return pb.EvalTableValue(number_value=value), "number"
+        if isinstance(value, str):
+            return pb.EvalTableValue(string_value=value), "string"
 
         raise UsageError(
             f"CES EvalTable column {column!r} contains unsupported value "
@@ -691,8 +580,8 @@ class CESWriter:
         if existing is None or existing == observed:
             return observed
         if (
-            existing.extension_type is None
-            and observed.extension_type is None
+            existing.media_type is None
+            and observed.media_type is None
             and existing.value_type != "json"
             and observed.value_type != "json"
         ):
@@ -703,8 +592,8 @@ class CESWriter:
                     observed.value_type,
                 )
             )
-        existing_type = existing.extension_type or existing.value_type
-        observed_type = observed.extension_type or observed.value_type
+        existing_type = existing.media_type or existing.value_type
+        observed_type = observed.media_type or observed.value_type
         raise UsageError(
             f"EvalTable column {column!r} mixes {existing_type!r} and "
             f"{observed_type!r} values."
@@ -725,67 +614,3 @@ class CESWriter:
                 "eval_table_ces_media_write_with_oversized_cells",
                 LowCardinalityAttributes(),
             )
-
-    def _validate_body_size(self, operation: str, body: dict[str, Any]) -> None:
-        """Reject a request body at or above the CES hard limit."""
-        if len(_encode_json(body)) >= _MAX_REQUEST_BODY_BYTES:
-            raise UsageError(
-                f"CES EvalTable {operation} payload must be smaller than "
-                f"{_MAX_REQUEST_BODY_SIZE}."
-            )
-
-    def _resolve_scope_context(self, bound_run: _BoundRun) -> _CESScopeContext:
-        """Resolve the project scope and preferred run credential for CES."""
-        response = bound_run.service_api.execute_graphql(
-            _PROJECT_SCOPE_QUERY,
-            variables={"entity": bound_run.entity, "project": bound_run.project},
-        )
-        project = response.get("project") if isinstance(response, dict) else None
-        scope_id = project.get("internalId") if isinstance(project, dict) else None
-        if not isinstance(scope_id, str) or not scope_id:
-            raise UsageError(
-                f"Unable to resolve W&B project {bound_run.entity}/{bound_run.project}."
-            )
-
-        api_key = bound_run.service_api.api_key
-        access_token = None if api_key else bound_run.service_api.access_token()
-        if not api_key and not access_token:
-            raise UsageError(
-                "CES EvalTable logging requires authenticated W&B credentials."
-            )
-
-        return _CESScopeContext(
-            scope_id=scope_id,
-            api_key=api_key,
-            access_token=access_token,
-        )
-
-    def _create_client(
-        self,
-        *,
-        client_type: type[EvaluationsClientT],
-        base_url: str,
-        scope: _CESScopeContext,
-    ) -> EvaluationsClientT:
-        """Create a client while keeping the run's credentials authoritative."""
-        # The client builds the Authorization header from these and rejects a
-        # request that reaches it without one, so a header set on an httpx
-        # client would arrive too late to satisfy it.
-        client = client_type(
-            base_url=base_url,
-            api_key=scope.api_key,
-            bearer_token=scope.access_token,
-        )
-        # The generated constructor fills None credentials from the environment.
-        # Keep the run's resolved choice authoritative when both are present.
-        client.api_key = scope.api_key
-        client.bearer_token = scope.access_token
-        return client
-
-    def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
-        """Derive an operation-specific retry key from the bound log location.
-
-        Bump the version when a request body changes for the same table, since
-        CES rejects a reused key whose request body differs.
-        """
-        return f"wandb-eval-table-v2-{bound_run.idempotency_scope}-{operation}"

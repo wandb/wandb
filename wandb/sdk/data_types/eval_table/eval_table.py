@@ -211,7 +211,7 @@ class EvalTable(Table):
 
         # Initialize writer with run context while intentionally
         # skipping the file-copy behavior in Table.bind_to_run().
-        self._writer.bind_to_run(run, str(key), step)
+        self._writer.bind_to_run(run, str(key))
         self._run = run
         self._run_log_key = str(key)
 
