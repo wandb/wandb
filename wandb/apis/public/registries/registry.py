@@ -392,11 +392,15 @@ class Registry:
                 else str(err)
             )
             raise CommError(f"{message} (idempotency_key={key!r})", err) from err
+        except Exception as err:
+            # The import may exist even though its response was unusable, so
+            # the caller still needs the key to retry without duplicating it.
+            raise CommError(f"{err} (idempotency_key={key!r})", err) from err
         if not (
             (result := data.create_registry_hugging_face_import)
             and (fragment := result.registry_hugging_face_import)
         ):
-            raise ValueError("Unexpected response data")
+            raise CommError(f"Unexpected response data (idempotency_key={key!r})")
         return HuggingFaceImport(self._service_api, fragment)
 
     @classmethod

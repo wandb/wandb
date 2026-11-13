@@ -232,6 +232,19 @@ class TestImportFromHuggingFace:
                 idempotency_key="my-key",
             )
 
+    def test_unusable_response_mentions_key(self, registry, service_api, gql):
+        # The import may have been created, so the key must survive.
+        gql.payloads.append({"createRegistryHuggingFaceImport": None})
+
+        with raises(CommError, match="my-key"):
+            registry.import_from_huggingface(
+                "org/model",
+                entity="my-team",
+                project="huggingface-imports",
+                collection="my-collection",
+                idempotency_key="my-key",
+            )
+
 
 def make_import(service_api: MagicMock, **overrides: Any) -> HuggingFaceImport:
     fragment = RegistryHuggingFaceImportFragment.model_validate(
@@ -300,17 +313,34 @@ class TestWait:
         with raises(WaitTimeoutError):
             imp.wait(timeout=15.0)
 
+    def test_finish_during_last_sleep(self, service_api, gql, mocker: MockerFixture):
+        # A timeout shorter than the poll interval still gets one refresh at
+        # the deadline, so an import that finished meanwhile is not reported
+        # as timed out.
+        sleep = mocker.patch("time.sleep")
+        mocker.patch("time.monotonic", side_effect=[0.0, 0.0])
+        mocker.patch("wandb.apis.public.registries.huggingface.termlog")
+        imp = make_import(service_api)
+        gql.payloads.append(
+            {"registryHuggingFaceImport": import_fragment_dict(state="SUCCEEDED")}
+        )
+
+        assert imp.wait(timeout=1.0, poll_interval=5.0) is imp
+
+        sleep.assert_called_once_with(1.0)
+
     def test_no_refresh_after_deadline(self, service_api, gql, mocker: MockerFixture):
         sleep = mocker.patch("time.sleep")
         mocker.patch("time.monotonic", side_effect=[0.0, 0.0, 1.0])
         mocker.patch("wandb.apis.public.registries.huggingface.termlog")
         imp = make_import(service_api)
+        gql.payloads.append({"registryHuggingFaceImport": import_fragment_dict()})
 
         with raises(WaitTimeoutError):
             imp.wait(timeout=1.0, poll_interval=5.0)
 
         sleep.assert_called_once_with(1.0)
-        assert gql.calls == []
+        assert len(gql.calls) == 1
 
     def test_keyboard_interrupt(self, service_api, mocker: MockerFixture):
         mocker.patch("time.sleep", side_effect=KeyboardInterrupt)

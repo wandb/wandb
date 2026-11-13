@@ -338,13 +338,16 @@ class HuggingFaceImport:
                 if deadline is None:
                     time.sleep(poll_interval)
                 else:
+                    # The deadline is checked before sleeping, so the state it
+                    # reports was fetched after the last sleep: the final
+                    # refresh may start at the deadline, but none starts later.
                     remaining = deadline - time.monotonic()
-                    time.sleep(max(0.0, min(poll_interval, remaining)))
-                    if time.monotonic() >= deadline:
+                    if remaining <= 0:
                         raise WaitTimeoutError(
                             f"Hugging Face import {self.id!r} did not finish within"
                             f" {timeout} seconds (state: {self.state})."
                         )
+                    time.sleep(min(poll_interval, remaining))
                 self.refresh()
         except KeyboardInterrupt:
             termlog(
