@@ -368,7 +368,7 @@ def _start_container(*, name: str) -> _WandbContainerPorts:
     repository = click.prompt(
         "Repository", default="wandb-production/images/local-testcontainer"
     )
-    tag = click.prompt("Tag", default="master")
+    tag = click.prompt("Tag", default="main")
     pull = click.prompt(
         "--pull",
         default="always",
