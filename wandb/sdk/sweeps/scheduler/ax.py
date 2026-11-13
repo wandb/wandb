@@ -18,7 +18,10 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunWithMetrics,
     int_uniform_bounds,
     is_terminal_state,
+    log_uniform_bounds,
+    q_log_uniform_bounds,
     q_log_uniform_values_bounds,
+    q_uniform_grid,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -155,10 +158,18 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
             scaling="log",
         )
 
+    if dist == "log_uniform":
+        return ax.RangeParameterConfig(
+            name=name,
+            bounds=log_uniform_bounds(parameter),
+            parameter_type="float",
+            scaling="log",
+        )
+
     if dist == "q_uniform":
-        lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
+        lo, hi, q = q_uniform_grid(parameter)
         parameter_type: Literal["int", "float"] = (
-            "int" if _is_int(lo) and _is_int(hi) and _is_int(q) else "float"
+            "int" if isinstance(q, int) else "float"
         )
         return ax.RangeParameterConfig(
             name=name,
@@ -171,6 +182,14 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
         return ax.RangeParameterConfig(
             name=name,
             bounds=q_log_uniform_values_bounds(name, parameter),
+            parameter_type="int",
+            scaling="log",
+        )
+
+    if dist == "q_log_uniform":
+        return ax.RangeParameterConfig(
+            name=name,
+            bounds=q_log_uniform_bounds(name, parameter),
             parameter_type="int",
             scaling="log",
         )
