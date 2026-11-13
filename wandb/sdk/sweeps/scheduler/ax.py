@@ -516,6 +516,10 @@ class AxOptimizer(Optimizer):
         The run's config is attached as a manually-chosen arm and then finalized
         via `tell_run`. Runs whose config doesn't cover the experiment's search
         space, or finished runs that never logged the objective, are skipped.
+
+        Raises:
+            ValueError: If the run's config sets an int parameter to a
+                fractional value.
         """
         if not is_terminal_state(data.state):
             return
@@ -538,6 +542,10 @@ class AxOptimizer(Optimizer):
         `tell_run` when the run reaches a terminal state. Returns the Ax trial
         index to track the run by, or None if the run's config doesn't cover the
         search space.
+
+        Raises:
+            ValueError: If the run's config sets an int parameter to a
+                fractional value.
         """
         params = self._search_space_params(data.config.flat_dict())
         if params is None:
@@ -554,14 +562,36 @@ class AxOptimizer(Optimizer):
         collapses an integral float (e.g. `5.0`) down to an int (`5`), and Ax's
         own arm validation rejects a value whose Python type doesn't match the
         parameter's declared type.
+
+        Raises:
+            ValueError: If an int parameter's value has a fractional part.
         """
         parameters = _experiment(self.client).search_space.parameters
         if not all(name in config for name in parameters):
             return None
         return {
-            name: parameter.python_type(config[name])
+            name: _cast_to_parameter_type(name, parameter, config[name])
             for name, parameter in parameters.items()
         }
+
+
+def _cast_to_parameter_type(name: str, parameter: Any, value: Any) -> Any:
+    """Cast a run's config value to an Ax parameter's declared Python type.
+
+    Raises:
+        ValueError: If an int parameter's value has a fractional part, which
+            `int()` would round toward zero.
+    """
+    if (
+        parameter.python_type is int
+        and isinstance(value, float)
+        and not value.is_integer()
+    ):
+        raise ValueError(
+            f"Run config sets int parameter {name!r} to {value!r}, which is"
+            " not a whole number."
+        )
+    return parameter.python_type(value)
 
 
 # ---------------------------------------------------------------------------
