@@ -307,6 +307,8 @@ def test_eval_table_records_telemetry(mock_eval_logger, run):
     run.log({"eval": et})
 
     assert run._telemetry_obj.feature.eval_table is True
+    assert run._telemetry_obj.feature.eval_table_weave is True
+    assert run._telemetry_obj.feature.eval_table_ces is False
 
 
 def test_telemetry_failure_does_not_repeat_immutable_write(

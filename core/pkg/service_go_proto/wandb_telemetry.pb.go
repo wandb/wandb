@@ -1010,7 +1010,7 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
-// Next ID: 81
+// Next ID: 83
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                           // wandb.watch() called
@@ -1093,6 +1093,8 @@ type Feature struct {
 	Table                    bool `protobuf:"varint,78,opt,name=table,proto3" json:"table,omitempty"`                                                                           // User logged a regular (non-incremental) wandb.Table via run.log()
 	IncrementalTable         bool `protobuf:"varint,79,opt,name=incremental_table,json=incrementalTable,proto3" json:"incremental_table,omitempty"`                             // User logged an incremental wandb.Table via run.log()
 	DcgmExporter             bool `protobuf:"varint,80,opt,name=dcgm_exporter,json=dcgmExporter,proto3" json:"dcgm_exporter,omitempty"`                                         // Consuming GPU metrics from a DCGM exporter
+	EvalTableWeave           bool `protobuf:"varint,81,opt,name=eval_table_weave,json=evalTableWeave,proto3" json:"eval_table_weave,omitempty"`                                 // User logged a Weave-backed EvalTable via run.log()
+	EvalTableCes             bool `protobuf:"varint,82,opt,name=eval_table_ces,json=evalTableCes,proto3" json:"eval_table_ces,omitempty"`                                       // User logged a CES-backed EvalTable via run.log()
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1659,6 +1661,20 @@ func (x *Feature) GetDcgmExporter() bool {
 	return false
 }
 
+func (x *Feature) GetEvalTableWeave() bool {
+	if x != nil {
+		return x.EvalTableWeave
+	}
+	return false
+}
+
+func (x *Feature) GetEvalTableCes() bool {
+	if x != nil {
+		return x.EvalTableCes
+	}
+	return false
+}
+
 // Next ID: 19
 type Env struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2145,7 +2161,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x8a\x17\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xda\x17\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
 	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
@@ -2231,7 +2247,9 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"eval_table\x18M \x01(\bR\tevalTable\x12\x14\n" +
 	"\x05table\x18N \x01(\bR\x05table\x12+\n" +
 	"\x11incremental_table\x18O \x01(\bR\x10incrementalTable\x12#\n" +
-	"\rdcgm_exporter\x18P \x01(\bR\fdcgmExporterJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\xd9\x02\n" +
+	"\rdcgm_exporter\x18P \x01(\bR\fdcgmExporter\x12(\n" +
+	"\x10eval_table_weave\x18Q \x01(\bR\x0eevalTableWeave\x12$\n" +
+	"\x0eeval_table_ces\x18R \x01(\bR\fevalTableCesJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\xd9\x02\n" +
 	"\x03Env\x12\x18\n" +
 	"\ajupyter\x18\x01 \x01(\bR\ajupyter\x12\x16\n" +
 	"\x06kaggle\x18\x02 \x01(\bR\x06kaggle\x12\x18\n" +

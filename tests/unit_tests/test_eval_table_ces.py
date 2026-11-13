@@ -185,6 +185,9 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     assert "evaluate_call_id" not in history_value
     assert et._immutable_write_result is not None
     assert et._immutable_write_result.logged_id == "evaluation-version-1"
+    assert run._telemetry_obj.feature.eval_table is True
+    assert run._telemetry_obj.feature.eval_table_ces is True
+    assert run._telemetry_obj.feature.eval_table_weave is False
 
 
 def test_ces_eval_table_without_inputs_keys_rows_by_position(
@@ -486,6 +489,9 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
 
     mock_ces_client.eval_tables.versions.create.assert_not_called()
     mock_ces_client.close.assert_called_once_with()
+    assert run._telemetry_obj.feature.eval_table is False
+    assert run._telemetry_obj.feature.eval_table_ces is False
+    assert run._telemetry_obj.feature.eval_table_weave is False
 
 
 def test_ces_eval_table_infers_python_and_numpy_integers(
