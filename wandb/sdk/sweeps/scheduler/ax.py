@@ -11,11 +11,13 @@ from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
+    NestedParameters,
     Optimizer,
     Run,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    flatten_sweep_parameters,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -205,9 +207,16 @@ def sweep_parameters_to_search_space(
         client.configure_experiment(
             parameters=sweep_parameters_to_search_space(config["parameters"]),
         )
+
+    Nested parameters are named as `flatten_sweep_parameters` does.
+
+    Raises:
+        ValueError: If a parameter can't be converted, or two parameters
+            flatten to the same name.
     """
     return [
-        sweep_parameter_to_parameter(name, spec) for name, spec in parameters.items()
+        sweep_parameter_to_parameter(name, spec)
+        for name, spec in flatten_sweep_parameters(parameters).items()
     ]
 
 
@@ -312,6 +321,9 @@ class AxOptimizer(Optimizer):
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
+        self._nested = NestedParameters.from_sweep_parameters(
+            sweep.config.get("parameters") or {}
+        )
         super().__init__(sweep)
 
     @override
@@ -406,7 +418,7 @@ class AxOptimizer(Optimizer):
             return []
         return [
             RunSuggestion(
-                config=RunConfig.from_values(dict(parameters)),
+                config=RunConfig.from_values(self._nested.nest(dict(parameters))),
                 run_id=str(trial_index),
             )
             for trial_index, parameters in trials.items()
@@ -524,7 +536,9 @@ class AxOptimizer(Optimizer):
             and self.objective_values(data.summary_metrics) is None
         ):
             return
-        params = self._search_space_params(data.config.flat_dict())
+        params = self._search_space_params(
+            self._nested.flatten(data.config.flat_dict())
+        )
         if params is None:
             return
         trial_index = self.client.attach_trial(parameters=params)
@@ -539,7 +553,9 @@ class AxOptimizer(Optimizer):
         index to track the run by, or None if the run's config doesn't cover the
         search space.
         """
-        params = self._search_space_params(data.config.flat_dict())
+        params = self._search_space_params(
+            self._nested.flatten(data.config.flat_dict())
+        )
         if params is None:
             return None
         return self.client.attach_trial(parameters=params)
@@ -630,7 +646,8 @@ def build_ax_optimizer(sweep: SweepInfo) -> AxOptimizer:
     the sweep's SweepInfo. The function may return either an Ax `Client` or a
     `(Client, terminator)` tuple. A terminator is a one-argument function
     that receives the client after each generation and finishes the sweep by
-    returning `True`.
+    returning `True`. The client names a nested sweep parameter by its path
+    joined with dots, such as `optimizer.lr`.
     """
     scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
     optimizer_name: str = scheduler_config.get("optimizer", "")
