@@ -33,6 +33,7 @@ from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
+    Record,
     Result,
     RunRecord,
 )
@@ -464,6 +465,7 @@ class Run:
 
     _run_status_checker: RunStatusChecker | None
     _run_messages: run_messages.RunMessages | None
+    _backup_sync_dir_handle: MailboxHandle[Result] | None
 
     _sampled_history: SampledHistoryResponse | None
     _final_summary: GetSummaryResponse | None
@@ -577,6 +579,7 @@ class Run:
         # Created when the run "starts".
         self._run_status_checker = None
         self._run_messages = None
+        self._backup_sync_dir_handle = None
 
         self._sampled_history = None
         self._final_summary = None
@@ -2577,6 +2580,14 @@ class Run:
             self._interface.publish_python_packages(working_set())
 
         if self._interface:
+            if self._settings.backup_sync_dir_fn is not None:
+                record = Record()
+                record.request.wait_for_run_exit_flush.SetInParent()
+                interface = self._interface
+                self._backup_sync_dir_handle = self._wl.asyncer.run(
+                    lambda: interface.deliver_async(record)
+                )
+
             self._run_messages = run_messages.RunMessages(
                 self._wl.asyncer,
                 self._interface,
@@ -2737,6 +2748,34 @@ class Run:
         else:
             return artifact
 
+    def _start_backup_sync_dir(self) -> threading.Thread | None:
+        handle = self._backup_sync_dir_handle
+        backup_fn = self._settings.backup_sync_dir_fn
+        if handle is None or backup_fn is None:
+            return None
+
+        sync_dir = pathlib.Path(self._settings.sync_dir)
+
+        def backup_sync_dir() -> None:
+            try:
+                result = handle.wait_or(timeout=None)
+                if not result.response.HasField("wait_for_run_exit_flush_response"):
+                    raise RuntimeError("Unexpected exit flush response")
+
+                backup_fn(sync_dir)
+            except Exception as exc:
+                logger.exception("Failed to back up the run's sync directory")
+                wandb.termerror(f"Failed to back up the run's sync directory: {exc}")
+
+        backup_thread = threading.Thread(
+            target=backup_sync_dir,
+            name="wandb-sync-dir-backup",
+            daemon=True,
+        )
+        backup_thread.start()
+
+        return backup_thread
+
     def _on_finish(self) -> None:
         """Shut down the run.
 
@@ -2762,6 +2801,8 @@ class Run:
 
         exit_handle = self._interface.deliver_exit(self._exit_code)
 
+        backup_thread = self._start_backup_sync_dir()
+
         with progress.progress_printer(
             self._printer,
             default_text="Finishing up...",
@@ -2776,6 +2817,9 @@ class Run:
                     self._interface,
                 ),
             )
+
+        if backup_thread is not None:
+            backup_thread.join()
 
         self._finish_timed_out = result.exit_result.timed_out
 
