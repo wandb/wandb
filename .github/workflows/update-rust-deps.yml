@@ -9,7 +9,7 @@ on:
 
 jobs:
   update-rust-deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     permissions:
       contents: write
       pull-requests: write
