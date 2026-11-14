@@ -17,3 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - `wandb.Api().artifact(...)` now defers fetching an artifact's collection membership aliases until `Artifact.aliases` is accessed, then fetches them in 1,000-alias pages (@ibindlish in https://github.com/wandb/wandb/pull/13183)
+
+### Fixed
+
+- `Registry.save()` no longer saves other staged changes when a rename is rejected, such as when the name is already taken (@gabrielvaz in https://github.com/wandb/wandb/pull/XXXXX)
