@@ -493,17 +493,8 @@ func (h *Handler) handleRequestRunStart(
 		)
 	}
 
-	// TODO: Move computation of git state to wandb-core.
-	var git *spb.GitRepoRecord
-	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
-		git = &spb.GitRepoRecord{
-			RemoteUrl: run.GetGit().GetRemoteUrl(),
-			Commit:    run.GetGit().GetCommit(),
-		}
-	}
-
 	// start the system monitor
-	h.systemMonitor.Start(git)
+	h.systemMonitor.Start()
 
 	// save code and patch
 	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
@@ -515,7 +506,16 @@ func (h *Handler) handleRequestRunStart(
 }
 
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
-	h.systemMonitor.Probe()
+	var git *spb.GitRepoRecord
+
+	// TODO: Read Git stuff in wandb-core instead of the Python client.
+	if upserter, err := h.runHandle.Upserter(); err != nil {
+		h.logger.Error("handler: git info unavailable", "error", err)
+	} else {
+		git = upserter.GitInfo()
+	}
+
+	h.systemMonitor.Probe(git)
 }
 
 func (h *Handler) handleRequestPythonPackages(
