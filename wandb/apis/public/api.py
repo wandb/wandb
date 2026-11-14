@@ -68,6 +68,12 @@ if TYPE_CHECKING:
         ArtifactTypes,
     )
     from .organizations import Organization
+    from .registries import (
+        HuggingFaceImport,
+        HuggingFaceImports,
+        HuggingFaceImportState,
+        HuggingFaceSource,
+    )
     from .teams import Team
     from .users import User
 
@@ -2155,6 +2161,177 @@ class Api:
             visibility,
             description,
             artifact_types,
+        )
+
+    @normalize_exceptions
+    @tracked
+    def check_huggingface_source(
+        self,
+        repo_id: str,
+        *,
+        revision: str | None = None,
+        organization: str | None = None,
+        entity: str | None = None,
+        token_secret_name: str | None = None,
+    ) -> HuggingFaceSource:
+        """Check whether a Hugging Face repo can be imported into a registry.
+
+        Args:
+            repo_id: The Hugging Face repo id to check, e.g. `"org/name"`.
+            revision: A branch, tag or commit on the Hub. The repo's default
+                branch is checked if omitted.
+            organization: The organization the import would run in. If not
+                given, the organization is resolved from the settings or the
+                default entity.
+            entity: The team whose secrets are consulted when resolving
+                `token_secret_name`.
+            token_secret_name: The name of a secret holding a Hugging Face
+                access token, needed to check gated or private repos.
+
+        Returns:
+            A `HuggingFaceSource` describing the check outcome; its `.ok`
+            property reports whether the repo can be imported.
+
+        Raises:
+            CommError: If the organization cannot be found or the server
+                rejects the request.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        source = api.check_huggingface_source("org/model", organization="my-org")
+        if source.ok:
+            print(source.resolved_revision, source.size_bytes)
+        ```
+        """
+        from wandb.apis.public.registries import (
+            HuggingFaceSource,
+            HuggingFaceSourceFile,
+        )
+        from wandb.sdk.artifacts._generated import (
+            REGISTRY_HUGGING_FACE_SOURCE_GQL,
+            RegistryHuggingFaceSource,
+        )
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self._service_api, self.settings, self.default_entity
+        )
+        result = self._service_api.execute_graphql(
+            REGISTRY_HUGGING_FACE_SOURCE_GQL,
+            variables={
+                "organization": organization,
+                "hfRepoId": repo_id,
+                "hfRevision": revision,
+                "hfTokenSecretName": token_secret_name,
+                "entityName": entity,
+            },
+            parse=RegistryHuggingFaceSource.model_validate_json,
+        )
+        if not (org := result.organization):
+            raise ValueError(f"Organization {organization!r} was not found.")
+        source = org.registry_hugging_face_source
+        return HuggingFaceSource(
+            repo_id=repo_id,
+            revision=revision,
+            status=source.status.value,
+            message=source.message,
+            resolved_revision=source.resolved_revision,
+            size_bytes=source.size_bytes,
+            files=tuple(
+                HuggingFaceSourceFile(path=f.path, size_bytes=f.size_bytes)
+                for f in source.files
+            ),
+        )
+
+    @normalize_exceptions
+    @tracked
+    def huggingface_import(self, id: str) -> HuggingFaceImport:
+        """Return a handle to a Hugging Face import by ID.
+
+        Args:
+            id: The ID of the import, e.g. from `HuggingFaceImport.id`.
+
+        Returns:
+            A `HuggingFaceImport` handle, which can be polled with `.wait()`.
+
+        Raises:
+            CommError: If no import with the given ID exists or the request
+                fails.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        api.huggingface_import("aW1wb3J0OjEyMw==").wait()
+        ```
+        """
+        from wandb.apis.public.registries import HuggingFaceImport
+        from wandb.sdk.artifacts._generated import (
+            REGISTRY_HUGGING_FACE_IMPORT_GQL,
+            RegistryHuggingFaceImport,
+        )
+
+        result = self._service_api.execute_graphql(
+            REGISTRY_HUGGING_FACE_IMPORT_GQL,
+            variables={"id": id},
+            parse=RegistryHuggingFaceImport.model_validate_json,
+        )
+        if (fragment := result.registry_hugging_face_import) is None:
+            raise ValueError(f"Hugging Face import {id!r} was not found.")
+        return HuggingFaceImport(self._service_api, fragment)
+
+    @normalize_exceptions
+    @tracked
+    def huggingface_imports(
+        self,
+        organization: str | None = None,
+        *,
+        states: list[HuggingFaceImportState] | None = None,
+        include_deleted: bool = False,
+        per_page: int = 50,
+        start: str | None = None,
+    ) -> HuggingFaceImports:
+        """Return a lazy iterator of the organization's Hugging Face imports.
+
+        Args:
+            organization: The organization to list imports for. If not given,
+                the organization is resolved from the settings or the default
+                entity.
+            states: Only return imports in these states, e.g. `["RUNNING"]`.
+            include_deleted: Also return soft-deleted imports.
+            per_page: The number of results to fetch per page.
+                Usually there is no reason to change this.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `HuggingFaceImport` objects. See
+            `Api.registries()` for how to paginate it.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        for imp in api.huggingface_imports(organization="my-org", states=["RUNNING"]):
+            print(imp.id, imp.repo_id, imp.phase)
+        ```
+        """
+        from wandb.apis.public.registries import HuggingFaceImports
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self._service_api, self.settings, self.default_entity
+        )
+        variables = {
+            "organization": organization,
+            "states": states,
+            "includeDeleted": include_deleted,
+        }
+        return HuggingFaceImports(
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     @tracked

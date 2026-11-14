@@ -25,3 +25,29 @@ class ArtifactState(str, Enum):
     COMMITTED = "COMMITTED"
     DELETED = "DELETED"
     PENDING = "PENDING"
+
+
+class RegistryHuggingFaceImportRepoType(str, Enum):
+    MODEL = "MODEL"
+
+
+class RegistryHuggingFaceImportState(str, Enum):
+    CREATED = "CREATED"
+    FAILED = "FAILED"
+    RUNNING = "RUNNING"
+    STARTING = "STARTING"
+    STOPPED = "STOPPED"
+    STOPPING = "STOPPING"
+    SUCCEEDED = "SUCCEEDED"
+
+
+class RegistryHuggingFaceSourceStatus(str, Enum):
+    EMPTY = "EMPTY"
+    GATED = "GATED"
+    GATED_TERMS_NOT_ACCEPTED = "GATED_TERMS_NOT_ACCEPTED"
+    NOT_FOUND = "NOT_FOUND"
+    OK = "OK"
+    REVISION_NOT_FOUND = "REVISION_NOT_FOUND"
+    TOKEN_INVALID = "TOKEN_INVALID"
+    TOO_LARGE = "TOO_LARGE"
+    UNKNOWN = "UNKNOWN"
