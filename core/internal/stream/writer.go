@@ -134,6 +134,15 @@ func (w *Writer) process(work runwork.Work) {
 		}
 	}
 
+	if record.GetExit() != nil {
+		if err := w.Flush(); err != nil {
+			w.logger.CaptureError(
+				"stream",
+				fmt.Errorf("writer: failed to flush after exit: %v", err),
+			)
+		}
+	}
+
 	w.out <- savedWork
 }
 
