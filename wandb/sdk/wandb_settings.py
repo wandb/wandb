@@ -44,6 +44,7 @@ def _path_convert(*args: str) -> str:
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
+    "backup_sync_dir_fn",
     "capture_loggers",
     "files_dir",
     "finish_timeout_raises",
@@ -526,6 +527,16 @@ class Settings(BaseModel, validate_assignment=True):
 
     The callback runs in a separate thread. It runs soon after a stop is
     requested, but not immediately.
+    """
+
+    backup_sync_dir_fn: Callable[[pathlib.Path], None] | None = None
+    """A callback used for backing up the run's sync directory.
+
+    The callback runs in a separate thread during `run.finish()`, after the exit
+    record is flushed.
+
+    It receives the sync directory as a `pathlib.Path`.
+    `run.finish()` waits for it the callback to finish.
     """
 
     max_end_of_run_history_metrics: int = 10
