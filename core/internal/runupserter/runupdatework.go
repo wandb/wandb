@@ -31,6 +31,9 @@ type RunHandle interface {
 	// nil.
 	Init(upserter *RunUpserter) error
 
+	// FailInit is called when initialization fails.
+	FailInit()
+
 	// Upserter returns the run set by a previous call to SetRunUpserter.
 	//
 	// It is called from the Sender goroutine.
@@ -104,6 +107,8 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 	})
 
 	if err != nil {
+		w.RunHandle.FailInit()
+
 		w.Logger.Error("runupserter: failed to init run", "error", err)
 		respondRunUpdate(request, runInitErrorResult(err))
 		return
