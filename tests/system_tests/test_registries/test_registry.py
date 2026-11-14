@@ -15,6 +15,7 @@ from wandb.apis.public.registries.registry import Registry
 from wandb.errors import UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from tests.fixtures.wandb_backend_spy import WandbBackendSpy
@@ -360,6 +361,42 @@ def test_edit_registry_name(mock_termlog, default_organization, api: Api):
     assert new_name_registry.description == "This is the initial description"
     # Assert that the rename termlog was called as we never created a new registry
     mock_termlog.assert_not_called()
+
+
+@mark.usefixtures("skip_if_server_does_not_support_create_registry")
+def test_rejected_rename_saves_nothing(default_organization, api: Api):
+    registry_a = api.create_registry(
+        organization=default_organization,
+        name="test-a",
+        visibility="organization",
+        description="original A",
+    )
+    registry_b = api.create_registry(
+        organization=default_organization,
+        name="test-b",
+        visibility="organization",
+        description="original B",
+    )
+
+    registry_a.name = "test-b"
+    registry_a.description = "changed"
+
+    with raises(WandbApiFailedError):
+        registry_a.save()
+
+    # A rejected rename must not save the other staged changes.
+    fetched_a = api.registry("test-a", default_organization)
+    assert fetched_a.description == "original A"
+    fetched_b = api.registry("test-b", default_organization)
+    assert fetched_b.id == registry_b.id
+    assert fetched_b.description == "original B"
+
+    # The staged changes survive the error and can still be saved.
+    registry_a.name = "test-c"
+    registry_a.save()
+
+    fetched_c = api.registry("test-c", default_organization)
+    assert fetched_c.description == "changed"
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
