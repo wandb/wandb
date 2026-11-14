@@ -23,8 +23,7 @@ flowchart TD
     Init["wandb.init()"] --> Service["ensure wandb-core service"]
     Service --> Inform["inform_init(settings, run_id)"]
     Inform --> RunRecord["deliver RunRecord"]
-    RunRecord --> RunStart["deliver RunStartRequest"]
-    RunStart --> User["return Run to user"]
+    RunRecord --> User["return Run to user"]
     User --> Log["run.log() calls"]
     Log --> Partial["PartialHistoryRequest records"]
     Partial --> CoreHistory["core accumulates and flushes history"]
@@ -53,8 +52,7 @@ What Python does:
 4. Constructs the `Run` object and attaches an `InterfaceSock`.
 5. Publishes a header record.
 6. Delivers a `RunRecord` and waits for `RunUpdateResult`.
-7. Delivers `RunStartRequest`.
-8. Starts console capture, status checks, telemetry, and returns control to user code.
+7. Starts console capture, status checks, telemetry, and returns control to user code.
 
 What core does:
 
@@ -62,7 +60,7 @@ What core does:
 2. Starts a `Handler` goroutine and a `Sender` goroutine.
 3. Handles the first `RunRecord` as `RunUpdateWork`.
 4. Creates or resumes/forks/rewinds the run using the GraphQL client unless offline.
-5. Starts filestream, system metrics, and code/patch capture after `RunStartRequest`.
+5. Starts filestream, system metrics, and code/patch capture.
 
 ## `run.log()`
 
