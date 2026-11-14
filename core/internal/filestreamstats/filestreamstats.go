@@ -89,6 +89,7 @@ const (
 	MetricRequestCount      = "wandb.filestream.request.count"
 	MetricCellCount         = "wandb.filestream.cell.count"
 	MetricTxLogSize         = "wandb.txlog.file.size"
+	MetricFinishDuration    = "wandb.run.finish.duration"
 )
 
 func defineHistograms(recorder *analytics.TelemetryRecorder) error {
@@ -148,6 +149,16 @@ func defineHistograms(recorder *analytics.TelemetryRecorder) error {
 				1 << 30, 10 << 30, 100 << 30,
 			},
 		),
+		recorder.DefineHistogram(
+			MetricFinishDuration,
+			analytics.UnitSeconds,
+			"Time a run took to upload its remaining data after it exited.",
+			[]float64{
+				0.1, 0.5, 1, 2, 5,
+				10, 15, 20, 25, 30, 45, 60,
+				120, 300, 600, 1800, 3600, 10_800,
+			},
+		),
 	)
 }
 
@@ -196,7 +207,13 @@ type Stats struct {
 	cells     atomic.Int64
 	txLogSize atomic.Int64
 
-	requests atomic.Int64
+	requests     atomic.Int64
+	requestBytes atomic.Int64
+
+	// finishStart and finishStartBytes are the time and the request bytes
+	// sent when the run exited.
+	finishStart      time.Time
+	finishStartBytes int64
 }
 
 // New returns a Stats that reports through the given recorder.
@@ -297,6 +314,7 @@ func (s *Stats) RecordRequest(ctx context.Context, report RequestReport) {
 	}
 
 	s.requests.Add(1)
+	s.requestBytes.Add(int64(report.CompressedBytes))
 
 	wireEncoding := s.WireEncoding()
 	contentEncoding := ContentEncodingRaw
@@ -334,6 +352,60 @@ func (s *Stats) RecordRequest(ctx context.Context, report RequestReport) {
 			},
 		)
 	}
+}
+
+// finishSizeBuckets are the values of the finish_filestream_size attribute,
+// each with its exclusive upper bound in bytes.
+var finishSizeBuckets = []struct {
+	limit int64
+	label string
+}{
+	{16 << 10, "lt_16kib"},
+	{64 << 10, "lt_64kib"},
+	{256 << 10, "lt_256kib"},
+	{1 << 20, "lt_1mib"},
+	{4 << 20, "lt_4mib"},
+	{16 << 20, "lt_16mib"},
+	{64 << 20, "lt_64mib"},
+	{256 << 20, "lt_256mib"},
+	{1 << 30, "lt_1gib"},
+}
+
+func finishSizeBucket(bytes int64) string {
+	for _, bucket := range finishSizeBuckets {
+		if bytes < bucket.limit {
+			return bucket.label
+		}
+	}
+	return "ge_1gib"
+}
+
+// StartFinish marks the moment the run exited and began uploading its
+// remaining data.
+func (s *Stats) StartFinish() {
+	if s == nil {
+		return
+	}
+	s.finishStart = time.Now()
+	s.finishStartBytes = s.requestBytes.Load()
+}
+
+// RecordFinish reports how long the run took to upload its remaining data
+// after it exited, tagged with how many filestream bytes that was.
+func (s *Stats) RecordFinish(ctx context.Context) {
+	if s == nil {
+		return
+	}
+	s.recorder.RecordHistogram(
+		ctx,
+		MetricFinishDuration,
+		time.Since(s.finishStart).Seconds(),
+		&analytics.LowCardinalityAttributes{
+			FinishFilestreamSize: finishSizeBucket(
+				s.requestBytes.Load() - s.finishStartBytes,
+			),
+		},
+	)
 }
 
 // RecordRun reports the run's totals.
