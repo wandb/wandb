@@ -68,7 +68,13 @@ func NewRunOverview() *RunOverview {
 
 // StateString returns a string representation from the data model.
 func (ro *RunOverview) StateString() string {
-	switch ro.State() {
+	return ro.State().String()
+}
+
+// String returns the state's display name: Running, Finished, Failed,
+// Crashed or Unknown.
+func (s RunState) String() string {
+	switch s {
 	case RunStateRunning:
 		return "Running"
 	case RunStateFinished:

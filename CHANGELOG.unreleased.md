@@ -22,6 +22,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
 - System metrics and hardware metadata are collected on Google TPU 8t and TPU 8i hosts (@dmitryduev in https://github.com/wandb/wandb/pull/13340)
 - The automations API supports sandbox events: `OnSandboxState` fires when a W&B sandbox in a project or team is created, completes or fails, filtered with `SandboxEvent.state` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13281)
+- `wandb leet history --keys 'train/loss,val/*'` prints the metric series of a run from its local `.wandb` file as one JSON object: the logged rows, or with `--bins N` their min, max, average and last value per bin. `--last`, `--min-step`/`--max-step` and `--after` select rows, and `--follow` keeps printing new rows as a running run writes them (@dmitryduev in https://github.com/wandb/wandb/pull/13234)
 
 ### Changed
 
