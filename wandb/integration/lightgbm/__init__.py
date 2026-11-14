@@ -19,21 +19,6 @@ from lightgbm import Booster
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
 
-MINIMIZE_METRICS = [
-    "l1",
-    "l2",
-    "rmse",
-    "mape",
-    "huber",
-    "fair",
-    "poisson",
-    "gamma",
-    "binary_logloss",
-]
-
-MAXIMIZE_METRICS = ["map", "auc", "average_precision"]
-
-
 if TYPE_CHECKING:
     from typing import Any, NamedTuple
 
@@ -51,17 +36,13 @@ if TYPE_CHECKING:
         evaluation_result_list: list[_EvalResultTuple]
 
 
-def _define_metric(data: str, metric_name: str) -> None:
+def _define_metric(data: str, metric_name: str, higher_better: bool) -> None:
     """Capture model performance at the best step.
 
     instead of the last step, of training in your `wandb.summary`
     """
-    if "loss" in str.lower(metric_name):
-        wandb.define_metric(f"{data}_{metric_name}", summary="min")
-    elif str.lower(metric_name) in MINIMIZE_METRICS:
-        wandb.define_metric(f"{data}_{metric_name}", summary="min")
-    elif str.lower(metric_name) in MAXIMIZE_METRICS:
-        wandb.define_metric(f"{data}_{metric_name}", summary="max")
+    summary = "max" if higher_better else "min"
+    wandb.define_metric(f"{data}_{metric_name}", summary=summary)
 
 
 def _checkpoint_artifact(
@@ -120,13 +101,13 @@ class _WandbCallback:
         # use `define_metric` to set the wandb summary to the best metric value.
         for item in env.evaluation_result_list:
             if self.define_metric_bool:
+                # item[3] is LightGBM's is_higher_better flag for the metric.
                 if len(item) == 4:
                     data_name, eval_name = item[:2]
-                    _define_metric(data_name, eval_name)
+                    _define_metric(data_name, eval_name, item[3])
                 else:
                     data_name, eval_name = item[1].split()
-                    _define_metric(data_name, f"{eval_name}-mean")
-                    _define_metric(data_name, f"{eval_name}-stdv")
+                    _define_metric(data_name, f"{eval_name}-mean", item[3])
 
     def __call__(self, env: "CallbackEnv") -> None:
         if env.iteration == env.begin_iteration:  # type: ignore
