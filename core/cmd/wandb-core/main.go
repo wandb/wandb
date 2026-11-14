@@ -1,7 +1,7 @@
 // Command wandb-core provides the W&B SDK core service, the "leet" terminal UI
 // and the "mcp" server in a single binary. The default mode runs the core
 // service; the `leet` subcommand launches the local TUI for inspecting a run
-// and the `mcp` subcommand serves local runs to an MCP client over stdio.
+// and the `mcp` subcommand serves runs to an MCP client over stdio.
 //
 // Usage:
 //
@@ -286,8 +286,13 @@ func mcpMain(args []string) int {
 	bindLeetCommonFlags(fs, opts)
 	printTools := fs.Bool("print-tools", false,
 		"Print the tools as the result of tools/list and exit.")
+	var appURLs []string
+	fs.Func("app-urls",
+		"URL prefixes of the W&B app pages of the server at --base-url, which its"+
+			" URLs may start with, e.g. https://wandb.ai. Comma-separated.",
+		appendKeys(&appURLs))
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), "Serve local W&B runs to an MCP client over stdio.\n\n"+
+		fmt.Fprint(fs.Output(), "Serve W&B runs to an MCP client over stdio.\n\n"+
 			"Usage:\n  wandb-core mcp [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
@@ -338,7 +343,8 @@ func mcpMain(args []string) int {
 	analytics.ConfigureOTelErrorHandler(logger.Logger)
 	slog.SetDefault(logger.Logger)
 
-	if err := leetmcp.Serve(os.Stdin, os.Stdout, os.Stderr); err != nil {
+	err = leetmcp.Serve(os.Stdin, os.Stdout, os.Stderr, opts.baseURL, appURLs)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		return exitCodeErrorInternal
 	}
@@ -422,7 +428,7 @@ var leetCommands = []*leetCommand{
 	{
 		name:      "runs",
 		args:      "[<wandb-directory>]",
-		short:     "List the runs of a wandb directory as JSON",
+		short:     "List the runs of a wandb directory or a W&B project as JSON",
 		mode:      "runs",
 		script:    true,
 		bindFlags: bindLeetRunsFlags,
@@ -600,8 +606,8 @@ func bindLeetCommonFlags(fs *flag.FlagSet, opts *leetOptions) {
 		&opts.baseURL,
 		"base-url",
 		"",
-		"URL of the W&B server to upload telemetry to."+
-			" Defaults to the public W&B API.",
+		"URL of the W&B server to upload telemetry to; wandb-core mcp also reads"+
+			" the W&B URLs of this server. Defaults to the public W&B API.",
 	)
 	fs.StringVar(
 		&opts.pprofAddr,
@@ -674,10 +680,24 @@ func bindLeetQueryFlags(fs *flag.FlagSet, opts *leetOptions) {
 			" Defaults to the newest run in the wandb directory.",
 	)
 	fs.StringVar(&opts.run, "run", "", leet.RunDoc)
+	fs.StringVar(
+		&opts.remoteURL,
+		"remote-url",
+		"",
+		"W&B URL of the run, https://<host>/<entity>/<project>/runs/<id>,"+
+			" instead of a local file.",
+	)
 }
 
 func bindLeetRunsFlags(fs *flag.FlagSet, opts *leetOptions) {
 	fs.StringVar(&opts.runFile, "run-file", "", "Path to a .wandb file, to list only its run.")
+	fs.StringVar(
+		&opts.remoteURL,
+		"remote-url",
+		"",
+		"W&B URL of the project, https://<host>/<entity>/<project>,"+
+			" instead of a local directory.",
+	)
 	bindQueryOptions(fs, &opts.runs)
 }
 
@@ -799,6 +819,13 @@ func validateLeetInspectOptions(opts *leetOptions) error {
 
 func validateLeetQuerySource(opts *leetOptions) error {
 	switch {
+	case opts.remoteURL != "" && (opts.wandbDir != "" || opts.runFile != "" || opts.run != ""):
+		return errors.New(
+			"--remote-url cannot be used with a wandb directory, --run-file or --run")
+	case opts.remoteURL != "":
+		var err error
+		opts.remoteRun, err = leet.ParseRemoteURL(opts.remoteURL)
+		return err
 	case opts.wandbDir == "" && opts.runFile == "":
 		return errors.New("wandb directory path or --run-file required")
 	case opts.runFile != "" && opts.run != "":
@@ -899,49 +926,52 @@ func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
 	return exitCodeSuccess
 }
 
-func runLeetRuns(opts *leetOptions, _ *observability.CoreLogger) int {
-	err := leet.ListRuns(opts.wandbDir, opts.runFile, opts.runs, os.Stdout)
+// queryExit reports a query's error as a JSON line and returns its exit code.
+func queryExit(err error) int {
 	if err != nil {
 		leet.WriteQueryError(os.Stderr, err)
 		return exitCodeErrorInternal
 	}
 	return exitCodeSuccess
+}
+
+func runLeetRuns(opts *leetOptions, _ *observability.CoreLogger) int {
+	if opts.remoteRun != nil {
+		return queryExit(leet.ListRemoteRuns(opts.remoteRun, opts.runs, os.Stdout))
+	}
+	return queryExit(leet.ListRuns(opts.wandbDir, opts.runFile, opts.runs, os.Stdout))
 }
 
 func runLeetHistory(opts *leetOptions, _ *observability.CoreLogger) int {
-	err := leet.QueryHistory(opts.wandbDir, opts.runFile, opts.run, opts.history, os.Stdout)
-	if err != nil {
-		leet.WriteQueryError(os.Stderr, err)
-		return exitCodeErrorInternal
+	if opts.remoteRun != nil {
+		return queryExit(leet.ErrRemoteNotAvailable)
 	}
-	return exitCodeSuccess
+	return queryExit(
+		leet.QueryHistory(opts.wandbDir, opts.runFile, opts.run, opts.history, os.Stdout))
 }
 
 func runLeetSummary(opts *leetOptions, _ *observability.CoreLogger) int {
-	err := leet.QuerySummary(opts.wandbDir, opts.runFile, opts.run, opts.summaryQuery, os.Stdout)
-	if err != nil {
-		leet.WriteQueryError(os.Stderr, err)
-		return exitCodeErrorInternal
+	if opts.remoteRun != nil {
+		return queryExit(leet.QueryRemoteSummary(opts.remoteRun, opts.summaryQuery, os.Stdout))
 	}
-	return exitCodeSuccess
+	return queryExit(
+		leet.QuerySummary(opts.wandbDir, opts.runFile, opts.run, opts.summaryQuery, os.Stdout))
 }
 
 func runLeetConsole(opts *leetOptions, _ *observability.CoreLogger) int {
-	err := leet.QueryConsole(opts.wandbDir, opts.runFile, opts.run, opts.console, os.Stdout)
-	if err != nil {
-		leet.WriteQueryError(os.Stderr, err)
-		return exitCodeErrorInternal
+	if opts.remoteRun != nil {
+		return queryExit(leet.QueryRemoteConsole(opts.remoteRun, opts.console, os.Stdout))
 	}
-	return exitCodeSuccess
+	return queryExit(
+		leet.QueryConsole(opts.wandbDir, opts.runFile, opts.run, opts.console, os.Stdout))
 }
 
 func runLeetSystem(opts *leetOptions, _ *observability.CoreLogger) int {
-	err := leet.QuerySystem(opts.wandbDir, opts.runFile, opts.run, opts.system, os.Stdout)
-	if err != nil {
-		leet.WriteQueryError(os.Stderr, err)
-		return exitCodeErrorInternal
+	if opts.remoteRun != nil {
+		return queryExit(leet.ErrRemoteNotAvailable)
 	}
-	return exitCodeSuccess
+	return queryExit(
+		leet.QuerySystem(opts.wandbDir, opts.runFile, opts.run, opts.system, os.Stdout))
 }
 
 // runLeetSession prints the reply of the running LEET. A reply that carries

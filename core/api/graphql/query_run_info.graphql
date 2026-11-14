@@ -25,4 +25,6 @@ fragment LeetRun on Run {
     tags
     # @genqlient(pointer: false)
     config
+    createdAt
+    heartbeatAt
 }

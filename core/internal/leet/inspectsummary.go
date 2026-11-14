@@ -347,34 +347,9 @@ func (d *runDigest) writeJSON(w io.Writer) error {
 func (d *runDigest) writeQueryJSON(w io.Writer, keys []string) error {
 	out, detail := d.jsonFields()
 
-	matched := make([]bool, len(keys))
-	selected := func(key string) bool {
-		hit := len(keys) == 0
-		for i, p := range keys {
-			if matchKey(p, key) {
-				matched[i], hit = true, true
-			}
-		}
-		return hit
-	}
 	summary := out["summary"].(map[string]any)
-	warnings := []string{}
-	if len(keys) == 0 {
-		names := slices.Collect(maps.Keys(summary))
-		names = slices.AppendSeq(names, maps.Keys(d.historyKeys))
-		slices.Sort(names)
-		if names = slices.Compact(names); len(names) > summaryMaxKeys {
-			shown := names[:summaryMaxKeys]
-			selected = func(key string) bool {
-				_, ok := slices.BinarySearch(shown, key)
-				return ok
-			}
-			warnings = append(warnings, fmt.Sprintf(
-				"showing %d of %d keys: select others with keys such as train/*, or all with *",
-				summaryMaxKeys, len(names)))
-		}
-	}
-	truncated := len(warnings) > 0
+	names := slices.AppendSeq(slices.Collect(maps.Keys(summary)), maps.Keys(d.historyKeys))
+	selected, unmatched := keySelector(keys, names)
 	out["summary"] = selectTree(summary, "", selected)
 	historyKeys := make(map[string]any, len(d.historyKeys))
 	for key, hk := range d.historyKeys {
@@ -386,11 +361,7 @@ func (d *runDigest) writeQueryJSON(w io.Writer, keys []string) error {
 			}
 		}
 	}
-	for i, pattern := range keys {
-		if !matched[i] {
-			warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
-		}
-	}
+	warnings := unmatched()
 
 	tail, total := d.consoleTail(summaryQueryConsoleLines)
 	console := make([]any, 0, len(tail))
@@ -405,11 +376,55 @@ func (d *runDigest) writeQueryJSON(w io.Writer, keys []string) error {
 	out["console"] = console
 	out["console_lines"] = total
 	out["warnings"] = warnings
-	out["truncated"] = truncated
+	out["truncated"] = len(keys) == 0 && len(warnings) > 0
 	out["has_more"] = false
 	out["next_cursor"] = nil
 
 	return encodeJSON(w, out, "")
+}
+
+// keySelector returns a function reporting whether keys, keys or globs,
+// select a key, and one returning a warning for each pattern that has
+// selected nothing so far. Without keys it selects the first
+// summaryMaxKeys of names in order and warns when names holds more.
+func keySelector(keys, names []string) (selected func(string) bool, unmatched func() []string) {
+	if len(keys) == 0 {
+		slices.Sort(names)
+		names = slices.Compact(names)
+		warnings := []string{}
+		if len(names) > summaryMaxKeys {
+			warnings = append(warnings, fmt.Sprintf(
+				"showing %d of %d keys: select others with keys such as train/*, or all with *",
+				summaryMaxKeys, len(names)))
+			names = names[:summaryMaxKeys]
+		}
+		selected = func(key string) bool {
+			_, ok := slices.BinarySearch(names, key)
+			return ok
+		}
+		return selected, func() []string { return warnings }
+	}
+
+	matched := make([]bool, len(keys))
+	selected = func(key string) bool {
+		hit := false
+		for i, p := range keys {
+			if matchKey(p, key) {
+				matched[i], hit = true, true
+			}
+		}
+		return hit
+	}
+	unmatched = func() []string {
+		warnings := []string{}
+		for i, pattern := range keys {
+			if !matched[i] {
+				warnings = append(warnings, fmt.Sprintf("no key matches %q", pattern))
+			}
+		}
+		return warnings
+	}
+	return selected, unmatched
 }
 
 // selectTree returns the entries of tree, a nested map whose dotted paths
