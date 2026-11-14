@@ -461,6 +461,15 @@ func (s *Sender) sendRequest(
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
 
+	case *spb.Request_WaitForRunExitFlush:
+		// This Request should be handled by the writer,
+		// if the request reaches here it means that the writer is not avaliable.
+		request.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{Message: "Transaction log is unavailable."},
+			},
+		})
+
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",

@@ -320,6 +320,8 @@ func (h *Handler) handleRequest(
 		h.handleRequestInternalMessages(x.InternalMessages, request)
 	case *spb.Request_SyncFinish:
 		h.handleRequestSyncFinish(record, request)
+	case *spb.Request_WaitForRunExitFlush:
+		h.fwdRecord(record, request)
 	case *spb.Request_SenderRead:
 		// TODO: implement this
 	case *spb.Request_JobInput:
