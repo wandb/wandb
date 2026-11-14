@@ -25,8 +25,8 @@ type TelemetryParams struct {
 	// Disabled turns off telemetry for the whole process.
 	Disabled bool
 
-	// Mode is the launch mode: leet, config, inspect, symon, or a query
-	// verb: runs, history, summary, console, system or session.
+	// Mode is the launch mode: leet, config, inspect, symon, a query
+	// verb: runs, history, summary, console, system or session, or mcp.
 	Mode string
 
 	// Commit is the git commit the binary was built from.

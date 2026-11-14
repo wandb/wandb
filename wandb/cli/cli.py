@@ -36,7 +36,7 @@ from wandb.sdk.sweeps import SweepNotFoundError
 
 from .beta import beta
 from .clean import clean
-from .leet import leet
+from .leet import leet, mcp
 
 
 def _get_wandb_dir(root_dir: str | None = None) -> str:
@@ -3627,4 +3627,5 @@ def purge_cache(
 
 cli.add_command(beta)
 cli.add_command(leet)
+cli.add_command(mcp)
 cli.add_command(clean)

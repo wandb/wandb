@@ -101,6 +101,13 @@ def test_leet_offline_disables_telemetry(
     ]
 
 
+def test_mcp_execs_core(runner, core_calls):
+    result = runner.invoke(cli.cli, ["mcp"])
+
+    assert result.exit_code == 0
+    assert core_calls == [["wandb-core", "mcp", "--base-url", _BASE_URL]]
+
+
 def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path):
     run_dir = tmp_path / "wandb" / "run-20250101_000000-abc123"
     run_dir.mkdir(parents=True)

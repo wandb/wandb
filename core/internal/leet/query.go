@@ -28,6 +28,10 @@ type QueryError struct {
 
 func (e *QueryError) Error() string { return e.Message }
 
+// RunDoc documents the run input of the queries of one run.
+const RunDoc = "The run to read: its directory name, its ID or its display name." +
+	" Defaults to the newest run in the wandb directory."
+
 func badRequest(format string, args ...any) error {
 	return &QueryError{Code: "bad_request", Message: fmt.Sprintf(format, args...)}
 }
@@ -90,10 +94,10 @@ func decodeCursor(s string, c any) error {
 	return nil
 }
 
-// queryRunFile returns the one .wandb file a query names: runFile when
+// QueryRunFile returns the one .wandb file a query names: runFile when
 // given, else wandbDir itself when it is a file, else the .wandb file of
 // the run directory wandbDir names, else "".
-func queryRunFile(wandbDir, runFile string) string {
+func QueryRunFile(wandbDir, runFile string) string {
 	if runFile != "" {
 		return runFile
 	}
@@ -107,10 +111,10 @@ func queryRunFile(wandbDir, runFile string) string {
 }
 
 // resolveQueryRun returns the .wandb file a query reads: the one
-// queryRunFile names, else the run in wandbDir that run names by its
+// QueryRunFile names, else the run in wandbDir that run names by its
 // directory, its ID or its display name, else the newest run in wandbDir.
 func resolveQueryRun(wandbDir, runFile, run string) (string, error) {
-	if runFile := queryRunFile(wandbDir, runFile); runFile != "" {
+	if runFile := QueryRunFile(wandbDir, runFile); runFile != "" {
 		if run != "" {
 			return "", badRequest("run cannot be used with a run's path")
 		}
