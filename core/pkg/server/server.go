@@ -37,9 +37,13 @@ type Server struct {
 	// stopServer cancels serverLifetimeCtx.
 	stopServer context.CancelFunc
 
-	// forceShutdown reports whether Serve should return without waiting for
-	// in-flight connections to finish.
-	forceShutdown bool
+	// shutdownOnce records the exit code before cancelling serverLifetimeCtx.
+	shutdownOnce sync.Once
+	exitCode     atomic.Int32
+
+	// forceShutdown interrupts graceful shutdown without waiting for work.
+	forceShutdown     chan struct{}
+	forceShutdownOnce sync.Once
 
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
@@ -96,10 +100,19 @@ type Server struct {
 	logLevel slog.Level
 }
 
+// Shutdown requests a graceful server shutdown with the given run exit code.
+// It does not wait for connections or streams to finish.
+func (s *Server) Shutdown(exitCode int32) {
+	s.shutdownOnce.Do(func() {
+		s.exitCode.Store(exitCode)
+		s.stopServer()
+	})
+}
+
 // ForceStop shuts down the server without waiting for in-flight work.
 func (s *Server) ForceStop() {
-	s.forceShutdown = true
-	s.stopServer()
+	s.forceShutdownOnce.Do(func() { close(s.forceShutdown) })
+	s.Shutdown(1)
 }
 
 type ServerParams struct {
@@ -119,6 +132,7 @@ func NewServer(params ServerParams) *Server {
 	return &Server{
 		serverLifetimeCtx:    serverLifetimeCtx,
 		stopServer:           stopServer,
+		forceShutdown:        make(chan struct{}),
 		streamMux:            stream.NewStreamMux(),
 		runSyncManager:       runsync.NewRunSyncManager(),
 		sweepSchedBroker:     scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
@@ -201,24 +215,24 @@ func (s *Server) Serve(portFile string) error {
 	// Stop accepting new connections.
 	closeListeners()
 
-	if s.forceShutdown {
-		slog.Info("server: forced shutdown")
-		return nil
-	}
-
-	<-s.waitForConnectionsToFinish()
-	slog.Info("server: all connections closed")
-	return nil
-}
-
-func (s *Server) waitForConnectionsToFinish() chan struct{} {
 	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		s.connectionsWG.Wait()
-		close(done)
+		select {
+		case <-s.forceShutdown:
+			return
+		default:
+		}
+		slog.Info("server: all connections closed")
+		s.streamMux.FinishAndCloseAllStreams(s.exitCode.Load())
 	}()
-
-	return done
+	select {
+	case <-s.forceShutdown:
+		slog.Info("server: forced shutdown")
+	case <-done:
+	}
+	return nil
 }
 
 // acceptConnections accepts incoming connections on the listener.
@@ -259,7 +273,7 @@ func (s *Server) acceptConnections(listener net.Listener) {
 		// Give up and shut down on any unexpected error.
 		if err != nil {
 			slog.Error("server: unknown error accepting connection", "error", err)
-			s.stopServer()
+			s.Shutdown(1)
 			return
 		}
 
@@ -337,9 +351,7 @@ func (s *Server) startIdleTimer() {
 		s.idleTimerMu.Unlock()
 
 		slog.Info("server: idle timeout reached, shutting down", "idle-timeout", s.idleTimeout)
-		s.stopServer()
-		// Gracefully finish and close all streams.
-		s.streamMux.FinishAndCloseAllStreams(0)
+		s.Shutdown(0)
 	})
 }
 

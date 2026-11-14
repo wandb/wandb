@@ -48,6 +48,9 @@ const (
 
 	defaultDetachedIdleTimeout = 10 * time.Minute
 
+	// Allow streams time to flush and close before exiting after SIGTERM.
+	signalShutdownGracePeriod = 30 * time.Second
+
 	// exitCodeSignal is used when the program shuts down due to a signal.
 	//
 	// A common convention is to use 128 plus the signal number, but Go's
@@ -197,13 +200,32 @@ func serviceMain() int {
 				return exitCodeSuccess
 			}
 		case sig := <-signalCh:
-			slog.Info("main: received shutdown signal", "signal", sig)
-			srv.ForceStop()
-			if err := <-srvCh; err != nil {
-				slog.Error("main: Serve() returned error", "error", err)
-			}
+			shutdownOnSignal(srv, srvCh, sig)
 			return exitCodeSignal
 		}
+	}
+}
+
+func shutdownOnSignal(srv *server.Server, srvCh <-chan error, sig os.Signal) {
+	slog.Info("main: received shutdown signal", "signal", sig)
+	var timeout <-chan time.Time
+	if sig == syscall.SIGTERM {
+		srv.Shutdown(1)
+		timer := time.NewTimer(signalShutdownGracePeriod)
+		defer timer.Stop()
+		timeout = timer.C
+	} else {
+		srv.ForceStop()
+	}
+
+	select {
+	case err := <-srvCh:
+		if err != nil {
+			slog.Error("main: Serve() returned error", "error", err)
+		}
+	case <-timeout:
+		slog.Warn("main: shutdown grace period expired", "timeout", signalShutdownGracePeriod)
+		srv.ForceStop()
 	}
 }
 
