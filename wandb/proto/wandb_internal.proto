@@ -33,6 +33,8 @@ option go_package = "core/pkg/service_go_proto";
 //
 // Next ID: 28
 message Record {
+  reserved 22;
+
   int64 num = 1;
   oneof record_type {
     // Low numbers for more frequent data
@@ -53,7 +55,6 @@ message Record {
     RunExitRecord exit = 18;
     FinalRecord final = 20;
     HeaderRecord header = 21;
-    FooterRecord footer = 22;
     RunPreemptingRecord preempting = 23;
     // Removed but kept to avoid panics in `wandb sync`.
     google.protobuf.Empty noop_link_artifact = 24;
@@ -123,13 +124,6 @@ message VersionInfo {
  */
 message HeaderRecord {
   VersionInfo version_info = 1;
-  _RecordInfo _info = 200;
-}
-
-/*
- * FooterRecord
- */
-message FooterRecord {
   _RecordInfo _info = 200;
 }
 

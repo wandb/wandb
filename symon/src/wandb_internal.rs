@@ -622,7 +622,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 23, 24, 25, 26, 27, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -665,8 +665,6 @@ pub mod record {
         Final(super::FinalRecord),
         #[prost(message, tag = "21")]
         Header(super::HeaderRecord),
-        #[prost(message, tag = "22")]
-        Footer(super::FooterRecord),
         #[prost(message, tag = "23")]
         Preempting(super::RunPreemptingRecord),
         /// Removed but kept to avoid panics in `wandb sync`.
@@ -769,13 +767,6 @@ pub struct VersionInfo {
 pub struct HeaderRecord {
     #[prost(message, optional, tag = "1")]
     pub version_info: ::core::option::Option<VersionInfo>,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
-}
-/// FooterRecord
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

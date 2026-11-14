@@ -256,7 +256,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         final: pb.FinalRecord | None = None,
         metric: pb.MetricRecord | None = None,
         header: pb.HeaderRecord | None = None,
-        footer: pb.FooterRecord | None = None,
         request: pb.Request | None = None,
         telemetry: tpb.TelemetryRecord | None = None,
         preempting: pb.RunPreemptingRecord | None = None,
@@ -290,8 +289,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             record.final.CopyFrom(final)
         elif header:
             record.header.CopyFrom(header)
-        elif footer:
-            record.footer.CopyFrom(footer)
         elif request:
             record.request.CopyFrom(request)
         elif telemetry:
@@ -323,11 +320,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
 
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         rec = self._make_record(header=header)
-        self._publish(rec)
-
-    def publish_footer(self) -> None:
-        footer = pb.FooterRecord()
-        rec = self._make_record(footer=footer)
         self._publish(rec)
 
     def publish_final(self) -> None:
