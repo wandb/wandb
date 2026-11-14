@@ -99,9 +99,10 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 // [FileStreamRequest] can be thought of as the "idealized" request;
 // it is what we wish the API looked like.
 type FileStreamRequestJSON struct {
-	Files      map[string]OffsetAndContent `json:"files,omitempty"`
-	Uploaded   []string                    `json:"uploaded,omitempty"`
-	Preempting *bool                       `json:"preempting,omitempty"`
+	Files        map[string]OffsetAndContent `json:"files,omitempty"`
+	Uploaded     []string                    `json:"uploaded,omitempty"`
+	Preempting   *bool                       `json:"preempting,omitempty"`
+	SummaryDelta *bool                       `json:"summary_delta,omitempty"`
 
 	Complete *bool  `json:"complete,omitempty"`
 	ExitCode *int32 `json:"exitcode,omitempty"`

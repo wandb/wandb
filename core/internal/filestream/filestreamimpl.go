@@ -80,6 +80,7 @@ func (fs *fileStream) startTransmitting(
 			int(fs.settings.GetFileStreamMaxLineBytes()),
 			defaultMaxFileLineBytes,
 		),
+		AcceptSummaryDelta: fs.acceptSummaryDelta.Load,
 	}
 
 	if initialOffsets != nil {
@@ -121,6 +122,12 @@ func (fs *fileStream) startProcessingFeedback(
 				if stopped, ok := v.(bool); ok && stopped {
 					fs.stopState.Store(true)
 				}
+			}
+
+			// Every response says whether deltas are accepted.
+			if res != nil {
+				accept, _ := res["accept_summary_delta"].(bool)
+				fs.acceptSummaryDelta.Store(accept)
 			}
 		}
 	}()

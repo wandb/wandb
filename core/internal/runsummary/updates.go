@@ -34,6 +34,21 @@ func (u *Updates) IsEmpty() bool {
 	return u == nil || (u.update.IsEmpty() && u.remove.IsEmpty())
 }
 
+// HasRemovals returns whether the Updates instance removes any path.
+//
+// Returns false given nil.
+func (u *Updates) HasRemovals() bool {
+	return u != nil && !u.remove.IsEmpty()
+}
+
+// Serialize returns the values set by the updates in the format of
+// [RunSummary.Serialize], ignoring removals and values that fail to unmarshal.
+func (u *Updates) Serialize() ([]byte, error) {
+	rs := New()
+	_ = u.Apply(rs)
+	return rs.Serialize()
+}
+
 // NoUpdates returns a mutable Updates instance that makes no changes.
 func NoUpdates() *Updates {
 	return &Updates{

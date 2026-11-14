@@ -191,3 +191,33 @@ func TestUpdates_IsEmpty(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdates_Serialize_SetValuesOnly(t *testing.T) {
+	updates := runsummary.FromProto(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"_wandb", "runtime"}, ValueJson: `12`},
+			{Key: "loss", ValueJson: `{"min":0.2}`},
+		},
+		Remove: []*spb.SummaryItem{{Key: "gone"}},
+	})
+
+	json, err := updates.Serialize()
+
+	assert.NoError(t, err)
+	assert.JSONEq(t,
+		`{"_wandb":{"runtime":12},"loss":{"min":0.2}}`,
+		string(json))
+}
+
+func TestUpdates_HasRemovals(t *testing.T) {
+	var nilUpdates *runsummary.Updates
+	assert.False(t, nilUpdates.HasRemovals())
+
+	assert.False(t, runsummary.FromProto(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{{Key: "x", ValueJson: `1`}},
+	}).HasRemovals())
+
+	assert.True(t, runsummary.FromProto(&spb.SummaryRecord{
+		Remove: []*spb.SummaryItem{{Key: "x"}},
+	}).HasRemovals())
+}
