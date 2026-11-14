@@ -32,6 +32,7 @@ require (
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.12.1
 	github.com/vektah/gqlparser/v2 v2.5.64
+	github.com/wandb/cwevals-go v0.0.0
 	github.com/wandb/simplejsonext v0.0.0-20260707165459-87e0408255a5
 	github.com/zeebo/xxh3 v1.1.0
 	go.opentelemetry.io/otel v1.47.0
@@ -126,6 +127,10 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.9.0 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/xo/terminfo v1.3.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.47.0 // indirect
@@ -153,3 +158,7 @@ exclude (
 	github.com/goccy/go-json v0.11.0
 	github.com/goccy/go-json v0.11.1
 )
+
+// TODO: DO NOT MERGE. Temporary copy of the CES Go SDK until it is published.
+// Remove this and third_party/cwevals-go, then require a published version.
+replace github.com/wandb/cwevals-go => ./third_party/cwevals-go

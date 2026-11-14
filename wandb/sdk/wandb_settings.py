@@ -44,6 +44,7 @@ def _path_convert(*args: str) -> str:
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
+    "x_ces_base_url_override",
     "capture_loggers",
     "files_dir",
     "finish_timeout_raises",
@@ -612,6 +613,17 @@ class Settings(BaseModel, validate_assignment=True):
     #
     # These are typically not meant to be set by the user and should not be considered
     # a part of the public API as they may change or be removed in future versions.
+
+    x_ces_base_url_override: str | None = None
+    """Override for the CoreWeave Evaluation Service (CES) URL.
+
+    The `_ces_base_url` is normally computed based on `base_url`, but this
+    can be used to set it explicitly.
+
+    WANDB_CES_BASE_URL is the corresponding environment variable.
+
+    <!-- lazydoc-ignore -->
+    """
 
     x_cli_only_mode: bool = False
     """Flag to indicate that the SDK is running in CLI-only mode.
@@ -1636,6 +1648,12 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def _ces_base_url(self) -> str:
+        """The URL for the CoreWeave Evaluation Service (CES)."""
+        return self.x_ces_base_url_override or urls.api_to_ces_url(self.base_url)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def _code_path_local(self) -> str | None:
         """The relative path from the current working directory to the code path.
 
@@ -1990,6 +2008,7 @@ class Settings(BaseModel, validate_assignment=True):
             env.HTTP_TIMEOUT: "x_graphql_timeout_seconds",
             env.FILE_PUSHER_TIMEOUT: "x_file_transfer_timeout_seconds",
             env.USER_EMAIL: "email",
+            env.CES_BASE_URL: "x_ces_base_url_override",
         }
 
         for setting, value in environ.items():

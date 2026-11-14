@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 210
+// Next ID: 213
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180, 190;
 
@@ -463,6 +463,9 @@ message Settings {
 
   // The relative path on the CoreWeave metadata server to which to make requests.
   google.protobuf.StringValue x_stats_coreweave_metadata_endpoint = 193;
+
+  // The URL for the CoreWeave Evaluation Service (CES).
+  google.protobuf.StringValue _ces_base_url = 212;
 
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;

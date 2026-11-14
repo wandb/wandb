@@ -19,6 +19,12 @@ The API is served at the root of the Forge host's `api.` subdomain and of
 the W&B API host, and proxied under FORGE_API_PATH on the Forge host.
 """
 
+CES_HOSTS = {
+    "api.wandb.ai": "evaluations.wandb.ai",
+    "api.qa.wandb.ai": "evaluations.qa.wandb.ai",
+}
+"""Maps each W&B API host to the CoreWeave Evaluation Service instance linked to it."""
+
 _URL_VALIDATOR = SchemaValidator(
     core_schema.url_schema(
         allowed_schemes=["http", "https"],
@@ -82,3 +88,15 @@ def normalize_forge_base_url(url: str) -> str:
     raise ValueError(
         f"Invalid Forge server address; use https://api.{parsed.hostname}."
     )
+
+
+def api_to_ces_url(api_url: str) -> str:
+    """Returns the CoreWeave Evaluation Service (CES) URL for a W&B API URL.
+
+    CES is on its own host for multi-tenant SaaS, including through Forge,
+    and under the W&B server's /evaluations path otherwise.
+    """
+    upstream = urlsplit(forge_upstream_url(api_url)).hostname
+    if upstream in CES_HOSTS:
+        return f"https://{CES_HOSTS[upstream]}"
+    return f"{api_url.rstrip('/')}/evaluations"

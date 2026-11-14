@@ -659,6 +659,18 @@ github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/internal/difflib
 github.com/stretchr/testify/internal/spew
 github.com/stretchr/testify/require
+# github.com/tidwall/gjson v1.14.4
+## explicit; go 1.12
+github.com/tidwall/gjson
+# github.com/tidwall/match v1.1.1
+## explicit; go 1.15
+github.com/tidwall/match
+# github.com/tidwall/pretty v1.2.1
+## explicit; go 1.16
+github.com/tidwall/pretty
+# github.com/tidwall/sjson v1.2.5
+## explicit; go 1.14
+github.com/tidwall/sjson
 # github.com/vektah/gqlparser/v2 v2.5.64
 ## explicit; go 1.25
 github.com/vektah/gqlparser/v2/ast
@@ -669,6 +681,18 @@ github.com/vektah/gqlparser/v2/parser
 github.com/vektah/gqlparser/v2/validator
 github.com/vektah/gqlparser/v2/validator/core
 github.com/vektah/gqlparser/v2/validator/rules
+# github.com/wandb/cwevals-go v0.0.0 => ./third_party/cwevals-go
+## explicit; go 1.26
+github.com/wandb/cwevals-go
+github.com/wandb/cwevals-go/internal
+github.com/wandb/cwevals-go/internal/apierror
+github.com/wandb/cwevals-go/internal/apiform
+github.com/wandb/cwevals-go/internal/apijson
+github.com/wandb/cwevals-go/internal/apiquery
+github.com/wandb/cwevals-go/internal/param
+github.com/wandb/cwevals-go/internal/requestconfig
+github.com/wandb/cwevals-go/option
+github.com/wandb/cwevals-go/shared
 # github.com/wandb/simplejsonext v0.0.0-20260707165459-87e0408255a5
 ## explicit; go 1.22.5
 github.com/wandb/simplejsonext
@@ -1155,3 +1179,4 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
+# github.com/wandb/cwevals-go => ./third_party/cwevals-go
