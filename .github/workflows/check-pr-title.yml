@@ -7,7 +7,7 @@ on:
 jobs:
   cc:
     name: check conventional commit compliance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     steps:
       # check the basic semantic compliance of the PR title
       # https://github.com/amannn/action-semantic-pull-request/releases
