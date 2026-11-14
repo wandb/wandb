@@ -703,7 +703,7 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 85
+// Next ID: 86
 message Request {
   reserved 18, 22, 75, 76, 79, 80;
 
@@ -744,6 +744,7 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     SyncFinishRequest sync_finish = 81;
+    WaitForRunExitFlushRequest wait_for_run_exit_flush = 85;
 
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
@@ -758,7 +759,7 @@ message Request {
 /*
  * Response: all non persistent responses to Requests
  *
- * Next ID: 75
+ * Next ID: 77
  */
 message Response {
   reserved 32, 72, 73;
@@ -789,6 +790,7 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
+    WaitForRunExitFlushResponse wait_for_run_exit_flush_response = 76;
     OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
@@ -1245,6 +1247,14 @@ message RunStartRequest {
 }
 
 message RunStartResponse {}
+
+// Waits until the transaction log has been flushed after the run's exit record.
+message WaitForRunExitFlushRequest {
+  _RequestInfo _info = 200;
+}
+
+// Indicates that the transaction log was successfully flushed.
+message WaitForRunExitFlushResponse {}
 
 /*
  * CheckVersion:

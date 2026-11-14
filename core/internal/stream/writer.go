@@ -52,6 +52,12 @@ type Writer struct {
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
 
+	// exitFlushRequests are requests which require a response
+	// after an exit record is received and the transactionlog is flushed.
+	exitFlushRequests []*runwork.Request
+	exitFlushed       bool
+	exitFlushErr      error
+
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
 }
@@ -118,6 +124,19 @@ func (w *Writer) process(work runwork.Work) {
 	savedWork := runwork.MaybeSavedWork{Work: work}
 
 	record := work.ToRecord()
+	if record.GetRequest().GetWaitForRunExitFlush() != nil {
+		if work.Request != nil {
+			if w.exitFlushed {
+				w.respondExitFlush(work.Request, w.exitFlushErr)
+			} else {
+				w.exitFlushRequests = append(w.exitFlushRequests, work.Request)
+			}
+		}
+
+		// do not forward the WaitForRunExitFlushRequest to sender.
+		return
+	}
+
 	if !w.isLocal(record) {
 		recordNum := w.setNumber(record)
 		offset, err := w.write(record)
@@ -135,19 +154,60 @@ func (w *Writer) process(work runwork.Work) {
 	}
 
 	if record.GetExit() != nil {
-		if err := w.Flush(); err != nil {
+		err := w.Flush()
+		if err != nil {
 			w.logger.CaptureError(
 				"stream",
 				fmt.Errorf("writer: failed to flush after exit: %v", err),
 			)
+		}
+
+		if !w.exitFlushed {
+			w.exitFlushed = true
+			w.exitFlushErr = err
+
+			for _, request := range w.exitFlushRequests {
+				w.respondExitFlush(request, err)
+			}
+
+			w.exitFlushRequests = nil
 		}
 	}
 
 	w.out <- savedWork
 }
 
+func (w *Writer) respondExitFlush(request *runwork.Request, err error) {
+	if err != nil {
+		request.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{Message: err.Error()},
+			},
+		})
+		return
+	}
+
+	request.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_Response{
+					Response: &spb.Response{
+						ResponseType: &spb.Response_WaitForRunExitFlushResponse{
+							WaitForRunExitFlushResponse: &spb.WaitForRunExitFlushResponse{},
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
 // finish closes the transaction log writer.
 func (w *Writer) finish() {
+	for _, request := range w.exitFlushRequests {
+		request.WillNotRespond()
+	}
+	w.exitFlushRequests = nil
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 	w.finished = true
