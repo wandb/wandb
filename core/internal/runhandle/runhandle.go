@@ -11,6 +11,12 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+var (
+	errInitFailed  = errors.New("runhandle: run failed to initialize")
+	errInitialized = errors.New("runhandle: run already initialized")
+	errNotReady    = errors.New("runhandle: run not yet initialized")
+)
+
 // RunHandle contains objects that are initialized after the first RunRecord.
 //
 // Code that calls the getter methods implicitly relies on only running after
@@ -23,8 +29,11 @@ type RunHandle struct {
 
 	// upserter tracks and syncs some of the stream's run's metadata.
 	//
-	// It is nil before the run is initialized.
+	// It is nil before the run is successfully initialized.
 	upserter *runupserter.RunUpserter
+
+	// initFailed is true if the run failed to initialize.
+	initFailed bool
 
 	// unsentTelemetry is telemetry that was recorded before the run
 	// was initialized.
@@ -41,8 +50,9 @@ func New() *RunHandle {
 	return &RunHandle{ready: make(chan struct{})}
 }
 
-// Ready returns a channel that's closed after Init is called the first time.
-func (h *RunHandle) Ready() <-chan struct{} {
+// ReadyOrFailed returns a channel that's closed after the run has either
+// initialized or failed to initialize.
+func (h *RunHandle) ReadyOrFailed() <-chan struct{} {
 	return h.ready
 }
 
@@ -68,25 +78,44 @@ func (h *RunHandle) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 	proto.Merge(h.unsentTelemetry, telemetry)
 }
 
-// Init sets the run upserter.
+// Init sets the run upserter, marking the run initialized.
 //
-// It is an error to call this more than once.
+// It is an error to call this more than once or after FailInit.
 func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
+	if upserter == nil {
+		return errors.New("runhandle: called Init with nil upserter")
+	}
+
+	return h.initOrFail(upserter)
+}
+
+// FailInit marks the run as having failed to initialize.
+//
+// It does nothing if the run has already been initialized.
+func (h *RunHandle) FailInit() {
+	_ = h.initOrFail(nil)
+}
+
+func (h *RunHandle) initOrFail(upserter *runupserter.RunUpserter) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if h.upserter != nil {
-		return errors.New("runhandle: run is already set")
+	select {
+	case <-h.ready:
+		return errInitialized
+	default:
 	}
+	close(h.ready)
+
 	if upserter == nil {
-		return errors.New("runhandle: nil upserter")
+		h.initFailed = true
+		return nil
 	}
+
+	h.upserter = upserter
 
 	h.stopwatch.Adjust(upserter.StartRuntime())
 	h.stopwatch.Start()
-
-	h.upserter = upserter
-	close(h.ready)
 
 	if h.unsentTelemetry != nil {
 		upserter.UpdateTelemetry(h.unsentTelemetry)
@@ -98,16 +127,20 @@ func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
 
 // Upserter returns the run upserter if it has been initialized.
 //
-// Returns an error if no run upserter has been set.
+// Returns an error if no run upserter has been set or if initialization
+// failed.
 func (h *RunHandle) Upserter() (*runupserter.RunUpserter, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if h.upserter == nil {
-		return nil, errors.New("runhandle: run not yet initialized")
+	switch {
+	case h.initFailed:
+		return nil, errInitFailed
+	case h.upserter != nil:
+		return h.upserter, nil
+	default:
+		return nil, errNotReady
 	}
-
-	return h.upserter, nil
 }
 
 // Runtime returns the `_runtime` metric for the run.

@@ -140,6 +140,26 @@ func TestRecordRun_SegmentTimeOnlyIsReported(t *testing.T) {
 	assert.InDelta(t, 1000.0, metric.HistogramSum, 0.0001)
 }
 
+func TestRecordFinish_TagsBytesSentAfterExit(t *testing.T) {
+	stats, proxy := newStats(t)
+
+	stats.RecordRequest(t.Context(), filestreamstats.RequestReport{
+		CompressedBytes: 512 << 20,
+	})
+	stats.StartFinish()
+	stats.RecordRequest(t.Context(), filestreamstats.RequestReport{
+		CompressedBytes: 2 << 20,
+	})
+	stats.RecordFinish(t.Context())
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	_, ok := proxy.FindMetricWith(
+		filestreamstats.MetricFinishDuration,
+		map[string]string{"finish_filestream_size": "lt_4mib"},
+	)
+	assert.True(t, ok)
+}
+
 func TestNilStats_IsNoop(t *testing.T) {
 	var stats *filestreamstats.Stats
 
@@ -154,6 +174,8 @@ func TestNilStats_IsNoop(t *testing.T) {
 		stats.SetTxLogBytes(10)
 		stats.RecordRequest(context.Background(), filestreamstats.RequestReport{})
 		stats.RecordRun(context.Background())
+		stats.StartFinish()
+		stats.RecordFinish(context.Background())
 		stats.SetWireEncoding(filestreamstats.WireEncodingJSONL)
 	})
 	assert.Empty(t, stats.WireEncoding())
