@@ -1391,7 +1391,7 @@ func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 	direction := 1
-	if msg.Code == tea.KeyTab && msg.Mod == tea.ModShift {
+	if msg.String() == "shift+tab" {
 		direction = -1
 	}
 	withinFn := func(dir int) bool {

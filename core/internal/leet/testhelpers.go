@@ -114,6 +114,8 @@ func (m *Model) TestRunModel() *Run { return m.run }
 
 func (m *Model) TestWorkspace() *Workspace { return m.workspace }
 
+func (m *Model) TestWaitForControl() tea.Cmd { return m.waitForControl() }
+
 func (r *Run) TestMetricsGrid() *MetricsGrid { return r.metricsGrid }
 
 func (s *Symon) TestGrid() *SystemMetricsGrid {
