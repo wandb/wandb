@@ -46,6 +46,23 @@ func Test_ReadAfterWrite(t *testing.T) {
 	assert.EqualValues(t, 123, record.Num)
 }
 
+func Test_SizeAfterClose(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
+	require.NoError(t, writer.Flush())
+	beforeClose, err := writer.Size()
+	
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	require.Error(t, writer.Close())
+	afterClose, err := writer.Size()
+	require.NoError(t, err)
+
+	assert.Equal(t, beforeClose, afterClose)
+}
+
 func Test_OpenWriter_FileExists(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte{}, 0o666))

@@ -10,10 +10,11 @@ import shutil
 import socket
 import sys
 import traceback
+import unicodedata
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any, Literal
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qsl, quote, unquote, urlsplit
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
@@ -112,6 +113,7 @@ class Settings(BaseModel, validate_assignment=True):
         validate_default=True,  # validate default values
         use_attribute_docstrings=True,  # for field descriptions
         revalidate_instances="always",
+        hide_input_in_errors=True,
     )
 
     # Public settings.
@@ -1033,6 +1035,15 @@ class Settings(BaseModel, validate_assignment=True):
     If set, it is joined to the default name with a dash.
     """
 
+    x_transaction_log_backup: str | None = None
+    """Destination for transaction-log backup.
+
+    `s3://`, `gs://`, or `azblob://` bucket prefix are supported.
+    """
+
+    x_transaction_log_backup_timeout: float | None = None
+    """Backup timeout in seconds (at least 1), or None for no backup-specific timeout."""
+
     x_transaction_log_flush_interval: float = 15.0
     """Interval in seconds between flushes of run data to the run's `.wandb` file.
 
@@ -1086,14 +1097,100 @@ class Settings(BaseModel, validate_assignment=True):
         return self
 
     @model_validator(mode="after")
-    def validate_skip_transaction_log(self):
-        """Validate x_skip_transaction_log.
+    def validate_transaction_log_settings(self) -> Self:
+        """Validate transaction log and backup settings.
 
         <!-- lazydoc-ignore -->
         """
+        if self.x_skip_transaction_log and self.x_transaction_log_backup is not None:
+            raise UsageError("Transaction log backup requires the transaction log")
         if self._offline and self.x_skip_transaction_log:
             raise ValueError("Cannot skip transaction log in offline mode")
+        if self.x_transaction_log_backup is not None and self._offline:
+            raise UsageError("Transaction log backup is not supported in offline mode")
+        if self.x_transaction_log_backup is not None and self._noop:
+            raise UsageError("Transaction log backup is not supported in disabled mode")
         return self
+
+    @field_validator("x_transaction_log_backup", mode="after")
+    @classmethod
+    def validate_transaction_log_backup_destination(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return value
+
+        def has_controls(text: str) -> bool:
+            return any(unicodedata.category(c) == "Cc" for c in text)
+
+        invalid_destination = (
+            "Invalid transaction log backup destination; use an "
+            "s3, gs, or azblob bucket URL"
+        )
+
+        # urlsplit removes some control characters, so check the raw URL first.
+        if (
+            has_controls(value)
+            or "#" in value
+            or re.search(r"%(?![0-9a-fA-F]{2})", value)
+        ):
+            raise UsageError(invalid_destination)
+
+        try:
+            url = urlsplit(value)
+            path = unquote(url.path, errors="strict")
+            pairs = parse_qsl(
+                url.query, keep_blank_values=True, strict_parsing=True, errors="strict"
+            )
+        except (UnicodeError, ValueError):
+            raise UsageError(invalid_destination) from None
+
+        # Require a supported bucket URL without credentials, ports, or an empty host.
+        if (
+            url.scheme not in ("s3", "gs", "azblob")
+            or not value.startswith(url.scheme + "://")
+            or not re.fullmatch(r"[A-Za-z0-9._-]+", url.netloc)
+        ):
+            raise UsageError(invalid_destination)
+
+        # Check decoded segments so percent-encoding cannot hide controls or dot segments.
+        if has_controls(path) or any(part in (".", "..") for part in path.split("/")):
+            raise UsageError(invalid_destination)
+
+        # Go rejects raw semicolons; only one provider option is supported.
+        if ";" in url.query or len(pairs) > 1:
+            raise UsageError(invalid_destination)
+
+        # Only Azure accepts a nonempty storage account in the URL.
+        if pairs:
+            key, account = pairs[0]
+            if (
+                url.scheme != "azblob"
+                or key != "storage_account"
+                or not account
+                or has_controls(account)
+            ):
+                raise UsageError(invalid_destination)
+
+        # Add a prefix separator without changing the original URL's encoding or query.
+        if path and not path.endswith("/"):
+            base, separator, query = value.partition("?")
+            return base + "/" + separator + query
+
+        return value
+
+    @field_validator("x_transaction_log_backup_timeout", mode="after")
+    @classmethod
+    def validate_transaction_log_backup_duration(
+        cls, value: float | None
+    ) -> float | None:
+        if value is not None:
+            if not value >= 1:
+                raise ValueError("Backup timeout must be at least 1 second")
+            if value >= 2**63 / 1e9:
+                return None
+        return value
 
     # Field validators.
     @field_validator("anonymous", mode="after")
@@ -2105,7 +2202,7 @@ class Settings(BaseModel, validate_assignment=True):
         <!-- lazydoc-ignore -->
         """
         for key, value in dict(settings).items():
-            if value is not None:
+            if value is not None or key == "x_transaction_log_backup_timeout":
                 setattr(self, key, value)
 
     def update_from_settings(self, settings: Settings) -> None:

@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 210
+// Next ID: 214
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180, 190;
 
@@ -457,6 +457,12 @@ message Settings {
   // Zero disables periodic flushing: data is then written only when a
   // buffer fills or the run finishes.
   google.protobuf.DoubleValue x_transaction_log_flush_interval = 209;
+
+  // Destination for one finish-time transaction log backup.
+  google.protobuf.StringValue x_transaction_log_backup = 212;
+
+  // Deadline in seconds for the finish-time backup attempt.
+  google.protobuf.DoubleValue x_transaction_log_backup_timeout = 213;
 
   // The scheme and hostname for contacting the CoreWeave metadata server.
   google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 192;
