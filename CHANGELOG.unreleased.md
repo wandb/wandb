@@ -28,10 +28,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Unparseable automations are skipped when listing automations via `Api.automations()` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13287)
 - Identity token logins now stay signed in after the identity token has been used, when the JWT issuer is configured to allow it: the W&B server returns a refresh token that renews the access token until the issuer's session timeout (@ckacal in https://github.com/wandb/wandb/pull/13082)
-- `wandb-core` now attempts to finish active runs for up to 30 seconds after receiving SIGTERM before exiting
 
 ### Fixed
 
+- `wandb-core` now attempts to finish active runs for up to 30 seconds after receiving SIGTERM before exiting
 - `Artifact.link()` and `Run.link_artifact()` warn when the target collection name contains `:` (for example `my-coll:prod`) and point to the `aliases` argument for adding aliases (@mrobers1982 in https://github.com/wandb/wandb/pull/13321)
 - `Api.automations()` lists push notification automations (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13282)
 - Installing `wandb` from source on Android (Termux) now builds for Android instead of failing on a glibc Linux Rust target (@dmitryduev in https://github.com/wandb/wandb/pull/13289)
