@@ -144,3 +144,34 @@ func TestServe_ForceStopReturnsWithoutWaitingForConnections(t *testing.T) {
 		t.Fatal("timed out waiting for Serve() to return")
 	}
 }
+
+func TestServe_ForceStopInterruptsGracefulShutdown(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	synctest.Test(t, func(t *testing.T) {
+		s := NewServer(ServerParams{Detached: true})
+		s.connectionsWG.Add(1)
+		defer s.connectionsWG.Done()
+
+		srvCh := make(chan error, 1)
+		go func() { srvCh <- s.Serve(filepath.Join(tempRoot, "port.txt")) }()
+
+		s.Shutdown(1)
+		synctest.Wait()
+		select {
+		case err := <-srvCh:
+			t.Fatalf("graceful shutdown returned before connections finished: %v", err)
+		default:
+		}
+
+		s.ForceStop()
+		synctest.Wait()
+		select {
+		case err := <-srvCh:
+			require.NoError(t, err)
+		default:
+			t.Fatal("force stop did not interrupt graceful shutdown")
+		}
+	})
+}
