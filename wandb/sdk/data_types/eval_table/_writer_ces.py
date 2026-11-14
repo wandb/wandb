@@ -13,11 +13,13 @@ import wandb
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
 from wandb.errors import UsageError
+from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.eval_table import _media_ces
 from wandb.sdk.data_types.eval_table._media_ces import _encode_json
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
+from wandb.sdk.data_types.image import Image
 from wandb.sdk.data_types.table import Table
 from wandb.sdk.lib import urls
 
@@ -207,6 +209,17 @@ class CESWriter:
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
         """Validate W&B values before the table is bound or written."""
+        if isinstance(value, list):
+            if len(value) > _media_ces.CES_MAX_IMAGE_LIST_ITEMS:
+                raise UsageError(
+                    f"CES EvalTable column {column!r} supports at most "
+                    f"{_media_ces.CES_MAX_IMAGE_LIST_ITEMS} images per cell."
+                )
+            if any(not isinstance(item, Image) for item in value):
+                raise UsageError(
+                    f"CES EvalTable column {column!r} supports lists containing only wandb.Image values."
+                )
+            return
         if _media_ces.is_supported_wandb_media(value):
             return
         if isinstance(value, WBValue):
@@ -359,6 +372,26 @@ class CESWriter:
 
         bound_run = self._require_bound()
         dataset_field_types: dict[tuple[_CESFieldSource, str], _CESFieldType] = {}
+        for row in rows:
+            for source, values in (("input", row.inputs), ("output", row.output or {})):
+                for column, value in values.items():
+                    self.validate_cell_value(value, column)
+                    dtype = row.column_types.get(column)
+                    if isinstance(dtype, _dtypes.UnionType):
+                        members = [
+                            t
+                            for t in dtype.params["allowed_types"]
+                            if not isinstance(t, _dtypes.NoneType)
+                        ]
+                        dtype = members[0] if len(members) == 1 else None
+                    typed_image_list = (
+                        isinstance(dtype, _dtypes.ListType)
+                        and dtype.params["element_type"].name == "image-file"
+                    )
+                    if typed_image_list or (isinstance(value, list) and bool(value)):
+                        dataset_field_types[(source, str(column))] = _CESFieldType(
+                            "json", "wandb-image-list", 1
+                        )
         dataset_field_order: dict[tuple[_CESFieldSource, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
         scorer_order: dict[str, None] = {}
@@ -496,7 +529,10 @@ class CESWriter:
                     max_length=_MAX_DATASET_FIELD_NAME_LENGTH,
                 )
                 order[key] = None
-            if _media_ces.is_supported_wandb_media(value):
+            if _media_ces.is_supported_wandb_media(value) or (
+                isinstance(value, list)
+                and types.get(key) == _CESFieldType("json", "wandb-image-list", 1)
+            ):
                 media_cells += 1
                 normalized, value_type, oversized_size = self._normalize_media(
                     value,
@@ -513,6 +549,11 @@ class CESWriter:
                             f"({oversized_size} bytes)"
                         )
             else:
+                if isinstance(value, list):
+                    raise UsageError(
+                        f"CES EvalTable column {column!r} has only empty image lists. "
+                        "Set its dtype to ListType(wandb.Image)."
+                    )
                 normalized, primitive_type = self._normalize_primitive(value, column)
                 value_type = (
                     _CESFieldType(primitive_type)
@@ -555,7 +596,7 @@ class CESWriter:
 
     def _normalize_media(
         self,
-        value: Media,
+        value: Media | list[Image],
         bound_run: _BoundRun,
         *,
         source: _CESFieldSource,
