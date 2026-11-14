@@ -42,3 +42,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
+- Interactive `wandb init` and the `wandb projects` command no longer crash with `TypeError: object of type 'Projects' has no len()` when listing an entity's projects (@inchang-ing in https://github.com/wandb/wandb/pull/13336)
