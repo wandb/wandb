@@ -1,3 +1,4 @@
+import numbers
 from collections.abc import Iterable, Sequence
 
 import wandb
@@ -180,3 +181,22 @@ def test_types(**kwargs):
             wandb.termerror(f"{k} is not a clusterer. Please try again.")
             test_passed = False
     return test_passed
+
+
+def class_columns(classes, n_columns):
+    """Return the y_probas column of each class in `classes` (np.unique(y_true)).
+
+    y_probas has one column per class index and y_true can miss some classes,
+    so a class's position in `classes` is its column only when none is missing.
+    Prints an error and returns None if the classes can't be matched to columns.
+    """
+    if len(classes) == n_columns:
+        return list(range(n_columns))
+    if all(isinstance(c, numbers.Integral) and 0 <= c < n_columns for c in classes):
+        return list(classes)
+    wandb.termerror(
+        f"y_true has {len(classes)} classes but y_probas has {n_columns} columns."
+        " When classes are missing from y_true, its values must be the class"
+        " indices of the y_probas columns."
+    )
+    return None

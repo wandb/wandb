@@ -42,3 +42,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
+- `wandb.plot.roc_curve` and `wandb.plot.pr_curve` (and the `wandb.sklearn` plots that use them) no longer score a class with another class's column of `y_probas` when `y_true` is missing some classes (@David-Wu1119 in https://github.com/wandb/wandb/pull/13097)

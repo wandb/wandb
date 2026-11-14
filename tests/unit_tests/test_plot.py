@@ -110,6 +110,59 @@ def test_pr_curve_with_title():
     ]
 
 
+Y_TRUE_WITHOUT_CLASS_1 = [0, 2, 2, 0]
+Y_PROBAS_3_CLASSES = [
+    (0.7, 0.6, 0.3),
+    (0.2, 0.1, 0.8),
+    (0.3, 0.2, 0.7),
+    (0.6, 0.5, 0.4),
+]
+
+
+def test_roc_curve_class_missing_from_y_true():
+    """Test ROC curve when y_true lacks one of the y_probas classes.
+
+    Class 1 never occurs, so class 2's curve must come from the third column,
+    which ranks both class 2 samples first, not from the second column.
+    """
+    chart = roc_curve(y_true=Y_TRUE_WITHOUT_CLASS_1, y_probas=Y_PROBAS_3_CLASSES)
+    assert chart.table.data == [
+        [0, 0.0, 0.0],
+        [0, 0.0, 0.5],
+        [0, 0.0, 1.0],
+        [0, 1.0, 1.0],
+        [2, 0.0, 0.0],
+        [2, 0.0, 0.5],
+        [2, 0.0, 1.0],
+        [2, 1.0, 1.0],
+    ]
+
+
+def test_pr_curve_class_missing_from_y_true():
+    """Test precision-recall curve when y_true lacks one of the y_probas classes."""
+    chart = pr_curve(
+        y_true=Y_TRUE_WITHOUT_CLASS_1, y_probas=Y_PROBAS_3_CLASSES, interp_size=4
+    )
+    assert chart.table.data == [
+        [0, 1.0, 1.0],
+        [0, 1.0, 0.667],
+        [0, 1.0, 0.333],
+        [0, 1.0, 0.0],
+        [2, 1.0, 1.0],
+        [2, 1.0, 0.667],
+        [2, 1.0, 0.333],
+        [2, 1.0, 0.0],
+    ]
+
+
+def test_curves_skip_classes_that_cannot_be_matched_to_columns():
+    """Test that string classes missing from y_true don't get a guessed column."""
+    y_true = ["a", "c"]
+    y_probas = [(0.1, 0.2, 0.7), (0.6, 0.3, 0.1)]
+    assert roc_curve(y_true=y_true, y_probas=y_probas) is None
+    assert pr_curve(y_true=y_true, y_probas=y_probas) is None
+
+
 def test_confusion_matrix():
     """Test confusion matrix with probabilities and predictions
 
