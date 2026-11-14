@@ -508,6 +508,7 @@ func (h *Handler) handleRequestRunStart(
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
 	var git *spb.GitRepoRecord
 
+	// TODO: Read Git stuff in wandb-core instead of the Python client.
 	if upserter, err := h.runHandle.Upserter(); err != nil {
 		h.logger.Error("handler: git info unavailable", "error", err)
 	} else {
