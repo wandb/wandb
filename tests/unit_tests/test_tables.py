@@ -240,6 +240,39 @@ def test_loading_from_json_with_mixed_types():
     _ = wandb.Table.from_json(json_obj, artifact)
 
 
+@pytest.mark.parametrize("column", [0, "0"], ids=["integer", "string"])
+@pytest.mark.parametrize(
+    ("values", "extra"),
+    [
+        pytest.param([1, None], 2, id="numeric"),
+        pytest.param(
+            [datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc), None],
+            datetime.datetime(2024, 1, 2, tzinfo=datetime.timezone.utc),
+            id="timestamp",
+        ),
+    ],
+)
+def test_artifact_table_roundtrip_preserves_column_names(column, values, extra):
+    artifact = wandb.Artifact("table-roundtrip", type="dataset")
+    original = wandb.Table(columns=[column], data=[[value] for value in values])
+    entry = artifact.add(original, "original")
+    assert entry.local_path is not None
+    with open(entry.local_path, encoding="utf-8") as f:
+        restored = wandb.Table.from_json(json.load(f), artifact)
+
+    assert restored.columns == [column]
+    assert restored.get_column(column) == values
+    restored.add_data(extra)
+
+    entry = artifact.add(restored, "restored")
+    assert entry.local_path is not None
+    with open(entry.local_path, encoding="utf-8") as f:
+        restored_again = wandb.Table.from_json(json.load(f), artifact)
+
+    assert restored_again.columns == [column]
+    assert restored_again.get_column(column) == values + [extra]
+
+
 def test_datetime_conversion():
     art = wandb.Artifact("A", "B")
     t = wandb.Table(
