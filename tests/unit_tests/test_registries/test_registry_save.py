@@ -233,6 +233,27 @@ def test_save_upsert_failure_after_rename_raises_partial_save_error(
     assert registry.artifact_types.draft == ()
 
 
+def test_save_never_saved_registry_upserts_before_rename(
+    service_api: MagicMock, server: FakeRegistryServer
+):
+    # Without fetched data, the upsert may create the registry, so it must
+    # run before the rename.
+    registry = Registry(
+        service_api, organization=ORG, entity=ORG_ENTITY, name="old-name"
+    )
+    registry.visibility = "organization"
+    registry.allow_all_artifact_types = True
+    registry.name = "new-name"
+    registry.description = "new description"
+
+    registry.save()
+
+    assert server.calls == ["upsert", "rename"]
+    assert server.project["name"] == f"{PREFIX}new-name"
+    assert server.project["description"] == "new description"
+    assert registry.name == "new-name"
+
+
 def test_save_upsert_failure_without_rename_raises_value_error(
     registry: Registry, server: FakeRegistryServer
 ):
