@@ -1407,7 +1407,7 @@ func (s *Sender) sendRequestUploadEvalTable(
 		return
 	}
 
-	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetName()))
+	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetTable().GetName()))
 	ctx, cancel := context.WithCancel(op.Context(s.runWork.BeforeEndCtx()))
 	if request != nil {
 		// Stop uploading if the client cancels the request.
@@ -1418,9 +1418,9 @@ func (s *Sender) sendRequestUploadEvalTable(
 	go func() {
 		defer s.evalTableWG.Done()
 		defer cancel()
+		defer op.Finish()
 
 		response, err := s.uploadEvalTable(ctx, msg)
-		op.Finish()
 
 		switch {
 		case evaltables.IsUsageError(err):
@@ -1450,12 +1450,12 @@ func (s *Sender) uploadEvalTable(
 	ctx context.Context,
 	msg *spb.UploadEvalTableRequest,
 ) (*spb.UploadEvalTableResponse, error) {
-	table, err := s.evalTableUploader.Encode(msg)
+	table, err := s.evalTableUploader.Encode(msg.GetTable())
 	if err != nil {
 		return nil, err
 	}
 
-	if mediaPaths := msg.GetUploadMediaPaths(); len(mediaPaths) > 0 {
+	if mediaPaths := msg.GetTable().GetUploadMediaPaths(); len(mediaPaths) > 0 {
 		files := &spb.FilesRecord{}
 		for _, path := range mediaPaths {
 			files.Files = append(files.Files, &spb.FilesItem{

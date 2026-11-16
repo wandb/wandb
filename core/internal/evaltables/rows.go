@@ -38,16 +38,16 @@ type rowEncoder struct {
 	scores  []rowColumn
 }
 
-// newRowEncoder returns an encoder for the request's rows.
+// newRowEncoder returns an encoder for the table's rows.
 //
-// The request's columns must have passed validateColumns.
+// The table's columns must have passed validateColumns.
 func newRowEncoder(
-	request *spb.UploadEvalTableRequest,
+	data *spb.EvalTableData,
 	runPath runbranch.RunPath,
 ) (*rowEncoder, error) {
 	e := &rowEncoder{media: &mediaConverter{runPath: runPath}}
 
-	for _, field := range request.GetDatasetFields() {
+	for _, field := range data.GetDatasetFields() {
 		column := newRowColumn(
 			field.GetName(), field.GetValueType(), field.GetWandbMediaType())
 
@@ -62,7 +62,7 @@ func newRowEncoder(
 		}
 	}
 
-	for _, scorer := range request.GetScorers() {
+	for _, scorer := range data.GetScorers() {
 		e.scores = append(e.scores,
 			newRowColumn(scorer.GetName(), scorer.GetValueType(), ""))
 	}
@@ -79,7 +79,7 @@ func newRowColumn(name, valueType, mediaType string) rowColumn {
 	}
 }
 
-// encodeRows returns the CES row JSON of the request's rows.
+// encodeRows returns the CES row JSON of rows.
 func (e *rowEncoder) encodeRows(rows []*spb.EvalTableRow) ([][]byte, error) {
 	encoded := make([][]byte, len(rows))
 	for i, row := range rows {
