@@ -556,6 +556,29 @@ func TestState_Pop_UnsentSummaryDeltaNoLongerAccepted(t *testing.T) {
 	assert.False(t, isDelta)
 }
 
+func TestState_Pop_SentSummaryDeltaNoLongerAccepted(t *testing.T) {
+	accept := true
+	state := &FileStreamState{
+		MaxFileLineSize:     999,
+		MaxRequestSizeBytes: 999,
+		AcceptSummaryDelta:  func() bool { return accept },
+	}
+	popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
+	popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "2")})
+
+	// The next request carries the full summary even with no summary changes.
+	accept = false
+	line, isDelta := popSummaryLine(t, state,
+		&FileStreamRequest{EventsLines: []string{`{"cpu":1}`}})
+	assert.JSONEq(t, `{"a":2}`, line)
+	assert.False(t, isDelta)
+
+	// Only once.
+	line, _ = popSummaryLine(t, state,
+		&FileStreamRequest{EventsLines: []string{`{"cpu":2}`}})
+	assert.Empty(t, line)
+}
+
 func TestState_Pop_EmptySummaryDeltaIsNotSent(t *testing.T) {
 	state := &FileStreamState{
 		MaxFileLineSize:    999,

@@ -237,10 +237,10 @@ func (s *FileStreamState) popSummary(
 			s.summaryDelta != nil && !s.summaryDelta.HasRemovals())
 	}
 
-	// Send the full summary instead of a delta the backend no longer
-	// accepts, and on the final request.
-	if (s.unsentSummaryIsDelta && !acceptDelta) ||
-		(request.Complete && (s.unsentSummaryIsDelta || s.deltaSinceFull)) {
+	// After deltas, send the full summary once the backend stops accepting
+	// them, and on the final request.
+	if (s.unsentSummaryIsDelta || s.deltaSinceFull) &&
+		(!acceptDelta || request.Complete) {
 		s.serializeSummary(logger, false)
 	}
 
