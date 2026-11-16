@@ -897,7 +897,9 @@ def test_eval_table_media_request_matches_core_fixture(
 
     run.log({"eval": table})
 
-    [request] = [call.args[0] for call in deliver_upload_eval_table.call_args_list]
+    [request] = [
+        call.args[0].table for call in deliver_upload_eval_table.call_args_list
+    ]
     actual = {
         "dataset_fields": [
             MessageToDict(field, preserving_proto_field_name=True)
@@ -954,7 +956,9 @@ def test_retry_after_failed_upload_resends_placed_media(
         run.log({"eval": table})
     run.log({"eval": table})
 
-    first, retry = (call.args[0] for call in deliver_upload_eval_table.call_args_list)
+    first, retry = (
+        call.args[0].table for call in deliver_upload_eval_table.call_args_list
+    )
     assert len(first.upload_media_paths) == 1
     assert retry.upload_media_paths == first.upload_media_paths
 
