@@ -280,13 +280,16 @@ func (s *FileStreamState) popSummary(
 }
 
 // serializeSummary sets UnsentSummary to summaryDelta or to the full summary.
+//
+// A delta leaves out values from run.log(), which the backend takes from
+// history.
 func (s *FileStreamState) serializeSummary(
 	logger *observability.CoreLogger,
 	asDelta bool,
 ) {
 	serialize := s.RunSummary.Serialize
 	if asDelta {
-		serialize = s.summaryDelta.Serialize
+		serialize = s.summaryDelta.SerializeWithoutHistory
 	}
 
 	summaryJSON, err := serialize()

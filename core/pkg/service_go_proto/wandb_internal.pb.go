@@ -3615,10 +3615,12 @@ func (x *SummaryRecord) GetXInfo() *XRecordInfo {
 // key is supposedly more performant than nested_key, so nested_key should be
 // only used for nested keys.
 type SummaryItem struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	NestedKey     []string               `protobuf:"bytes,2,rep,name=nested_key,json=nestedKey,proto3" json:"nested_key,omitempty"`
-	ValueJson     string                 `protobuf:"bytes,16,opt,name=value_json,json=valueJson,proto3" json:"value_json,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Key       string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	NestedKey []string               `protobuf:"bytes,2,rep,name=nested_key,json=nestedKey,proto3" json:"nested_key,omitempty"`
+	ValueJson string                 `protobuf:"bytes,16,opt,name=value_json,json=valueJson,proto3" json:"value_json,omitempty"`
+	// Whether the value is the key's latest value from run.log().
+	FromHistory   bool `protobuf:"varint,3,opt,name=from_history,json=fromHistory,proto3" json:"from_history,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3672,6 +3674,13 @@ func (x *SummaryItem) GetValueJson() string {
 		return x.ValueJson
 	}
 	return ""
+}
+
+func (x *SummaryItem) GetFromHistory() bool {
+	if x != nil {
+		return x.FromHistory
+	}
+	return false
 }
 
 type SummaryResult struct {
@@ -12278,13 +12287,14 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rSummaryRecord\x123\n" +
 	"\x06update\x18\x01 \x03(\v2\x1b.wandb_internal.SummaryItemR\x06update\x123\n" +
 	"\x06remove\x18\x02 \x03(\v2\x1b.wandb_internal.SummaryItemR\x06remove\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"]\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x80\x01\n" +
 	"\vSummaryItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
 	"\n" +
 	"nested_key\x18\x02 \x03(\tR\tnestedKey\x12\x1d\n" +
 	"\n" +
-	"value_json\x18\x10 \x01(\tR\tvalueJson\"\x0f\n" +
+	"value_json\x18\x10 \x01(\tR\tvalueJson\x12!\n" +
+	"\ffrom_history\x18\x03 \x01(\bR\vfromHistory\"\x0f\n" +
 	"\rSummaryResult\"q\n" +
 	"\vFilesRecord\x12/\n" +
 	"\x05files\x18\x01 \x03(\v2\x19.wandb_internal.FilesItemR\x05files\x121\n" +

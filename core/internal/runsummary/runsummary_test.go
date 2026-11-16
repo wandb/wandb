@@ -62,6 +62,23 @@ func TestSummaryTypes(t *testing.T) {
 		string(encoded))
 }
 
+func TestUpdateSummaries_MarksLatestValuesFromHistory(t *testing.T) {
+	rs := runsummary.New()
+	rh := runhistory.New()
+	rh.SetFloat(pathtree.PathOf("acc"), 0.8)
+	rh.SetFloat(pathtree.PathOf("loss"), 0.5)
+	rs.ConfigureMetric(pathtree.PathOf("loss"), false, runsummary.Min)
+
+	updates, err := rs.UpdateSummaries(rh)
+
+	require.NoError(t, err)
+	fromHistory := make(map[string]bool)
+	for _, item := range updates {
+		fromHistory[item.GetNestedKey()[0]] = item.GetFromHistory()
+	}
+	assert.Equal(t, map[string]bool{"acc": true, "loss": false}, fromHistory)
+}
+
 func TestNestedKey(t *testing.T) {
 	rs := runsummary.New()
 	rh := runhistory.New()

@@ -1358,6 +1358,9 @@ pub struct SummaryItem {
     pub nested_key: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag = "16")]
     pub value_json: ::prost::alloc::string::String,
+    /// Whether the value is the key's latest value from run.log().
+    #[prost(bool, tag = "3")]
+    pub from_history: bool,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]

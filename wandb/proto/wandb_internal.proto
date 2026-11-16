@@ -458,6 +458,9 @@ message SummaryItem {
   string key = 1;
   repeated string nested_key = 2;
   string value_json = 16;
+
+  // Whether the value is the key's latest value from run.log().
+  bool from_history = 3;
 }
 
 message SummaryResult {}

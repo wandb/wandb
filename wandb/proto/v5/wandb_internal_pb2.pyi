@@ -565,14 +565,16 @@ class SummaryRecord(_message.Message):
     def __init__(self, update: _Optional[_Iterable[_Union[SummaryItem, _Mapping]]] = ..., remove: _Optional[_Iterable[_Union[SummaryItem, _Mapping]]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class SummaryItem(_message.Message):
-    __slots__ = ("key", "nested_key", "value_json")
+    __slots__ = ("key", "nested_key", "value_json", "from_history")
     KEY_FIELD_NUMBER: _ClassVar[int]
     NESTED_KEY_FIELD_NUMBER: _ClassVar[int]
     VALUE_JSON_FIELD_NUMBER: _ClassVar[int]
+    FROM_HISTORY_FIELD_NUMBER: _ClassVar[int]
     key: str
     nested_key: _containers.RepeatedScalarFieldContainer[str]
     value_json: str
-    def __init__(self, key: _Optional[str] = ..., nested_key: _Optional[_Iterable[str]] = ..., value_json: _Optional[str] = ...) -> None: ...
+    from_history: bool
+    def __init__(self, key: _Optional[str] = ..., nested_key: _Optional[_Iterable[str]] = ..., value_json: _Optional[str] = ..., from_history: bool = ...) -> None: ...
 
 class SummaryResult(_message.Message):
     __slots__ = ()

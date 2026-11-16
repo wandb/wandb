@@ -110,8 +110,9 @@ func (rs *RunSummary) updateSummary(
 
 	case json != "":
 		return &spb.SummaryItem{
-			NestedKey: path.Labels(),
-			ValueJson: json,
+			NestedKey:   path.Labels(),
+			ValueJson:   json,
+			FromHistory: summary.track.IsEmpty(),
 		}, nil
 
 	default:

@@ -601,6 +601,35 @@ func TestState_Pop_EmptySummaryDeltaIsNotSent(t *testing.T) {
 	assert.Empty(t, line)
 }
 
+func TestState_Pop_SummaryDeltaLeavesOutHistoryValues(t *testing.T) {
+	state := &FileStreamState{
+		MaxFileLineSize:    999,
+		AcceptSummaryDelta: func() bool { return true },
+	}
+	logged := func(valueJSON string) *runsummary.Updates {
+		return runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{
+				{Key: "acc", ValueJson: valueJSON, FromHistory: true},
+			},
+		})
+	}
+
+	line, _ := popSummaryLine(t, state,
+		&FileStreamRequest{SummaryUpdates: logged("0.5")})
+	assert.JSONEq(t, `{"acc":0.5}`, line)
+
+	updates := logged("0.6")
+	updates.Merge(summaryUpdate("best", "0.7"))
+	line, isDelta := popSummaryLine(t, state,
+		&FileStreamRequest{SummaryUpdates: updates})
+	assert.JSONEq(t, `{"best":0.7}`, line)
+	assert.True(t, isDelta)
+
+	line, isDelta = popSummaryLine(t, state, &FileStreamRequest{Complete: true})
+	assert.JSONEq(t, `{"acc":0.6,"best":0.7}`, line)
+	assert.False(t, isDelta)
+}
+
 func TestState_Pop_SummaryDeltaAfterTooLargeFullSummary(t *testing.T) {
 	state := &FileStreamState{
 		MaxFileLineSize:    12,
