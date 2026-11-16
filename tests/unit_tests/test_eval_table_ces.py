@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from google.protobuf.message import Message
-from wandb.errors import CommError, UsageError
+from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces
@@ -29,9 +29,9 @@ def default_eval_table_server_feature_enabled(monkeypatch):
     )
 
 
-def _sent(deliver: MagicMock) -> list[pb.UploadEvalTableRequest]:
-    """Return the requests sent to wandb-core."""
-    return [call.args[0] for call in deliver.call_args_list]
+def _sent(deliver: MagicMock) -> list[pb.EvalTableData]:
+    """Return the tables sent to wandb-core."""
+    return [call.args[0].table for call in deliver.call_args_list]
 
 
 def _value(value: pb.EvalTableValue) -> Any:
@@ -54,7 +54,7 @@ def _named(names: list[str], values: Iterable[pb.EvalTableValue]) -> dict[str, A
     return dict(zip(names, map(_value, values), strict=True))
 
 
-def _rows(request: pb.UploadEvalTableRequest) -> list[dict[str, Any]]:
+def _rows(request: pb.EvalTableData) -> list[dict[str, Any]]:
     """Decode the request's typed rows into dicts keyed by column name."""
     inputs = [field.name for field in request.dataset_fields if field.source == "input"]
     outputs = [
@@ -586,6 +586,7 @@ def test_ces_error_uses_original_integer_column(deliver_upload_eval_table, run):
     ("code", "error_type", "message"),
     [
         (pb.ErrorInfo.USAGE, UsageError, "^failed$"),
+        (pb.ErrorInfo.UNSUPPORTED, UnsupportedError, "^failed$"),
         (pb.ErrorInfo.UNKNOWN, CommError, "^Failed to upload EvalTable: failed$"),
     ],
 )

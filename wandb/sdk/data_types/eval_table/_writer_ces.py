@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import wandb
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
-from wandb.errors import CommError, UsageError
+from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -119,27 +119,6 @@ def _ordered(
     return [values.get(name, pb.EvalTableValue()) for name in names]
 
 
-def _upload_eval_table(
-    run: LocalRun,
-    request: pb.UploadEvalTableRequest,
-) -> pb.UploadEvalTableResponse:
-    """Upload an EvalTable to CES through wandb-core and wait for the result.
-
-    Raises:
-        UsageError: If wandb-core rejects the table as invalid.
-        CommError: If the upload fails.
-    """
-    assert run._interface
-
-    handle = run._interface.deliver_upload_eval_table(request)
-    response = handle.wait_or(timeout=None).response.upload_eval_table_response
-    if not response.HasField("error"):
-        return response
-    if response.error.code == pb.ErrorInfo.USAGE:
-        raise UsageError(response.error.message)
-    raise CommError(f"Failed to upload EvalTable: {response.error.message}")
-
-
 class CESWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
@@ -188,14 +167,15 @@ class CESWriter:
                 f"First affected: {locations}.",
             )
 
-        response = _upload_eval_table(
-            bound_run.run,
+        response = bound_run.run._upload_eval_table(
             pb.UploadEvalTableRequest(
-                name=name,
-                dataset_fields=write_payloads.dataset_fields,
-                scorers=write_payloads.scorers,
-                rows=write_payloads.rows,
-                upload_media_paths=write_payloads.upload_media_paths,
+                table=pb.EvalTableData(
+                    name=name,
+                    dataset_fields=write_payloads.dataset_fields,
+                    scorers=write_payloads.scorers,
+                    rows=write_payloads.rows,
+                    upload_media_paths=write_payloads.upload_media_paths,
+                ),
             ),
         )
 
