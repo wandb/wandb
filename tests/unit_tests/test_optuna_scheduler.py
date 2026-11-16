@@ -11,6 +11,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
 from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
+    OptunaOptimizer,
     OptunaOptions,
     build_optuna_optimizer,
     create_study_from_sweep_config,
@@ -19,7 +20,13 @@ from wandb.sdk.sweeps.scheduler.optuna import (
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import (
+    NESTED_RUN_CONFIG,
+    NESTED_RUN_PARAMS,
+    NESTED_SWEEP_CONFIG,
+    make_run,
+    make_scheduler_grid_sweep,
+)
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -286,6 +293,59 @@ class TestBuildOptunaSchedulerOptimizer:
             build_optuna_optimizer(sweep)
 
         assert "returns a dict of parameter values" in str(error.value)
+
+
+class TestNestedParameters:
+    """Nested sweep parameters are searched flat and suggested nested."""
+
+    @pytest.fixture
+    def optimizer(self) -> OptunaOptimizer:
+        return build_optuna_optimizer(
+            make_scheduler_grid_sweep(config=NESTED_SWEEP_CONFIG)
+        )
+
+    def test_suggests_a_nested_config(self, optimizer: OptunaOptimizer) -> None:
+        (suggestion,) = optimizer.ask_n_runs(1)
+
+        config = suggestion.config.flat_dict()
+        assert config["epochs"] == 3
+        assert config["optimizer"].keys() == {"name", "lr", "schedule"}
+        assert config["optimizer"]["schedule"].keys() == {"warmup"}
+
+    @pytest.mark.parametrize("is_active", [False, True], ids=["finished", "active"])
+    def test_warm_start_reads_the_nested_config(
+        self, optimizer: OptunaOptimizer, is_active: bool
+    ) -> None:
+        config = RunConfig.from_values(NESTED_RUN_CONFIG)
+        if is_active:
+            optimizer.tell_existing_active_run(
+                Run(config=config, state=RunState.RUNNING, wandb_run_id="run")
+            )
+        else:
+            optimizer.tell_existing_finished_run(
+                RunWithMetrics(
+                    config=config,
+                    state=RunState.FINISHED,
+                    wandb_run_id="run",
+                    summary_metrics={"loss": 0.5},
+                    history_metrics=[],
+                )
+            )
+
+        (trial,) = optimizer.study.get_trials(deepcopy=False)
+        assert trial.params == NESTED_RUN_PARAMS
+
+    def test_rejects_names_that_collide_when_flattened(self) -> None:
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {
+                "a.b": {"value": 1},
+                "a": {"parameters": {"b": {"value": 2}}},
+            },
+        }
+
+        with pytest.raises(wandb.Error, match="flatten to the name 'a.b'"):
+            build_optuna_optimizer(make_scheduler_grid_sweep(config=config))
 
 
 class TestExhaustibleSampler:

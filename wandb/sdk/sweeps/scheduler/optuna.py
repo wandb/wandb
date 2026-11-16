@@ -14,11 +14,13 @@ from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, load_source_object
 from wandb.sdk.sweeps.scheduler.optimizer import (
+    NestedParameters,
     Optimizer,
     Run,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    flatten_sweep_parameters,
     is_terminal_state,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -197,10 +199,16 @@ def search_space_from_sweep_config(
 ) -> dict[str, optuna.distributions.BaseDistribution]:
     """Convert a sweep config's `parameters` block into an optuna search space.
 
-    Maps each `name -> spec` entry onto a `name -> distribution` entry.
+    Maps each leaf `name -> spec` entry onto a `name -> distribution` entry,
+    naming nested parameters as `flatten_sweep_parameters` does.
+
+    Raises:
+        ValueError: If a parameter can't be converted, or two parameters
+            flatten to the same name.
     """
     return {
-        name: sweep_parameter_to_distribution(spec) for name, spec in parameters.items()
+        name: sweep_parameter_to_distribution(spec)
+        for name, spec in flatten_sweep_parameters(parameters).items()
     }
 
 
@@ -231,6 +239,9 @@ class OptunaOptimizer(Optimizer):
         self._last_reported_step: dict[str, int] = {}
         # Set when a sampler asks the study to stop; see `_tell_study`.
         self._stop_requested = False
+        self._nested = NestedParameters.from_sweep_parameters(
+            sweep.config.get("parameters") or {}
+        )
 
         super().__init__(sweep)
 
@@ -326,7 +337,9 @@ class OptunaOptimizer(Optimizer):
         """
         run_id = str(trial.number)
         self.trials[run_id] = trial
-        return RunSuggestion(config=RunConfig.from_values(params), run_id=run_id)
+        return RunSuggestion(
+            config=RunConfig.from_values(self._nested.nest(params)), run_id=run_id
+        )
 
     @override
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
@@ -545,7 +558,7 @@ class OptunaOptimizer(Optimizer):
         Returns:
             The trial number to track the run by.
         """
-        self.study.enqueue_trial(data.config.flat_dict())
+        self.study.enqueue_trial(self._nested.flatten(data.config.flat_dict()))
         # Asks directly rather than through ask_n_runs: the enqueued params
         # are fixed, so they cost the search nothing and an exhausted space
         # must still adopt the run rather than leave it untracked.
@@ -592,7 +605,7 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
             values = self.objective_values(data.summary_metrics)
             if values is None:
                 return  # finished but never logged every objective metric
-        config = data.config.flat_dict()
+        config = self._nested.flatten(data.config.flat_dict())
         if not all(name in config for name in self.distributions):
             return
         params = {name: config[name] for name in self.distributions}
@@ -653,7 +666,7 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         # skipped enqueue would leave ask() free to sample a fresh point that
         # then gets told this run's result -- teaching the study a value the
         # params never produced. Repeated params are a faithful warm start.
-        self.study.enqueue_trial(data.config.flat_dict())
+        self.study.enqueue_trial(self._nested.flatten(data.config.flat_dict()))
         # Asks directly rather than through ask_n_runs, as the enqueued params
         # are fixed and so cost an exhausted space nothing.
         self.tell_run(self._ask_suggestion().run_id, data)

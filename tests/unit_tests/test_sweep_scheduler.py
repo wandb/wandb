@@ -68,6 +68,35 @@ MULTI_OBJECTIVE_SWEEP_CONFIG: dict[str, Any] = {
     "parameters": {"x": {"min": 0.0, "max": 1.0}},
 }
 
+NESTED_SWEEP_CONFIG: dict[str, Any] = {
+    "metric": {"name": "loss", "goal": "minimize"},
+    "parameters": {
+        "epochs": {"value": 3},
+        "optimizer": {
+            "parameters": {
+                "name": {"values": ["adam", "sgd"]},
+                "lr": {"min": 0.0, "max": 1.0},
+                "schedule": {"parameters": {"warmup": {"values": [1, 2]}}},
+            }
+        },
+    },
+}
+"""A sweep with parameters nested two levels deep."""
+
+NESTED_RUN_CONFIG: dict[str, Any] = {
+    "epochs": 3,
+    "optimizer": {"name": "sgd", "lr": 0.25, "schedule": {"warmup": 2}},
+}
+"""A run config for `NESTED_SWEEP_CONFIG`."""
+
+NESTED_RUN_PARAMS: dict[str, Any] = {
+    "epochs": 3,
+    "optimizer.name": "sgd",
+    "optimizer.lr": 0.25,
+    "optimizer.schedule.warmup": 2,
+}
+"""`NESTED_RUN_CONFIG` by the flat names Optuna and Ax search over."""
+
 
 def make_run(
     suggestion: RunSuggestion,
