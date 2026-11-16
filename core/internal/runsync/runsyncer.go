@@ -140,7 +140,7 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 	// Print the run's URL once we know it.
 	g.Go(func() error {
 		select {
-		case <-rs.runHandle.Ready():
+		case <-rs.runHandle.ReadyOrFailed():
 			rs.printRunURL()
 		case <-rs.runWork.BeforeEndCtx().Done():
 			rs.logger.Error("runsync: didn't print run URL, handle never became ready")
