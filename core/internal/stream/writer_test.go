@@ -55,11 +55,7 @@ func TestWriter_FlushesExitBeforeForwarding(t *testing.T) {
 		}).New(logWriter)
 		input := make(chan runwork.Work)
 		go writer.Do(input)
-		defer func() {
-			close(input)
-			for range writer.Chan() {
-			}
-		}()
+		defer close(input)
 
 		input <- runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{}))
 		<-writer.Chan()
@@ -73,11 +69,12 @@ func TestWriter_FlushesExitBeforeForwarding(t *testing.T) {
 		synctest.Wait() // The writer is blocked forwarding the exit to the sender.
 
 		record, err := logReader.Read()
+		exitRecord, exitErr := logReader.Read()
+		<-writer.Chan()
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, record.Num)
-		record, err = logReader.Read()
-		require.NoError(t, err)
-		require.NotNil(t, record.GetExit())
-		assert.EqualValues(t, 42, record.GetExit().GetExitCode())
+		require.NoError(t, exitErr)
+		require.NotNil(t, exitRecord.GetExit())
+		assert.EqualValues(t, 42, exitRecord.GetExit().GetExitCode())
 	})
 }
