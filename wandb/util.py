@@ -296,7 +296,7 @@ def check_windows_valid_filename(path: int | str) -> bool:
     Returns:
         bool: True if the path does not contain any invalid characters, False otherwise.
     """
-    return not bool(re.search(r'[<>:"\\?*]', path))  # type: ignore
+    return not bool(re.search(r'[<>:"\\?*|]', str(path)))
 
 
 def make_file_path_upload_safe(path: str) -> str:
