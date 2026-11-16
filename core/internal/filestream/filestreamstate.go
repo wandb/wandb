@@ -71,8 +71,8 @@ type FileStreamState struct {
 	// unsentSummaryIsDelta is whether UnsentSummary holds summaryDelta.
 	unsentSummaryIsDelta bool
 
-	// deltaSinceFull is whether a delta was sent or dropped after the last
-	// full summary.
+	// deltaSinceFull is whether a delta was serialized after the last full
+	// summary.
 	deltaSinceFull bool
 }
 
@@ -239,8 +239,7 @@ func (s *FileStreamState) popSummary(
 
 	// After deltas, send the full summary once the backend stops accepting
 	// them, and on the final request.
-	if (s.unsentSummaryIsDelta || s.deltaSinceFull) &&
-		(!acceptDelta || request.Complete) {
+	if s.deltaSinceFull && (!acceptDelta || request.Complete) {
 		s.serializeSummary(logger, false)
 	}
 
@@ -310,18 +309,12 @@ func (s *FileStreamState) serializeSummary(
 
 	s.UnsentSummary = string(summaryJSON)
 	s.unsentSummaryIsDelta = asDelta
+	s.deltaSinceFull = asDelta
 	s.LastRunSummarySize = len(summaryJSON)
-	if !asDelta {
-		s.deltaSinceFull = false
-	}
 }
 
 // clearUnsentSummary marks UnsentSummary as sent or dropped.
 func (s *FileStreamState) clearUnsentSummary(acceptDelta bool) {
-	if s.unsentSummaryIsDelta {
-		s.deltaSinceFull = true
-	}
-
 	s.summaryDelta = nil
 	if acceptDelta {
 		s.summaryDelta = runsummary.NoUpdates()

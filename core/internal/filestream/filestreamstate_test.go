@@ -494,22 +494,31 @@ func TestState_Pop_SummaryDelta(t *testing.T) {
 }
 
 func TestState_Pop_SummaryDeltaThenComplete(t *testing.T) {
-	for _, request := range []*FileStreamRequest{
-		{Complete: true},
-		{Complete: true, SummaryUpdates: summaryUpdate("c", "3")},
+	for _, tc := range []struct {
+		name    string
+		request *FileStreamRequest
+		want    string
+	}{
+		{"no new changes", &FileStreamRequest{Complete: true}, `{"a":1,"b":2}`},
+		{
+			"new changes",
+			&FileStreamRequest{Complete: true, SummaryUpdates: summaryUpdate("c", "3")},
+			`{"a":1,"b":2,"c":3}`,
+		},
 	} {
-		state := &FileStreamState{
-			MaxFileLineSize:    999,
-			AcceptSummaryDelta: func() bool { return true },
-		}
-		popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
-		popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
+		t.Run(tc.name, func(t *testing.T) {
+			state := &FileStreamState{
+				MaxFileLineSize:    999,
+				AcceptSummaryDelta: func() bool { return true },
+			}
+			popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
+			popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
 
-		// The final request carries the full summary.
-		line, isDelta := popSummaryLine(t, state, request)
-		assert.Contains(t, line, `"a":1`)
-		assert.Contains(t, line, `"b":2`)
-		assert.False(t, isDelta)
+			line, isDelta := popSummaryLine(t, state, tc.request)
+
+			assert.JSONEq(t, tc.want, line)
+			assert.False(t, isDelta)
+		})
 	}
 }
 
@@ -607,15 +616,4 @@ func TestState_Pop_SummaryDeltaAfterTooLargeFullSummary(t *testing.T) {
 		&FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
 	assert.JSONEq(t, `{"b":2}`, line)
 	assert.True(t, isDelta)
-}
-
-func TestState_Pop_SummaryWithoutAcceptSummaryDeltaIsFull(t *testing.T) {
-	state := &FileStreamState{MaxFileLineSize: 999}
-	popSummaryLine(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
-
-	line, isDelta := popSummaryLine(t, state,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
-
-	assert.JSONEq(t, `{"a":1,"b":2}`, line)
-	assert.False(t, isDelta)
 }

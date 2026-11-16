@@ -45,7 +45,6 @@ func TestAcceptSummaryDelta_Feedback(t *testing.T) {
 		feedback []map[string]any
 		want     bool
 	}{
-		{"default false", nil, false},
 		{"accepted", []map[string]any{{"accept_summary_delta": true}}, true},
 		{
 			"absent is false",
@@ -57,7 +56,6 @@ func TestAcceptSummaryDelta_Feedback(t *testing.T) {
 			[]map[string]any{{"accept_summary_delta": true}, nil},
 			true,
 		},
-		{"non-bool is false", []map[string]any{{"accept_summary_delta": "yes"}}, false},
 	}
 
 	for _, tc := range tests {

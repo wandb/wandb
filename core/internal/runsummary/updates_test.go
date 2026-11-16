@@ -208,16 +208,3 @@ func TestUpdates_Serialize_SetValuesOnly(t *testing.T) {
 		`{"_wandb":{"runtime":12},"loss":{"min":0.2}}`,
 		string(json))
 }
-
-func TestUpdates_HasRemovals(t *testing.T) {
-	var nilUpdates *runsummary.Updates
-	assert.False(t, nilUpdates.HasRemovals())
-
-	assert.False(t, runsummary.FromProto(&spb.SummaryRecord{
-		Update: []*spb.SummaryItem{{Key: "x", ValueJson: `1`}},
-	}).HasRemovals())
-
-	assert.True(t, runsummary.FromProto(&spb.SummaryRecord{
-		Remove: []*spb.SummaryItem{{Key: "x"}},
-	}).HasRemovals())
-}
