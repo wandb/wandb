@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import gzip
-import itertools
 import logging
 import math
 import os
@@ -14,7 +13,7 @@ from typing import IO, TYPE_CHECKING, Any, Literal
 import wandb
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
-from wandb.errors import CommError, UsageError
+from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -129,21 +128,29 @@ def _ordered(
 
 @contextlib.contextmanager
 def _add_rows(
-    request: pb.UploadEvalTableRequest,
+    table: pb.EvalTableData,
     rows: Sequence[pb.EvalTableRow],
+    *,
+    staging_dir: str,
 ) -> Iterator[None]:
-    """Add rows to an upload request, in a temporary file for large tables.
+    """Add rows to a table, in a temporary file for large tables.
 
-    The file is deleted when the context exits. wandb-core only reads it,
-    and responds after the upload finishes.
+    The file is in `staging_dir` and is deleted when the context exits.
+    wandb-core only reads it, and responds after the upload finishes.
     """
-    cumulative_bytes = itertools.accumulate(row.ByteSize() for row in rows)
-    if all(size <= _ROWS_FILE_THRESHOLD_BYTES for size in cumulative_bytes):
-        request.rows.extend(rows)
+    total_bytes = 0
+    for row in rows:
+        total_bytes += row.ByteSize()
+        if total_bytes > _ROWS_FILE_THRESHOLD_BYTES:
+            break
+    else:
+        table.rows.extend(rows)
         yield
         return
 
+    os.makedirs(staging_dir, exist_ok=True)
     file = tempfile.NamedTemporaryFile(
+        dir=staging_dir,
         prefix="wandb-eval-table-",
         suffix=".rows.pb.gz",
         delete=False,
@@ -151,7 +158,7 @@ def _add_rows(
     try:
         with file:
             _write_rows(file, rows)
-        request.rows_file_path = file.name
+        table.rows_file_path = file.name
         yield
     finally:
         # Removal is best effort, so that a failure to remove the file,
@@ -181,27 +188,6 @@ def _encode_varint(value: int) -> bytes:
         value >>= 7
     encoded.append(value)
     return bytes(encoded)
-
-
-def _upload_eval_table(
-    run: LocalRun,
-    request: pb.UploadEvalTableRequest,
-) -> pb.UploadEvalTableResponse:
-    """Upload an EvalTable to CES through wandb-core and wait for the result.
-
-    Raises:
-        UsageError: If wandb-core rejects the table as invalid.
-        CommError: If the upload fails.
-    """
-    assert run._interface
-
-    handle = run._interface.deliver_upload_eval_table(request)
-    response = handle.wait_or(timeout=None).response.upload_eval_table_response
-    if not response.HasField("error"):
-        return response
-    if response.error.code == pb.ErrorInfo.USAGE:
-        raise UsageError(response.error.message)
-    raise CommError(f"Failed to upload EvalTable: {response.error.message}")
 
 
 class CESWriter:
@@ -252,14 +238,19 @@ class CESWriter:
                 f"First affected: {locations}.",
             )
 
-        request = pb.UploadEvalTableRequest(
+        table = pb.EvalTableData(
             name=name,
             dataset_fields=write_payloads.dataset_fields,
             scorers=write_payloads.scorers,
             upload_media_paths=write_payloads.upload_media_paths,
         )
-        with _add_rows(request, write_payloads.rows):
-            response = _upload_eval_table(bound_run.run, request)
+        staging_dir = os.path.join(
+            bound_run.run._settings.sync_dir, "tmp", "eval-tables"
+        )
+        with _add_rows(table, write_payloads.rows, staging_dir=staging_dir):
+            response = bound_run.run._upload_eval_table(
+                pb.UploadEvalTableRequest(table=table)
+            )
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",
