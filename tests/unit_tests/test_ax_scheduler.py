@@ -22,6 +22,7 @@ from wandb.sdk.sweeps.scheduler.ax import (
     create_default_client,
     sweep_parameter_to_parameter,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
@@ -168,6 +169,69 @@ class TestCompleteTrial:
         attached = _experiment(client).lookup_data().full_df
         final = attached[attached["mean"] == 0.5]
         assert final["step"].tolist() == [4]
+
+
+@pytest.mark.parametrize("is_active", [False, True], ids=["finished", "active"])
+class TestWarmStartIntValues:
+    """A prior run's value for an int parameter is never rounded."""
+
+    @pytest.fixture
+    def int_client(self) -> Client:
+        client = Client()
+        client.configure_experiment(
+            parameters=[
+                ax_module.RangeParameterConfig(
+                    name="n", bounds=(1, 10), parameter_type="int"
+                ),
+            ]
+        )
+        client.configure_optimization(objective="-loss")
+        return client
+
+    def _warm_start(
+        self, optimizer: AxOptimizer, value: float, *, is_active: bool
+    ) -> None:
+        config = RunConfig.from_values({"n": value})
+        if is_active:
+            optimizer.tell_existing_active_run(
+                Run(
+                    config=config,
+                    state=RunState.RUNNING,
+                    wandb_run_id="wandb-run-id",
+                )
+            )
+            return
+        optimizer.tell_existing_finished_run(
+            RunWithMetrics(
+                config=config,
+                state=RunState.FINISHED,
+                wandb_run_id="wandb-run-id",
+                summary_metrics={"loss": 0.5},
+                history_metrics=[],
+            )
+        )
+
+    def test_rejects_a_fractional_value(
+        self, int_client: Client, sweep: SweepInfo, is_active: bool
+    ) -> None:
+        optimizer = AxOptimizer(int_client, sweep)
+
+        with pytest.raises(ValueError, match="int parameter 'n' to 5.7"):
+            self._warm_start(optimizer, 5.7, is_active=is_active)
+
+        assert _experiment(int_client).trials == {}
+
+    def test_casts_a_whole_float_to_int(
+        self, int_client: Client, sweep: SweepInfo, is_active: bool
+    ) -> None:
+        optimizer = AxOptimizer(int_client, sweep)
+
+        self._warm_start(optimizer, 5.0, is_active=is_active)
+
+        (trial,) = _experiment(int_client).trials.values()
+        value = trial.arm.parameters["n"]
+        assert value == 5
+        assert type(value) is int
 
 
 class TestPruneRun:
