@@ -2713,7 +2713,8 @@ pub struct EvalTableData {
     /// preceded by its size as a varint.
     ///
     /// It is used for tables too large to send inline. The client owns the
-    /// file and deletes it after the response; wandb-core only reads it.
+    /// file and deletes it after the response; wandb-core only reads it, and
+    /// may write temporary files in the same directory.
     #[prost(string, tag = "5")]
     pub rows_file_path: ::prost::alloc::string::String,
     /// Run files that the table's media cells reference, relative to the run's

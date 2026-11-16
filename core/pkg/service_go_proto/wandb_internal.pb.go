@@ -9813,7 +9813,8 @@ type EvalTableData struct {
 	// preceded by its size as a varint.
 	//
 	// It is used for tables too large to send inline. The client owns the
-	// file and deletes it after the response; wandb-core only reads it.
+	// file and deletes it after the response; wandb-core only reads it, and
+	// may write temporary files in the same directory.
 	RowsFilePath string `protobuf:"bytes,5,opt,name=rows_file_path,json=rowsFilePath,proto3" json:"rows_file_path,omitempty"`
 	// Run files that the table's media cells reference, relative to the run's
 	// files directory, for wandb-core to upload. Cells get their CES URIs
