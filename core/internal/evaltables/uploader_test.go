@@ -5,16 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/evaltables"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -43,10 +40,7 @@ type cesRequest struct {
 
 // fakeCES is a CES server that records requests and returns fixed IDs.
 type fakeCES struct {
-	*httptest.Server
-
-	mu       sync.Mutex
-	requests []cesRequest
+	*apitest.RecordingServer
 
 	// onRequest, if set, is called with each request's path before
 	// responding.
@@ -61,19 +55,8 @@ func newFakeCES(t *testing.T) *fakeCES {
 	t.Helper()
 	ces := &fakeCES{}
 
-	ces.Server = httptest.NewServer(http.HandlerFunc(
+	ces.RecordingServer = apitest.NewRecordingServer(apitest.WithHandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(r.Body)
-			require.NoError(t, err)
-
-			ces.mu.Lock()
-			ces.requests = append(ces.requests, cesRequest{
-				Path:           r.URL.Path,
-				IdempotencyKey: r.Header.Get("Idempotency-Key"),
-				Body:           string(body),
-			})
-			ces.mu.Unlock()
-
 			if ces.onRequest != nil {
 				ces.onRequest(r.URL.Path)
 			}
@@ -106,9 +89,15 @@ func newFakeCES(t *testing.T) *fakeCES {
 }
 
 func (c *fakeCES) Requests() []cesRequest {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.requests
+	var requests []cesRequest
+	for _, r := range c.RecordingServer.Requests() {
+		requests = append(requests, cesRequest{
+			Path:           r.URL.Path,
+			IdempotencyKey: r.Header.Get("Idempotency-Key"),
+			Body:           string(r.Body),
+		})
+	}
+	return requests
 }
 
 const projectFoundJSON = `{"project": {"internalId": "project-internal-id"}}`
@@ -154,7 +143,7 @@ func newTestUploaderWithSettings(
 func upload(
 	ctx context.Context,
 	uploader *evaltables.Uploader,
-	request *spb.UploadEvalTableRequest,
+	request *spb.EvalTableData,
 ) (*spb.UploadEvalTableResponse, error) {
 	table, err := uploader.Encode(request)
 	if err != nil {
@@ -166,7 +155,7 @@ func upload(
 // encode validates and encodes an EvalTable without uploading it.
 func encode(
 	t *testing.T,
-	request *spb.UploadEvalTableRequest,
+	request *spb.EvalTableData,
 ) (*evaltables.EncodedTable, error) {
 	t.Helper()
 	uploader, _ := newTestUploaderWithSettings(
@@ -230,7 +219,7 @@ func TestUpload(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, mockGQL := newTestUploader(t, ces, projectFoundJSON)
 
-	response, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	response, err := upload(context.Background(), uploader, &spb.EvalTableData{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "prompt", ValueType: "string"},
@@ -283,7 +272,7 @@ func TestUpload(t *testing.T) {
 }
 
 func TestEncode_AllValueTypes(t *testing.T) {
-	table, err := encode(t, &spb.UploadEvalTableRequest{
+	table, err := encode(t, &spb.EvalTableData{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "flag", ValueType: "boolean"},
@@ -402,7 +391,7 @@ func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
 		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, n))
 	}
 
-	table, err := encode(t, &spb.UploadEvalTableRequest{
+	table, err := encode(t, &spb.EvalTableData{
 		DatasetFields: fields,
 		Rows:          []*spb.EvalTableRow{{Input: values(row...)}},
 	})
@@ -426,7 +415,7 @@ func encodeJSON(t *testing.T, v any) string {
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	request := &spb.UploadEvalTableRequest{
+	request := &spb.EvalTableData{
 		Name: "my-table",
 		Rows: []*spb.EvalTableRow{{}},
 	}
@@ -450,7 +439,8 @@ func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
 }
 
 func TestUpload_RetriesReuseIdempotencyKey(t *testing.T) {
-	evaltables.SetRetryWaitMinForTest(t, time.Millisecond)
+	// The retry waits api.DefaultRetryWaitMin.
+	t.Parallel()
 	ces := newFakeCES(t)
 	var failed atomic.Bool
 	ces.errorStatus = func(path string) int {
@@ -463,7 +453,7 @@ func TestUpload_RetriesReuseIdempotencyKey(t *testing.T) {
 	}
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
 		Name: "my-table",
 		Rows: []*spb.EvalTableRow{{}},
 	})
@@ -500,7 +490,7 @@ func TestUpload_StopsRetryingWhenCancelled(t *testing.T) {
 	}
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	_, err := upload(ctx, uploader, &spb.UploadEvalTableRequest{
+	_, err := upload(ctx, uploader, &spb.EvalTableData{
 		Name: "my-table",
 		Rows: []*spb.EvalTableRow{{}},
 	})
@@ -516,7 +506,7 @@ func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
 
 	// Each row is 1 MiB, so at most 7 fit under the 8 MiB target with the
 	// surrounding JSON.
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
 		Name:          "t",
 		DatasetFields: outputFieldX,
 		Rows:          outputRows(10, 1<<20),
@@ -541,7 +531,7 @@ func TestUpload_KeepsExampleKeysOfRowsWithoutInputs(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
 	// Each row is 3 MiB, so only two fit under the 8 MiB target.
-	_, err := upload(context.Background(), uploader, &spb.UploadEvalTableRequest{
+	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
 		Name:          "t",
 		DatasetFields: outputFieldX,
 		Rows:          outputRows(3, 3<<20),
@@ -582,7 +572,7 @@ func TestUpload_ReportsRowProgress(t *testing.T) {
 
 	// Each row is 1 MiB, so the rows are sent in batches of 7 and 3.
 	_, err := upload(op.Context(context.Background()), uploader,
-		&spb.UploadEvalTableRequest{
+		&spb.EvalTableData{
 			Name:          "t",
 			DatasetFields: outputFieldX,
 			Rows:          outputRows(10, 1<<20),
@@ -596,7 +586,7 @@ func TestUpload_NoCESURL(t *testing.T) {
 	uploader, _ := newTestUploaderWithSettings(t, projectFoundJSON, settings.New())
 
 	_, err := upload(context.Background(), uploader,
-		&spb.UploadEvalTableRequest{Name: "t"})
+		&spb.EvalTableData{Name: "t"})
 
 	assert.ErrorContains(t, err, "no CES URL in settings")
 	assert.False(t, evaltables.IsUsageError(err))
@@ -607,7 +597,7 @@ func TestUpload_ProjectNotFound(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, `{"project": null}`)
 
 	_, err := upload(context.Background(), uploader,
-		&spb.UploadEvalTableRequest{Name: "t"})
+		&spb.EvalTableData{Name: "t"})
 
 	assert.ErrorContains(t, err, "project test-entity/test-project not found")
 	assert.Empty(t, ces.Requests())
@@ -616,12 +606,12 @@ func TestUpload_ProjectNotFound(t *testing.T) {
 func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
 	testCases := []struct {
 		name    string
-		request *spb.UploadEvalTableRequest
+		request *spb.EvalTableData
 		wantErr string
 	}{
 		{
 			name: "source",
-			request: &spb.UploadEvalTableRequest{
+			request: &spb.EvalTableData{
 				DatasetFields: []*spb.EvalTableField{
 					{Source: "metadata", Name: "a", ValueType: "string"},
 				},
@@ -630,7 +620,7 @@ func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
 		},
 		{
 			name: "field value type",
-			request: &spb.UploadEvalTableRequest{
+			request: &spb.EvalTableData{
 				DatasetFields: []*spb.EvalTableField{
 					{Source: "input", Name: "a", ValueType: "float"},
 				},
@@ -639,7 +629,7 @@ func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
 		},
 		{
 			name: "scorer value type",
-			request: &spb.UploadEvalTableRequest{
+			request: &spb.EvalTableData{
 				Scorers: []*spb.EvalTableScorer{{Name: "a", ValueType: "json"}},
 			},
 			wantErr: `scorer "a" has unknown value type "json"`,
@@ -656,10 +646,48 @@ func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
 	}
 }
 
+func TestEncode_RejectsDuplicateColumns(t *testing.T) {
+	testCases := []struct {
+		name    string
+		table   *spb.EvalTableData
+		wantErr string
+	}{
+		{
+			name: "field",
+			table: &spb.EvalTableData{
+				DatasetFields: []*spb.EvalTableField{
+					{Source: "input", Name: "a", ValueType: "string"},
+					{Source: "input", Name: "a", ValueType: "integer"},
+				},
+			},
+			wantErr: `duplicate input field "a"`,
+		},
+		{
+			name: "scorer",
+			table: &spb.EvalTableData{
+				Scorers: []*spb.EvalTableScorer{
+					{Name: "a", ValueType: "number"},
+					{Name: "a", ValueType: "boolean"},
+				},
+			},
+			wantErr: `duplicate scorer "a"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := encode(t, tc.table)
+
+			assert.ErrorContains(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
+		})
+	}
+}
+
 func TestEncode_RejectsOversizedColumns(t *testing.T) {
 	// Each "<" is escaped to 6 bytes, so the name alone exceeds the limit.
 	name := strings.Repeat("<", 3<<20)
-	_, err := encode(t, &spb.UploadEvalTableRequest{
+	_, err := encode(t, &spb.EvalTableData{
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: name, ValueType: "string"},
 		},
@@ -738,7 +766,7 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := encode(t, &spb.UploadEvalTableRequest{
+			_, err := encode(t, &spb.EvalTableData{
 				DatasetFields: []*spb.EvalTableField{tc.field},
 				Rows:          []*spb.EvalTableRow{tc.row},
 			})
@@ -751,7 +779,7 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 
 func TestEncode_RejectsOversizedRow(t *testing.T) {
 	// Each "\n" is escaped to 2 bytes, so the encoded row exceeds 16 MiB.
-	_, err := encode(t, &spb.UploadEvalTableRequest{
+	_, err := encode(t, &spb.EvalTableData{
 		DatasetFields: outputFieldX,
 		Rows: []*spb.EvalTableRow{
 			{Output: values(stringValue(strings.Repeat("\n", 8<<20)))},
@@ -804,7 +832,7 @@ func TestEncode_ConvertsMedia(t *testing.T) {
 		`"height":48` +
 		`}`
 
-	table, err := encode(t, &spb.UploadEvalTableRequest{
+	table, err := encode(t, &spb.EvalTableData{
 		Name: "my-table",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "prompt", ValueType: "string"},
@@ -913,7 +941,7 @@ func TestEncode_ConvertsMedia(t *testing.T) {
 func TestEncode_ConvertsPythonMedia(t *testing.T) {
 	fixture, err := os.ReadFile("testdata/upload_media_request.json")
 	require.NoError(t, err)
-	request := &spb.UploadEvalTableRequest{}
+	request := &spb.EvalTableData{}
 	require.NoError(t, protojson.Unmarshal(fixture, request))
 	request.Name = "my-table"
 
@@ -984,7 +1012,7 @@ func TestEncode_ConvertsPythonMedia(t *testing.T) {
 }
 
 func TestEncode_KeepsNullMedia(t *testing.T) {
-	table, err := encode(t, &spb.UploadEvalTableRequest{
+	table, err := encode(t, &spb.EvalTableData{
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
 			{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
@@ -1046,7 +1074,7 @@ func TestEncode_RejectsInvalidMedia(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := encode(t, &spb.UploadEvalTableRequest{
+			_, err := encode(t, &spb.EvalTableData{
 				DatasetFields: []*spb.EvalTableField{{
 					Source:         "output",
 					Name:           "media",

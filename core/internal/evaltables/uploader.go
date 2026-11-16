@@ -95,11 +95,11 @@ type EncodedTable struct {
 	rowsJSON [][]byte
 }
 
-// Encode validates an EvalTable upload request and encodes its rows.
+// Encode validates an EvalTable and encodes its rows.
 //
-// Errors in the request's table satisfy IsUsageError.
+// Errors in the table satisfy IsUsageError.
 func (u *Uploader) Encode(
-	request *spb.UploadEvalTableRequest,
+	data *spb.EvalTableData,
 ) (*EncodedTable, error) {
 	upserter, err := u.runHandle.Upserter()
 	if err != nil {
@@ -108,24 +108,24 @@ func (u *Uploader) Encode(
 	runPath := upserter.RunPath()
 
 	columns := ces.EvalTableColumnNewParams{
-		DatasetFields: ces.F(datasetFieldParams(request.GetDatasetFields())),
-		Scorers:       ces.F(scorerParams(request.GetScorers())),
+		DatasetFields: ces.F(datasetFieldParams(data.GetDatasetFields())),
+		Scorers:       ces.F(scorerParams(data.GetScorers())),
 	}
-	if err := validateColumns(request, &columns); err != nil {
+	if err := validateColumns(data, &columns); err != nil {
 		return nil, usageError{err}
 	}
 
-	encoder, err := newRowEncoder(request, runPath)
+	encoder, err := newRowEncoder(data, runPath)
 	if err != nil {
 		return nil, usageError{err}
 	}
-	rowsJSON, err := encoder.encodeRows(request.GetRows())
+	rowsJSON, err := encoder.encodeRows(data.GetRows())
 	if err != nil {
 		return nil, usageError{err}
 	}
 
 	return &EncodedTable{
-		name:     request.GetName(),
+		name:     data.GetName(),
 		runPath:  runPath,
 		columns:  columns,
 		rowsJSON: rowsJSON,
@@ -290,14 +290,17 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-// validateColumns checks that the request's columns have known types and
-// that their CES request fits CES's size limit, so that an invalid table
-// fails before any CES request.
+// validateColumns checks that the table's columns have known types and
+// unique names, and that their CES request fits CES's size limit, so that
+// an invalid table fails before any CES request.
 func validateColumns(
-	request *spb.UploadEvalTableRequest,
+	data *spb.EvalTableData,
 	columns *ces.EvalTableColumnNewParams,
 ) error {
-	for _, field := range request.GetDatasetFields() {
+	type fieldKey struct{ source, name string }
+	fields := make(map[fieldKey]bool)
+	for _, field := range data.GetDatasetFields() {
+		key := fieldKey{field.GetSource(), field.GetName()}
 		source := ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource())
 		valueType := ces.EvalTableColumnNewParamsDatasetFieldsValueType(field.GetValueType())
 		mediaType := field.GetWandbMediaType()
@@ -316,16 +319,25 @@ func validateColumns(
 			return fmt.Errorf(
 				"field %q has unknown media type %q",
 				field.GetName(), mediaType)
+		case fields[key]:
+			// Its values would have the same key in the row JSON.
+			return fmt.Errorf("duplicate %s field %q", source, field.GetName())
 		}
+		fields[key] = true
 	}
 
-	for _, scorer := range request.GetScorers() {
+	scorers := make(map[string]bool)
+	for _, scorer := range data.GetScorers() {
 		valueType := ces.EvalTableColumnNewParamsScorersValueType(scorer.GetValueType())
-		if !valueType.IsKnown() {
+		switch {
+		case !valueType.IsKnown():
 			return fmt.Errorf(
 				"scorer %q has unknown value type %q",
 				scorer.GetName(), valueType)
+		case scorers[scorer.GetName()]:
+			return fmt.Errorf("duplicate scorer %q", scorer.GetName())
 		}
+		scorers[scorer.GetName()] = true
 	}
 
 	body, err := columns.MarshalJSON()

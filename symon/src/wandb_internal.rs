@@ -2689,6 +2689,15 @@ pub struct LogArtifactResponse {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UploadEvalTableRequest {
+    #[prost(message, optional, tag = "1")]
+    pub table: ::core::option::Option<EvalTableData>,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+/// An EvalTable's columns, rows, and media files.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EvalTableData {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
@@ -2703,8 +2712,6 @@ pub struct UploadEvalTableRequest {
     /// from their media JSON, not from this list.
     #[prost(string, repeated, tag = "6")]
     pub upload_media_paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2806,7 +2813,8 @@ pub struct UploadEvalTableResponse {
     pub dataset_version_id: ::prost::alloc::string::String,
     /// Set if the upload failed, in which case the IDs are unset.
     ///
-    /// The code is USAGE if the request's table is invalid.
+    /// The code is USAGE if the request's table is invalid, and UNSUPPORTED
+    /// in offline mode.
     #[prost(message, optional, tag = "5")]
     pub error: ::core::option::Option<ErrorInfo>,
 }

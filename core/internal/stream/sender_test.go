@@ -444,7 +444,9 @@ func TestSendUploadEvalTable_RespondsWithErrorOnFailure(t *testing.T) {
 	// The run isn't initialized.
 	x := makeSender(t, gqlmock.NewMockClient())
 
-	response := sendUploadEvalTable(t, x, &spb.UploadEvalTableRequest{Name: "t"})
+	response := sendUploadEvalTable(t, x, &spb.UploadEvalTableRequest{
+		Table: &spb.EvalTableData{Name: "t"},
+	})
 
 	require.NotNil(t, response)
 	assert.Equal(t, spb.ErrorInfo_UNKNOWN, response.GetError().GetCode())
@@ -456,12 +458,12 @@ func TestSendUploadEvalTable_RespondsWithUsageErrorForInvalidTable(t *testing.T)
 	x := makeSenderWithFileStream(
 		t, gqlmock.NewMockClient(), filestreamtest.NewFakeFileStream())
 
-	response := sendUploadEvalTable(t, x, &spb.UploadEvalTableRequest{
+	response := sendUploadEvalTable(t, x, &spb.UploadEvalTableRequest{Table: &spb.EvalTableData{
 		Name: "t",
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "metadata", Name: "a", ValueType: "string"},
 		},
-	})
+	}})
 
 	assert.Equal(t,
 		&spb.ErrorInfo{
