@@ -44,7 +44,6 @@ def _path_convert(*args: str) -> str:
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
-    "x_ces_base_url_override",
     "capture_loggers",
     "files_dir",
     "finish_timeout_raises",
@@ -53,6 +52,7 @@ CLIENT_ONLY_SETTINGS = (
     "reinit",
     "stop_fn",
     "use_dot_wandb",
+    "x_ces_base_url_override",
     "x_files_dir",
     "x_sync_dir_suffix",
 )
@@ -1474,6 +1474,18 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Service wait time cannot be negative")
         return value
 
+    @field_validator("x_ces_base_url_override", mode="after")
+    @classmethod
+    def validate_x_ces_base_url_override(cls, value):
+        """Validate the CES URL override, treating an empty one as unset.
+
+        <!-- lazydoc-ignore -->
+        """
+        if not value:
+            return None
+        urls.validate_url(value)
+        return value.rstrip("/")
+
     @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
     @classmethod
     def validate_x_stats_coreweave_metadata_base_url(cls, value):
@@ -1650,7 +1662,9 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def _ces_base_url(self) -> str:
         """The URL for the CoreWeave Evaluation Service (CES)."""
-        return self.x_ces_base_url_override or urls.api_to_ces_url(self.base_url)
+        if self.x_ces_base_url_override is not None:
+            return self.x_ces_base_url_override
+        return urls.api_to_ces_url(self.base_url)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

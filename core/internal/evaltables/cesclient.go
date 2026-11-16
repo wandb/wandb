@@ -49,6 +49,9 @@ func parseCESBaseURL(s *settings.Settings) (*url.URL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: invalid CES URL: %v", err)
 	}
+	if cesBaseURL.Scheme == "" || cesBaseURL.Host == "" {
+		return nil, fmt.Errorf("evaltables: invalid CES URL %q", rawURL)
+	}
 
 	return cesBaseURL, nil
 }
