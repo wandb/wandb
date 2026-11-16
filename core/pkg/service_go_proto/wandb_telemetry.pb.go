@@ -1010,7 +1010,7 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
-// Next ID: 80
+// Next ID: 81
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                           // wandb.watch() called
@@ -1092,6 +1092,7 @@ type Feature struct {
 	EvalTable                bool `protobuf:"varint,77,opt,name=eval_table,json=evalTable,proto3" json:"eval_table,omitempty"`                                                  // User logged an EvalTable via run.log()
 	Table                    bool `protobuf:"varint,78,opt,name=table,proto3" json:"table,omitempty"`                                                                           // User logged a regular (non-incremental) wandb.Table via run.log()
 	IncrementalTable         bool `protobuf:"varint,79,opt,name=incremental_table,json=incrementalTable,proto3" json:"incremental_table,omitempty"`                             // User logged an incremental wandb.Table via run.log()
+	DcgmExporter             bool `protobuf:"varint,80,opt,name=dcgm_exporter,json=dcgmExporter,proto3" json:"dcgm_exporter,omitempty"`                                         // Consuming GPU metrics from a DCGM exporter
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1651,18 +1652,28 @@ func (x *Feature) GetIncrementalTable() bool {
 	return false
 }
 
+func (x *Feature) GetDcgmExporter() bool {
+	if x != nil {
+		return x.DcgmExporter
+	}
+	return false
+}
+
+// Next ID: 19
 type Env struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Jupyter       bool                   `protobuf:"varint,1,opt,name=jupyter,proto3" json:"jupyter,omitempty"`                       // jupyter env detected
 	Kaggle        bool                   `protobuf:"varint,2,opt,name=kaggle,proto3" json:"kaggle,omitempty"`                         // kaggle env detected
 	Windows       bool                   `protobuf:"varint,3,opt,name=windows,proto3" json:"windows,omitempty"`                       // windows detected
-	M1Gpu         bool                   `protobuf:"varint,4,opt,name=m1_gpu,json=m1Gpu,proto3" json:"m1_gpu,omitempty"`              // apple silicon M1 gpu found
-	Trainium      bool                   `protobuf:"varint,10,opt,name=trainium,proto3" json:"trainium,omitempty"`                    // AWS Trainium env detected
+	Trainium      bool                   `protobuf:"varint,10,opt,name=trainium,proto3" json:"trainium,omitempty"`                    // AWS Trainium monitored
 	Pex           bool                   `protobuf:"varint,11,opt,name=pex,proto3" json:"pex,omitempty"`                              // pex env detected
 	Colab         bool                   `protobuf:"varint,12,opt,name=colab,proto3" json:"colab,omitempty"`                          // colab env detected
 	Ipython       bool                   `protobuf:"varint,13,opt,name=ipython,proto3" json:"ipython,omitempty"`                      // ipython env detected
 	AwsLambda     bool                   `protobuf:"varint,14,opt,name=aws_lambda,json=awsLambda,proto3" json:"aws_lambda,omitempty"` // running in AWS Lambda
-	AmdGpu        bool                   `protobuf:"varint,15,opt,name=amd_gpu,json=amdGpu,proto3" json:"amd_gpu,omitempty"`          // AMD GPU detected
+	AmdGpu        bool                   `protobuf:"varint,15,opt,name=amd_gpu,json=amdGpu,proto3" json:"amd_gpu,omitempty"`          // AMD GPU monitored
+	AppleGpu      bool                   `protobuf:"varint,16,opt,name=apple_gpu,json=appleGpu,proto3" json:"apple_gpu,omitempty"`    // Apple Silicon GPU monitored
+	NvidiaGpu     bool                   `protobuf:"varint,17,opt,name=nvidia_gpu,json=nvidiaGpu,proto3" json:"nvidia_gpu,omitempty"` // NVIDIA GPU monitored, locally or through a DCGM exporter
+	Tpu           bool                   `protobuf:"varint,18,opt,name=tpu,proto3" json:"tpu,omitempty"`                              // Google TPU monitored
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1718,13 +1729,6 @@ func (x *Env) GetWindows() bool {
 	return false
 }
 
-func (x *Env) GetM1Gpu() bool {
-	if x != nil {
-		return x.M1Gpu
-	}
-	return false
-}
-
 func (x *Env) GetTrainium() bool {
 	if x != nil {
 		return x.Trainium
@@ -1763,6 +1767,27 @@ func (x *Env) GetAwsLambda() bool {
 func (x *Env) GetAmdGpu() bool {
 	if x != nil {
 		return x.AmdGpu
+	}
+	return false
+}
+
+func (x *Env) GetAppleGpu() bool {
+	if x != nil {
+		return x.AppleGpu
+	}
+	return false
+}
+
+func (x *Env) GetNvidiaGpu() bool {
+	if x != nil {
+		return x.NvidiaGpu
+	}
+	return false
+}
+
+func (x *Env) GetTpu() bool {
+	if x != nil {
+		return x.Tpu
 	}
 	return false
 }
@@ -2120,7 +2145,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xe5\x16\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x8a\x17\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
 	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
@@ -2205,12 +2230,12 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\n" +
 	"eval_table\x18M \x01(\bR\tevalTable\x12\x14\n" +
 	"\x05table\x18N \x01(\bR\x05table\x12+\n" +
-	"\x11incremental_table\x18O \x01(\bR\x10incrementalTableJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
+	"\x11incremental_table\x18O \x01(\bR\x10incrementalTable\x12#\n" +
+	"\rdcgm_exporter\x18P \x01(\bR\fdcgmExporterJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\xd9\x02\n" +
 	"\x03Env\x12\x18\n" +
 	"\ajupyter\x18\x01 \x01(\bR\ajupyter\x12\x16\n" +
 	"\x06kaggle\x18\x02 \x01(\bR\x06kaggle\x12\x18\n" +
-	"\awindows\x18\x03 \x01(\bR\awindows\x12\x15\n" +
-	"\x06m1_gpu\x18\x04 \x01(\bR\x05m1Gpu\x12\x1a\n" +
+	"\awindows\x18\x03 \x01(\bR\awindows\x12\x1a\n" +
 	"\btrainium\x18\n" +
 	" \x01(\bR\btrainium\x12\x10\n" +
 	"\x03pex\x18\v \x01(\bR\x03pex\x12\x14\n" +
@@ -2218,7 +2243,11 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\aipython\x18\r \x01(\bR\aipython\x12\x1d\n" +
 	"\n" +
 	"aws_lambda\x18\x0e \x01(\bR\tawsLambda\x12\x17\n" +
-	"\aamd_gpu\x18\x0f \x01(\bR\x06amdGpuJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\aamd_gpu\x18\x0f \x01(\bR\x06amdGpu\x12\x1b\n" +
+	"\tapple_gpu\x18\x10 \x01(\bR\bappleGpu\x12\x1d\n" +
+	"\n" +
+	"nvidia_gpu\x18\x11 \x01(\bR\tnvidiaGpu\x12\x10\n" +
+	"\x03tpu\x18\x12 \x01(\bR\x03tpuJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"\"m\n" +
 	"\x06Labels\x12\x1f\n" +
 	"\vcode_string\x18\x01 \x01(\tR\n" +

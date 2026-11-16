@@ -90,7 +90,7 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 	ro.project = msg.Project
 	ro.notes = msg.Notes
 	ro.tags = dedupStrings(msg.Tags)
-	ro.runState = RunStateRunning
+	ro.runState = msg.runState()
 
 	if msg.Config != nil {
 		ro.runConfig.ApplyChangeRecord(msg.Config, func(err error) {})

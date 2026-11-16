@@ -6,7 +6,14 @@ click!=8.4.0,!=8.4.1,!=8.4.2
 cloudpickle
 filelock
 
-Pillow
+# Security fixes needed even when regenerating with the release-age cutoff.
+aiohttp>=3.14.4
+certifi>=2026.10.19
+
+# Pillow 13 contains security fixes but requires Python >=3.11. There is no
+# patched release for Python 3.10 yet.
+Pillow>=13.0.0; python_version >= '3.11'
+Pillow; python_version < '3.11'
 polars
 # Version 2.0.0 removes moviepy.editor, used by TensorBoard in some tests
 # to log videos.

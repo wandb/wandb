@@ -18,6 +18,7 @@ from ._run_metric_filters import (
     MetricZScoreFilter,
 )
 from ._run_state_filters import StateFilter, StateOperand
+from ._sandbox_state_filters import SandboxState, SandboxStateField
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
@@ -27,7 +28,13 @@ from ._validators import (
     wrap_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
-from .scopes import ArtifactCollectionScope, AutomationScope, EntityScope, ProjectScope
+from .scopes import (
+    ArtifactCollectionScope,
+    AutomationScope,
+    EntityScope,
+    ProjectScope,
+    TeamScope,
+)
 
 if TYPE_CHECKING:
     from .automations import NewAutomation
@@ -63,6 +70,10 @@ class EventType(LenientStrEnum):
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
     RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"
     RUN_STATE = "RUN_STATE"
+
+    # ---------------------------------------------------------------------------
+    # Events reported by the sandboxes service
+    SANDBOX_STATE = "SANDBOX_STATE"
 
 
 # ------------------------------------------------------------------------------
@@ -444,6 +455,49 @@ class OnRunState(_BaseRunEventInput):
     """Run state condition(s) that must be satisfied for this event to trigger."""
 
 
+# ------------------------------------------------------------------------------
+# Events that trigger on sandbox lifecycle changes
+class OnSandboxState(_BaseEventInput):
+    """A sandbox is created, completes, or fails.
+
+    A sandbox that exits cleanly or is stopped completes. One that fails to
+    start, exits with an error, or reaches its maximum lifetime fails.
+
+    Examples:
+    Define an event that triggers for any sandbox created in project
+    "my-project" when it completes or fails:
+
+    ```python
+    from wandb import Api
+    from wandb.automations import OnSandboxState, SandboxEvent
+
+    api = Api()
+    project = api.project(name="my-project")
+
+    event = OnSandboxState(
+        scope=project,
+        filter=SandboxEvent.state.in_(["completed", "failed"]),
+    )
+    ```
+    """
+
+    event_type: Literal[EventType.SANDBOX_STATE] = EventType.SANDBOX_STATE
+
+    scope: Annotated[
+        ProjectScope | TeamScope,
+        BeforeValidator(parse_scope),
+        Discriminator("typename__"),
+    ]
+    """The scope of the event: a project, or a team to cover all of its projects.
+
+    The event matches sandboxes by the project they were created in, so an
+    organization scope is not supported.
+    """
+
+    filter: JsonEncoded[MongoLikeFilter]
+    """Sandbox state condition(s) that must be satisfied for this event to trigger."""
+
+
 # for type annotations
 InputEvent = Annotated[
     OnLinkArtifact
@@ -455,7 +509,8 @@ InputEvent = Annotated[
     | OnCreateArtifact
     | OnUnlinkArtifact
     | OnRunMetric
-    | OnRunState,
+    | OnRunState
+    | OnSandboxState,
     Field(discriminator="event_type"),
 ]
 # for runtime type checks
@@ -484,11 +539,17 @@ class ArtifactEvent:
     tag = FilterableField()
 
 
+class SandboxEvent:
+    state = SandboxStateField()
+
+
 __all__ = [
     "EventType",
     *(nameof(cls) for cls in InputEventTypes),
     "RunEvent",
     "ArtifactEvent",
+    "SandboxEvent",
+    "SandboxState",
     "MetricThresholdFilter",
     "MetricChangeFilter",
     "MetricZScoreFilter",

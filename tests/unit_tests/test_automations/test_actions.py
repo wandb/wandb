@@ -15,7 +15,7 @@ from wandb.automations._generated import (
     TriggeredActionType,
     TriggerFields,
 )
-from wandb.automations.actions import SavedAriaAction
+from wandb.automations.actions import SavedAriaAction, SavedPushNotificationAction
 from wandb.automations.automations import Automation
 from wandb.sdk.wandb_alerts import AlertLevel
 
@@ -157,3 +157,18 @@ def test_send_prompt_to_aria_rejects_invalid_prompts(prompt):
 def test_send_prompt_to_aria_accepts_max_prompt_size():
     action = SendPromptToAria(prompt="x" * 4000)
     assert action.prompt == "x" * 4000
+
+
+def test_push_notification_action_parses_when_listing(trigger_node):
+    node = trigger_node(
+        {
+            "__typename": "PushNotificationTriggeredAction",
+            "title": "Run failed",
+            "body": None,
+        }
+    )
+    trigger = TriggerFields.model_validate(node)
+    automation = Automation.model_validate(trigger)
+    assert isinstance(automation.action, SavedPushNotificationAction)
+    assert automation.action.title == "Run failed"
+    assert automation.action.action_type is ActionType.PUSH_NOTIFICATION

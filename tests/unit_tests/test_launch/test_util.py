@@ -14,10 +14,28 @@ from wandb.sdk.launch.utils import (
     recursive_macro_sub,
     sanitize_identifiers_for_k8s,
     validate_kubernetes_resource_args,
+    validate_launch_resource_args,
     validate_launch_spec_source,
     validate_local_container_resource_args,
     yield_containers,
 )
+
+
+@pytest.mark.parametrize(
+    "resource_args,error",
+    [
+        ({"kubernetes": {"hostPID": True}}, "'hostPID'"),
+        (
+            {"local-container": {"privileged": True}},
+            "Unsupported resource_args.local-container option",
+        ),
+    ],
+)
+def test_validate_launch_resource_args_secure_mode_validates_supported_runners(
+    resource_args, error
+):
+    with pytest.raises(LaunchError, match=error):
+        validate_launch_resource_args(resource_args, secure_mode=True)
 
 
 @pytest.mark.parametrize(

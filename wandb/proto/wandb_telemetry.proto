@@ -131,7 +131,7 @@ message Imports {
   bool dspy = 107;
 }
 
-// Next ID: 80
+// Next ID: 81
 message Feature {
   reserved 23, 45, 48, 55;
 
@@ -216,21 +216,25 @@ message Feature {
   bool eval_table = 77;                   // User logged an EvalTable via run.log()
   bool table = 78;                        // User logged a regular (non-incremental) wandb.Table via run.log()
   bool incremental_table = 79;            // User logged an incremental wandb.Table via run.log()
+  bool dcgm_exporter = 80;                // Consuming GPU metrics from a DCGM exporter
 }
 
+// Next ID: 19
 message Env {
-  reserved 5, 6, 7, 8, 9;
+  reserved 4, 5, 6, 7, 8, 9;
 
   bool jupyter = 1;      // jupyter env detected
   bool kaggle = 2;       // kaggle env detected
   bool windows = 3;      // windows detected
-  bool m1_gpu = 4;       // apple silicon M1 gpu found
-  bool trainium = 10;    // AWS Trainium env detected
+  bool trainium = 10;    // AWS Trainium monitored
   bool pex = 11;         // pex env detected
   bool colab = 12;       // colab env detected
   bool ipython = 13;     // ipython env detected
   bool aws_lambda = 14;  // running in AWS Lambda
-  bool amd_gpu = 15;     // AMD GPU detected
+  bool amd_gpu = 15;     // AMD GPU monitored
+  bool apple_gpu = 16;   // Apple Silicon GPU monitored
+  bool nvidia_gpu = 17;  // NVIDIA GPU monitored, locally or through a DCGM exporter
+  bool tpu = 18;         // Google TPU monitored
 }
 
 message Labels {

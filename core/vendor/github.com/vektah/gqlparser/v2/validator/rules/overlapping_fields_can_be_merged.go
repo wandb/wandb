@@ -643,27 +643,24 @@ func childrenSortedByName(children ast.ChildValueList) ast.ChildValueList {
 	return sorted
 }
 
+// doTypesConflict reports whether two types could not both apply to a value at once.
+// Two composite types are ignored, as their individual field types are compared later
+// recursively. However, list and non-null wrappers must match.
 func doTypesConflict(walker *Walker, type1, type2 *ast.Type) bool {
+	// A list's own non-null flag sits next to its Elem rather than wrapping it,
+	// so both have to match before recursing into the item types.
+	if type1.NonNull != type2.NonNull || (type1.Elem == nil) != (type2.Elem == nil) {
+		return true
+	}
 	if type1.Elem != nil {
-		if type2.Elem != nil {
-			return doTypesConflict(walker, type1.Elem, type2.Elem)
-		}
-		return true
-	}
-	if type2.Elem != nil {
-		return true
-	}
-	if type1.NonNull && !type2.NonNull {
-		return true
-	}
-	if !type1.NonNull && type2.NonNull {
-		return true
+		return doTypesConflict(walker, type1.Elem, type2.Elem)
 	}
 
 	t1 := walker.Schema.Types[type1.NamedType]
 	t2 := walker.Schema.Types[type2.NamedType]
-	if (t1.Kind == ast.Scalar || t1.Kind == ast.Enum) &&
-		(t2.Kind == ast.Scalar || t2.Kind == ast.Enum) {
+	// A leaf has no subfields to compare later, so a mismatch involving one
+	// has to be caught here, even when the other type is composite.
+	if t1.IsLeafType() || t2.IsLeafType() {
 		return t1.Name != t2.Name
 	}
 

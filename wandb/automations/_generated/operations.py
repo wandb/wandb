@@ -100,6 +100,12 @@ fragment ProjectTriggersFields on Project {
   }
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -139,6 +145,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -237,6 +244,12 @@ fragment ProjectTriggersFields on Project {
   }
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -276,6 +289,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -367,6 +381,12 @@ fragment ProjectScopeFields on Project {
   name
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -406,6 +426,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -497,6 +518,12 @@ fragment ProjectScopeFields on Project {
   name
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -536,6 +563,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -615,6 +643,12 @@ fragment ProjectScopeFields on Project {
   name
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -654,6 +688,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -733,6 +768,12 @@ fragment ProjectScopeFields on Project {
   name
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -772,6 +813,7 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
     ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 

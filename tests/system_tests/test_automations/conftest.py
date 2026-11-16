@@ -25,8 +25,10 @@ from wandb.automations import (
     OnRemoveCollectionTag,
     OnRunMetric,
     OnRunState,
+    OnSandboxState,
     OnUnlinkArtifact,
     RunEvent,
+    SandboxEvent,
     ScopeType,
     SendWebhook,
     WebhookIntegration,
@@ -262,6 +264,7 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.SANDBOX_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -432,6 +435,11 @@ def on_run_state(scope) -> OnRunState:
 
 
 @fixture
+def on_sandbox_state(scope) -> OnSandboxState:
+    return OnSandboxState(scope=scope, filter=SandboxEvent.state == "failed")
+
+
+@fixture
 def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
     event2fixture: dict[EventType, str] = {
@@ -447,6 +455,7 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
         EventType.RUN_STATE: on_run_state.__name__,
+        EventType.SANDBOX_STATE: on_sandbox_state.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
 

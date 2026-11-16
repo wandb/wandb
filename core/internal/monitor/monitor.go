@@ -79,9 +79,6 @@ type SystemMonitor struct {
 
 	// Unique identifier of the writer to the run.
 	writerID sharedmode.ClientID
-
-	// Information about the Git repository, if applicable.
-	git *spb.GitRepoRecord
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -195,7 +192,9 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probeExecutionContext collects information about the compute environment.
-func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
+func (sm *SystemMonitor) probeExecutionContext(
+	git *spb.GitRepoRecord,
+) *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -213,7 +212,7 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Args:          sm.settings.GetArgs(),
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
-		Git:           sm.git,
+		Git:           git,
 		Slurm:         slurmEnvVars(),
 
 		WriterId: string(sm.writerID),
@@ -326,7 +325,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 // Start begins resource monitoring.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
-func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
+func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
 	}
@@ -334,8 +333,6 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	if !sm.state.CompareAndSwap(StateStopped, StateRunning) {
 		return // Already started or paused
 	}
-
-	sm.git = git
 
 	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
 		return
@@ -348,7 +345,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 // Probe collects environment and resource information.
 //
 // This operation may take some time, so we perform it on a best-effort basis.
-func (sm *SystemMonitor) Probe() {
+func (sm *SystemMonitor) Probe(git *spb.GitRepoRecord) {
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() &&
 		sm.settings.IsPrimary() {
 		go func() {
@@ -356,19 +353,54 @@ func (sm *SystemMonitor) Probe() {
 
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeExecutionContext()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(
+					sm.probeExecutionContext(git),
+				)),
 			)
 
+			resources := sm.probeResources()
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeResources()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(resources)),
 			)
+
+			if telemetry := sm.telemetry(resources.GetEnvironment()); telemetry != nil {
+				sm.extraWork.AddWorkOrCancel(
+					sm.ctx.Done(),
+					runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
+						RecordType: &spb.Record_Telemetry{Telemetry: telemetry},
+					})),
+				)
+			}
 		}()
 	}
+}
+
+// telemetry reports the hardware the sidecar monitors and the metric sources
+// the run is configured with, or nil if there is nothing to report.
+func (sm *SystemMonitor) telemetry(e *spb.EnvironmentRecord) *spb.TelemetryRecord {
+	telemetry := &spb.TelemetryRecord{}
+	env := &spb.Env{
+		AppleGpu:  e.GetApple() != nil,
+		NvidiaGpu: len(e.GetGpuNvidia()) > 0,
+		AmdGpu:    len(e.GetGpuAmd()) > 0,
+		Tpu:       e.GetTpu() != nil,
+		Trainium:  e.GetTrainium() != nil,
+	}
+	if proto.Size(env) > 0 {
+		telemetry.Env = env
+	}
+	feature := &spb.Feature{
+		OpenMetrics:  len(sm.settings.GetStatsOpenMetricsEndpoints()) > 0,
+		DcgmExporter: sm.settings.GetStatsDcgmExporter() != "",
+	}
+	if proto.Size(feature) > 0 {
+		telemetry.Feature = feature
+	}
+	if proto.Size(telemetry) == 0 {
+		return nil
+	}
+	return telemetry
 }
 
 // Pause temporarily stops the monitoring process.

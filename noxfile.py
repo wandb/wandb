@@ -190,10 +190,11 @@ def unit_tests(session: nox.Session) -> None:
     """
     is_windows = platform.system() == "Windows"
 
-    if is_windows:
+    if is_windows and "WANDB_BUILD_SKIP_WANDB_SYMON" not in os.environ:
         # Linux already exercises the heavier Go race/coverage build path.
         # Skipping it on Windows keeps this job focused on Python compatibility
-        # and avoids multi-minute rebuilds.
+        # and avoids multi-minute rebuilds. The symon-tests-windows CI job sets
+        # this to false to build and test wandb-symon.
         session.env["WANDB_BUILD_SKIP_WANDB_SYMON"] = "true"
 
     install_wandb(session, dev=not is_windows)

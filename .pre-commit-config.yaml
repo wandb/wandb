@@ -80,6 +80,14 @@ repos:
 
   - repo: local
     hooks:
+      # Same as complexipy, but for Go.
+      - id: gocognit
+        name: gocognit
+        description: Limits cognitive complexity increases in Go code.
+        entry: core/scripts/pre-commit-hooks/run-gocognit.sh
+        language: script
+        files: '\.go$'
+
       - id: generate-stubs
         name: generate-stubs
         entry: python3 tools/generate_stubs.py

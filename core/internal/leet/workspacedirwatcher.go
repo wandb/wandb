@@ -3,7 +3,6 @@ package leet
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"strings"
@@ -97,17 +96,6 @@ func (p *runOverviewPreloader) MarkDone(runKey string) {
 	delete(p.pending, runKey)
 }
 
-func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
-	wandbDir := w.wandbDir
-	if delay < 0 {
-		delay = 0
-	}
-	return tea.Tick(delay, func(time.Time) tea.Msg {
-		runKeys, err := scanWandbRunDirs(wandbDir)
-		return WorkspaceRunDirsMsg{RunKeys: runKeys, Err: err}
-	})
-}
-
 func scanWandbRunDirs(wandbDir string) ([]string, error) {
 	if wandbDir == "" {
 		return nil, nil
@@ -165,14 +153,15 @@ func parseRunDirTimestamp(name string) time.Time {
 	return t
 }
 
-func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
-	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
+func (w *Workspace) handleWorkspaceRunDiscovery(msg WorkspaceRunDiscoveryMsg) tea.Cmd {
+	nextDiscoveryCmd := w.backend.NextDiscoveryCmd()
 
+	w.discoveryErr = msg.Err
 	if msg.Err != nil {
-		// The poll loop retries and re-reports on every tick, so keep this
-		// out of error telemetry.
-		w.logger.Error(fmt.Sprintf("workspace: wandb dir scan: %v", msg.Err))
-		return pollCmd
+		// The discovery loop retries and re-reports on every tick, so keep
+		// this out of error telemetry.
+		w.logger.Error(fmt.Sprintf("workspace: run discovery: %v", msg.Err))
+		return nextDiscoveryCmd
 	}
 
 	var restoreCmd tea.Cmd
@@ -180,13 +169,29 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 		w.applyRunKeys(msg.RunKeys)
 		w.restoreRunsOnLoad.Do(func() { restoreCmd = w.restoreRuns(msg.RunKeys) })
 	}
+	w.applyListedRuns(msg.Runs)
 	// Enqueue missing run overviews (even if the run list is unchanged).
 	// This makes new run overviews eventually consistent even if the .wandb file
 	// wasn't readable on the first scan.
 	w.enqueueMissingRunOverviews(msg.RunKeys)
 
 	startCmd := w.startRunOverviewPreloadsCmd()
-	return batchCmds(pollCmd, startCmd, restoreCmd)
+	return batchCmds(nextDiscoveryCmd, startCmd, restoreCmd, w.ensureLivePulseCmd())
+}
+
+// applyListedRuns records the metadata that came with a project listing.
+// Selected runs keep the metadata they stream.
+func (w *Workspace) applyListedRuns(runs map[string]RunMsg) {
+	for key := range runs {
+		if _, streaming := w.runsByKey[key]; streaming {
+			continue
+		}
+		w.getOrCreateRunOverview(key).ProcessRunMsg(runs[key])
+		w.indexRunFilterData(key, runs[key])
+	}
+	if len(runs) > 0 && w.filter.Query() != "" {
+		w.applyRunFilter()
+	}
 }
 
 // restoreRuns selects the runs remembered for the directory that still
@@ -232,45 +237,9 @@ func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
 	}
 	cmds := make([]tea.Cmd, 0, len(runKeys))
 	for _, runKey := range runKeys {
-		cmds = append(cmds, w.preloadRunOverviewCmd(runKey))
+		cmds = append(cmds, w.backend.PreloadOverviewCmd(runKey))
 	}
 	return tea.Batch(cmds...)
-}
-
-// preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the
-// first RunMsg with a populated run ID.
-//
-// HistorySource.Read batches records into ChunkedBatchMsg, so the preloader
-// must search inside the batch rather than expecting a direct RunMsg.
-func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
-	wandbFile := runWandbFile(w.wandbDir, runKey)
-	logger := w.logger
-
-	return func() tea.Msg {
-		if runKey == "" || wandbFile == "" {
-			return WorkspaceRunOverviewPreloadedMsg{
-				RunKey: runKey,
-				Err:    errRunRecordNotFound,
-			}
-		}
-
-		reader, err := NewLevelDBHistorySource(wandbFile, logger)
-		if err != nil {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-		}
-		defer reader.Close()
-
-		msg, err := reader.Read(maxRecordsToScan, maxRecordsToScanTimeout)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-		}
-
-		if rm, ok := FindRunMsg(msg); ok {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
-		}
-
-		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
-	}
 }
 
 func FindRunMsg(msg tea.Msg) (RunMsg, bool) {

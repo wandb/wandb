@@ -7,7 +7,6 @@
 #
 # Try to occasionally remove these constraints to see if issues are fixed.
 
-aiohttp==3.13.5
 cryptography==46.0.7
 google-auth==2.52.0
 graphql-core==3.2.8

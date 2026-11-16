@@ -1,0 +1,48 @@
+name: Update Rust Dependencies
+
+on:
+  # Allow manual runs.
+  workflow_dispatch:
+
+  # Run on weekdays at 9 or 10 AM Pacific time (17:00 UTC).
+  schedule: [cron: "0 17 * * 1-5"]
+
+jobs:
+  update-rust-deps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          # Keep in sync with RUST_TOOLCHAIN in release-sdk.yml.
+          toolchain: "1.88.0"
+
+      - name: Update Rust dependencies
+        env:
+          # Prefer dependencies compatible with the release toolchain.
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+        run: |
+          cargo update --manifest-path parquet-rust-wrapper/Cargo.toml
+          cargo update --manifest-path symon/Cargo.toml
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
+        with:
+          branch: update-rust-deps
+          delete-branch: true
+          title: "chore(deps): update rust dependencies"
+          body: >
+            Updates `parquet-rust-wrapper/Cargo.lock` and `symon/Cargo.lock`
+            to the latest dependency versions allowed by their `Cargo.toml`
+            requirements, preferring versions compatible with the release
+            Rust toolchain.
+
+            Please approve and merge if tests pass. If tests fail due to
+            a dependency update, consider improving the tests or implementation.
+            If CI fails because of a bug in a dependency, constrain the broken
+            dependency in the relevant `Cargo.toml` and rerun the action.
+            Consider filing a bug for the dependency.

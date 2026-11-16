@@ -601,19 +601,41 @@ def inject_restricted_security_context(manifest: Any) -> None:
                     )
 
 
-def validate_launch_resource_args(resource_args: dict[str, Any]) -> None:
+def validate_launch_resource_args(
+    resource_args: dict[str, Any],
+    *,
+    secure_mode: bool = False,
+) -> None:
+    """Validate runner-specific settings in the job's run spec.
+
+    Kubernetes and local-container runner-specific settings are always validated in
+    ``validate_kubernetes_resource_args`` and ``validate_local_container_resource_args``.
+
+    When ``secure_mode`` is True, arguments for runners other than ``kubernetes`` and ``local-container``
+    are rejected.
+
+    Args:
+        resource_args: Runner-specific settings from the job's run spec, keyed by runner name,
+            e.g. ``{"kubernetes": {...}}`` for Job manifest overrides or ``{"local-container": {...}}``
+            for ``docker run`` flags.
+        secure_mode: When True, arguments for runners other than ``kubernetes`` and ``local-container``
+            are rejected
+    """
     if not resource_args:
         return
     if not isinstance(resource_args, dict):
         raise LaunchError("resource_args must be a dictionary")
 
-    local_container_args = resource_args.get("local-container")
-    if local_container_args is not None:
-        validate_local_container_resource_args(local_container_args)
-
-    kubernetes_args = resource_args.get("kubernetes")
-    if kubernetes_args is not None:
-        validate_kubernetes_resource_args(kubernetes_args)
+    for runner, args in resource_args.items():
+        if runner == "kubernetes":
+            validate_kubernetes_resource_args(args or {})
+        elif runner == "local-container":
+            validate_local_container_resource_args(args or {})
+        elif secure_mode:
+            raise LaunchError(
+                f"Unsupported resource_args runner '{runner}' in secure mode: "
+                "no secure-mode resource argument policy is defined"
+            )
 
 
 def parse_wandb_uri(uri: str) -> tuple[str, str, str]:

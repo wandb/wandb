@@ -349,7 +349,7 @@ func (s *Lexer) describeNext() string {
 
 // readString from the input
 //
-// "([^"\\\u000A\u000D]|(\\(u[0-9a-fA-F]{4}|["\\/bfnrt])))*".
+// "([^"\\\u000A\u000D]|(\\(u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]+\}|["\\/bfnrt])))*".
 func (s *Lexer) readString() (Token, error) {
 	inputLen := len(s.Input)
 
@@ -415,6 +415,24 @@ func (s *Lexer) readString() (Token, error) {
 			escape := s.Input[s.end+1]
 
 			if escape == 'u' {
+				if s.end+2 < inputLen && s.Input[s.end+2] == '{' {
+					// A braced escape, such as \u{1F600}, names any Unicode
+					// scalar value with one to eight hex digits.
+					r, n, ok := unhexBraced(s.Input[s.end+3:])
+					if !ok {
+						s.end++
+						s.endRunes++
+						return s.makeError(
+							"Invalid character escape sequence: \\%s.",
+							s.Input[s.end:s.end+2+n],
+						)
+					}
+					s.end += 3 + n
+					s.endRunes += 3 + n
+					buf.WriteRune(r)
+					continue
+				}
+
 				if s.end+6 >= inputLen {
 					s.end++
 					s.endRunes++
@@ -558,21 +576,62 @@ func (s *Lexer) readBlockString() (Token, error) {
 }
 
 func unhex(b string) (v rune, ok bool) {
-	for _, c := range b {
-		v <<= 4
-		switch {
-		case '0' <= c && c <= '9':
-			v |= c - '0'
-		case 'a' <= c && c <= 'f':
-			v |= c - 'a' + 10
-		case 'A' <= c && c <= 'F':
-			v |= c - 'A' + 10
-		default:
+	for i := 0; i < len(b); i++ {
+		d, ok := hexDigit(b[i])
+		if !ok {
 			return 0, false
 		}
+		v = v<<4 | d
 	}
 
 	return v, true
+}
+
+func hexDigit(c byte) (d rune, ok bool) {
+	switch {
+	case '0' <= c && c <= '9':
+		return rune(c - '0'), true
+	case 'a' <= c && c <= 'f':
+		return rune(c - 'a' + 10), true
+	case 'A' <= c && c <= 'F':
+		return rune(c - 'A' + 10), true
+	default:
+		return 0, false
+	}
+}
+
+// maxBracedDigits caps the digits of a braced unicode escape, leading zeros
+// included, at eight, as graphql-js does: \u{00000000} is the longest escape
+// it accepts.
+const maxBracedDigits = 8
+
+// unhexBraced reads the hex digits and the closing brace of a braced
+// unicode escape from b, which starts after the opening brace. It returns
+// the value of the digits and the number of bytes it read, the closing
+// brace included. It returns false for an escape without digits, with more
+// than maxBracedDigits digits, with a character that is not a hex digit,
+// without a closing brace, or whose value is not a Unicode scalar value.
+// On failure n covers the bytes worth quoting in the error, which never
+// include a byte that is not part of the escape.
+func unhexBraced(b string) (v rune, n int, ok bool) {
+	for n < len(b) && n <= maxBracedDigits {
+		if b[n] == '}' {
+			n++
+			// Eight digits can set the sign bit of a rune, so ValidRune
+			// rejects a negative value as well as one past utf8.MaxRune.
+			if n == 1 || !utf8.ValidRune(v) {
+				return 0, n, false
+			}
+			return v, n, true
+		}
+		d, ok := hexDigit(b[n])
+		if !ok {
+			return 0, n, false
+		}
+		v = v<<4 | d
+		n++
+	}
+	return 0, n, false
 }
 
 // readName from the input
