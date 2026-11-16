@@ -3,19 +3,9 @@ package evaltables
 import (
 	"bytes"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
-
-// SetRetryWaitMinForTest sets the minimum wait before retrying a CES
-// request until the test ends.
-func SetRetryWaitMinForTest(t *testing.T, d time.Duration) {
-	t.Helper()
-	original := retryWaitMin
-	retryWaitMin = d
-	t.Cleanup(func() { retryWaitMin = original })
-}
 
 // ColumnsJSON returns the body of the table's column request, without its
 // scope ID.

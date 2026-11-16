@@ -172,6 +172,16 @@ def test_ces_base_url_override_from_env():
     assert s.to_proto()._ces_base_url.value == "https://ces.example.com"
 
 
+def test_ces_base_url_override_empty_is_unset():
+    s = Settings(base_url="https://wandb.example.com", x_ces_base_url_override="")
+    assert s._ces_base_url == "https://wandb.example.com/evaluations"
+
+
+def test_ces_base_url_override_invalid():
+    with pytest.raises(ValueError):
+        Settings(x_ces_base_url_override="ces.example.com")
+
+
 def test_get_non_existent_attribute():
     s = Settings()
     with pytest.raises(AttributeError):

@@ -16,9 +16,6 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 )
 
-// retryWaitMin is the minimum wait before retrying a CES request.
-var retryWaitMin = api.DefaultRetryWaitMin
-
 // NewEvalTableService returns a CoreWeave Evaluation Service API using
 // our credential provider and HTTP Client instead of the CES SDK defaults.
 func NewEvalTableService(
@@ -52,6 +49,9 @@ func parseCESBaseURL(s *settings.Settings) (*url.URL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: invalid CES URL: %v", err)
 	}
+	if cesBaseURL.Scheme == "" || cesBaseURL.Host == "" {
+		return nil, fmt.Errorf("evaltables: invalid CES URL %q", rawURL)
+	}
 
 	return cesBaseURL, nil
 }
@@ -65,7 +65,7 @@ func newCESHTTPClient(
 	retryClient := api.NewClient(api.ClientOptions{
 		RetryPolicy:        clients.RetryMostFailures,
 		RetryMax:           api.DefaultRetryMax,
-		RetryWaitMin:       retryWaitMin,
+		RetryWaitMin:       api.DefaultRetryWaitMin,
 		RetryWaitMax:       api.DefaultRetryWaitMax,
 		NonRetryTimeout:    api.DefaultNonRetryTimeout,
 		Proxy:              s.GetProxyFn(),

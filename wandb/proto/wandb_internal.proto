@@ -1297,6 +1297,13 @@ message LogArtifactResponse {
  * Uploads an EvalTable to the CoreWeave Evaluation Service (CES).
  */
 message UploadEvalTableRequest {
+  EvalTableData table = 1;
+
+  _RequestInfo _info = 200;
+}
+
+// An EvalTable's columns, rows, and media files.
+message EvalTableData {
   string name = 1;
 
   repeated EvalTableField dataset_fields = 2;
@@ -1318,8 +1325,6 @@ message UploadEvalTableRequest {
   // files directory, for wandb-core to upload. Cells get their CES URIs
   // from their media JSON, not from this list.
   repeated string upload_media_paths = 6;
-
-  _RequestInfo _info = 200;
 }
 
 message EvalTableRow {
@@ -1396,7 +1401,8 @@ message UploadEvalTableResponse {
 
   // Set if the upload failed, in which case the IDs are unset.
   //
-  // The code is USAGE if the request's table is invalid.
+  // The code is USAGE if the request's table is invalid, and UNSUPPORTED
+  // in offline mode.
   ErrorInfo error = 5;
 }
 

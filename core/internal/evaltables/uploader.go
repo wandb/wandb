@@ -124,16 +124,16 @@ func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 	}
 }
 
-// Encode validates an EvalTable upload request and encodes its rows.
+// Encode validates an EvalTable and encodes its rows.
 //
 // It encodes every row, so that an invalid table fails before Upload
 // writes anything to CES.
 //
-// Errors in the request's table satisfy IsUsageError.
+// Errors in the table satisfy IsUsageError.
 func (u *Uploader) Encode(
-	request *spb.UploadEvalTableRequest,
+	data *spb.EvalTableData,
 ) (*EncodedTable, error) {
-	if len(request.GetRows()) > 0 && request.GetRowsFilePath() != "" {
+	if len(data.GetRows()) > 0 && data.GetRowsFilePath() != "" {
 		return nil, usageError{errors.New("request has both rows and a rows file")}
 	}
 
@@ -144,26 +144,26 @@ func (u *Uploader) Encode(
 	runPath := upserter.RunPath()
 
 	columns := ces.EvalTableColumnNewParams{
-		DatasetFields: ces.F(datasetFieldParams(request.GetDatasetFields())),
-		Scorers:       ces.F(scorerParams(request.GetScorers())),
+		DatasetFields: ces.F(datasetFieldParams(data.GetDatasetFields())),
+		Scorers:       ces.F(scorerParams(data.GetScorers())),
 	}
-	if err := validateColumns(request, &columns); err != nil {
+	if err := validateColumns(data, &columns); err != nil {
 		return nil, usageError{err}
 	}
 
-	encoder, err := newRowEncoder(request, runPath)
+	encoder, err := newRowEncoder(data, runPath)
 	if err != nil {
 		return nil, usageError{err}
 	}
 
 	table := &EncodedTable{
-		name:         request.GetName(),
+		name:         data.GetName(),
 		runPath:      runPath,
 		columns:      columns,
 		encoder:      encoder,
-		rowsFilePath: request.GetRowsFilePath(),
+		rowsFilePath: data.GetRowsFilePath(),
 	}
-	for rowJSON, err := range table.encoder.encodeRows(requestRows(request)) {
+	for rowJSON, err := range table.encoder.encodeRows(requestRows(data)) {
 		if err != nil {
 			return nil, err
 		}
@@ -339,14 +339,14 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 }
 
 func requestRows(
-	request *spb.UploadEvalTableRequest,
+	data *spb.EvalTableData,
 ) iter.Seq2[*spb.EvalTableRow, error] {
-	if path := request.GetRowsFilePath(); path != "" {
+	if path := data.GetRowsFilePath(); path != "" {
 		return rowsFromFile(path)
 	}
 
 	return func(yield func(*spb.EvalTableRow, error) bool) {
-		for _, row := range request.GetRows() {
+		for _, row := range data.GetRows() {
 			if !yield(row, nil) {
 				return
 			}
@@ -423,10 +423,13 @@ func readRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
 // that their CES request fits CES's size limit, so that an invalid table
 // fails before any CES request.
 func validateColumns(
-	request *spb.UploadEvalTableRequest,
+	data *spb.EvalTableData,
 	columns *ces.EvalTableColumnNewParams,
 ) error {
-	for _, field := range request.GetDatasetFields() {
+	type fieldKey struct{ source, name string }
+	fields := make(map[fieldKey]bool)
+	for _, field := range data.GetDatasetFields() {
+		key := fieldKey{field.GetSource(), field.GetName()}
 		source := ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource())
 		valueType := ces.EvalTableColumnNewParamsDatasetFieldsValueType(field.GetValueType())
 		mediaType := field.GetWandbMediaType()
@@ -445,16 +448,25 @@ func validateColumns(
 			return fmt.Errorf(
 				"field %q has unknown media type %q",
 				field.GetName(), mediaType)
+		case fields[key]:
+			// Its values would have the same key in the row JSON.
+			return fmt.Errorf("duplicate %s field %q", source, field.GetName())
 		}
+		fields[key] = true
 	}
 
-	for _, scorer := range request.GetScorers() {
+	scorers := make(map[string]bool)
+	for _, scorer := range data.GetScorers() {
 		valueType := ces.EvalTableColumnNewParamsScorersValueType(scorer.GetValueType())
-		if !valueType.IsKnown() {
+		switch {
+		case !valueType.IsKnown():
 			return fmt.Errorf(
 				"scorer %q has unknown value type %q",
 				scorer.GetName(), valueType)
+		case scorers[scorer.GetName()]:
+			return fmt.Errorf("duplicate scorer %q", scorer.GetName())
 		}
+		scorers[scorer.GetName()] = true
 	}
 
 	body, err := columns.MarshalJSON()
