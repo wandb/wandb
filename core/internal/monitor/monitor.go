@@ -192,9 +192,10 @@ func openMetricsFilters(filters *spb.OpenMetricsFilters) []*spb.OpenMetricsFilte
 	return result
 }
 
-// GetState returns the current state of the SystemMonitor.
-func (sm *SystemMonitor) GetState() int32 {
-	return sm.state.Load()
+// TestOnlyIsSubscribed reports whether the system monitor has a subscription
+// to the wandb-symon process.
+func (sm *SystemMonitor) TestOnlyIsSubscribed() bool {
+	return sm.symon.TestOnlyIsSubscribed()
 }
 
 // probeExecutionContext collects information about the compute environment.

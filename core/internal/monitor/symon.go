@@ -55,6 +55,17 @@ func NewSymon(
 	}
 }
 
+// TestOnlyIsSubscribed reports whether an uncancelled subscription exists.
+func (a *Symon) TestOnlyIsSubscribed() bool {
+	if a == nil {
+		return false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.unsubscribe != nil
+}
+
 // Subscribe passes the samples described by request to publish until
 // Unsubscribe or Close is called or the resource's context ends.
 //
