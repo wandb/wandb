@@ -97,11 +97,15 @@ func TestNewEvalTableService_NoURL(t *testing.T) {
 }
 
 func TestNewEvalTableService_InvalidURL(t *testing.T) {
-	_, err := evaltables.NewEvalTableService(
-		api.NewAPIKeyCredentialProvider("run-api-key"),
-		observabilitytest.NewTestLogger(t).Logger,
-		settings.From(&spb.Settings{XCesBaseUrl: wrapperspb.String("://bad")}),
-	)
+	for _, rawURL := range []string{"://bad", "ces.example.com"} {
+		t.Run(rawURL, func(t *testing.T) {
+			_, err := evaltables.NewEvalTableService(
+				api.NewAPIKeyCredentialProvider("run-api-key"),
+				observabilitytest.NewTestLogger(t).Logger,
+				settings.From(&spb.Settings{XCesBaseUrl: wrapperspb.String(rawURL)}),
+			)
 
-	assert.ErrorContains(t, err, "invalid CES URL")
+			assert.ErrorContains(t, err, "invalid CES URL")
+		})
+	}
 }
