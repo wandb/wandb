@@ -239,20 +239,11 @@ func rowsJSONFromFile(path string) iter.Seq2[[]byte, error] {
 
 		reader := bufio.NewReader(file)
 		for {
-			size, err := binary.ReadUvarint(reader)
+			row, err := readRowJSON(reader)
 			if errors.Is(err, io.EOF) {
 				return
 			}
-			if err == nil && size >= maxRequestBodyBytes {
-				err = fmt.Errorf("row is %d bytes", size)
-			}
 			if err != nil {
-				yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
-				return
-			}
-
-			row := make([]byte, size)
-			if _, err := io.ReadFull(reader, row); err != nil {
 				yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
 				return
 			}
@@ -261,6 +252,28 @@ func rowsJSONFromFile(path string) iter.Seq2[[]byte, error] {
 			}
 		}
 	}
+}
+
+// readRowJSON reads one size-prefixed row's JSON.
+//
+// It returns io.EOF only at the end of the file, between rows.
+func readRowJSON(reader *bufio.Reader) ([]byte, error) {
+	size, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil, err
+	}
+	if size >= maxRequestBodyBytes {
+		return nil, fmt.Errorf("row is %d bytes", size)
+	}
+
+	row := make([]byte, size)
+	if _, err := io.ReadFull(reader, row); err != nil {
+		if errors.Is(err, io.EOF) {
+			err = io.ErrUnexpectedEOF
+		}
+		return nil, err
+	}
+	return row, nil
 }
 
 // Upload creates an EvalTable in CES, adds its columns and rows,
