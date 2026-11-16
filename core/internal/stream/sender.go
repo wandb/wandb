@@ -1454,6 +1454,7 @@ func (s *Sender) uploadEvalTable(
 	if err != nil {
 		return nil, err
 	}
+	defer table.Close()
 
 	if mediaPaths := msg.GetTable().GetUploadMediaPaths(); len(mediaPaths) > 0 {
 		files := &spb.FilesRecord{}

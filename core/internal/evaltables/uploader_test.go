@@ -153,6 +153,7 @@ func upload(
 	if err != nil {
 		return nil, err
 	}
+	defer table.Close()
 	return uploader.Upload(ctx, table)
 }
 
@@ -164,7 +165,11 @@ func encode(
 	t.Helper()
 	uploader, _ := newTestUploaderWithSettings(
 		t, projectFoundJSON, settings.From(&spb.Settings{}))
-	return uploader.Encode(request)
+	table, err := uploader.Encode(request)
+	if table != nil {
+		t.Cleanup(table.Close)
+	}
+	return table, err
 }
 
 func boolValue(v bool) *spb.EvalTableValue {
@@ -668,6 +673,42 @@ func TestEncode_RejectsInvalidRowInRowsFile(t *testing.T) {
 
 	assert.ErrorContains(t, err, "(row 1)")
 	assert.True(t, evaltables.IsUsageError(err))
+	// No encoded rows are left behind.
+	assert.Equal(t, []string{path}, filesIn(t, filepath.Dir(path)))
+}
+
+func TestUpload_ReadsRowsFileOnlyWhileEncoding(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	path := writeRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
+
+	table, err := uploader.Encode(&spb.EvalTableData{
+		Name:          "t",
+		DatasetFields: outputFieldX,
+		RowsFilePath:  path,
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(path))
+	_, err = uploader.Upload(context.Background(), table)
+	table.Close()
+
+	require.NoError(t, err)
+	assert.Equal(t,
+		`{"rows":[{"input":null,"output":{"x":"1"},"scores":{}}]}`,
+		ces.Requests()[2].Body)
+	assert.Empty(t, filesIn(t, filepath.Dir(path)))
+}
+
+// filesIn returns the paths of the files in dir.
+func filesIn(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	var paths []string
+	for _, entry := range entries {
+		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+	return paths
 }
 
 func TestUpload_RejectsBadRowsFile(t *testing.T) {

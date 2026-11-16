@@ -11,6 +11,7 @@ import (
 	"io"
 	"iter"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
@@ -99,20 +100,20 @@ type EncodedTable struct {
 	name    string
 	runPath runbranch.RunPath
 	columns ces.EvalTableColumnNewParams
-	encoder *rowEncoder
 	nrows   int
 
-	// rowsJSON is the CES JSON of the request's inline rows.
+	// rowsJSON is the CES JSON of the table's inline rows.
 	rowsJSON [][]byte
 
-	// rowsFilePath is the request's rows file, if any, which Upload reads
-	// and encodes again rather than holding its rows' JSON in memory.
-	rowsFilePath string
+	// rowsJSONPath is a temporary file of the CES JSON of the table's
+	// rows file, if it has one, so that Upload neither holds those rows'
+	// JSON in memory nor encodes them again.
+	rowsJSONPath string
 }
 
 func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
-	if t.rowsFilePath != "" {
-		return t.encoder.encodeRows(rowsFromFile(t.rowsFilePath))
+	if t.rowsJSONPath != "" {
+		return rowsJSONFromFile(t.rowsJSONPath)
 	}
 
 	return func(yield func([]byte, error) bool) {
@@ -124,10 +125,17 @@ func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 	}
 }
 
+// Close deletes the table's temporary files.
+func (t *EncodedTable) Close() {
+	if t.rowsJSONPath != "" {
+		_ = os.Remove(t.rowsJSONPath)
+	}
+}
+
 // Encode validates an EvalTable and encodes its rows.
 //
 // It encodes every row, so that an invalid table fails before Upload
-// writes anything to CES.
+// writes anything to CES. The caller must Close the returned table.
 //
 // Errors in the table satisfy IsUsageError.
 func (u *Uploader) Encode(
@@ -157,23 +165,102 @@ func (u *Uploader) Encode(
 	}
 
 	table := &EncodedTable{
-		name:         data.GetName(),
-		runPath:      runPath,
-		columns:      columns,
-		encoder:      encoder,
-		rowsFilePath: data.GetRowsFilePath(),
+		name:    data.GetName(),
+		runPath: runPath,
+		columns: columns,
 	}
-	for rowJSON, err := range table.encoder.encodeRows(requestRows(data)) {
+
+	if path := data.GetRowsFilePath(); path != "" {
+		if err := table.writeRowsJSON(encoder, path); err != nil {
+			return nil, err
+		}
+		return table, nil
+	}
+
+	for rowJSON, err := range encoder.encodeRows(inlineRows(data)) {
 		if err != nil {
 			return nil, err
 		}
 		table.nrows++
-		if table.rowsFilePath == "" {
-			table.rowsJSON = append(table.rowsJSON, rowJSON)
+		table.rowsJSON = append(table.rowsJSON, rowJSON)
+	}
+	return table, nil
+}
+
+// writeRowsJSON encodes the rows in a rows file into a temporary file next
+// to it, each row's JSON preceded by its size as a varint.
+//
+// The JSON can't be one row per line, since JSON values can contain
+// newlines.
+func (t *EncodedTable) writeRowsJSON(
+	encoder *rowEncoder,
+	rowsFilePath string,
+) (err error) {
+	file, err := os.CreateTemp(
+		filepath.Dir(rowsFilePath), "wandb-eval-table-*.rows.json")
+	if err != nil {
+		return fmt.Errorf("evaltables: failed to create rows JSON file: %v", err)
+	}
+	t.rowsJSONPath = file.Name()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("evaltables: failed to write rows JSON: %v", closeErr)
+		}
+		if err != nil {
+			t.Close()
+		}
+	}()
+
+	// Write errors are sticky, so Flush reports any of them.
+	writer := bufio.NewWriter(file)
+	for rowJSON, err := range encoder.encodeRows(rowsFromFile(rowsFilePath)) {
+		if err != nil {
+			return err
+		}
+		t.nrows++
+		_, _ = writer.Write(binary.AppendUvarint(nil, uint64(len(rowJSON))))
+		_, _ = writer.Write(rowJSON)
+	}
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("evaltables: failed to write rows JSON: %v", err)
+	}
+	return nil
+}
+
+// rowsJSONFromFile returns the rows' JSON in a file from writeRowsJSON.
+func rowsJSONFromFile(path string) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		file, err := os.Open(path)
+		if err != nil {
+			yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
+			return
+		}
+		defer func() { _ = file.Close() }()
+
+		reader := bufio.NewReader(file)
+		for {
+			size, err := binary.ReadUvarint(reader)
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err == nil && size >= maxRequestBodyBytes {
+				err = fmt.Errorf("row is %d bytes", size)
+			}
+			if err != nil {
+				yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
+				return
+			}
+
+			row := make([]byte, size)
+			if _, err := io.ReadFull(reader, row); err != nil {
+				yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
+				return
+			}
+			if !yield(row, nil) {
+				return
+			}
 		}
 	}
-
-	return table, nil
 }
 
 // Upload creates an EvalTable in CES, adds its columns and rows,
@@ -338,13 +425,9 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
-func requestRows(
+func inlineRows(
 	data *spb.EvalTableData,
 ) iter.Seq2[*spb.EvalTableRow, error] {
-	if path := data.GetRowsFilePath(); path != "" {
-		return rowsFromFile(path)
-	}
-
 	return func(yield func(*spb.EvalTableRow, error) bool) {
 		for _, row := range data.GetRows() {
 			if !yield(row, nil) {
@@ -419,9 +502,9 @@ func readRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
 	return row, nil
 }
 
-// validateColumns checks that the request's columns have known types and
-// that their CES request fits CES's size limit, so that an invalid table
-// fails before any CES request.
+// validateColumns checks that the table's columns have known types and
+// unique names, and that their CES request fits CES's size limit, so that
+// an invalid table fails before any CES request.
 func validateColumns(
 	data *spb.EvalTableData,
 	columns *ces.EvalTableColumnNewParams,
@@ -522,8 +605,8 @@ type rowBatchBuilder struct {
 // Any row fits in an empty batch.
 func (b *rowBatchBuilder) fits(row []byte) bool {
 	return b.nrows == 0 ||
-		b.nrows < maxRowsPerBatch &&
-			b.body.Len()+1+len(row)+len(rowBatchSuffix) <= targetRowBatchBytes
+		(b.nrows < maxRowsPerBatch &&
+			b.body.Len()+1+len(row)+len(rowBatchSuffix) <= targetRowBatchBytes)
 }
 
 func (b *rowBatchBuilder) add(row []byte) {
@@ -567,6 +650,7 @@ func newIdempotencyKeys() idempotencyKeys {
 	}
 }
 
+// option returns a request option setting the key for an operation.
 func (k idempotencyKeys) option(operation string) option.RequestOption {
 	return option.WithHeader("Idempotency-Key", k.prefix+"-"+operation)
 }
