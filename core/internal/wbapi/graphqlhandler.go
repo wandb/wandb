@@ -9,6 +9,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/api"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -102,24 +103,5 @@ func graphqlErrorInfo(err error) (string, int32) {
 		return err.Error(), 0
 	}
 
-	message := httpGraphQLErrorMessage(httpError)
-	if message == "" {
-		message = "<no message>"
-	}
-	return message, int32(httpError.StatusCode)
-}
-
-func httpGraphQLErrorMessage(httpError *graphql.HTTPError) string {
-	switch {
-	case len(httpError.Response.Errors) == 0:
-		return httpError.Error()
-	case len(httpError.Response.Errors) == 1:
-		return httpError.Response.Errors[0].Message
-	default:
-		messages := make([]string, 0, len(httpError.Response.Errors))
-		for _, err := range httpError.Response.Errors {
-			messages = append(messages, err.Message)
-		}
-		return fmt.Sprintf("[%s]", strings.Join(messages, "; "))
-	}
+	return api.FormatGQLErrors(httpError), int32(httpError.StatusCode)
 }

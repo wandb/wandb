@@ -51,21 +51,6 @@ func Test_ToRunUpdateError_GQLError(t *testing.T) {
 	assert.Equal(t, spb.ErrorInfo_COMMUNICATION, runUpdateError.Code)
 }
 
-func Test_ToRunUpdateError_GQLError_Empty(t *testing.T) {
-	err := &graphql.HTTPError{
-		StatusCode: 400,
-		Response: graphql.Response{
-			Errors: gqlerror.List{{Message: ""}}, // no error body (unusual)
-		},
-	}
-
-	result := runupserter.ToRunUpdateError(err)
-
-	runUpdateError := result.(*runupserter.RunUpdateError)
-	assert.ErrorContains(t, runUpdateError, "400") // from HTTPError.Error()
-	assert.Contains(t, runUpdateError.UserMessage, "<no message>")
-}
-
 func Test_ToRunUpdateError_RawTimeout(t *testing.T) {
 	err := fmt.Errorf("some extra info: %w", context.DeadlineExceeded)
 
