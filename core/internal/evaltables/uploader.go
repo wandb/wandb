@@ -125,7 +125,6 @@ func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 	}
 }
 
-// Close deletes the table's temporary files.
 func (t *EncodedTable) Close() {
 	if t.rowsJSONPath != "" {
 		_ = os.Remove(t.rowsJSONPath)
