@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,6 +84,13 @@ type Stream struct {
 	// writerFactory is used to create the Writer component
 	writerFactory *WriterFactory
 
+	// exitFlushReady closes after the transaction log setup completes.
+	exitFlushReady  chan struct{}
+	exitFlushWriter *Writer
+	exitFlushMu     sync.Mutex
+	exitFlushClosed bool
+	exitFlushWG     sync.WaitGroup
+
 	// flowControlFactory is used to create the FlowControl component
 	flowControlFactory *FlowControlFactory
 
@@ -145,6 +153,7 @@ func NewStream(
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
 		writerFactory:      writerFactory,
+		exitFlushReady:     make(chan struct{}),
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
 		clientID:           clientID,
@@ -185,6 +194,8 @@ func (s *Stream) Start() {
 func (s *Stream) maybeSavingToTransactionLog(
 	work <-chan runwork.Work,
 ) <-chan runwork.Work {
+	defer close(s.exitFlushReady)
+
 	if s.settings.IsSkipTransactionLog() {
 		s.logger.Info("stream: skipping transaction log due to settings")
 		return work
@@ -215,6 +226,7 @@ func (s *Stream) maybeSavingToTransactionLog(
 	}
 
 	writer := s.writerFactory.New(w)
+	s.exitFlushWriter = writer
 	flowControl := s.flowControlFactory.New(
 		r, writer.Flush, s.recordParser,
 		FlowControlParams{
@@ -241,6 +253,23 @@ func (s *Stream) maybeSavingToTransactionLog(
 // HandleRecord ingests a record from the client.
 func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
+	if record.GetRequest().GetWaitForRunExitFlush() != nil {
+		if request == nil {
+			return
+		}
+
+		s.exitFlushMu.Lock()
+		if s.exitFlushClosed {
+			s.exitFlushMu.Unlock()
+			request.WillNotRespond()
+			return
+		}
+
+		s.exitFlushWG.Go(func() { s.notifyAfterExit(request) })
+		s.exitFlushMu.Unlock()
+
+		return
+	}
 
 	work := runwork.Work{
 		WorkImpl: s.recordParser.Parse(record),
@@ -248,6 +277,48 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	}
 
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
+}
+
+func (s *Stream) notifyAfterExit(request *runwork.Request) {
+	select {
+	case <-request.Context().Done():
+		return
+	case <-s.exitFlushReady:
+	}
+
+	var err error
+	if s.exitFlushWriter == nil {
+		err = errors.New("transaction log is unavailable")
+	} else {
+		err = s.exitFlushWriter.WaitForExitFlush(request.Context())
+	}
+
+	if request.Context().Err() != nil {
+		return
+	}
+
+	if err != nil {
+		request.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{Message: err.Error()},
+			},
+		})
+		return
+	}
+
+	request.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_Response{
+					Response: &spb.Response{
+						ResponseType: &spb.Response_WaitForRunExitFlushResponse{
+							WaitForRunExitFlushResponse: &spb.WaitForRunExitFlushResponse{},
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 // Close closes the stream and blocks until all its work is processed.
@@ -258,8 +329,14 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 // or else this blocks indefinitely.
 func (s *Stream) Close() {
 	s.logger.Info("stream: finishing up")
+
+	s.exitFlushMu.Lock()
+	s.exitFlushClosed = true
+	s.exitFlushMu.Unlock()
+
 	s.runWork.Close()
 	s.wg.Wait()
+	s.exitFlushWG.Wait()
 	s.logger.Info("stream: all finished")
 
 	// All of the stream's goroutines have finished, so no more analytics

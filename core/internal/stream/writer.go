@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -52,11 +53,9 @@ type Writer struct {
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
 
-	// exitFlushRequests are requests which require a response
-	// after an exit record is received and the transactionlog is flushed.
-	exitFlushRequests []*runwork.Request
-	exitFlushed       bool
-	exitFlushErr      error
+	exitFlushDone chan struct{}
+	exitFlushed   bool
+	exitFlushErr  error
 
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
@@ -65,11 +64,12 @@ type Writer struct {
 // New returns a new Writer.
 func (f *WriterFactory) New(writer *transactionlog.Writer) *Writer {
 	return &Writer{
-		logger:   f.Logger,
-		settings: f.Settings,
-		out:      make(chan runwork.MaybeSavedWork),
-		writer:   writer,
-		stats:    f.Stats,
+		logger:        f.Logger,
+		settings:      f.Settings,
+		exitFlushDone: make(chan struct{}),
+		out:           make(chan runwork.MaybeSavedWork),
+		writer:        writer,
+		stats:         f.Stats,
 	}
 }
 
@@ -78,11 +78,30 @@ func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
 	return w.out
 }
 
+// WaitForExitFlush waits for the exit flush or the writer to stop.
+//
+// It returns the flush error, an error if the writer stops before exit, or the
+// context error if the wait is canceled.
+func (w *Writer) WaitForExitFlush(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-w.exitFlushDone:
+		return w.exitFlushErr
+	}
+}
+
 // Do saves all input Work and pushes it to the output channel,
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise("stream")
-	defer close(w.out)
+	defer func() {
+		if !w.exitFlushed {
+			w.exitFlushErr = errors.New("transaction log closed before an exit record")
+			close(w.exitFlushDone)
+		}
+		close(w.out)
+	}()
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
 	// A nil channel never fires, which disables the periodic flush.
@@ -124,18 +143,6 @@ func (w *Writer) process(work runwork.Work) {
 	savedWork := runwork.MaybeSavedWork{Work: work}
 
 	record := work.ToRecord()
-	if record.GetRequest().GetWaitForRunExitFlush() != nil {
-		if work.Request != nil {
-			if w.exitFlushed {
-				w.respondExitFlush(work.Request, w.exitFlushErr)
-			} else {
-				w.exitFlushRequests = append(w.exitFlushRequests, work.Request)
-			}
-		}
-
-		// do not forward the WaitForRunExitFlushRequest to sender.
-		return
-	}
 
 	if !w.isLocal(record) {
 		recordNum := w.setNumber(record)
@@ -165,49 +172,15 @@ func (w *Writer) process(work runwork.Work) {
 		if !w.exitFlushed {
 			w.exitFlushed = true
 			w.exitFlushErr = err
-
-			for _, request := range w.exitFlushRequests {
-				w.respondExitFlush(request, err)
-			}
-
-			w.exitFlushRequests = nil
+			close(w.exitFlushDone)
 		}
 	}
 
 	w.out <- savedWork
 }
 
-func (w *Writer) respondExitFlush(request *runwork.Request, err error) {
-	if err != nil {
-		request.Respond(&spb.ServerResponse{
-			ServerResponseType: &spb.ServerResponse_ErrorResponse{
-				ErrorResponse: &spb.ServerErrorResponse{Message: err.Error()},
-			},
-		})
-		return
-	}
-
-	request.Respond(&spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
-			ResultCommunicate: &spb.Result{
-				ResultType: &spb.Result_Response{
-					Response: &spb.Response{
-						ResponseType: &spb.Response_WaitForRunExitFlushResponse{
-							WaitForRunExitFlushResponse: &spb.WaitForRunExitFlushResponse{},
-						},
-					},
-				},
-			},
-		},
-	})
-}
-
 // finish closes the transaction log writer.
 func (w *Writer) finish() {
-	for _, request := range w.exitFlushRequests {
-		request.WillNotRespond()
-	}
-	w.exitFlushRequests = nil
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 	w.finished = true
