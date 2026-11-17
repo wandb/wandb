@@ -9799,7 +9799,6 @@ func (x *UploadEvalTableRequest) GetXInfo() *XRequestInfo {
 	return nil
 }
 
-// An EvalTable's columns, rows, and media files.
 type EvalTableData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
