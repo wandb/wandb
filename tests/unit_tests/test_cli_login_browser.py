@@ -217,6 +217,27 @@ def test_browser_flag_reuses_the_stored_browser_login(
     assert stored_refresh_token(credentials_file, host) == "wb_rt_old"
 
 
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_reusing_a_browser_login_persists_the_host(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    mock_browser_login(monkeypatch)
+    browser_login.save_credentials(credentials_file, host, make_token_set())
+    system_settings = wandb_setup.singleton().settings.read_system_settings()
+    system_settings.set("base_url", "https://other-host.invalid", globally=True)
+    system_settings.save()
+
+    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
+
+    assert result.exit_code == 0, result.output
+    assert "Already logged in" in result.output
+    saved_settings = wandb_setup.singleton().settings.read_system_settings()
+    assert saved_settings.all().get("base_url") == host.url
+
+
 @pytest.mark.usefixtures("local_settings")
 def test_browser_flag_logs_in_again_when_the_stored_login_is_rejected(
     runner,

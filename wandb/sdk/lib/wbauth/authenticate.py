@@ -8,7 +8,7 @@ from wandb import env
 from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
-from . import browser_login, prompt, wbnetrc
+from . import prompt, wbnetrc
 from .auth import (
     Auth,
     AuthApiKey,
@@ -270,6 +270,9 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
 
 def _try_browser_login_auth(*, host: HostUrl) -> AuthWithSource | None:
     """Stored browser login, if any. Above .netrc, below environment variables."""
+    # Loads requests and http.server, which `import wandb` must not.
+    from . import browser_login
+
     credentials_file = pathlib.Path(wandb_setup.singleton().settings.credentials_file)
 
     if not browser_login.load_credentials(credentials_file, host):

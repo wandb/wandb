@@ -16,7 +16,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
 from click.exceptions import ClickException
@@ -37,6 +37,9 @@ from wandb.sdk.sweeps import SweepNotFoundError
 from .beta import beta
 from .clean import clean
 from .leet import leet
+
+if TYPE_CHECKING:
+    from wandb.sdk.lib.wbauth.browser_login import TokenSet
 
 
 def _get_wandb_dir(root_dir: str | None = None) -> str:
@@ -311,9 +314,9 @@ def projects(entity, display=True):
 )
 @click.option(
     "--timeout",
-    default=wbauth.browser_login.LOGIN_TIMEOUT_SECONDS,
-    show_default=True,
-    help="Seconds to wait for a --browser login to complete.",
+    type=float,
+    default=None,
+    help="Seconds to wait for a --browser login to complete. Defaults to 300.",
 )
 @display_error
 def login(
@@ -435,7 +438,7 @@ def login(
 def _login_with_browser(
     *,
     host_url: wbauth.HostUrl,
-    timeout: float,
+    timeout: float | None,
     relogin: bool,
     verify: bool,
 ) -> None:
@@ -444,12 +447,12 @@ def _login_with_browser(
     There is one browser login per host. It is reused unless relogin is set
     or it no longer verifies; a login this replaces is revoked.
     """
+    from wandb.sdk.lib.wbauth import browser_login
+
     global_settings = wandb_setup.singleton().settings
     credentials_file = pathlib.Path(global_settings.credentials_file)
 
-    if not relogin and wbauth.browser_login.load_credentials(
-        credentials_file, host_url
-    ):
+    if not relogin and browser_login.load_credentials(credentials_file, host_url):
         auth = wbauth.AuthBrowserLogin(
             host=host_url,
             credentials_file=credentials_file,
@@ -464,13 +467,17 @@ def _login_with_browser(
             )
         else:
             wbauth.use_explicit_auth(auth, source="wandb login")
+            wandb_login.update_system_settings(
+                global_settings.read_system_settings(),
+                host=host_url.url,
+            )
             wandb.termlog(
                 f"Already logged in to {host_url} through the browser."
                 " Use --relogin to log in again."
             )
             return
 
-    if not wbauth.browser_login.can_open_browser():
+    if not browser_login.can_open_browser():
         wandb.termerror(
             "`wandb login --browser` needs a browser on this machine to"
             " finish the login. Run it where you have one, or log in with"
@@ -481,7 +488,9 @@ def _login_with_browser(
     try:
         replaced = _run_browser_login(
             host_url=host_url,
-            timeout=timeout,
+            timeout=(
+                browser_login.LOGIN_TIMEOUT_SECONDS if timeout is None else timeout
+            ),
         )
     except TimeoutError as e:
         wandb.termerror(str(e))
@@ -495,22 +504,24 @@ def _run_browser_login(
     *,
     host_url: wbauth.HostUrl,
     timeout: float,
-) -> wbauth.browser_login.TokenSet | None:
+) -> TokenSet | None:
     """Run the browser flow. Returns the login it replaced, if it verified.
 
     The previous login stays on disk until this one is stored and accepted.
     A failure puts that previous login back.
     """
+    from wandb.sdk.lib.wbauth import browser_login
+
     global_settings = wandb_setup.singleton().settings
     credentials_file = pathlib.Path(global_settings.credentials_file)
 
-    tokens = wbauth.browser_login.login(
+    tokens = browser_login.login(
         host=host_url,
         timeout=timeout,
         verify=not global_settings.insecure_disable_ssl,
     )
-    previous = wbauth.browser_login.load_credentials(credentials_file, host_url)
-    wbauth.browser_login.save_credentials(credentials_file, host_url, tokens)
+    previous = browser_login.load_credentials(credentials_file, host_url)
+    browser_login.save_credentials(credentials_file, host_url, tokens)
 
     auth = wbauth.AuthBrowserLogin(
         host=host_url,
@@ -520,9 +531,9 @@ def _run_browser_login(
         auth.verify()
     except Exception:
         if previous is None:
-            wbauth.browser_login.clear_credentials(credentials_file, host_url)
+            browser_login.clear_credentials(credentials_file, host_url)
         else:
-            wbauth.browser_login.save_credentials(credentials_file, host_url, previous)
+            browser_login.save_credentials(credentials_file, host_url, previous)
         raise
 
     wbauth.use_explicit_auth(auth, source="wandb login")
@@ -539,9 +550,11 @@ def _run_browser_login(
 
 def _revoke_replaced_login(host_url: wbauth.HostUrl, refresh_token: str) -> None:
     """Best-effort revoke of a login that has already been replaced."""
+    from wandb.sdk.lib.wbauth import browser_login
+
     settings = wandb_setup.singleton().settings
     try:
-        wbauth.browser_login.revoke(
+        browser_login.revoke(
             host=host_url,
             refresh_token=refresh_token,
             verify=not settings.insecure_disable_ssl,
@@ -557,10 +570,12 @@ def _clear_browser_login(host_url: wbauth.HostUrl) -> None:
 
     Failing to remove or revoke it must not fail the login that replaced it.
     """
+    from wandb.sdk.lib.wbauth import browser_login
+
     settings = wandb_setup.singleton().settings
 
     try:
-        tokens = wbauth.browser_login.clear_credentials(
+        tokens = browser_login.clear_credentials(
             pathlib.Path(settings.credentials_file),
             host_url,
         )
