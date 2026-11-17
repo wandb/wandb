@@ -57,7 +57,9 @@ class Molecule(BatchableMedia):
         """
         super().__init__(caption=caption)
 
-        if hasattr(data_or_path, "name"):
+        if hasattr(data_or_path, "name") and not isinstance(
+            data_or_path, pathlib.PurePath
+        ):
             # if the file has a path, we just detect the type and copy it from there
             data_or_path = data_or_path.name
 

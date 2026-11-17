@@ -880,6 +880,20 @@ def test_molecule_file(mock_run):
     assert os.path.exists(mol._path)
 
 
+def test_molecule_pathlib_path_keeps_parent_directories(mock_run, tmp_path):
+    run = mock_run()
+    path = tmp_path / "sub" / "test.pdb"
+    path.parent.mkdir()
+    path.write_text("00000")
+
+    mol = wandb.Molecule(path)
+    mol.bind_to_run(run, "rad", "summary")
+    wandb.Molecule.seq_to_json([mol], run, "rad", "summary")
+
+    assert os.path.exists(mol._path)
+    assert mol._path.endswith(".pdb")
+
+
 def test_molecule_from_smiles(mock_run):
     """Ensure that wandb.Molecule.from_smiles supports valid SMILES molecule string representations."""
     run = mock_run()
