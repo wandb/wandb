@@ -490,7 +490,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 		select {
 		case <-s.receivedExitCh:
 			return
-		case <-s.runHandle.Ready():
+		case <-s.runHandle.ReadyOrFailed():
 		}
 
 		upserter, err := s.runHandle.Upserter()
@@ -629,6 +629,7 @@ func (s *Sender) finishRunSync(
 	// It's possible we say we timed out when all data uploaded successfully
 	// if it got really close to the timeout, but that's OK.
 	var timedOut atomic.Bool
+	s.stats.StartFinish()
 
 	defer func() {
 		s.respondExit(exitRequest, timedOut.Load())
@@ -708,6 +709,7 @@ func (s *Sender) finishRunSync(
 			s.fileStream.FinishWithExit(exitRecord.ExitCode)
 		}
 	}
+	s.stats.RecordFinish(context.Background())
 
 	// Indicate that `run.finish()` is done.
 	//

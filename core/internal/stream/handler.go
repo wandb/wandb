@@ -172,7 +172,11 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 		select {
 		case <-h.receivedExitCh:
 			return
-		case <-h.runHandle.Ready():
+		case <-h.runHandle.ReadyOrFailed():
+		}
+
+		if _, err := h.runHandle.Upserter(); err != nil {
+			return
 		}
 
 		h.systemMonitor.Start()
@@ -512,7 +516,16 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
-	h.systemMonitor.Probe()
+	var git *spb.GitRepoRecord
+
+	// TODO: Read Git stuff in wandb-core instead of the Python client.
+	if upserter, err := h.runHandle.Upserter(); err != nil {
+		h.logger.Error("handler: git info unavailable", "error", err)
+	} else {
+		git = upserter.GitInfo()
+	}
+
+	h.systemMonitor.Probe(git)
 }
 
 func (h *Handler) handleRequestPythonPackages(
@@ -676,7 +689,7 @@ func (h *Handler) handleRequestAttach(
 			request.WillNotRespond()
 			return
 
-		case <-h.runHandle.Ready():
+		case <-h.runHandle.ReadyOrFailed():
 		}
 
 		upserter, err := h.runHandle.Upserter()
