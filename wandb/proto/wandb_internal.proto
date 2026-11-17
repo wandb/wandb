@@ -1741,4 +1741,7 @@ enum ServerFeature {
 
   // Indicates that the server supports automation event SANDBOX_STATE.
   AUTOMATION_EVENT_SANDBOX_STATE = 40;
+
+  // Indicates that ARIA automation actions can continue an existing thread.
+  AUTOMATION_ACTION_ARIA_THREAD = 41;
 }

@@ -15,7 +15,7 @@ from ._generated import (
     PushNotificationActionFields,
     QueueJobActionFields,
 )
-from .actions import ActionType
+from .actions import ActionType, InputAction, SavedAction
 from .events import EventType
 from .scopes import ScopeType
 
@@ -167,3 +167,26 @@ def omit_automation_fragments(service_api: ServiceApi) -> set[str]:
         and (name := ACTION_FRAGMENT_NAMES.get(action))
     )
     return omit_scope_fragments | omit_action_fragments
+
+
+def omit_automation_fields(service_api: ServiceApi) -> set[str]:
+    """Omit thread targets from queries to servers without continuation support."""
+    if service_api.feature_enabled(ServerFeature.AUTOMATION_ACTION_ARIA_THREAD):
+        return set()
+    return {"threadId"}
+
+
+def validate_aria_thread_support(
+    service_api: ServiceApi, action: InputAction | SavedAction
+) -> None:
+    """Reject thread targets on older servers instead of dropping the target."""
+    if (
+        action.action_type is ActionType.ARIA
+        and action.thread_id is not None
+        and not service_api.feature_enabled(ServerFeature.AUTOMATION_ACTION_ARIA_THREAD)
+    ):
+        from wandb.errors import UnsupportedError
+
+        raise UnsupportedError(
+            "Continuing an ARIA thread is not supported on this W&B server version."
+        )

@@ -16,6 +16,7 @@ from .enums import AlertSeverity, EventTriggeringConditionType
 class AriaActionFields(GQLResult):
     typename__: Typename[Literal["ARIATriggeredAction"]] = "ARIATriggeredAction"
     prompt: str
+    thread_id: GQLId | None = Field(alias="threadId", default=None)
 
 
 class ArtifactPortfolioScopeFields(GQLResult):

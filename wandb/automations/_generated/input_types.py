@@ -17,6 +17,8 @@ from .enums import (
 
 class ARIAActionInput(GQLInput):
     prompt: str
+    thread_id: GQLId | None = Field(alias="threadId", default=None)
+    "Existing ARIA thread to continue. Omit to start a new chat for each execution."
 
 
 class CreateFilterTriggerInput(GQLInput):

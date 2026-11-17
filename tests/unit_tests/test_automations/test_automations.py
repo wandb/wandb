@@ -291,6 +291,16 @@ class TestPrepareToCreate:
             "ariaActionInput": {"prompt": input_action.prompt},
         }
 
+    @mark.parametrize("action_type", [ActionType.ARIA], indirect=True)
+    def test_action_payload_for_aria_thread_target(self, input_event, input_action):
+        action = input_action.model_copy(update={"thread_id": "existing-thread"})
+        prepared = prepare_to_create(
+            event=input_event, action=action, name="thread-target"
+        )
+        assert prepared.model_dump()["triggeredActionConfig"] == {
+            "ariaActionInput": {"prompt": action.prompt, "threadId": "existing-thread"},
+        }
+
 
 class TestPrepareToUpdate:
     """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""
