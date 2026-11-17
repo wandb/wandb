@@ -22,6 +22,7 @@ class WandbBackendSpy:
         self._runs: _Runs = _Runs()
         self._gql_stubs: list[gql_match.GQLStub] = []
         self._filestream_stubs: list[_FileStreamResponse] = []
+        self._ces_requests: list[CESRequest] = []
 
     @contextlib.contextmanager
     def freeze(self) -> Generator[WandbBackendSnapshot]:
@@ -258,6 +259,40 @@ class WandbBackendSpy:
                     file[offset] = line
                     offset += 1
 
+    def post_ces(
+        self,
+        request_raw: bytes,
+        *,
+        method: str,
+        path: str,
+        idempotency_key: str | None,
+    ) -> fastapi.Response:
+        """Record a CES request and respond like CES, with fixed IDs."""
+        with self._lock:
+            self._ces_requests.append(
+                CESRequest(
+                    method=method,
+                    path=path,
+                    idempotency_key=idempotency_key,
+                    body=json.loads(request_raw) if request_raw else None,
+                )
+            )
+
+        if path.endswith("/eval-tables"):
+            response = {"evaluation_id": "eval-id", "dataset_id": "dataset-id"}
+        elif path.endswith("/versions"):
+            response = {
+                "evaluation_version_id": "eval-version-id",
+                "dataset_version_id": "dataset-version-id",
+            }
+        else:
+            response = {}
+
+        return fastapi.Response(
+            content=json.dumps(response),
+            media_type="application/json",
+        )
+
 
 class WandbBackendSnapshot:
     """A snapshot of the W&B backend state."""
@@ -492,6 +527,11 @@ class WandbBackendSnapshot:
         spy = self._assert_valid()
         return spy._runs.get(run_id)._exit_code
 
+    def ces_requests(self) -> list[CESRequest]:
+        """Returns the requests to the fake CES, in order."""
+        spy = self._assert_valid()
+        return list(spy._ces_requests)
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:
@@ -589,6 +629,16 @@ class _RunData:
         self._sweep_name: str | None = None
         self._completed = False
         self._exit_code: int | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class CESRequest:
+    """A request to the fake CoreWeave Evaluation Service (CES)."""
+
+    method: str
+    path: str
+    idempotency_key: str | None
+    body: Any
 
 
 @dataclasses.dataclass(frozen=True)
