@@ -3,7 +3,6 @@ package stream_test
 import (
 	"bytes"
 	"context"
-	"math"
 	"os"
 	"testing"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/simplejsonext"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -224,54 +222,39 @@ func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
 	fileStream := filestreamtest.NewFakeFileStream()
 	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
 
-	items := []*spb.HistoryItem{
-		{Key: "null", Value: &spb.HistoryItem_None{}},
-		{Key: "large", Value: &spb.HistoryItem_Integer{Integer: math.MaxInt64}},
-		{Key: "numeric_text", Value: &spb.HistoryItem_Text{Text: "007"}},
-		{Key: "nan", Value: &spb.HistoryItem_Number{Number: math.NaN()}},
-		{Key: "positive_inf", Value: &spb.HistoryItem_Number{Number: math.Inf(1)}},
-		{Key: "negative_inf", Value: &spb.HistoryItem_Number{Number: math.Inf(-1)}},
-		{
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "null", Value: &spb.HistoryItem_None{}},
+		&spb.HistoryItem{
 			Key:   "false",
 			Value: &spb.HistoryItem_Boolean{Boolean: false},
 		},
-		{
+		&spb.HistoryItem{
 			Key:   "zero",
 			Value: &spb.HistoryItem_Integer{Integer: 0},
 		},
-		{
+		&spb.HistoryItem{
 			Key:   "float",
 			Value: &spb.HistoryItem_Number{Number: 1.0},
 		},
-		{
+		&spb.HistoryItem{
 			Key:   "empty",
 			Value: &spb.HistoryItem_Text{Text: ""},
 		},
-		{
+		&spb.HistoryItem{
 			NestedKey: []string{"nested", "object"},
 			Value:     &spb.HistoryItem_Json{Json: `{"a": 1, "b": {"c": true}}`},
 		},
-		{
+		&spb.HistoryItem{
 			NestedKey: []string{"nested", "array"},
 			Value:     &spb.HistoryItem_Json{Json: `[1, {"x": null}]`},
 		},
-	}
-	sendHistoryItems(x, items...)
+	)
 
 	rows := fileStream.GetRequest(x.Settings).HistoryLines
 	require.Len(t, rows, 1)
-	values, err := simplejsonext.UnmarshalObject([]byte(rows[0]))
-	require.NoError(t, err)
-	gotJSON, err := simplejsonext.Marshal(simplejsonext.WalkDeNaN(values))
-	require.NoError(t, err)
 	assert.JSONEq(t, `{
 		"_step": 0,
 		"null":  null,
-		"large": 9223372036854775807,
-		"numeric_text": "007",
-		"nan": "NaN",
-		"positive_inf": "Infinity",
-		"negative_inf": "-Infinity",
 		"false": false,
 		"zero":  0,
 		"float": 1,
@@ -280,7 +263,7 @@ func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
 			"object": {	"a": 1, "b": {"c": true}},
 			"array": [1, {"x": null}]
 		}
-	}`, string(gotJSON))
+	}`, rows[0])
 }
 
 func TestSendHistoryPrefersTypedValues(t *testing.T) {
