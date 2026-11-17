@@ -24,7 +24,7 @@ func emptyWandbFile(t *testing.T) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -33,16 +33,13 @@ func emptyWandbFile(t *testing.T) string {
 
 func assertUnsupportedVersion(t *testing.T, err error, version byte) {
 	t.Helper()
-	var versionErr *transactionlog.UnsupportedVersionError
-	require.ErrorAs(t, err, &versionErr)
-	assert.Equal(t, version, versionErr.Version)
-	assert.EqualError(t, err, "a newer wandb version is required to read this file")
+	assert.ErrorContains(t, err, fmt.Sprintf("a newer wandb version is required to read this file: %d", version))
 }
 
 func Test_ReadAfterWrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
 	require.NoError(t, writer.Close())
@@ -60,7 +57,7 @@ func Test_OpenWriter_FileExists(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte{}, 0o666))
 
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 
 	assert.Nil(t, writer)
 	assert.ErrorIs(t, err, os.ErrExist)
@@ -68,7 +65,7 @@ func Test_OpenWriter_FileExists(t *testing.T) {
 
 func Test_Write_AlreadyClosed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 
 	require.NoError(t, writer.Close())
@@ -112,7 +109,7 @@ func Test_Read_EOF(t *testing.T) {
 func Test_Read_SkipsCorruptData(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 
 	// The first 7 bytes of the first block are the W&B header.
@@ -158,7 +155,7 @@ func Test_Read_SkipsCorruptData(t *testing.T) {
 func Test_ResetLastRead(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
 	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
@@ -186,7 +183,7 @@ func Test_ResetLastRead(t *testing.T) {
 func Test_NextRecordOffset_SeekRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
 	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
@@ -218,7 +215,7 @@ func Test_EOF(t *testing.T) {
 	// Test that EOF and ErrUnexpectedEOF errors are correctly wrapped.
 
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	writer, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -306,7 +303,7 @@ func Test_OpenWriter_UnsupportedVersion(t *testing.T) {
 
 func Test_OpenWriter_WritesVersion(t *testing.T) {
 
-	for _, version := range []byte{transactionlog.VersionLegacy, transactionlog.VersionTypedHistory} {
+	for _, version := range []byte{byte(0), byte(1)} {
 		t.Run(string(version), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), fmt.Sprintf("run.wandb.%d", version))
 			w, err := transactionlog.OpenWriter(path, version)

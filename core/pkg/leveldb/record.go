@@ -352,8 +352,8 @@ func (r *Reader) isShortBlock() bool {
 // VerifyWandbHeader checks for the presence of a valid W&B header.
 //
 // If the reader is past the first block, it seeks to the start to read the
-// header and then seeks back, so that NextOffset is unchanged even on error.
-// This requires the underlying reader to be an io.Seeker.
+// header and then seeks back before returning. If the underlying reader
+// is not an io.Seeker, this returns an error.
 //
 // The error wraps EOF if there's no data at all and ErrUnexpectedEOF
 // if there's not enough data to hold a header.

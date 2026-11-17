@@ -157,9 +157,9 @@ func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
 				}
 				history.Item = append(history.Item, item)
 			}
-			version := transactionlog.VersionLegacy
+			version := byte(0)
 			if encoding == "typed" {
-				version = transactionlog.VersionTypedHistory
+				version = byte(1)
 			}
 			path := txnlogtest.WandbFileVersion(
 				t, version,
@@ -236,7 +236,7 @@ func TestDumpRecords_JSONHistoryInvalidTypedJSON(t *testing.T) {
 func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "run-follow.wandb")
-		w, err := transactionlog.OpenWriter(path, transactionlog.VersionTypedHistory)
+		w, err := transactionlog.OpenWriter(path, byte(1))
 		require.NoError(t, err)
 		require.NoError(t, w.Write(&spb.Record{
 			RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "live"}},

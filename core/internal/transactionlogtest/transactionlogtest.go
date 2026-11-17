@@ -34,7 +34,7 @@ func WandbFileUnsupportedVersion(t *testing.T, version byte, records ...*spb.Rec
 	return path
 }
 
-func WandbFileVersion(t *testing.T, version byte, records ...*spb.Record) string {
+func WandbFileVersion(t *testing.T, version uint8, records ...*spb.Record) string {
 	t.Helper()
 
 	w, path := NewWriter(t, &WriterOptions{Records: records, Version: version})
@@ -63,7 +63,7 @@ func NewWriter(t *testing.T, options *WriterOptions) (*transactionlog.Writer, st
 	var w *transactionlog.Writer
 	var err error
 	if options.AllowUnsupportedVersion {
-		w, err = transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+		w, err = transactionlog.OpenWriter(path, byte(0))
 		require.NoError(t, err)
 		writeVersion(t, path, options.Version)
 	} else {
@@ -93,7 +93,7 @@ func ReaderWriter(t *testing.T) (
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "just-the-header.wandb")
 
-	w, err := transactionlog.OpenWriter(path, transactionlog.VersionLegacy)
+	w, err := transactionlog.OpenWriter(path, byte(0))
 	require.NoError(t, err)
 
 	r, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
