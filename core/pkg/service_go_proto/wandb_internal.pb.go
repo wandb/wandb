@@ -115,6 +115,9 @@ const (
 	ServerFeature_ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD ServerFeature = 39
 	// Indicates that the server supports automation event SANDBOX_STATE.
 	ServerFeature_AUTOMATION_EVENT_SANDBOX_STATE ServerFeature = 40
+	// Indicates that the server supports paginating
+	// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+	ServerFeature_ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION ServerFeature = 41
 )
 
 // Enum value maps for ServerFeature.
@@ -160,6 +163,7 @@ var (
 		38: "EVAL_TABLES_CES",
 		39: "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD",
 		40: "AUTOMATION_EVENT_SANDBOX_STATE",
+		41: "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -202,6 +206,7 @@ var (
 		"EVAL_TABLES_CES":                                      38,
 		"ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD":              39,
 		"AUTOMATION_EVENT_SANDBOX_STATE":                       40,
+		"ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION":               41,
 	}
 )
 
@@ -12928,7 +12933,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xa0\v\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xcc\v\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12971,7 +12976,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x16AUTOMATION_ACTION_ARIA\x10%\x12\x13\n" +
 	"\x0fEVAL_TABLES_CES\x10&\x12+\n" +
 	"'ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD\x10'\x12\"\n" +
-	"\x1eAUTOMATION_EVENT_SANDBOX_STATE\x10(\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x1eAUTOMATION_EVENT_SANDBOX_STATE\x10(\x12*\n" +
+	"&ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION\x10)\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
