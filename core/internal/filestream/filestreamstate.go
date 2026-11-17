@@ -212,30 +212,7 @@ func (s *FileStreamState) popSummary(
 		s.summaryDelta = nil
 	}
 
-	if !request.SummaryUpdates.IsEmpty() {
-		if s.RunSummary == nil {
-			s.RunSummary = runsummary.New()
-		}
-
-		err := request.SummaryUpdates.Apply(s.RunSummary)
-
-		if err != nil {
-			// A partial success is possible, so we log and continue.
-			logger.CaptureError(
-				"filestream",
-				fmt.Errorf("filestream: error applying summary updates: %v", err),
-			)
-		}
-
-		if s.summaryDelta != nil {
-			s.summaryDelta.Merge(request.SummaryUpdates)
-		}
-		request.SummaryUpdates = nil
-
-		// A delta cannot express a removal.
-		s.serializeSummary(logger,
-			s.summaryDelta != nil && !s.summaryDelta.HasRemovals())
-	}
+	s.takeSummaryUpdates(request, logger)
 
 	// After deltas, send the full summary once the backend stops accepting
 	// them, and on the final request.
@@ -277,6 +254,40 @@ func (s *FileStreamState) popSummary(
 	builder.SummaryChunk.Content = []string{s.UnsentSummary}
 	builder.SummaryDelta = s.unsentSummaryIsDelta
 	s.clearUnsentSummary(acceptDelta)
+}
+
+// takeSummaryUpdates moves the request's summary updates into RunSummary
+// and summaryDelta, and serializes the summary to send.
+func (s *FileStreamState) takeSummaryUpdates(
+	request *FileStreamRequest,
+	logger *observability.CoreLogger,
+) {
+	if request.SummaryUpdates.IsEmpty() {
+		return
+	}
+
+	if s.RunSummary == nil {
+		s.RunSummary = runsummary.New()
+	}
+
+	err := request.SummaryUpdates.Apply(s.RunSummary)
+
+	if err != nil {
+		// A partial success is possible, so we log and continue.
+		logger.CaptureError(
+			"filestream",
+			fmt.Errorf("filestream: error applying summary updates: %v", err),
+		)
+	}
+
+	if s.summaryDelta != nil {
+		s.summaryDelta.Merge(request.SummaryUpdates)
+	}
+	request.SummaryUpdates = nil
+
+	// A delta cannot express a removal.
+	s.serializeSummary(logger,
+		s.summaryDelta != nil && !s.summaryDelta.HasRemovals())
 }
 
 // serializeSummary sets UnsentSummary to summaryDelta or to the full summary.
