@@ -11,11 +11,12 @@ import (
 )
 
 func Test_FormatGQLErrors_GQLError_One(t *testing.T) {
-	response := graphql.Response{
-		Errors: gqlerror.List{
-			{Message: "gql error message"},
-		},
-	}
+	response := &graphql.HTTPError{
+		Response: graphql.Response{
+			Errors: gqlerror.List{
+				{Message: "gql error message"},
+			},
+		}}
 
 	result := api.FormatGQLErrors(response)
 
@@ -23,12 +24,13 @@ func Test_FormatGQLErrors_GQLError_One(t *testing.T) {
 }
 
 func Test_FormatGQLErrors_GQLError_Many(t *testing.T) {
-	response := graphql.Response{
-		Errors: gqlerror.List{
-			{Message: "gql 1"},
-			{Message: "gql 2"},
-		},
-	}
+	response := &graphql.HTTPError{
+		Response: graphql.Response{
+			Errors: gqlerror.List{
+				{Message: "gql 1"},
+				{Message: "gql 2"},
+			},
+		}}
 
 	result := api.FormatGQLErrors(response)
 
@@ -36,11 +38,14 @@ func Test_FormatGQLErrors_GQLError_Many(t *testing.T) {
 }
 
 func Test_FormatGQLErrors_GQLError_None(t *testing.T) {
-	response := graphql.Response{}
+	response := &graphql.HTTPError{
+		Response:   graphql.Response{},
+		StatusCode: 404,
+	}
 
 	result := api.FormatGQLErrors(response)
 
-	assert.Empty(t, result)
+	assert.Equal(t, `<HTTP status 404 "Not Found">`, result)
 }
 
 func Test_MaybeGQLErrorResponse(t *testing.T) {
