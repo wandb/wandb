@@ -1467,10 +1467,8 @@ class RunStatusResponse(_message.Message):
     def __init__(self, sync_items_total: _Optional[int] = ..., sync_items_pending: _Optional[int] = ..., sync_time: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class WaitForRunExitFlushRequest(_message.Message):
-    __slots__ = ("_info",)
-    _INFO_FIELD_NUMBER: _ClassVar[int]
-    _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class WaitForRunExitFlushResponse(_message.Message):
     __slots__ = ()

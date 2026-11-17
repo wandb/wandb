@@ -9300,9 +9300,12 @@ func (x *RunStatusResponse) GetSyncTime() *timestamppb.Timestamp {
 }
 
 // Waits until the transaction log has been flushed after the run's exit record.
+//
+// After this message is record has been received by a client
+// it signals that the transaction log file's contents are finalized and can be read by other programs,
+// for example to create a backup.
 type WaitForRunExitFlushRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	XInfo         *XRequestInfo          `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9335,13 +9338,6 @@ func (x *WaitForRunExitFlushRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use WaitForRunExitFlushRequest.ProtoReflect.Descriptor instead.
 func (*WaitForRunExitFlushRequest) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{119}
-}
-
-func (x *WaitForRunExitFlushRequest) GetXInfo() *XRequestInfo {
-	if x != nil {
-		return x.XInfo
-	}
-	return nil
 }
 
 // Indicates the transaction log was successfully flushed.
@@ -12699,9 +12695,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x11RunStatusResponse\x12(\n" +
 	"\x10sync_items_total\x18\x01 \x01(\x03R\x0esyncItemsTotal\x12,\n" +
 	"\x12sync_items_pending\x18\x02 \x01(\x03R\x10syncItemsPending\x127\n" +
-	"\tsync_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\"P\n" +
-	"\x1aWaitForRunExitFlushRequest\x122\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\x1d\n" +
+	"\tsync_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\"\x1c\n" +
+	"\x1aWaitForRunExitFlushRequest\"\x1d\n" +
 	"\x1bWaitForRunExitFlushResponse\"r\n" +
 	"\x13CheckVersionRequest\x12'\n" +
 	"\x0fcurrent_version\x18\x01 \x01(\tR\x0ecurrentVersion\x122\n" +
@@ -13373,48 +13368,47 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	125, // 198: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
 	179, // 199: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
 	177, // 200: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
-	179, // 201: wandb_internal.WaitForRunExitFlushRequest._info:type_name -> wandb_internal._RequestInfo
-	179, // 202: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
-	179, // 203: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	53,  // 204: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
-	179, // 205: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	179, // 206: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	179, // 207: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
-	142, // 208: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
-	143, // 209: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
-	141, // 210: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
-	144, // 211: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
-	145, // 212: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
-	146, // 213: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
-	147, // 214: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
-	175, // 215: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	179, // 216: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 217: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
-	19,  // 218: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
-	168, // 219: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
-	154, // 220: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
-	155, // 221: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
-	156, // 222: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
-	157, // 223: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
-	158, // 224: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
-	169, // 225: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
-	159, // 226: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
-	160, // 227: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
-	161, // 228: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
-	175, // 229: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
-	170, // 230: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
-	171, // 231: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
-	172, // 232: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
-	165, // 233: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
-	164, // 234: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
-	164, // 235: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
-	79,  // 236: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
-	153, // 237: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
-	238, // [238:238] is the sub-list for method output_type
-	238, // [238:238] is the sub-list for method input_type
-	238, // [238:238] is the sub-list for extension type_name
-	238, // [238:238] is the sub-list for extension extendee
-	0,   // [0:238] is the sub-list for field type_name
+	179, // 201: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
+	179, // 202: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	53,  // 203: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
+	179, // 204: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	179, // 205: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	179, // 206: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
+	142, // 207: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
+	143, // 208: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
+	141, // 209: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
+	144, // 210: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
+	145, // 211: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
+	146, // 212: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
+	147, // 213: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
+	175, // 214: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	179, // 215: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
+	177, // 216: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
+	19,  // 217: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
+	168, // 218: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
+	154, // 219: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
+	155, // 220: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
+	156, // 221: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
+	157, // 222: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
+	158, // 223: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
+	169, // 224: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
+	159, // 225: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
+	160, // 226: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
+	161, // 227: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
+	175, // 228: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
+	170, // 229: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
+	171, // 230: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
+	172, // 231: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
+	165, // 232: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
+	164, // 233: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
+	164, // 234: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
+	79,  // 235: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
+	153, // 236: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
+	237, // [237:237] is the sub-list for method output_type
+	237, // [237:237] is the sub-list for method input_type
+	237, // [237:237] is the sub-list for extension type_name
+	237, // [237:237] is the sub-list for extension extendee
+	0,   // [0:237] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_internal_proto_init() }

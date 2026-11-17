@@ -1240,9 +1240,11 @@ message RunStatusResponse {
 }
 
 // Waits until the transaction log has been flushed after the run's exit record.
-message WaitForRunExitFlushRequest {
-  _RequestInfo _info = 200;
-}
+//
+// After this message is record has been received by a client
+// it signals that the transaction log file's contents are finalized and can be read by other programs,
+// for example to create a backup.
+message WaitForRunExitFlushRequest {}
 
 // Indicates the transaction log was successfully flushed.
 message WaitForRunExitFlushResponse {}
