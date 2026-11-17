@@ -2694,7 +2694,6 @@ pub struct UploadEvalTableRequest {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
 }
-/// An EvalTable's columns, rows, and media files.
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EvalTableData {
