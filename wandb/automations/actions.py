@@ -127,6 +127,9 @@ class SavedAriaAction(AriaActionFields, frozen=False):
     prompt: str
     """The prompt ARIA receives when this automation is triggered."""
 
+    thread_id: GQLId | None = Field(alias="threadId", default=None)
+    """The existing ARIA thread to continue, or None to create a new chat."""
+
 
 # NOTE: Push notifications are created from the W&B App, so while we allow
 # parsing them from previously saved Automations, we don't currently expose
@@ -256,6 +259,9 @@ class SendPromptToAria(_BaseActionInput, ARIAActionInput):
 
     prompt: Annotated[str, AfterValidator(_validate_aria_prompt)]
     """The prompt ARIA receives when this automation is triggered."""
+
+    thread_id: GQLId | None = Field(alias="threadId", default=None)
+    """Continue this ARIA thread. Omit to start a new chat for each execution."""
 
 
 # for type annotations

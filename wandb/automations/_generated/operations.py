@@ -32,6 +32,7 @@ query GetAutomationsLegacy($cursor: String, $perPage: Int) {
 fragment AriaActionFields on ARIATriggeredAction {
   __typename
   prompt
+  threadId @include(if: true)
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
@@ -176,6 +177,7 @@ query GetEntityAutomationsLegacy($entity: String!, $cursor: String, $perPage: In
 fragment AriaActionFields on ARIATriggeredAction {
   __typename
   prompt
+  threadId @include(if: true)
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
@@ -320,6 +322,7 @@ query GetEntityAutomations($entity: String!, $cursor: String, $perPage: Int, $or
 fragment AriaActionFields on ARIATriggeredAction {
   __typename
   prompt
+  threadId @include(if: true)
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
@@ -457,6 +460,7 @@ query GetOrgAutomations($org: String!, $cursor: String, $perPage: Int, $order: S
 fragment AriaActionFields on ARIATriggeredAction {
   __typename
   prompt
+  threadId @include(if: true)
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
@@ -587,6 +591,7 @@ mutation CreateAutomation($input: CreateFilterTriggerInput!) {
 fragment AriaActionFields on ARIATriggeredAction {
   __typename
   prompt
+  threadId @include(if: true)
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
@@ -712,6 +717,7 @@ mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
 fragment AriaActionFields on ARIATriggeredAction {
   __typename
   prompt
+  threadId @include(if: true)
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {

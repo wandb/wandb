@@ -112,7 +112,10 @@ class _LegacyAutomationsPaginator(
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.automations._compat import omit_automation_fragments
+        from wandb.automations._compat import (
+            omit_automation_fields,
+            omit_automation_fragments,
+        )
 
         self._name = name
 
@@ -122,6 +125,7 @@ class _LegacyAutomationsPaginator(
             per_page=per_page,
             start=start,
             omit_fragments=omit_automation_fragments(service_api),
+            omit_fields=omit_automation_fields(service_api),
         )
 
     @override
@@ -222,7 +226,10 @@ class EntityAutomations(
         start: str | None = None,
     ):
         from wandb._pydantic import to_json
-        from wandb.automations._compat import omit_automation_fragments
+        from wandb.automations._compat import (
+            omit_automation_fields,
+            omit_automation_fragments,
+        )
 
         # Only skip unparseable automations when listing without a filter, e.g.
         # not when looking one up by name (see `_parse_automation`).
@@ -242,6 +249,7 @@ class EntityAutomations(
             per_page=per_page,
             start=start,
             omit_fragments=omit_automation_fragments(service_api),
+            omit_fields=omit_automation_fields(service_api),
         )
 
     @override

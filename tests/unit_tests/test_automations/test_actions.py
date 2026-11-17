@@ -1,4 +1,5 @@
 import json
+from unittest.mock import Mock
 
 from hypothesis import given
 from hypothesis.strategies import dictionaries, sampled_from, text
@@ -10,13 +11,20 @@ from wandb.automations import (
     SendPromptToAria,
     SendWebhook,
 )
+from wandb.automations._compat import (
+    omit_automation_fields,
+    validate_aria_thread_support,
+)
 from wandb.automations._generated import (
     AlertSeverity,
     TriggeredActionType,
     TriggerFields,
 )
+from wandb.automations._inputs import prepare_to_update
 from wandb.automations.actions import SavedAriaAction, SavedPushNotificationAction
 from wandb.automations.automations import Automation
+from wandb.errors import UnsupportedError
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.wandb_alerts import AlertLevel
 
 from tests.unit_tests.test_filters._strategies import printable_text
@@ -142,6 +150,58 @@ def test_send_prompt_to_aria_is_public():
     action = SendPromptToAria(prompt="  Summarize this run  ")
     assert action.action_type is ActionType.ARIA
     assert action.prompt == "Summarize this run"
+
+
+@mark.parametrize("thread_id", [None, "019abcde-1234-7000-8000-123456789abc"])
+def test_aria_thread_target_round_trips_and_survives_updates(trigger_node, thread_id):
+    action = {"__typename": "ARIATriggeredAction", "prompt": "Investigate"}
+    if thread_id is not None:
+        action["threadId"] = thread_id
+    automation = Automation.model_validate(
+        TriggerFields.model_validate(trigger_node(action))
+    )
+    assert automation.action.thread_id == thread_id
+    updated = prepare_to_update(automation, name="renamed automation")
+    expected = {"prompt": "Investigate"}
+    if thread_id is not None:
+        expected["threadId"] = thread_id
+    assert updated.triggered_action_config.model_dump() == {"ariaActionInput": expected}
+
+
+@mark.parametrize("thread_id", [None, "019abcde-1234-7000-8000-123456789abc"])
+def test_aria_thread_input_uses_graphql_field_name(thread_id):
+    action = SendPromptToAria(prompt="Investigate", thread_id=thread_id)
+    payload = action.model_dump()
+    if thread_id is None:
+        assert "threadId" not in payload
+    else:
+        assert payload["threadId"] == thread_id
+
+
+@mark.parametrize("supported", [False, True])
+def test_aria_thread_queries_omit_field_on_older_servers(supported):
+    service = Mock()
+    service.feature_enabled.return_value = supported
+    assert omit_automation_fields(service) == (set() if supported else {"threadId"})
+    service.feature_enabled.assert_called_once_with(
+        ServerFeature.AUTOMATION_ACTION_ARIA_THREAD
+    )
+
+
+@mark.parametrize("action_class", [SendPromptToAria, SavedAriaAction])
+def test_aria_thread_target_rejected_on_older_servers(action_class):
+    service = Mock()
+    service.feature_enabled.return_value = False
+    validate_aria_thread_support(service, action_class(prompt="Investigate"))
+    service.feature_enabled.assert_not_called()
+    with raises(UnsupportedError, match="Continuing an ARIA thread"):
+        validate_aria_thread_support(
+            service, action_class(prompt="Investigate", thread_id="thread")
+        )
+    service.feature_enabled.return_value = True
+    validate_aria_thread_support(
+        service, action_class(prompt="Investigate", thread_id="thread")
+    )
 
 
 @mark.parametrize(

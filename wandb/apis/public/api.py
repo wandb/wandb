@@ -2436,7 +2436,9 @@ class Api:
         from wandb.automations import Automation
         from wandb.automations._compat import (
             automation_enabled,
+            omit_automation_fields,
             omit_automation_fragments,
+            validate_aria_thread_support,
         )
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
         from wandb.automations._inputs import prepare_to_create
@@ -2456,6 +2458,7 @@ class Api:
             )
             raise UnsupportedError(msg) from None
 
+        validate_aria_thread_support(self._service_api, gql_input.action)
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
@@ -2464,6 +2467,7 @@ class Api:
                 CREATE_AUTOMATION_GQL,
                 variables=variables,
                 omit_fragments=omit_automation_fragments(self._service_api),
+                omit_fields=omit_automation_fields(self._service_api),
                 parse=CreateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
@@ -2550,7 +2554,9 @@ class Api:
         from wandb.automations import Automation
         from wandb.automations._compat import (
             automation_enabled,
+            omit_automation_fields,
             omit_automation_fragments,
+            validate_aria_thread_support,
         )
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
         from wandb.automations._inputs import prepare_to_update
@@ -2570,6 +2576,7 @@ class Api:
             )
             raise UnsupportedError(msg)
 
+        validate_aria_thread_support(self._service_api, gql_input.action)
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
@@ -2578,6 +2585,7 @@ class Api:
                 UPDATE_AUTOMATION_GQL,
                 variables=variables,
                 omit_fragments=omit_automation_fragments(self._service_api),
+                omit_fields=omit_automation_fields(self._service_api),
                 parse=UpdateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
