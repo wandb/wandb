@@ -1022,6 +1022,13 @@ pub struct HistoryRecord {
     pub item: ::prost::alloc::vec::Vec<HistoryItem>,
     #[prost(message, optional, tag = "2")]
     pub step: ::core::option::Option<HistoryStep>,
+    /// The time the step was logged relative to the start of this run segment.
+    ///
+    /// In other words, this is relative to the start of the .wandb file (if one
+    /// exists). In a resumed run, this is different from the "runtime", which is
+    /// the time from the start of the run.
+    #[prost(int64, optional, tag = "3")]
+    pub relative_time_ms: ::core::option::Option<i64>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

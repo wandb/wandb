@@ -374,14 +374,16 @@ class HistoryStep(_message.Message):
     def __init__(self, num: _Optional[int] = ...) -> None: ...
 
 class HistoryRecord(_message.Message):
-    __slots__ = ("item", "step", "_info")
+    __slots__ = ("item", "step", "relative_time_ms", "_info")
     ITEM_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
+    RELATIVE_TIME_MS_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     item: _containers.RepeatedCompositeFieldContainer[HistoryItem]
     step: HistoryStep
+    relative_time_ms: int
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, item: _Optional[_Iterable[_Union[HistoryItem, _Mapping]]] = ..., step: _Optional[_Union[HistoryStep, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, item: _Optional[_Iterable[_Union[HistoryItem, _Mapping]]] = ..., step: _Optional[_Union[HistoryStep, _Mapping]] = ..., relative_time_ms: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class HistoryItem(_message.Message):
     __slots__ = ("key", "nested_key", "none", "boolean", "integer", "number", "text", "json", "value_json")

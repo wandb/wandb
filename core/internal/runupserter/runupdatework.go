@@ -38,6 +38,11 @@ type RunHandle interface {
 	//
 	// It is called from the Sender goroutine.
 	Upserter() (*RunUpserter, error)
+
+	// StartStopwatch begins tracking elapsed time.
+	//
+	// Does nothing if the stopwatch is already started.
+	StartStopwatch()
 }
 
 // RunUpdateWork implements Work to initialize or update a run.
@@ -65,6 +70,10 @@ func (w *RunUpdateWork) Accept(
 	_ *runwork.Request,
 	_ func(*spb.Record, *runwork.Request),
 ) bool {
+	// Measure the `_runtime` metric from the moment that the first RunRecord
+	// is received, before the Handler processes any history records.
+	w.RunHandle.StartStopwatch()
+
 	return true
 }
 
