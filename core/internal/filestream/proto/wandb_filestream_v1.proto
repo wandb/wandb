@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package wandb.filestream.v1;
 
+import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_system_metrics.proto";
+
 option go_package = "core/internal/filestream/proto;filestreamv1";
 
 // Data that can be sent via filestream.
@@ -9,7 +12,7 @@ option go_package = "core/internal/filestream/proto;filestreamv1";
 // Wire schema for typed filestream uploads.
 //
 // The SDK sends a FileStreamUpload as the body of `POST .../file_stream`
-// with the content type `application/vnd.wandb.filestream.v1+protobuf`.
+// with the content type `application/vnd.wandb.filestream.proto+v1`.
 //
 // The legacy JSON body is also supported on the same route, with
 // content type `application/json`. See `FileStreamRequestJSON` for the
@@ -36,6 +39,35 @@ message FileStreamUpload {
 
   // The exit code of the run's source script. Only meaningful when `complete` is set.
   optional int32 exit_code = 6;
+
+  // Typed system metrics samples. Replaces the "wandb-events.jsonl" entry in
+  // `files`. If `system_metrics` is set and `files` contains
+  // "wandb-events.jsonl", the server rejects the request with a bad request
+  // (400) error.
+  SystemMetricsChunk system_metrics = 7;
+}
+
+// A range of system metrics samples.
+//
+// One record is one line of "wandb-events.jsonl", so offsets stay in that
+// file's line numbering.
+message SystemMetricsChunk {
+  // The line offset of the first record.
+  int64 offset = 1;
+
+  // The writer of the records. A record's own `writer`, when set, replaces
+  // it for that record.
+  wandb_internal.WriterInfo writer = 2;
+
+  // The client's clock when it sent the chunk.
+  google.protobuf.Timestamp sent_at = 3;
+
+  // The samples, in the order the writer produced them.
+  repeated wandb_internal.SystemMetricsRecord records = 4;
+
+  // The run's start time, the one the SDK subtracts from a sample's
+  // timestamp to get the legacy "_runtime" key.
+  google.protobuf.Timestamp run_started_at = 5;
 }
 
 // A range of lines to write to a filestream file.
