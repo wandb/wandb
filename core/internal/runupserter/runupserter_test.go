@@ -48,7 +48,6 @@ func testParams(t *testing.T) runupserter.RunUpserterParams {
 		FeatureProvider:    featurechecker.NewPreloaded(nil),
 		GraphqlClientOrNil: nil,
 		Logger:             observabilitytest.NewTestLogger(t),
-		ClientID:           "test",
 		SyncStateStore:     syncStateStore,
 	}
 }
@@ -488,7 +487,7 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	runupsertertest.StubUpsertBucket(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
-	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{WriterId: "test"}), params)
 
 	require.NoError(t, err)
 	return variablesForUpdateTest{
