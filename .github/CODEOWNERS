@@ -67,6 +67,12 @@
 /tests/unit_tests/test_registries/    @wandb/art-reg-team @wandb/sdk-team
 /tests/unit_tests/test_automations/   @wandb/art-reg-team @wandb/sdk-team
 
+# EvalTable
+/core/internal/evaltables/        @wandb/tables-reviewers @wandb/sdk-team
+/core/third_party/cwevals-go/     @wandb/tables-reviewers @wandb/sdk-team
+/wandb/sdk/data_types/eval_table/ @wandb/tables-reviewers @wandb/sdk-team
+/tests/**/test_eval_table*.py     @wandb/tables-reviewers @wandb/sdk-team
+
 # Launch
 /wandb/sdk/launch/                    @wandb/launch-reviewers @wandb/sdk-team
 /tests/system_tests/test_launch/      @wandb/launch-reviewers @wandb/sdk-team
