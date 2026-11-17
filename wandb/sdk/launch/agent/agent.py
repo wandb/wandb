@@ -303,7 +303,21 @@ class LaunchAgent:
         files: list[str] | None = None,
     ) -> None:
         fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
-        await fail_rqi(run_queue_item_id, message, phase, files)
+        try:
+            await fail_rqi(run_queue_item_id, message, phase, files)
+        except Exception as e:
+            # Reporting is best effort. Raising here would skip freeing the
+            # job's slot in finish_thread_id, or exit the agent loop.
+            wandb.termerror(
+                f"{LOG_PREFIX}Failed to report failure of run queue item "
+                f"{run_queue_item_id}: {e}"
+            )
+            _logger.exception(
+                f"Error reporting failure of run queue item {run_queue_item_id}"
+            )
+            await self._record_telemetry_exception(
+                e, "launch agent failed to report a failed run queue item"
+            )
 
     def _init_agent_run(self) -> None:
         settings = wandb.Settings(
