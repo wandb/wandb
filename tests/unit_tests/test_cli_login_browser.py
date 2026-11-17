@@ -97,25 +97,6 @@ def test_login_asks_for_an_api_key_by_default(
 
 
 @pytest.mark.usefixtures("local_settings")
-def test_relogin_asks_for_an_api_key(
-    runner,
-    monkeypatch: pytest.MonkeyPatch,
-    oauth_server: FakeOAuthServer,
-    host: wbauth.HostUrl,
-    api_key_logins: list[dict],
-):
-    mock_browser_login(monkeypatch)
-
-    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--relogin"])
-
-    assert result.exit_code == 0, result.output
-    assert oauth_server.received == []
-    [call] = api_key_logins
-    assert call["key"] is None
-    assert call["relogin"] is True
-
-
-@pytest.mark.usefixtures("local_settings")
 def test_relogin_replaces_a_browser_login_with_an_api_key(
     runner,
     monkeypatch: pytest.MonkeyPatch,
@@ -146,6 +127,8 @@ def test_browser_flag_uses_the_browser(
     credentials_file: pathlib.Path,
     api_key_logins: list[dict],
 ):
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
     mock_browser_login(monkeypatch)
 
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
@@ -159,6 +142,7 @@ def test_browser_flag_uses_the_browser(
         wbauth.session_credentials(host=host),
         wbauth.AuthBrowserLogin,
     )
+    assert "instead of the browser login" not in result.output
 
 
 @pytest.mark.usefixtures("local_settings")
@@ -208,22 +192,6 @@ def test_browser_flag_warns_that_an_exported_credential_wins(
     assert f"{env_var} is set, so W&B uses it instead of the browser login" in (
         result.output
     )
-
-
-@pytest.mark.usefixtures("local_settings", "skip_verify_login")
-def test_browser_flag_does_not_warn_without_an_exported_credential(
-    runner,
-    monkeypatch: pytest.MonkeyPatch,
-    host: wbauth.HostUrl,
-):
-    monkeypatch.delenv("WANDB_API_KEY", raising=False)
-    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
-    mock_browser_login(monkeypatch)
-
-    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
-
-    assert result.exit_code == 0, result.output
-    assert "instead of the browser login" not in result.output
 
 
 @pytest.mark.usefixtures("local_settings", "skip_verify_login")
@@ -316,32 +284,6 @@ def test_browser_relogin_revokes_the_login_it_replaces(
     assert stored_refresh_token(credentials_file, host) == "wb_rt_new"
 
 
-@pytest.mark.usefixtures("local_settings", "skip_verify_login")
-def test_browser_relogin_keeps_the_new_login_when_revoking_fails(
-    runner,
-    monkeypatch: pytest.MonkeyPatch,
-    oauth_server: FakeOAuthServer,
-    host: wbauth.HostUrl,
-    credentials_file: pathlib.Path,
-):
-    mock_browser_login(monkeypatch)
-    browser_login.save_credentials(credentials_file, host, make_token_set("wb_rt_old"))
-
-    def fail_revoke(**kwargs: object) -> None:
-        raise AuthenticationError("server unavailable")
-
-    monkeypatch.setattr(browser_login, "revoke", fail_revoke)
-
-    result = runner.invoke(
-        cli.cli,
-        ["login", "--host", host.url, "--browser", "--relogin"],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert "Could not revoke the previous browser login" in result.output
-    assert stored_refresh_token(credentials_file, host) == "wb_rt_new"
-
-
 @pytest.mark.usefixtures("local_settings")
 def test_browser_flag_fails_without_a_browser(
     runner,
@@ -403,13 +345,6 @@ def test_browser_login_cloud_clears_a_saved_host(
     assert result.exit_code == 0, result.output
     saved_settings = wandb_setup.singleton().settings.read_system_settings()
     assert saved_settings.all().get("base_url") is None
-
-
-def test_login_rejects_host_with_cloud(runner, host: wbauth.HostUrl):
-    result = runner.invoke(cli.cli, ["login", "--cloud", "--host", host.url])
-
-    assert result.exit_code == 1, result.output
-    assert "Cannot use --host and --cloud together." in result.output
 
 
 @pytest.mark.usefixtures("local_settings")

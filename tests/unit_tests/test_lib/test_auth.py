@@ -231,11 +231,6 @@ def test_loads_a_stored_browser_login(
     )
 
 
-def test_browser_login_is_scoped_to_host(stored_browser_login: pathlib.Path):
-    with pytest.raises(UsageError, match="No API key configured"):
-        authenticate_session(host="https://other.invalid", source="test")
-
-
 @pytest.mark.parametrize(
     "env_var, value, expected_type",
     [

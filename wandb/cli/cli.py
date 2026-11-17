@@ -16,7 +16,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import click
 from click.exceptions import ClickException
@@ -37,9 +37,6 @@ from wandb.sdk.sweeps import SweepNotFoundError
 from .beta import beta
 from .clean import clean
 from .leet import leet
-
-if TYPE_CHECKING:
-    from wandb.sdk.lib.wbauth.browser_login import TokenSet
 
 
 def _get_wandb_dir(root_dir: str | None = None) -> str:
@@ -313,16 +310,7 @@ def projects(entity, display=True):
     default team.""",
 )
 @display_error
-def login(
-    key,
-    host,
-    cloud,
-    relogin,
-    browser,
-    anonymously,
-    verify,
-    no_offline=False,
-):
+def login(key, host, cloud, relogin, browser, anonymously, verify, no_offline=False):
     """Authenticate your machine with W&B.
 
     Store an API key locally for authenticating with W&B services, or, with
@@ -478,17 +466,17 @@ def _login_with_browser(
         sys.exit(1)
 
     try:
-        replaced = _run_browser_login(host_url=host_url)
+        replaced_refresh_token = _run_browser_login(host_url=host_url)
     except TimeoutError as e:
         wandb.termerror(str(e))
         sys.exit(1)
 
-    if replaced is not None:
-        _revoke_replaced_login(host_url, replaced.refresh_token)
+    if replaced_refresh_token is not None:
+        _revoke_replaced_login(host_url, replaced_refresh_token)
 
 
-def _run_browser_login(*, host_url: wbauth.HostUrl) -> TokenSet | None:
-    """Run the browser flow. Returns the login it replaced, if it verified.
+def _run_browser_login(*, host_url: wbauth.HostUrl) -> str | None:
+    """Run the browser flow. Returns the refresh token of the login it replaced.
 
     The previous login stays on disk until this one is stored and accepted.
     A failure, including Ctrl-C, puts that previous login back.
@@ -525,9 +513,7 @@ def _run_browser_login(*, host_url: wbauth.HostUrl) -> TokenSet | None:
     )
     wandb.termlog(f"Logged in to {host_url}.")
 
-    if previous is None or previous.refresh_token == tokens.refresh_token:
-        return None
-    return previous
+    return previous.refresh_token if previous else None
 
 
 def _warn_if_env_overrides_browser_login() -> None:
