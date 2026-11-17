@@ -25,6 +25,10 @@ type Updates struct {
 	//
 	// None of the paths appear in 'update'.
 	remove *pathtree.PathTree[struct{}]
+
+	// notFromHistory contains the paths in 'update' whose value is not the
+	// key's latest value from run.log().
+	notFromHistory *pathtree.PathTree[struct{}]
 }
 
 // IsEmpty returns whether the Updates instance contains any changes.
@@ -34,11 +38,37 @@ func (u *Updates) IsEmpty() bool {
 	return u == nil || (u.update.IsEmpty() && u.remove.IsEmpty())
 }
 
+// HasRemovals returns whether the Updates instance removes any path.
+//
+// Returns false given nil.
+func (u *Updates) HasRemovals() bool {
+	return u != nil && !u.remove.IsEmpty()
+}
+
+// SerializeWithoutHistory returns the values set by the updates in the format
+// of [RunSummary.Serialize], except values from run.log().
+//
+// Ignores removals and values that fail to unmarshal.
+func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
+	rs := New()
+	if u != nil {
+		u.notFromHistory.ForEachLeaf(func(path pathtree.TreePath, _ struct{}) bool {
+			valueJSON, _ := u.update.GetLeaf(path)
+			if value, err := simplejsonext.UnmarshalString(valueJSON); err == nil {
+				rs.Set(path, value)
+			}
+			return true
+		})
+	}
+	return rs.Serialize()
+}
+
 // NoUpdates returns a mutable Updates instance that makes no changes.
 func NoUpdates() *Updates {
 	return &Updates{
-		update: pathtree.New[string](),
-		remove: pathtree.New[struct{}](),
+		update:         pathtree.New[string](),
+		remove:         pathtree.New[struct{}](),
+		notFromHistory: pathtree.New[struct{}](),
 	}
 }
 
@@ -49,12 +79,16 @@ func FromProto(record *spb.SummaryRecord) *Updates {
 	for _, item := range record.GetUpdate() {
 		path := keyPath(item)
 		u.update.Set(path, item.GetValueJson())
+		if !item.GetFromHistory() {
+			u.notFromHistory.Set(path, struct{}{})
+		}
 	}
 
 	for _, item := range record.GetRemove() {
 		path := keyPath(item)
 		u.remove.Set(path, struct{}{})
 		u.update.Remove(path)
+		u.notFromHistory.Remove(path)
 	}
 
 	return u
@@ -68,6 +102,7 @@ func (u *Updates) IgnoreStep() {
 	step := pathtree.PathOf("_step")
 	u.update.Remove(step)
 	u.remove.Remove(step)
+	u.notFromHistory.Remove(step)
 }
 
 // Merge merges the given Updates into this Updates instance,
@@ -82,6 +117,11 @@ func (u *Updates) Merge(newUpdates *Updates) {
 		func(path pathtree.TreePath, valueJSON string) bool {
 			u.remove.Remove(path)
 			u.update.Set(path, valueJSON)
+			if _, ok := newUpdates.notFromHistory.GetLeaf(path); ok {
+				u.notFromHistory.Set(path, struct{}{})
+			} else {
+				u.notFromHistory.Remove(path)
+			}
 			return true
 		})
 
@@ -89,6 +129,7 @@ func (u *Updates) Merge(newUpdates *Updates) {
 		func(path pathtree.TreePath, _ struct{}) bool {
 			u.remove.Set(path, struct{}{})
 			u.update.Remove(path)
+			u.notFromHistory.Remove(path)
 			return true
 		})
 }

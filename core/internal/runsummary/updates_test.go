@@ -191,3 +191,50 @@ func TestUpdates_IsEmpty(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdates_SerializeWithoutHistory(t *testing.T) {
+	updates := runsummary.FromProto(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"_wandb", "runtime"}, ValueJson: `12`},
+			{Key: "loss", ValueJson: `{"min":0.2}`},
+			{Key: "acc", ValueJson: `0.8`, FromHistory: true},
+		},
+		Remove: []*spb.SummaryItem{{Key: "gone"}},
+	})
+
+	json, err := updates.SerializeWithoutHistory()
+
+	assert.NoError(t, err)
+	assert.JSONEq(t,
+		`{"_wandb":{"runtime":12},"loss":{"min":0.2}}`,
+		string(json))
+}
+
+func TestUpdates_Merge_LatestWriteDecidesFromHistory(t *testing.T) {
+	logged := &spb.SummaryItem{Key: "acc", ValueJson: `0.8`, FromHistory: true}
+	set := &spb.SummaryItem{Key: "acc", ValueJson: `0.9`}
+
+	testCases := []struct {
+		name   string
+		first  *spb.SummaryItem
+		second *spb.SummaryItem
+		want   string
+	}{
+		{"set after log is sent", logged, set, `{"acc":0.9}`},
+		{"log after set is not sent", set, logged, `{}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			updates := runsummary.FromProto(
+				&spb.SummaryRecord{Update: []*spb.SummaryItem{tc.first}})
+			updates.Merge(runsummary.FromProto(
+				&spb.SummaryRecord{Update: []*spb.SummaryItem{tc.second}}))
+
+			json, err := updates.SerializeWithoutHistory()
+
+			assert.NoError(t, err)
+			assert.JSONEq(t, tc.want, string(json))
+		})
+	}
+}
