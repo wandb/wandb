@@ -438,12 +438,7 @@ func (sm *SystemMonitor) Resume() {
 //
 // The state mutex must be held.
 func (sm *SystemMonitor) lockedUpdateSubscription() {
-	shouldBeSubscribed := sm.stateStarted &&
-		!sm.statePaused &&
-		!sm.settings.IsDisableStats() &&
-		!sm.settings.IsDisableMachineInfo()
-
-	if shouldBeSubscribed {
+	if sm.stateStarted && !sm.statePaused {
 		sm.symon.Subscribe(sm.subscribeRequest(), sm.publish)
 	} else {
 		sm.symon.Unsubscribe()

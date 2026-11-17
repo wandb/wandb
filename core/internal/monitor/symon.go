@@ -26,6 +26,8 @@ const (
 // The sidecar is started by the first Subscribe or Probe call, not by NewSymon.
 // If it exits or its stream ends while subscribed, it is started again and
 // the subscription is reopened.
+//
+// A nil Symon does not start or communicate with wandb-symon.
 type Symon struct {
 	ctx             context.Context
 	resourceManager *SymonResourceManager
