@@ -1302,7 +1302,6 @@ message UploadEvalTableRequest {
   _RequestInfo _info = 200;
 }
 
-// An EvalTable's columns, rows, and media files.
 message EvalTableData {
   string name = 1;
 

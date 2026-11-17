@@ -320,7 +320,7 @@ func validateColumns(
 				"field %q has unknown media type %q",
 				field.GetName(), mediaType)
 		case fields[key]:
-			// Its values would have the same key in the row JSON.
+			// Duplicate column name.
 			return fmt.Errorf("duplicate %s field %q", source, field.GetName())
 		}
 		fields[key] = true
