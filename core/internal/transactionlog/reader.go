@@ -40,10 +40,10 @@ type Reader struct {
 	// that Read from the same position.
 	lastReadOffset int64
 
-	// Header validation is independent of the record position.
+	// headerVerified is true if the header has been verified.
 	headerVerified bool
 
-	// An unsupported version remains terminal after resets and seeks.
+	// headerError is an error from verifying the header, if any.
 	headerError error
 }
 

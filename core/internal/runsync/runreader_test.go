@@ -19,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/streamtest"
-	"github.com/wandb/wandb/core/internal/transactionlog"
 	txnlogtest "github.com/wandb/wandb/core/internal/transactionlogtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -367,7 +366,5 @@ func Test_UnsupportedVersionError(t *testing.T) {
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
-	var versionErr *transactionlog.UnsupportedVersionError
-	require.ErrorAs(t, err, &versionErr)
-	assert.Equal(t, uint8(2), versionErr.Version)
+	assert.ErrorContains(t, err, "a newer wandb version is required to read this file: 2")
 }
