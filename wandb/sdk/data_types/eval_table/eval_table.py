@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numbers
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from typing_extensions import override
@@ -63,6 +64,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
+        key_column: str | None = None,
         backend: Backend | None = None,
         unsupported_media_mode: UnsupportedMediaMode = "stub",
     ) -> None:
@@ -77,8 +79,9 @@ class EvalTable(Table):
 
         Args:
             columns: Names of the columns in the table.
-                If unset, but input_columns, output_columns, or score_columns are set,
-                then we'll just set columns to the union of those, in that order.
+                If unset, but input_columns, output_columns, score_columns, or
+                key_column are set, then we'll just set columns to the union of those,
+                in that order.
             log_mode: Controls how the table is logged when the same EvalTable
                 is passed to `run.log()` more than once.
                 - "IMMUTABLE" (default): full table logged on first `run.log()`;
@@ -95,6 +98,12 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
+            key_column: Name of a column that identifies each row's example.
+                If set, eval comparisons will match rows by this column's values
+                instead of by their inputs or row position. Values must be non-empty
+                strings or integers, and may repeat. The column may also be an input
+                or output column, but not a score column. If it's neither, it isn't
+                logged as an input or output. Only the CES backend supports it.
             backend: Optional storage-backend override. Weave is the default. Pass
                 "ces" to write through the CoreWeave Evaluation Service instead, which
                 is not yet released.
@@ -141,6 +150,8 @@ class EvalTable(Table):
 
         validate_unsupported_media_mode(unsupported_media_mode)
         self._backend: Backend = backend if backend is not None else "weave"
+        if key_column is not None and self._backend != "ces":
+            raise UsageError("EvalTable key_column requires backend='ces'.")
         self._writer: EvalTableWriter = create_writer(
             self._backend,
             allow_mixed_types=allow_mixed_types,
@@ -150,6 +161,7 @@ class EvalTable(Table):
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
         self._score_columns = list(score_columns or [])
+        self._key_column = key_column
         self._immutable_write_result: WriteResult | None = None
         self._run_log_key: str | None = None
 
@@ -161,13 +173,20 @@ class EvalTable(Table):
         if (
             columns is None
             and dataframe is None
-            and (self._input_columns or self._output_columns or self._score_columns)
+            and (
+                self._input_columns
+                or self._output_columns
+                or self._score_columns
+                or key_column is not None
+            )
         ):
             table_columns = [
                 *self._input_columns,
                 *self._output_columns,
                 *self._score_columns,
             ]
+            if key_column is not None and key_column not in table_columns:
+                table_columns.append(key_column)
 
         super().__init__(
             columns=table_columns,
@@ -280,6 +299,7 @@ class EvalTable(Table):
         input_cols: list[str],
         output_cols: list[str],
         score_cols: list[str],
+        key_col: str | None,
     ) -> None:
         all_assigned = set(input_cols) | set(output_cols) | set(score_cols)
         table_cols = set(self._string_columns())
@@ -290,6 +310,10 @@ class EvalTable(Table):
                 f"Column(s) {sorted(unknown)} listed in input/output/score_columns "
                 "do not exist in the table."
             )
+        if key_col is not None and key_col not in table_cols:
+            raise ValueError(f"Key column {key_col!r} does not exist in the table.")
+        if key_col is not None and key_col in score_cols:
+            raise ValueError(f"Key column {key_col!r} cannot be a score column.")
 
         # Warn about columns listed in more than one role
         seen: set[str] = set()
@@ -328,15 +352,18 @@ class EvalTable(Table):
             self._input_columns,
             self._output_columns,
             self._score_columns,
+            self._key_column,
         )
 
-        # Any column not listed in a role defaults to an output column.
+        # Any column not listed in a role or as the key defaults to an output
+        # column.
         str_columns = self._string_columns()
         columns_by_name = dict(zip(str_columns, self.columns, strict=True))
         assigned = (
             set(self._input_columns)
             | set(self._output_columns)
             | set(self._score_columns)
+            | ({self._key_column} if self._key_column is not None else set())
         )
         output_cols = self._output_columns + [
             col for col in str_columns if col not in assigned
@@ -368,7 +395,21 @@ class EvalTable(Table):
                 output = None
 
             scores = {columns_by_name[col]: values[col] for col in self._score_columns}
-            rows.append(WriteRow(inputs=inputs, output=output, scores=scores))
+            example_key = (
+                None
+                if self._key_column is None
+                else _example_key(
+                    values[self._key_column], column=self._key_column, row=row_idx
+                )
+            )
+            rows.append(
+                WriteRow(
+                    inputs=inputs,
+                    output=output,
+                    scores=scores,
+                    example_key=example_key,
+                )
+            )
 
         return self._writer.write(
             name=self._run_log_key,
@@ -376,3 +417,21 @@ class EvalTable(Table):
             ncols=len(self.columns),
             log_mode=self.log_mode,
         )
+
+
+def _example_key(value: Any, *, column: str, row: int) -> str:
+    """Return a row's example key from the value in its key column."""
+    if isinstance(value, str):
+        key = value
+    elif isinstance(value, numbers.Integral) and not isinstance(value, bool):
+        key = str(int(value))
+    else:
+        raise UsageError(
+            f"EvalTable key column {column!r} must contain strings or integers; "
+            f"row {row} has a {type(value).__name__}."
+        )
+    if not key:
+        raise UsageError(
+            f"EvalTable key column {column!r} has an empty string in row {row}."
+        )
+    return key

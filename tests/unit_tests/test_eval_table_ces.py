@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from typing import Any
 from unittest.mock import DEFAULT, MagicMock
 
+import numpy as np
 import pytest
 import wandb
 from google.protobuf.message import Message
@@ -267,6 +268,168 @@ def test_ces_eval_table_without_inputs_keys_rows_by_position(
             "example_key": "2",
         },
     ]
+
+
+def test_ces_eval_table_keys_rows_by_key_column(deliver_upload_eval_table, run):
+    et = wandb.EvalTable(
+        columns=["id", "question", "answer"],
+        data=[["q1", "2+2", "4"], ["q2", "3+3", "6"], ["q2", "3+3", "5"]],
+        input_columns=["question"],
+        key_column="id",
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert _rows(request) == [
+        {
+            "input": {"question": "2+2"},
+            "output": {"answer": "4"},
+            "scores": {},
+            "example_key": "q1",
+        },
+        {
+            "input": {"question": "3+3"},
+            "output": {"answer": "6"},
+            "scores": {},
+            "example_key": "q2",
+        },
+        {
+            "input": {"question": "3+3"},
+            "output": {"answer": "5"},
+            "scores": {},
+            "example_key": "q2",
+        },
+    ]
+
+
+def test_ces_eval_table_keys_rows_by_integer_key_column(
+    deliver_upload_eval_table,
+    run,
+):
+    et = wandb.EvalTable(
+        columns=["id", "answer"],
+        data=[[7, "4"], [np.int64(8), "6"]],
+        key_column="id",
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert [row.example_key for row in request.rows] == ["7", "8"]
+
+
+@pytest.mark.parametrize(
+    ("input_columns", "output_columns", "fields"),
+    [
+        ([], [], [("output", "answer")]),
+        (["id"], [], [("input", "id"), ("output", "answer")]),
+        ([], ["answer", "id"], [("output", "answer"), ("output", "id")]),
+    ],
+)
+def test_ces_eval_table_logs_key_column_only_in_listed_roles(
+    deliver_upload_eval_table,
+    run,
+    input_columns,
+    output_columns,
+    fields,
+):
+    et = wandb.EvalTable(
+        columns=["id", "answer"],
+        data=[["q1", "4"]],
+        input_columns=input_columns,
+        output_columns=output_columns,
+        key_column="id",
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert [(f.source, f.name) for f in request.dataset_fields] == fields
+    assert request.rows[0].example_key == "q1"
+
+
+def test_ces_eval_table_infers_key_column_as_a_column(deliver_upload_eval_table, run):
+    et = wandb.EvalTable(
+        data=[["2+2", "4", "q1"]],
+        input_columns=["question"],
+        output_columns=["answer"],
+        key_column="id",
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    assert et.columns == ["question", "answer", "id"]
+    [request] = _sent(deliver_upload_eval_table)
+    assert _rows(request) == [
+        {
+            "input": {"question": "2+2"},
+            "output": {"answer": "4"},
+            "scores": {},
+            "example_key": "q1",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("key", "message"),
+    [
+        (1.0, "strings or integers; row 1 has a float"),
+        (True, "strings or integers; row 1 has a bool"),
+        (None, "strings or integers; row 1 has a NoneType"),
+        ("", "empty string in row 1"),
+        ("k" * 2049, "at most 2048 characters; row 1 has 2049"),
+    ],
+)
+def test_ces_eval_table_rejects_invalid_keys_before_network(
+    deliver_upload_eval_table,
+    run,
+    key,
+    message,
+):
+    et = wandb.EvalTable(
+        columns=["id", "answer"],
+        data=[[key, "4"]],
+        key_column="id",
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match=message):
+        run.log({"eval": et})
+
+    deliver_upload_eval_table.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("columns", "score_columns", "message"),
+    [
+        (["answer", "correct"], ["correct"], "Key column 'id' does not exist"),
+        (["id", "answer"], ["id"], "Key column 'id' cannot be a score column"),
+    ],
+)
+def test_ces_eval_table_rejects_invalid_key_columns_before_network(
+    deliver_upload_eval_table,
+    run,
+    columns,
+    score_columns,
+    message,
+):
+    et = wandb.EvalTable(
+        columns=columns,
+        data=[["q1", True]],
+        score_columns=score_columns,
+        key_column="id",
+        backend="ces",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        run.log({"eval": et})
+
+    deliver_upload_eval_table.assert_not_called()
 
 
 def test_ces_eval_table_stubs_media_until_native_support_exists(

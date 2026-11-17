@@ -2736,8 +2736,8 @@ pub struct EvalTableRow {
     /// Values of the scorers, in their order in scorers.
     #[prost(message, repeated, tag = "3")]
     pub scores: ::prost::alloc::vec::Vec<EvalTableValue>,
-    /// Identifies a row without inputs. CES derives the key of other rows
-    /// from their inputs.
+    /// Identifies the row's example, for matching rows across evaluations.
+    /// If unset, CES derives it from the row's inputs.
     #[prost(string, tag = "4")]
     pub example_key: ::prost::alloc::string::String,
 }
