@@ -386,19 +386,39 @@ def test_login_with_a_key_succeeds_when_revoking_fails(
 @pytest.mark.usefixtures("local_settings")
 def test_login_with_a_key_warns_when_the_browser_login_cannot_be_removed(
     runner,
+    monkeypatch: pytest.MonkeyPatch,
     oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
     api_key_logins: list[dict],
 ):
-    credentials_file.write_text("{not json")
+    browser_login.save_credentials(credentials_file, host, make_token_set())
+
+    def deny(*args: object, **kwargs: object) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(pathlib.Path, "replace", deny)
 
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "k" * 40])
 
     assert result.exit_code == 0, result.output
     assert "Could not remove the browser login" in result.output
     assert revoked_tokens(oauth_server) == []
-    assert credentials_file.read_text() == "{not json"
+    assert stored_refresh_token(credentials_file, host) == "wb_rt_stored"
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_login_with_a_key_leaves_the_credentials_file_alone_without_a_browser_login(
+    runner,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+    api_key_logins: list[dict],
+):
+    result = runner.invoke(cli.cli, ["login", "--host", host.url, "k" * 40])
+
+    assert result.exit_code == 0, result.output
+    assert not credentials_file.exists()
+    assert not credentials_file.with_name(f"{credentials_file.name}.lock").exists()
 
 
 @pytest.mark.usefixtures("local_settings")
@@ -471,7 +491,7 @@ def test_browser_relogin_restores_the_previous_login_when_verify_fails(
 
     assert result.exit_code == 1, result.output
     assert stored_refresh_token(credentials_file, host) == "wb_rt_old"
-    assert revoked_tokens(oauth_server) == []
+    assert revoked_tokens(oauth_server) == ["wb_rt_new"]
 
 
 @pytest.mark.usefixtures("local_settings")
@@ -504,6 +524,7 @@ def test_browser_relogin_restores_the_previous_login_on_ctrl_c(
 def test_failed_first_browser_login_stores_nothing(
     runner,
     monkeypatch: pytest.MonkeyPatch,
+    oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
 ):
@@ -517,6 +538,33 @@ def test_failed_first_browser_login_stores_nothing(
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
 
     assert result.exit_code == 1, result.output
+    assert stored_refresh_token(credentials_file, host) is None
+    assert revoked_tokens(oauth_server) == ["wb_rt_new"]
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_failed_browser_login_warns_when_revoking_fails(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    mock_browser_login(monkeypatch)
+    monkeypatch.setattr(
+        ServiceApi,
+        "authenticate",
+        MagicMock(side_effect=RuntimeError("rejected")),
+    )
+
+    def fail_revoke(**kwargs: object) -> None:
+        raise AuthenticationError("server unavailable")
+
+    monkeypatch.setattr(browser_login, "revoke", fail_revoke)
+
+    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
+
+    assert result.exit_code == 1, result.output
+    assert "Could not revoke the new browser login" in result.output
     assert stored_refresh_token(credentials_file, host) is None
 
 

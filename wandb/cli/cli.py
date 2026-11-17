@@ -325,10 +325,10 @@ def login(key, host, cloud, relogin, browser, anonymously, verify, no_offline=Fa
 
         2. A browser login stored by a previous `wandb login --browser`
 
-        3. The api_key setting in a system or workspace settings file (use
-            `wandb status` to see which settings file is used)
+        3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
 
-        4. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
+        4. The api_key setting in a system or workspace settings file (use
+            `wandb status` to see which settings file is used)
 
         5. An interactive prompt (if a TTY is available)
 
@@ -472,14 +472,15 @@ def _login_with_browser(
         sys.exit(1)
 
     if replaced_refresh_token is not None:
-        _revoke_replaced_login(host_url, replaced_refresh_token)
+        _revoke_browser_login(host_url, replaced_refresh_token)
 
 
 def _run_browser_login(*, host_url: wbauth.HostUrl) -> str | None:
     """Run the browser flow. Returns the refresh token of the login it replaced.
 
     The previous login stays on disk until this one is stored and accepted.
-    A failure, including Ctrl-C, puts that previous login back.
+    A failure, including Ctrl-C, puts that previous login back. Any failure
+    other than Ctrl-C also revokes the new login.
     """
     from wandb.sdk.lib.wbauth import browser_login
 
@@ -499,11 +500,19 @@ def _run_browser_login(*, host_url: wbauth.HostUrl) -> str | None:
     )
     try:
         auth.verify()
-    except BaseException:
+    except BaseException as e:
         if previous is None:
             browser_login.clear_credentials(credentials_file, host_url)
         else:
             browser_login.save_credentials(credentials_file, host_url, previous)
+
+        # Ctrl-C should exit right away, not wait on the server.
+        if isinstance(e, Exception):
+            _revoke_browser_login(
+                host_url,
+                tokens.refresh_token,
+                description="the new browser login",
+            )
         raise
 
     wbauth.use_explicit_auth(auth, source="wandb login")
@@ -527,8 +536,13 @@ def _warn_if_env_overrides_browser_login() -> None:
             return
 
 
-def _revoke_replaced_login(host_url: wbauth.HostUrl, refresh_token: str) -> None:
-    """Best-effort revoke of a login that has already been replaced."""
+def _revoke_browser_login(
+    host_url: wbauth.HostUrl,
+    refresh_token: str,
+    *,
+    description: str = "the previous browser login",
+) -> None:
+    """Best-effort revoke of a browser login that is no longer stored."""
     from wandb.sdk.lib.wbauth import browser_login
 
     settings = wandb_setup.singleton().settings
@@ -539,9 +553,7 @@ def _revoke_replaced_login(host_url: wbauth.HostUrl, refresh_token: str) -> None
             verify=not settings.insecure_disable_ssl,
         )
     except wandb.errors.AuthenticationError as e:
-        wandb.termwarn(
-            f"Could not revoke the previous browser login for {host_url}: {e}"
-        )
+        wandb.termwarn(f"Could not revoke {description} for {host_url}: {e}")
 
 
 def _clear_browser_login(host_url: wbauth.HostUrl) -> None:
@@ -552,12 +564,14 @@ def _clear_browser_login(host_url: wbauth.HostUrl) -> None:
     from wandb.sdk.lib.wbauth import browser_login
 
     settings = wandb_setup.singleton().settings
+    credentials_file = pathlib.Path(settings.credentials_file)
+
+    # Most API key users have no browser login; don't create the lock file.
+    if not browser_login.load_credentials(credentials_file, host_url):
+        return
 
     try:
-        tokens = browser_login.clear_credentials(
-            pathlib.Path(settings.credentials_file),
-            host_url,
-        )
+        tokens = browser_login.clear_credentials(credentials_file, host_url)
     except wandb.errors.AuthenticationError as e:
         wandb.termwarn(
             f"Could not remove the browser login for {host_url}, which is"
@@ -566,7 +580,7 @@ def _clear_browser_login(host_url: wbauth.HostUrl) -> None:
         return
 
     if tokens is not None:
-        _revoke_replaced_login(host_url, tokens.refresh_token)
+        _revoke_browser_login(host_url, tokens.refresh_token)
 
 
 @cli.command(context_settings=CONTEXT)
