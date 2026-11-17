@@ -471,6 +471,16 @@ def test_credentials_round_trip(tmp_path: pathlib.Path):
     assert loaded == make_token_set()
 
 
+def test_saving_returns_the_login_it_replaces(tmp_path: pathlib.Path):
+    path = tmp_path / "credentials.json"
+
+    first = browser_login.save_credentials(path, HOST, make_token_set("wb_rt_old"))
+    second = browser_login.save_credentials(path, HOST, make_token_set("wb_rt_new"))
+
+    assert first is None
+    assert second == make_token_set("wb_rt_old")
+
+
 def test_credentials_are_written_where_core_can_read_them(tmp_path: pathlib.Path):
     path = tmp_path / "credentials.json"
 

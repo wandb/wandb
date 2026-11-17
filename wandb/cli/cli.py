@@ -312,12 +312,6 @@ def projects(entity, display=True):
     is successful, display the source of the credentials and the
     default team.""",
 )
-@click.option(
-    "--timeout",
-    type=float,
-    default=None,
-    help="Seconds to wait for a --browser login to complete. Defaults to 300.",
-)
 @display_error
 def login(
     key,
@@ -327,7 +321,6 @@ def login(
     browser,
     anonymously,
     verify,
-    timeout,
     no_offline=False,
 ):
     """Authenticate your machine with W&B.
@@ -415,10 +408,10 @@ def login(
     if browser:
         _login_with_browser(
             host_url=host_url,
-            timeout=timeout,
             relogin=relogin,
             verify=verify,
         )
+        _warn_if_env_overrides_browser_login()
         return
 
     logged_in = wandb.login(
@@ -438,7 +431,6 @@ def login(
 def _login_with_browser(
     *,
     host_url: wbauth.HostUrl,
-    timeout: float | None,
     relogin: bool,
     verify: bool,
 ) -> None:
@@ -462,7 +454,7 @@ def _login_with_browser(
                 auth.verify()
         except wandb.errors.AuthenticationError as e:
             wandb.termwarn(
-                f"The browser login stored for {host_url} no longer works"
+                f"Could not use the browser login stored for {host_url}"
                 f" ({e}). Logging in again."
             )
         else:
@@ -486,12 +478,7 @@ def _login_with_browser(
         sys.exit(1)
 
     try:
-        replaced = _run_browser_login(
-            host_url=host_url,
-            timeout=(
-                browser_login.LOGIN_TIMEOUT_SECONDS if timeout is None else timeout
-            ),
-        )
+        replaced = _run_browser_login(host_url=host_url)
     except TimeoutError as e:
         wandb.termerror(str(e))
         sys.exit(1)
@@ -500,15 +487,11 @@ def _login_with_browser(
         _revoke_replaced_login(host_url, replaced.refresh_token)
 
 
-def _run_browser_login(
-    *,
-    host_url: wbauth.HostUrl,
-    timeout: float,
-) -> TokenSet | None:
+def _run_browser_login(*, host_url: wbauth.HostUrl) -> TokenSet | None:
     """Run the browser flow. Returns the login it replaced, if it verified.
 
     The previous login stays on disk until this one is stored and accepted.
-    A failure puts that previous login back.
+    A failure, including Ctrl-C, puts that previous login back.
     """
     from wandb.sdk.lib.wbauth import browser_login
 
@@ -517,11 +500,10 @@ def _run_browser_login(
 
     tokens = browser_login.login(
         host=host_url,
-        timeout=timeout,
+        timeout=browser_login.LOGIN_TIMEOUT_SECONDS,
         verify=not global_settings.insecure_disable_ssl,
     )
-    previous = browser_login.load_credentials(credentials_file, host_url)
-    browser_login.save_credentials(credentials_file, host_url, tokens)
+    previous = browser_login.save_credentials(credentials_file, host_url, tokens)
 
     auth = wbauth.AuthBrowserLogin(
         host=host_url,
@@ -529,7 +511,7 @@ def _run_browser_login(
     )
     try:
         auth.verify()
-    except Exception:
+    except BaseException:
         if previous is None:
             browser_login.clear_credentials(credentials_file, host_url)
         else:
@@ -546,6 +528,17 @@ def _run_browser_login(
     if previous is None or previous.refresh_token == tokens.refresh_token:
         return None
     return previous
+
+
+def _warn_if_env_overrides_browser_login() -> None:
+    """Warn when an exported credential will be used instead of the browser login."""
+    for var in (env.API_KEY, env.IDENTITY_TOKEN_FILE):
+        if os.getenv(var):
+            wandb.termwarn(
+                f"{var} is set, so W&B uses it instead of the browser login."
+                f" Unset {var} to use the browser login."
+            )
+            return
 
 
 def _revoke_replaced_login(host_url: wbauth.HostUrl, refresh_token: str) -> None:

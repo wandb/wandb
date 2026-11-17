@@ -170,32 +170,60 @@ def test_browser_flag_gives_up_after_the_timeout(
 ):
     # A browser that never approves the login.
     monkeypatch.setattr(browser_login, "_open_browser", lambda url: True)
+    monkeypatch.setattr(browser_login, "LOGIN_TIMEOUT_SECONDS", 0.1)
 
-    result = runner.invoke(
-        cli.cli,
-        ["login", "--host", host.url, "--browser", "--timeout", "0.1"],
-    )
+    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
 
     assert result.exit_code == 1, result.output
     assert "Timed out waiting for the login" in result.output
     assert stored_refresh_token(credentials_file, host) is None
 
 
+@pytest.mark.parametrize(
+    "env_var, value",
+    [
+        ("WANDB_API_KEY", "k" * 40),
+        ("WANDB_IDENTITY_TOKEN_FILE", "token.jwt"),
+    ],
+)
 @pytest.mark.usefixtures("local_settings", "skip_verify_login")
-def test_browser_flag_ignores_other_credentials(
+def test_browser_flag_warns_that_an_exported_credential_wins(
     runner,
     monkeypatch: pytest.MonkeyPatch,
     oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
+    env_var: str,
+    value: str,
 ):
-    """An API key in the environment does not stand in for a browser login."""
-    monkeypatch.setenv("WANDB_API_KEY", "k" * 40)
+    """The browser login is stored, but runs keep using the export."""
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
+    monkeypatch.setenv(env_var, value)
     mock_browser_login(monkeypatch)
 
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
 
     assert result.exit_code == 0, result.output
     assert len(token_exchanges(oauth_server)) == 1
+    assert f"{env_var} is set, so W&B uses it instead of the browser login" in (
+        result.output
+    )
+
+
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_browser_flag_does_not_warn_without_an_exported_credential(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    host: wbauth.HostUrl,
+):
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
+    mock_browser_login(monkeypatch)
+
+    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
+
+    assert result.exit_code == 0, result.output
+    assert "instead of the browser login" not in result.output
 
 
 @pytest.mark.usefixtures("local_settings", "skip_verify_login")
@@ -262,7 +290,7 @@ def test_browser_flag_logs_in_again_when_the_stored_login_is_rejected(
 
     assert result.exit_code == 0, result.output
     assert verified == ["wb_rt_old", "wb_rt_new"]
-    assert "no longer works" in result.output
+    assert "Could not use the browser login stored for" in result.output
     assert revoked_tokens(oauth_server) == ["wb_rt_old"]
     assert stored_refresh_token(credentials_file, host) == "wb_rt_new"
 
@@ -499,6 +527,32 @@ def test_browser_relogin_restores_the_previous_login_when_verify_fails(
         ServiceApi,
         "authenticate",
         MagicMock(side_effect=RuntimeError("rejected")),
+    )
+
+    result = runner.invoke(
+        cli.cli,
+        ["login", "--host", host.url, "--browser", "--relogin"],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert stored_refresh_token(credentials_file, host) == "wb_rt_old"
+    assert revoked_tokens(oauth_server) == []
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_browser_relogin_restores_the_previous_login_on_ctrl_c(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    oauth_server: FakeOAuthServer,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    mock_browser_login(monkeypatch)
+    browser_login.save_credentials(credentials_file, host, make_token_set("wb_rt_old"))
+    monkeypatch.setattr(
+        ServiceApi,
+        "authenticate",
+        MagicMock(side_effect=KeyboardInterrupt),
     )
 
     result = runner.invoke(
