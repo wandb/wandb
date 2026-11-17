@@ -6,6 +6,10 @@ import (
 	"slices"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -58,7 +62,7 @@ type FileStreamState struct {
 	ConsoleLineOffset int
 }
 
-// IsAtSizeLimit returns true if the next JSON chunk of the request could
+// IsAtSizeLimit returns true if the next chunk of the request could
 // contain more than around maxBytes of data.
 func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	approxSize := 0
@@ -75,6 +79,11 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 		if approxSize >= s.MaxRequestSizeBytes {
 			return true
 		}
+	}
+
+	approxSize += request.SystemMetricsSizeBytes
+	if approxSize >= s.MaxRequestSizeBytes && len(request.SystemMetrics) > 0 {
+		return true
 	}
 
 	// Use the last summary size to approximate the next.
@@ -97,7 +106,7 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	return false
 }
 
-// Pop extracts a chunk of data from the request, limiting its JSON
+// Pop extracts a chunk of data from the request, limiting its wire
 // representation to approximately the maximum size.
 //
 // The second return value is true if there remains unsent data in the request.
@@ -158,6 +167,19 @@ func (s *FileStreamState) popEvents(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
 ) {
+	// Legacy lines and typed records do not mix within a stream.
+	if len(request.EventsLines) > 0 {
+		s.popEventsLines(builder, request)
+		builder.HasMore = builder.HasMore || len(request.SystemMetrics) > 0
+	} else {
+		s.popSystemMetrics(builder, request)
+	}
+}
+
+func (s *FileStreamState) popEventsLines(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+) {
 	poppedLines := false
 	defer func() {
 		if poppedLines {
@@ -180,6 +202,34 @@ func (s *FileStreamState) popEvents(
 		builder.EventsChunk.Content = append(builder.EventsChunk.Content, line)
 		request.EventsLines = request.EventsLines[1:]
 		s.EventsLineNum++
+	}
+}
+
+func (s *FileStreamState) popSystemMetrics(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+) {
+	chunk := &filestreamv1.SystemMetricsChunk{
+		Offset: int64(
+			s.EventsLineNum,
+		),
+		RunStartedAt: timestamppb.New(request.SystemMetricsStartTime),
+	}
+	for len(request.SystemMetrics) > 0 {
+		record := request.SystemMetrics[0]
+		size := proto.Size(record)
+		if !builder.TryAddSize(size) {
+			builder.HasMore = true
+			break
+		}
+		chunk.Records = append(chunk.Records, record)
+		request.SystemMetrics = request.SystemMetrics[1:]
+		request.SystemMetricsSizeBytes -= size
+		s.EventsLineNum++
+	}
+	if len(chunk.Records) > 0 {
+		builder.SystemMetrics = chunk
+		request.SystemMetrics = slices.Clone(request.SystemMetrics)
 	}
 }
 
@@ -305,6 +355,7 @@ type requestJSONBuilder struct {
 	EventsChunk       OffsetAndContent
 	SummaryChunk      OffsetAndContent
 	ConsoleLinesChunk OffsetAndContent
+	SystemMetrics     *filestreamv1.SystemMetricsChunk
 
 	Uploaded   []string
 	Preempting bool
@@ -345,6 +396,7 @@ func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 	}
 
 	json.Uploaded = x.Uploaded
+	json.SystemMetrics = x.SystemMetrics
 	json.Preempting = nullify.NilIfZero(x.Preempting)
 
 	if x.Complete {

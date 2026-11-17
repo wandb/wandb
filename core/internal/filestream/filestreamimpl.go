@@ -39,6 +39,7 @@ func (fs *fileStream) startProcessingUpdates(
 				},
 
 				Settings: fs.settings,
+				UseProto: fs.useProto(),
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
@@ -136,12 +137,14 @@ func (fs *fileStream) send(
 	}
 
 	marshalStart := time.Now()
-	jsonData, err := json.Marshal(data)
+	body, contentType, err := fs.marshalRequest(data)
 	marshalDuration := time.Since(marshalStart)
 	if err != nil {
-		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
+		return err
 	}
-	fs.logger.Debug("filestream: post request", "request", string(jsonData))
+	if contentType == "application/json" {
+		fs.logger.Debug("filestream: post request", "request", string(body))
+	}
 
 	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
 		fs.featureProvider.Enabled(
@@ -150,12 +153,12 @@ func (fs *fileStream) send(
 		)
 
 	var compressDuration time.Duration
-	requestBody := jsonData
+	requestBody := body
 	if useGzip {
 		compressStart := time.Now()
 		var compressed bytes.Buffer
 		gzipWriter := gzip.NewWriter(&compressed)
-		if _, err := gzipWriter.Write(jsonData); err != nil {
+		if _, err := gzipWriter.Write(body); err != nil {
 			return fmt.Errorf("filestream: gzip write error in send(): %v", err)
 		}
 		if err := gzipWriter.Close(); err != nil {
@@ -183,7 +186,7 @@ func (fs *fileStream) send(
 	}
 
 	report := filestreamstats.RequestReport{
-		UncompressedBytes: len(jsonData),
+		UncompressedBytes: len(body),
 		CompressedBytes:   len(requestBody),
 		Compressed:        useGzip,
 	}
@@ -204,7 +207,7 @@ func (fs *fileStream) send(
 	if err != nil {
 		return fmt.Errorf("filestream: error constructing request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	if useGzip {
 		req.Header.Set("Content-Encoding", "gzip")
 	}
@@ -325,6 +328,10 @@ func (fs *fileStream) logRequestSummary(data *FileStreamRequestJSON) {
 		attrs = append(attrs,
 			"events_offset", events.Offset,
 			"events_lines", len(events.Content))
+	} else if data.SystemMetrics != nil {
+		attrs = append(attrs,
+			"events_offset", data.SystemMetrics.Offset,
+			"events_lines", len(data.SystemMetrics.Records))
 	}
 	if console, ok := data.Files[OutputFileName]; ok {
 		attrs = append(attrs,

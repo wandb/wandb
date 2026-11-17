@@ -18,6 +18,9 @@ type UpdateContext struct {
 
 	Settings *settings.Settings
 
+	// UseProto is fixed for the stream by the TYPED_SYSTEM_METRICS feature.
+	UseProto bool
+
 	Logger  *observability.CoreLogger
 	Printer *observability.Printer
 

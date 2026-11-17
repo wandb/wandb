@@ -3,6 +3,8 @@ package stream_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -11,8 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/time/rate"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
@@ -571,4 +577,55 @@ func TestLinkRegistryArtifact(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Pin the legacy request envelope and line contents. The line's object keys
+// retain the nondeterministic map order of the existing StatsUpdate encoder.
+func TestSendTypedSystemMetricsWithoutFeatureUsesLegacyJSON(t *testing.T) {
+	baseURL, err := url.Parse("https://api.wandb.test")
+	require.NoError(t, err)
+	client := apitest.NewFakeClient("https://api.wandb.test")
+	client.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
+	factory := filestream.FileStreamFactory{
+		BaseURL:         baseURL,
+		FeatureProvider: featurechecker.NewPreloaded(nil),
+		Logger:          observability.NewNoOpLogger(),
+		Printer:         observability.NewPrinter(0),
+		Settings:        wbsettings.New(),
+	}
+	fileStream := factory.New(client, context.Background(), time.Hour,
+		rate.NewLimiter(rate.Inf, 1))
+	fileStream.Start("test-entity", "test-project", "run1", nil)
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_SystemMetrics{SystemMetrics: &spb.SystemMetricsRecord{
+			Writer:    &spb.WriterInfo{Id: "original-writer", Label: "worker"},
+			Sequence:  19,
+			Timestamp: &timestamppb.Timestamp{Seconds: 5, Nanos: 250_000_000},
+			Host: &spb.HostMetrics{
+				Cpu: &spb.CpuMetrics{TemperatureC: proto.Float64(50)},
+			},
+		}},
+	}, nil)
+	fileStream.FinishWithoutExit()
+
+	requests := client.GetRequests()
+	require.Len(t, requests, 1)
+	assert.Equal(t, "application/json", requests[0].Header.Get("Content-Type"))
+	assert.Equal(t, "/files/test-entity/test-project/run1/file_stream", requests[0].URL.Path)
+	var body filestream.FileStreamRequestJSON
+	require.NoError(t, json.Unmarshal(requests[0].Body, &body))
+	events := body.Files[filestream.EventsFileName]
+	require.Len(t, events.Content, 1)
+	assert.JSONEq(t,
+		`{"_runtime":5.25,"_timestamp":5.25,"_wandb":true,"system.cpu.avg_temp/l:worker":50}`,
+		events.Content[0])
+	want, err := json.Marshal(filestream.FileStreamRequestJSON{
+		Files: map[string]filestream.OffsetAndContent{
+			filestream.EventsFileName: {Offset: 0, Content: events.Content},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, want, requests[0].Body)
 }

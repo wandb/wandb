@@ -2,9 +2,12 @@ package filestream
 
 import (
 	"maps"
+	"time"
 
+	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // FileStreamRequest is data that can be sent via filestream.
@@ -21,6 +24,13 @@ type FileStreamRequest struct {
 	//
 	// Each line is a JSON object mapping metric names to values.
 	EventsLines []string
+
+	// SystemMetrics is typed samples to append to the run's system metrics.
+	SystemMetrics []*spb.SystemMetricsRecord
+
+	// SystemMetricsSizeBytes is the total encoded size of the pending samples.
+	SystemMetricsSizeBytes int
+	SystemMetricsStartTime time.Time
 
 	// SummaryUpdates contains changes to the run's summary.
 	SummaryUpdates *runsummary.Updates
@@ -60,8 +70,14 @@ type FileStreamRequest struct {
 // The resulting request has the same effect as if this request was
 // sent first, and the next request was sent after.
 func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
+	if r.SystemMetricsStartTime.IsZero() {
+		r.SystemMetricsStartTime = next.SystemMetricsStartTime
+	}
+
 	r.HistoryLines = append(r.HistoryLines, next.HistoryLines...)
 	r.EventsLines = append(r.EventsLines, next.EventsLines...)
+	r.SystemMetrics = append(r.SystemMetrics, next.SystemMetrics...)
+	r.SystemMetricsSizeBytes += next.SystemMetricsSizeBytes
 
 	if r.SummaryUpdates == nil {
 		r.SummaryUpdates = next.SummaryUpdates
@@ -89,9 +105,10 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 	}
 }
 
-// FileStreamRequestJSON is the actual JSON request we make to the API.
+// FileStreamRequestJSON is a single request to the filestream API.
+// Its JSON encoding is the legacy body; SystemMetrics requires protobuf.
 //
-// A [FileStreamRequest] sometimes requires multiple JSON requests to
+// A [FileStreamRequest] sometimes requires multiple requests to
 // represent it. This happens when non-consecutive runs of lines are
 // updated in the console logs (only one run can be updated at a time
 // due to the API's design), or to limit the request size.
@@ -105,6 +122,9 @@ type FileStreamRequestJSON struct {
 
 	Complete *bool  `json:"complete,omitempty"`
 	ExitCode *int32 `json:"exitcode,omitempty"`
+
+	// SystemMetrics is sent only in the protobuf body.
+	SystemMetrics *filestreamv1.SystemMetricsChunk `json:"-"`
 }
 
 // IsHeartbeat is true if this is a "heartbeat" request containing no data.
@@ -112,6 +132,7 @@ func (r *FileStreamRequestJSON) IsHeartbeat() bool {
 	return r != nil &&
 		len(r.Files) == 0 &&
 		len(r.Uploaded) == 0 &&
+		r.SystemMetrics == nil &&
 		r.Preempting == nil &&
 		r.Complete == nil &&
 		r.ExitCode == nil
