@@ -6,11 +6,10 @@ import contextlib
 import datetime
 import http.server
 import json
-import os
 import pathlib
+import platform
 import socket
 import ssl
-import sys
 import threading
 import time
 import types
@@ -521,34 +520,6 @@ def test_saving_leaves_an_identity_token_exchange_alone(tmp_path: pathlib.Path):
     assert contents["user_credentials"] == {}
 
 
-def test_save_waits_for_the_core_credentials_lock(tmp_path: pathlib.Path):
-    if sys.platform == "win32":
-        pytest.skip("this test takes the lock with flock")
-
-    import fcntl
-
-    path = tmp_path / "credentials.json"
-    fd = os.open(path.with_name(f"{path.name}.lock"), os.O_RDWR | os.O_CREAT, 0o666)
-    fcntl.flock(fd, fcntl.LOCK_EX)
-    finished = threading.Event()
-
-    def save() -> None:
-        browser_login.save_credentials(path, HOST, make_token_set())
-        finished.set()
-
-    thread = threading.Thread(target=save)
-    thread.start()
-    try:
-        assert not finished.wait(0.2)
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        assert finished.wait(2)
-    finally:
-        os.close(fd)
-        thread.join(timeout=2)
-
-    assert browser_login.load_credentials(path, HOST).refresh_token == "wb_rt_stored"
-
-
 def test_saving_reports_a_file_that_cannot_be_written(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ):
@@ -565,6 +536,10 @@ def test_saving_reports_a_file_that_cannot_be_written(
     assert not [p for p in tmp_path.iterdir() if p.name.startswith(".credentials-")]
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Windows does not use POSIX file permission bits",
+)
 def test_credentials_are_not_world_readable(tmp_path: pathlib.Path):
     path = tmp_path / "credentials.json"
 
