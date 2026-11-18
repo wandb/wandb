@@ -70,8 +70,10 @@ func (fs *fileStream) startProcessingUpdates(
 func (fs *fileStream) startTransmitting(
 	requests <-chan *FileStreamRequest,
 	initialOffsets FileStreamOffsetMap,
+	summaryDelta bool,
 ) <-chan map[string]any {
 	state := &FileStreamState{
+		SummaryDelta: summaryDelta,
 		MaxRequestSizeBytes: max(
 			int(fs.settings.GetFileStreamMaxBytes()),
 			defaultMaxRequestSizeBytes,
@@ -90,10 +92,9 @@ func (fs *fileStream) startTransmitting(
 	}
 
 	transmissions := CollectLoop{
-		Logger:             fs.logger,
-		Printer:            fs.printer,
-		TransmitRateLimit:  fs.transmitRateLimit,
-		AcceptSummaryDelta: fs.acceptSummaryDelta.Load,
+		Logger:            fs.logger,
+		Printer:           fs.printer,
+		TransmitRateLimit: fs.transmitRateLimit,
 	}.Start(state, requests)
 
 	feedback := TransmitLoop{
@@ -122,13 +123,6 @@ func (fs *fileStream) startProcessingFeedback(
 				if stopped, ok := v.(bool); ok && stopped {
 					fs.stopState.Store(true)
 				}
-			}
-
-			// A response without the field, as from older servers,
-			// turns deltas off.
-			if res != nil {
-				accept, _ := res["accept_summary_delta"].(bool)
-				fs.acceptSummaryDelta.Store(accept)
 			}
 		}
 	}()

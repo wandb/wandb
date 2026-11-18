@@ -27,6 +27,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -55,6 +56,19 @@ func makeSenderWithFileStream(
 	t *testing.T,
 	client graphql.Client,
 	fileStream filestream.FileStream,
+	stats ...*filestreamstats.Stats,
+) testFixtures {
+	t.Helper()
+	return makeSenderWithFeatures(t, client, fileStream, nil, stats...)
+}
+
+// makeSenderWithFeatures is [makeSenderWithFileStream] for a server with
+// the given features.
+func makeSenderWithFeatures(
+	t *testing.T,
+	client graphql.Client,
+	fileStream filestream.FileStream,
+	features map[spb.ServerFeature]bool,
 	stats ...*filestreamstats.Stats,
 ) testFixtures {
 	t.Helper()
@@ -116,7 +130,7 @@ func makeSenderWithFileStream(
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		Peeker:                  &observability.Peeker{},
-		FeatureProvider:         featurechecker.New(nil, logger),
+		FeatureProvider:         featurechecker.NewPreloaded(features),
 		RunHandle:               runHandle,
 		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
 	}
@@ -160,6 +174,46 @@ func TestSendExitBeforeRunInitialization(t *testing.T) {
 	assert.Empty(t, files)
 	for _, entry := range observabilitytest.ExtractLogs(t, x.Logs) {
 		assert.NotEqual(t, "ERROR", entry["level"], entry["msg"])
+	}
+}
+
+func TestFileStreamStartsWithSummaryDelta(t *testing.T) {
+	const accepted = `{"project": {"acceptsSummaryDelta": true}}`
+	for _, tc := range []struct {
+		name     string
+		feature  bool
+		response string
+		want     bool
+	}{
+		{"accepted", true, accepted, true},
+		{"not accepted", true, `{"project": {"acceptsSummaryDelta": false}}`, false},
+		{"no project", true, `{"project": null}`, false},
+		{"server without the feature is not asked", false, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gqlmock.NewMockClient()
+			if tc.response != "" {
+				client.StubMatchOnce(
+					gqlmock.WithOpName("ProjectAcceptsSummaryDelta"),
+					tc.response,
+				)
+			}
+			fileStream := filestreamtest.NewFakeFileStream()
+			x := makeSenderWithFeatures(t, client, fileStream,
+				map[spb.ServerFeature]bool{
+					spb.ServerFeature_FILESTREAM_SUMMARY_DELTA: tc.feature,
+				})
+			noWork := make(chan runwork.Work)
+			close(noWork)
+
+			x.Sender.Do(noWork)
+
+			assert.Equal(t, tc.want, fileStream.StartedWithSummaryDelta())
+			assert.True(t, client.AllStubsUsed())
+			if !tc.feature {
+				assert.Empty(t, client.AllRequests())
+			}
+		})
 	}
 }
 

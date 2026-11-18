@@ -16,11 +16,6 @@ type CollectLoop struct {
 	Logger            *observability.CoreLogger
 	Printer           *observability.Printer
 	TransmitRateLimit *rate.Limiter
-
-	// AcceptSummaryDelta reports whether the backend accepts summary deltas.
-	//
-	// If nil, the full summary is always sent.
-	AcceptSummaryDelta func() bool
 }
 
 // Start ingests requests and outputs rate-limited, batched requests.
@@ -147,7 +142,6 @@ func (cl CollectLoop) pop(
 ) (*FileStreamRequestJSON, bool) {
 	return state.Pop(
 		request,
-		cl.AcceptSummaryDelta != nil && cl.AcceptSummaryDelta(),
 		cl.Logger,
 		cl.Printer,
 	)

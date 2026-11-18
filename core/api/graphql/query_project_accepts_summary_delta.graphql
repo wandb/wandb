@@ -1,0 +1,5 @@
+query ProjectAcceptsSummaryDelta($entity: String!, $project: String!) {
+    project(name: $project, entityName: $entity) {
+        acceptsSummaryDelta
+    }
+}

@@ -25,6 +25,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -99,6 +100,10 @@ type Sender struct {
 	//
 	// It is nil in offline mode.
 	graphqlClient graphql.Client
+
+	// serverHasSummaryDelta reports whether the server has the
+	// FILESTREAM_SUMMARY_DELTA feature.
+	serverHasSummaryDelta func() bool
 
 	// fileStream uploads data to the backend.
 	//
@@ -222,6 +227,13 @@ func (f *SenderFactory) NewWithFileStream(
 		)
 	})
 
+	serverHasSummaryDelta := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_FILESTREAM_SUMMARY_DELTA,
+		)
+	})
+
 	consoleLogsSenderParams := runconsolelogs.Params{
 		FilesDir:              f.Settings.GetFilesDir(),
 		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
@@ -254,16 +266,17 @@ func (f *SenderFactory) NewWithFileStream(
 			useArtifactProjectEntityInfo,
 			serverProvidesArtifactDigestAlgorithm,
 		),
-		networkPeeker:     f.Peeker,
-		printer:           f.Printer,
-		graphqlClient:     f.GraphqlClient,
-		mailbox:           f.Mailbox,
-		runHandle:         f.RunHandle,
-		runSummary:        runsummary.New(),
-		stepTracker:       f.HistoryStepTracker,
-		runHistorySampler: runhistory.NewRunHistorySampler(),
-		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
-		stats:             f.Stats,
+		networkPeeker:         f.Peeker,
+		printer:               f.Printer,
+		graphqlClient:         f.GraphqlClient,
+		serverHasSummaryDelta: serverHasSummaryDelta,
+		mailbox:               f.Mailbox,
+		runHandle:             f.RunHandle,
+		runSummary:            runsummary.New(),
+		stepTracker:           f.HistoryStepTracker,
+		runHistorySampler:     runhistory.NewRunHistorySampler(),
+		consoleLogsSender:     runconsolelogs.New(consoleLogsSenderParams),
+		stats:                 f.Stats,
 	}
 	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
@@ -507,8 +520,37 @@ func (s *Sender) startFileStreamAfterRunInit() {
 			runPath.Project,
 			runPath.RunID,
 			upserter.FileStreamOffsets(),
+			s.acceptsSummaryDelta(runPath),
 		)
 	})
+}
+
+// acceptsSummaryDelta asks the backend whether the run's filestream may
+// send its summary as deltas.
+//
+// The answer holds for the whole stream. It is false if the backend
+// can't be asked, in which case the filestream sends full summaries.
+func (s *Sender) acceptsSummaryDelta(runPath runbranch.RunPath) bool {
+	if s.graphqlClient == nil || !s.serverHasSummaryDelta() {
+		return false
+	}
+
+	response, err := gql.ProjectAcceptsSummaryDelta(
+		s.runWork.BeforeEndCtx(),
+		s.graphqlClient,
+		runPath.Entity,
+		runPath.Project,
+	)
+	if err != nil {
+		s.logger.Error(
+			"sender: failed to check for summary deltas, sending full summaries",
+			"error", err,
+		)
+		return false
+	}
+
+	return response.GetProject() != nil &&
+		response.GetProject().GetAcceptsSummaryDelta()
 }
 
 func (s *Sender) sendRequestNetworkStatus(

@@ -1744,4 +1744,8 @@ enum ServerFeature {
 
   // Indicates that the server supports automation event SANDBOX_STATE.
   AUTOMATION_EVENT_SANDBOX_STATE = 40;
+
+  // Indicates that the server supports Project.acceptsSummaryDelta, which says
+  // whether a run's filestream may send its summary as deltas.
+  FILESTREAM_SUMMARY_DELTA = 41;
 }

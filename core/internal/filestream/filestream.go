@@ -67,11 +67,17 @@ type FileStream interface {
 	// `entity`, `project` and `runID`). In case we are resuming a run,
 	// the `offsetMap` specifies the initial file offsets for each file
 	// type (history, output logs, events, summary).
+	//
+	// summaryDelta is whether the backend accepts summary deltas for
+	// this stream. If so, summaries carry only the values that changed and
+	// that the backend can't take from history, except for the full summary
+	// at the end of the stream.
 	Start(
 		entity string,
 		project string,
 		runID string,
 		offsetMap FileStreamOffsetMap,
+		summaryDelta bool,
 	)
 
 	// FinishWithExit marks the run as complete and blocks until all
@@ -139,10 +145,6 @@ type fileStream struct {
 	//
 	// Once it becomes true, it does not switch back to false.
 	stopState atomic.Bool
-
-	// acceptSummaryDelta is whether the backend's last response accepted
-	// summary deltas.
-	acceptSummaryDelta atomic.Bool
 
 	// stats measures the cost of the upload pipeline for this run.
 	//
@@ -216,6 +218,7 @@ func (fs *fileStream) Start(
 	project string,
 	runID string,
 	offsetMap FileStreamOffsetMap,
+	summaryDelta bool,
 ) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
 
@@ -227,7 +230,7 @@ func (fs *fileStream) Start(
 	)
 
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
-	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)
+	feedbackChan := fs.startTransmitting(transmitChan, offsetMap, summaryDelta)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
 }
 

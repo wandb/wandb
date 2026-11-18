@@ -45,16 +45,9 @@ type FileStreamState struct {
 	// used to estimate the size of the next one.
 	LastRunSummarySize int
 
-	// SentSummary is whether a summary was sent or dropped for its size,
-	// so that the next one can be a delta.
-	SentSummary bool
-
-	// SentDeltaSinceFull is whether a delta was sent or dropped after the
-	// last full summary.
-	//
-	// If so, the backend built its summary from deltas, and gets the full
-	// summary on the final request or once it stops accepting deltas.
-	SentDeltaSinceFull bool
+	// SummaryDelta is whether the backend accepts summary deltas
+	// for this stream.
+	SummaryDelta bool
 
 	// ConsoleLineOffset is an offset to add to all console updates.
 	//
@@ -105,12 +98,9 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 // Pop extracts a chunk of data from the request, limiting its JSON
 // representation to approximately the maximum size.
 //
-// acceptSummaryDelta is whether the backend accepts summary deltas.
-//
 // The second return value is true if there remains unsent data in the request.
 func (s *FileStreamState) Pop(
 	request *FileStreamRequest,
-	acceptSummaryDelta bool,
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) (*FileStreamRequestJSON, bool) {
@@ -119,7 +109,7 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	s.popSummary(builder, request, acceptSummaryDelta, logger, printer)
+	s.popSummary(builder, request, logger, printer)
 	s.popConsoleLines(builder, request)
 
 	s.popUploadedFiles(builder, request)
@@ -194,26 +184,24 @@ func (s *FileStreamState) popEvents(
 // popSummary adds the summary to the request if it changed.
 //
 // Summary updates stay in the request until a summary is sent, so they are
-// the changes since the last summary sent. While the backend accepts deltas,
+// the changes since the last summary sent. If the backend accepts deltas,
 // they are sent without values from history, which the backend takes from
 // the history it receives. The full summary is sent instead:
-//   - for the first summary of the stream
 //   - for changes that remove a key, which a delta can't express
-//   - on the final request
-//   - once the backend stops accepting deltas, if a delta was sent
+//   - at the end of the stream, changed or not, so that the backend ends up
+//     with every value
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
-	acceptDelta bool,
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) {
-	needFull := s.SentDeltaSinceFull && (!acceptDelta || request.Complete)
-	if request.SummaryUpdates.IsEmpty() && !needFull {
+	final := s.SummaryDelta && request.Complete && !builder.HasMore
+	if request.SummaryUpdates.IsEmpty() && (!final || s.RunSummary == nil) {
 		return
 	}
 
-	asDelta := acceptDelta && s.SentSummary && !request.Complete &&
+	asDelta := s.SummaryDelta && !final &&
 		!request.SummaryUpdates.HasRemovals()
 	summaryJSON, err := s.serializeSummary(request.SummaryUpdates, asDelta, logger)
 	switch {
@@ -222,7 +210,7 @@ func (s *FileStreamState) popSummary(
 			"filestream",
 			fmt.Errorf("filestream: failed to serialize summary: %v", err),
 		)
-		s.markSummarySent(request, asDelta)
+		request.SummaryUpdates = nil
 		return
 
 	case asDelta && string(summaryJSON) == "{}":
@@ -248,9 +236,8 @@ func (s *FileStreamState) popSummary(
 				s.MaxFileLineSize,
 			)
 
-		// Drop the summary. The next change is sent as usual: while deltas
-		// are accepted, that is a delta, so later changes still go out.
-		s.markSummarySent(request, asDelta)
+		// Drop the summary. Later changes are sent as usual.
+		request.SummaryUpdates = nil
 		return
 	}
 
@@ -263,7 +250,7 @@ func (s *FileStreamState) popSummary(
 	builder.SummaryChunk.Offset = s.SummaryLineNum
 	builder.SummaryChunk.Content = []string{string(summaryJSON)}
 	builder.SummaryDelta = asDelta
-	s.markSummarySent(request, asDelta)
+	request.SummaryUpdates = nil
 }
 
 // serializeSummary applies the updates to RunSummary and returns the updates
@@ -291,16 +278,6 @@ func (s *FileStreamState) serializeSummary(
 		return updates.SerializeWithoutHistory()
 	}
 	return s.RunSummary.Serialize()
-}
-
-// markSummarySent records that the summary was sent or dropped.
-func (s *FileStreamState) markSummarySent(
-	request *FileStreamRequest,
-	isDelta bool,
-) {
-	request.SummaryUpdates = nil
-	s.SentSummary = true
-	s.SentDeltaSinceFull = isDelta
 }
 
 func (s *FileStreamState) popConsoleLines(

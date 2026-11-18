@@ -1368,6 +1368,26 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
+// ProjectAcceptsSummaryDeltaProject includes the requested fields of the GraphQL type Project.
+type ProjectAcceptsSummaryDeltaProject struct {
+	AcceptsSummaryDelta bool `json:"acceptsSummaryDelta"`
+}
+
+// GetAcceptsSummaryDelta returns ProjectAcceptsSummaryDeltaProject.AcceptsSummaryDelta, and is useful for accessing the field via an interface.
+func (v *ProjectAcceptsSummaryDeltaProject) GetAcceptsSummaryDelta() bool {
+	return v.AcceptsSummaryDelta
+}
+
+// ProjectAcceptsSummaryDeltaResponse is returned by ProjectAcceptsSummaryDelta on success.
+type ProjectAcceptsSummaryDeltaResponse struct {
+	Project *ProjectAcceptsSummaryDeltaProject `json:"project"`
+}
+
+// GetProject returns ProjectAcceptsSummaryDeltaResponse.Project, and is useful for accessing the field via an interface.
+func (v *ProjectAcceptsSummaryDeltaResponse) GetProject() *ProjectAcceptsSummaryDeltaProject {
+	return v.Project
+}
+
 // QueryProjectRunsProject includes the requested fields of the GraphQL type Project.
 type QueryProjectRunsProject struct {
 	Runs *QueryProjectRunsProjectRunsRunConnection `json:"runs"`
@@ -3382,6 +3402,18 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __ProjectAcceptsSummaryDeltaInput is used internally by genqlient
+type __ProjectAcceptsSummaryDeltaInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+}
+
+// GetEntity returns __ProjectAcceptsSummaryDeltaInput.Entity, and is useful for accessing the field via an interface.
+func (v *__ProjectAcceptsSummaryDeltaInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __ProjectAcceptsSummaryDeltaInput.Project, and is useful for accessing the field via an interface.
+func (v *__ProjectAcceptsSummaryDeltaInput) GetProject() string { return v.Project }
+
 // __QueryProjectRunsInput is used internally by genqlient
 type __QueryProjectRunsInput struct {
 	Entity  string  `json:"entity"`
@@ -4819,6 +4851,42 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ProjectAcceptsSummaryDelta.
+const ProjectAcceptsSummaryDelta_Operation = `
+query ProjectAcceptsSummaryDelta ($entity: String!, $project: String!) {
+	project(name: $project, entityName: $entity) {
+		acceptsSummaryDelta
+	}
+}
+`
+
+func ProjectAcceptsSummaryDelta(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+) (data_ *ProjectAcceptsSummaryDeltaResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ProjectAcceptsSummaryDelta",
+		Query:  ProjectAcceptsSummaryDelta_Operation,
+		Variables: &__ProjectAcceptsSummaryDeltaInput{
+			Entity:  entity,
+			Project: project,
+		},
+	}
+
+	data_ = &ProjectAcceptsSummaryDeltaResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
