@@ -20,7 +20,7 @@ import pathlib
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeVar, cast
 from urllib.parse import quote
 
 from wandb import util
@@ -42,13 +42,23 @@ if TYPE_CHECKING:
     from wandb.sdk.data_types.helper_types.classes import Classes
     from wandb.sdk.wandb_run import Run
 
-    _CESMediaExtensionValue = WandbImageV1Param | WandbAudioV1Param | WandbVideoV1Param
+    class _CESImageListValue(TypedDict):
+        extension_type: Literal["wandb-image-list"]
+        schema_version: Literal[1]
+        items: list[WandbImageV1Param]
+
+    _CESMediaExtensionValue = (
+        WandbImageV1Param | WandbAudioV1Param | WandbVideoV1Param | _CESImageListValue
+    )
 
 
 # Stays under the 3.5 MiB ClickHouse single-row insert limit that Weave adopted
 # after larger rows failed in production (wandb/weave#2353, wandb/weave#5448).
 CES_MAX_CELL_BYTES = 3_500_000
-CESExtensionType = Literal["wandb-image", "wandb-audio", "wandb-video"]
+CES_MAX_IMAGE_LIST_ITEMS = 128
+CESExtensionType = Literal[
+    "wandb-image", "wandb-image-list", "wandb-audio", "wandb-video"
+]
 _MediaFieldSource = Literal["inputs", "outputs"]
 _DIGEST_PATH_LENGTH = 30
 _MediaT = TypeVar("_MediaT", bound=Media)
@@ -168,20 +178,59 @@ def _media_serializer(media: Media) -> _MediaSerializer:
 
 
 def is_supported_wandb_media(value: Any) -> bool:
-    return isinstance(value, SUPPORTED_WANDB_MEDIA_TYPES)
+    return isinstance(value, SUPPORTED_WANDB_MEDIA_TYPES) or (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, Image) for item in value)
+    )
 
 
-def media_extension_type(media: Media) -> CESExtensionType:
+def media_extension_type(media: Media | list[Image]) -> CESExtensionType:
+    if isinstance(media, list):
+        return "wandb-image-list"
     return _media_serializer(media).extension_type
 
 
 def prepare_media(
-    media: Media,
+    media: Media | list[Image],
     run: Run,
     field: EvalTableMediaField,
     class_label_accumulator: ClassLabelAccumulator | None = None,
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
+    if isinstance(media, list):
+        if len(media) > CES_MAX_IMAGE_LIST_ITEMS:
+            raise UsageError(
+                f"CES EvalTable image lists support at most {CES_MAX_IMAGE_LIST_ITEMS} images per cell."
+            )
+        if any(not isinstance(item, Image) for item in media):
+            raise UsageError(
+                "CES EvalTable image lists must contain only wandb.Image values."
+            )
+        value: _CESImageListValue = {
+            "extension_type": "wandb-image-list",
+            "schema_version": 1,
+            "items": [
+                cast(
+                    "WandbImageV1Param",
+                    _media_extension_value(item, run, field, class_label_accumulator),
+                )
+                for item in media
+            ],
+        }
+        return _prepared_media_cell(value, extension_type="wandb-image-list")
+    return _prepared_media_cell(
+        _media_extension_value(media, run, field, class_label_accumulator),
+        extension_type=media_extension_type(media),
+    )
+
+
+def _media_extension_value(
+    media: Media,
+    run: Run,
+    field: EvalTableMediaField,
+    class_label_accumulator: ClassLabelAccumulator | None,
+) -> _CESMediaExtensionValue:
     serializer = _media_serializer(media)
     working_media = (
         _image_for_run(media, run)
@@ -194,11 +243,7 @@ def prepare_media(
         _prepare_image_overlays(working_media, run, field, class_label_accumulator)
 
     media_json = working_media.to_json(run)
-    extension_value = serializer.build_value(media_json, run)
-    return _prepared_media_cell(
-        extension_value,
-        extension_type=serializer.extension_type,
-    )
+    return serializer.build_value(media_json, run)
 
 
 def _prepare_image_overlays(

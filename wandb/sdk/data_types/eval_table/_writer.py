@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from wandb.sdk.data_types._dtypes import Type
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
@@ -16,6 +17,7 @@ class WriteRow:
     inputs: Mapping[ColumnKey, Any]
     output: Mapping[ColumnKey, Any] | None
     scores: Mapping[ColumnKey, Any]
+    column_types: Mapping[ColumnKey, Type] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
