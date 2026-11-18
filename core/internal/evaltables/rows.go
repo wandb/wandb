@@ -47,8 +47,11 @@ func newRowEncoder(
 	e := &rowEncoder{media: &mediaConverter{runPath: runPath}}
 
 	for _, field := range data.GetDatasetFields() {
-		column := newRowColumn(
+		column, err := newRowColumn(
 			field.GetName(), field.GetValueType(), field.GetWandbMediaType())
+		if err != nil {
+			return nil, err
+		}
 
 		switch source := ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource()); source {
 		case ces.EvalTableColumnNewParamsDatasetFieldsSourceInput:
@@ -62,20 +65,28 @@ func newRowEncoder(
 	}
 
 	for _, scorer := range data.GetScorers() {
-		e.scores = append(e.scores,
-			newRowColumn(scorer.GetName(), scorer.GetValueType(), ""))
+		column, err := newRowColumn(scorer.GetName(), scorer.GetValueType(), "")
+		if err != nil {
+			return nil, err
+		}
+		e.scores = append(e.scores, column)
 	}
 
 	return e, nil
 }
 
-func newRowColumn(name, valueType, mediaType string) rowColumn {
+func newRowColumn(name, valueType, mediaType string) (rowColumn, error) {
+	key, err := appendJSON(nil, name)
+	if err != nil {
+		return rowColumn{}, fmt.Errorf("column %q: %v", name, err)
+	}
+
 	return rowColumn{
 		name:      name,
-		key:       append(appendJSONString(nil, name), ':'),
+		key:       append(key, ':'),
 		valueType: valueType,
 		mediaType: mediaType,
-	}
+	}, nil
 }
 
 // encodeRows returns the CES row JSON of rows.
@@ -128,7 +139,9 @@ func (e *rowEncoder) encodeRow(row *spb.EvalTableRow) ([]byte, error) {
 
 	if exampleKey := row.GetExampleKey(); exampleKey != "" {
 		buf = append(buf, `,"example_key":`...)
-		buf = appendJSONString(buf, exampleKey)
+		if buf, err = appendJSON(buf, exampleKey); err != nil {
+			return nil, fmt.Errorf("example key: %v", err)
+		}
 	}
 	buf = append(buf, '}')
 
@@ -201,13 +214,9 @@ func (e *rowEncoder) appendValue(
 	case *spb.EvalTableValue_IntValue:
 		return strconv.AppendInt(buf, value.IntValue, 10), nil
 	case *spb.EvalTableValue_NumberValue:
-		number, err := json.Marshal(value.NumberValue)
-		if err != nil {
-			return nil, err
-		}
-		return append(buf, number...), nil
+		return appendJSON(buf, value.NumberValue)
 	case *spb.EvalTableValue_StringValue:
-		return appendJSONString(buf, value.StringValue), nil
+		return appendJSON(buf, value.StringValue)
 	case *spb.EvalTableValue_JsonValue:
 		if !json.Valid([]byte(value.JsonValue)) {
 			return nil, errors.New("invalid JSON")
@@ -286,9 +295,11 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
-// appendJSONString appends s as a JSON string.
-func appendJSONString(buf []byte, s string) []byte {
-	// Marshaling a string can't fail.
-	encoded, _ := json.Marshal(s)
-	return append(buf, encoded...)
+// appendJSON appends v encoded as JSON.
+func appendJSON(buf []byte, v any) ([]byte, error) {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return append(buf, encoded...), nil
 }
