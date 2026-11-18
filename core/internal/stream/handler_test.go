@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/filestreamstats"
@@ -767,6 +768,29 @@ func TestHandlePartialHistory(t *testing.T) {
 			}
 		},
 		)
+	}
+}
+
+func TestHandleEventStep(t *testing.T) {
+	inChan := make(chan runwork.Work, stream.BufferSize)
+	handler := makeHandler(t, inChan, "", true)
+	inChan <- runwork.NoRequest(runwork.WorkRecord{Record: makePartialHistoryRecord(data{
+		items: map[string]string{"metric": "1.0"},
+		step:  7,
+	})})
+
+	for _, tc := range []struct {
+		step *int64
+		want int64
+	}{{nil, 7}, {proto.Int64(0), 0}, {proto.Int64(12000), 12000}, {nil, 7}} {
+		inChan <- runwork.NoRequest(runwork.WorkRecord{Record: &spb.Record{
+			RecordType: &spb.Record_Event{Event: &spb.EventRecord{Step: tc.step}},
+		}})
+		record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+		require.NotNil(t, record.GetEvent())
+		require.NotNil(t, record.GetEvent().Step)
+		assert.Equal(t, tc.want, record.GetEvent().GetStep())
+		assert.False(t, record.GetControl().GetLocal())
 	}
 }
 

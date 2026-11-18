@@ -3,6 +3,8 @@ from __future__ import annotations
 import abc
 import gzip
 import logging
+import math
+import re
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -39,6 +41,26 @@ from . import summary_record as sr
 from .history_value import set_history_value
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
+
+_RESERVED_EVENT_ATTRIBUTES = frozenset(
+    {
+        "step",
+        "severity",
+        "severity_rank",
+        "severity_original",
+        "event_type",
+        "source_sdk",
+        "step_metric",
+        "step_metric_value",
+        "tenant",
+        "project",
+        "timestamp",
+        "accepted",
+        "run",
+        "source",
+        "id",
+    }
+)
 
 # Telemetry for the client half of the filestream upload pipeline.
 #
@@ -940,6 +962,59 @@ class InterfaceBase(abc.ABC):
 
     @abc.abstractmethod
     def _publish_alert(self, alert: pb.AlertRecord) -> None:
+        raise NotImplementedError
+
+    def publish_event(
+        self,
+        *,
+        event_id: str,
+        type: str,
+        title: str,
+        step: int | None,
+        step_metric: str | None,
+        step_metric_value: float | None,
+        severity: str,
+        timestamp_ms: int,
+        attributes: dict[str, str | int | float | bool],
+    ) -> None:
+        if len(attributes) > 32:
+            raise ValueError("an event can have at most 32 attributes")
+
+        event = pb.EventRecord(
+            event_id=event_id,
+            type=type,
+            title=title,
+            severity=severity,
+            step=step,
+            step_metric=step_metric,
+            step_metric_value=step_metric_value,
+            timestamp_ms=timestamp_ms,
+        )
+        for key, value in attributes.items():
+            if not isinstance(key, str) or not re.fullmatch(
+                r"[A-Za-z0-9_.]{1,128}", key
+            ):
+                raise ValueError(f"invalid event attribute name: {key!r}")
+            if key.startswith("_") or key in _RESERVED_EVENT_ATTRIBUTES:
+                raise ValueError(f"reserved event attribute name: {key!r}")
+
+            attribute = event.attributes[key]
+            match value:
+                case bool():
+                    attribute.bool_value = value
+                case int():
+                    attribute.int_value = value
+                case float() if math.isfinite(value):
+                    attribute.double_value = value
+                case str() if len(value.encode("utf-8")) <= 4096:
+                    attribute.string_value = value
+                case _:
+                    raise ValueError(f"invalid value for event attribute {key!r}")
+
+        self._publish_event(event)
+
+    @abc.abstractmethod
+    def _publish_event(self, event: pb.EventRecord) -> None:
         raise NotImplementedError
 
     def _make_exit(self, exit_code: int | None) -> pb.RunExitRecord:
