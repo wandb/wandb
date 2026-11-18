@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"unicode/utf8"
 
 	ces "github.com/wandb/cwevals-go"
 
@@ -271,61 +270,9 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
-// appendJSONString appends s as a JSON string, escaped as encoding/json
-// escapes it without HTML escaping.
-//
-// This avoids encoding/json's allocation per value, since a table can have
-// millions of cells.
+// appendJSONString appends s as a JSON string.
 func appendJSONString(buf []byte, s string) []byte {
-	const hex = "0123456789abcdef"
-
-	buf = append(buf, '"')
-	start := 0
-	for i := 0; i < len(s); {
-		if b := s[i]; b < utf8.RuneSelf {
-			if b >= 0x20 && b != '"' && b != '\\' {
-				i++
-				continue
-			}
-
-			buf = append(buf, s[start:i]...)
-			switch b {
-			case '"', '\\':
-				buf = append(buf, '\\', b)
-			case '\b':
-				buf = append(buf, '\\', 'b')
-			case '\f':
-				buf = append(buf, '\\', 'f')
-			case '\n':
-				buf = append(buf, '\\', 'n')
-			case '\r':
-				buf = append(buf, '\\', 'r')
-			case '\t':
-				buf = append(buf, '\\', 't')
-			default:
-				buf = append(buf, '\\', 'u', '0', '0', hex[b>>4], hex[b&0xf])
-			}
-			i++
-			start = i
-			continue
-		}
-
-		r, size := utf8.DecodeRuneInString(s[i:])
-		switch {
-		case r == utf8.RuneError && size == 1:
-			buf = append(buf, s[start:i]...)
-			buf = append(buf, `�`...)
-		case r == ' ' || r == ' ':
-			// Valid JSON, but not valid JavaScript.
-			buf = append(buf, s[start:i]...)
-			buf = append(buf, '\\', 'u', '2', '0', '2', hex[r&0xf])
-		default:
-			i += size
-			continue
-		}
-		i += size
-		start = i
-	}
-	buf = append(buf, s[start:]...)
-	return append(buf, '"')
+	// Marshaling a string can't fail.
+	encoded, _ := json.Marshal(s)
+	return append(buf, encoded...)
 }
