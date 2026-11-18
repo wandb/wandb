@@ -536,7 +536,7 @@ class Settings(BaseModel, validate_assignment=True):
     record is flushed.
 
     It receives the sync directory as a `pathlib.Path`.
-    `run.finish()` waits for it the callback to finish.
+    `run.finish()` waits for the callback to finish.
     """
 
     max_end_of_run_history_metrics: int = 10
