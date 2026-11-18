@@ -7,8 +7,10 @@
 package filestreamv1
 
 import (
+	service_go_proto "github.com/wandb/wandb/core/pkg/service_go_proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -83,7 +85,7 @@ func (x MetricsBatch_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MetricsBatch_Kind.Descriptor instead.
 func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3, 0}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{4, 0}
 }
 
 // Data that can be sent via filestream.
@@ -91,7 +93,7 @@ func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
 // Wire schema for typed filestream uploads.
 //
 // The SDK sends a FileStreamUpload as the body of `POST .../file_stream`
-// with the content type `application/vnd.wandb.filestream.v1+protobuf`.
+// with the content type `application/vnd.wandb.filestream.proto+v1`.
 //
 // The legacy JSON body is also supported on the same route, with
 // content type `application/json`. See `FileStreamRequestJSON` for the
@@ -113,7 +115,12 @@ type FileStreamUpload struct {
 	// The run finished.
 	Complete *bool `protobuf:"varint,5,opt,name=complete,proto3,oneof" json:"complete,omitempty"`
 	// The exit code of the run's source script. Only meaningful when `complete` is set.
-	ExitCode      *int32 `protobuf:"varint,6,opt,name=exit_code,json=exitCode,proto3,oneof" json:"exit_code,omitempty"`
+	ExitCode *int32 `protobuf:"varint,6,opt,name=exit_code,json=exitCode,proto3,oneof" json:"exit_code,omitempty"`
+	// Typed system metrics samples. Replaces the "wandb-events.jsonl" entry in
+	// `files`. If `system_metrics` is set and `files` contains
+	// "wandb-events.jsonl", the server rejects the request with a bad request
+	// (400) error.
+	SystemMetrics *SystemMetricsChunk `protobuf:"bytes,7,opt,name=system_metrics,json=systemMetrics,proto3" json:"system_metrics,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -190,6 +197,100 @@ func (x *FileStreamUpload) GetExitCode() int32 {
 	return 0
 }
 
+func (x *FileStreamUpload) GetSystemMetrics() *SystemMetricsChunk {
+	if x != nil {
+		return x.SystemMetrics
+	}
+	return nil
+}
+
+// A range of system metrics samples.
+//
+// One record is one line of "wandb-events.jsonl", so offsets stay in that
+// file's line numbering.
+type SystemMetricsChunk struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The line offset of the first record.
+	Offset int64 `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
+	// The writer of the records. A record's own `writer`, when set, replaces
+	// it for that record.
+	Writer *service_go_proto.WriterInfo `protobuf:"bytes,2,opt,name=writer,proto3" json:"writer,omitempty"`
+	// The client's clock when it sent the chunk.
+	SentAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=sent_at,json=sentAt,proto3" json:"sent_at,omitempty"`
+	// The samples, in the order the writer produced them.
+	Records []*service_go_proto.SystemMetricsRecord `protobuf:"bytes,4,rep,name=records,proto3" json:"records,omitempty"`
+	// The run's start time, the one the SDK subtracts from a sample's
+	// timestamp to get the legacy "_runtime" key.
+	RunStartedAt  *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=run_started_at,json=runStartedAt,proto3" json:"run_started_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SystemMetricsChunk) Reset() {
+	*x = SystemMetricsChunk{}
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SystemMetricsChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SystemMetricsChunk) ProtoMessage() {}
+
+func (x *SystemMetricsChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SystemMetricsChunk.ProtoReflect.Descriptor instead.
+func (*SystemMetricsChunk) Descriptor() ([]byte, []int) {
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SystemMetricsChunk) GetOffset() int64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *SystemMetricsChunk) GetWriter() *service_go_proto.WriterInfo {
+	if x != nil {
+		return x.Writer
+	}
+	return nil
+}
+
+func (x *SystemMetricsChunk) GetSentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SentAt
+	}
+	return nil
+}
+
+func (x *SystemMetricsChunk) GetRecords() []*service_go_proto.SystemMetricsRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *SystemMetricsChunk) GetRunStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RunStartedAt
+	}
+	return nil
+}
+
 // A range of lines to write to a filestream file.
 type FileStreamChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -205,7 +306,7 @@ type FileStreamChunk struct {
 
 func (x *FileStreamChunk) Reset() {
 	*x = FileStreamChunk{}
-	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[1]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -217,7 +318,7 @@ func (x *FileStreamChunk) String() string {
 func (*FileStreamChunk) ProtoMessage() {}
 
 func (x *FileStreamChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[1]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -230,7 +331,7 @@ func (x *FileStreamChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileStreamChunk.ProtoReflect.Descriptor instead.
 func (*FileStreamChunk) Descriptor() ([]byte, []int) {
-	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{1}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FileStreamChunk) GetName() string {
@@ -275,7 +376,7 @@ type MetricsBatchChunk struct {
 
 func (x *MetricsBatchChunk) Reset() {
 	*x = MetricsBatchChunk{}
-	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[2]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +388,7 @@ func (x *MetricsBatchChunk) String() string {
 func (*MetricsBatchChunk) ProtoMessage() {}
 
 func (x *MetricsBatchChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[2]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,7 +401,7 @@ func (x *MetricsBatchChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsBatchChunk.ProtoReflect.Descriptor instead.
 func (*MetricsBatchChunk) Descriptor() ([]byte, []int) {
-	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{2}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MetricsBatchChunk) GetOffset() int64 {
@@ -404,7 +505,7 @@ type MetricsBatch struct {
 
 func (x *MetricsBatch) Reset() {
 	*x = MetricsBatch{}
-	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[3]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -416,7 +517,7 @@ func (x *MetricsBatch) String() string {
 func (*MetricsBatch) ProtoMessage() {}
 
 func (x *MetricsBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[3]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -429,7 +530,7 @@ func (x *MetricsBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsBatch.ProtoReflect.Descriptor instead.
 func (*MetricsBatch) Descriptor() ([]byte, []int) {
-	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *MetricsBatch) GetKeys() []string {
@@ -520,7 +621,7 @@ var File_core_internal_filestream_proto_wandb_filestream_v1_proto protoreflect.F
 
 const file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\n" +
-	"8core/internal/filestream/proto/wandb_filestream_v1.proto\x12\x13wandb.filestream.v1\"\xbe\x02\n" +
+	"8core/internal/filestream/proto/wandb_filestream_v1.proto\x12\x13wandb.filestream.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&wandb/proto/wandb_system_metrics.proto\"\x8e\x03\n" +
 	"\x10FileStreamUpload\x12:\n" +
 	"\x05files\x18\x01 \x03(\v2$.wandb.filestream.v1.FileStreamChunkR\x05files\x12@\n" +
 	"\ahistory\x18\x02 \x01(\v2&.wandb.filestream.v1.MetricsBatchChunkR\ahistory\x12\x1a\n" +
@@ -529,11 +630,18 @@ const file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc = ""
 	"preempting\x18\x04 \x01(\bH\x00R\n" +
 	"preempting\x88\x01\x01\x12\x1f\n" +
 	"\bcomplete\x18\x05 \x01(\bH\x01R\bcomplete\x88\x01\x01\x12 \n" +
-	"\texit_code\x18\x06 \x01(\x05H\x02R\bexitCode\x88\x01\x01B\r\n" +
+	"\texit_code\x18\x06 \x01(\x05H\x02R\bexitCode\x88\x01\x01\x12N\n" +
+	"\x0esystem_metrics\x18\a \x01(\v2'.wandb.filestream.v1.SystemMetricsChunkR\rsystemMetricsB\r\n" +
 	"\v_preemptingB\v\n" +
 	"\t_completeB\f\n" +
 	"\n" +
-	"_exit_code\"W\n" +
+	"_exit_code\"\x96\x02\n" +
+	"\x12SystemMetricsChunk\x12\x16\n" +
+	"\x06offset\x18\x01 \x01(\x03R\x06offset\x122\n" +
+	"\x06writer\x18\x02 \x01(\v2\x1a.wandb_internal.WriterInfoR\x06writer\x123\n" +
+	"\asent_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x06sentAt\x12=\n" +
+	"\arecords\x18\x04 \x03(\v2#.wandb_internal.SystemMetricsRecordR\arecords\x12@\n" +
+	"\x0erun_started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\frunStartedAt\"W\n" +
 	"\x0fFileStreamChunk\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x03R\x06offset\x12\x18\n" +
@@ -580,24 +688,33 @@ func file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP()
 }
 
 var file_core_internal_filestream_proto_wandb_filestream_v1_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_core_internal_filestream_proto_wandb_filestream_v1_proto_goTypes = []any{
-	(MetricsBatch_Kind)(0),    // 0: wandb.filestream.v1.MetricsBatch.Kind
-	(*FileStreamUpload)(nil),  // 1: wandb.filestream.v1.FileStreamUpload
-	(*FileStreamChunk)(nil),   // 2: wandb.filestream.v1.FileStreamChunk
-	(*MetricsBatchChunk)(nil), // 3: wandb.filestream.v1.MetricsBatchChunk
-	(*MetricsBatch)(nil),      // 4: wandb.filestream.v1.MetricsBatch
+	(MetricsBatch_Kind)(0),                       // 0: wandb.filestream.v1.MetricsBatch.Kind
+	(*FileStreamUpload)(nil),                     // 1: wandb.filestream.v1.FileStreamUpload
+	(*SystemMetricsChunk)(nil),                   // 2: wandb.filestream.v1.SystemMetricsChunk
+	(*FileStreamChunk)(nil),                      // 3: wandb.filestream.v1.FileStreamChunk
+	(*MetricsBatchChunk)(nil),                    // 4: wandb.filestream.v1.MetricsBatchChunk
+	(*MetricsBatch)(nil),                         // 5: wandb.filestream.v1.MetricsBatch
+	(*service_go_proto.WriterInfo)(nil),          // 6: wandb_internal.WriterInfo
+	(*timestamppb.Timestamp)(nil),                // 7: google.protobuf.Timestamp
+	(*service_go_proto.SystemMetricsRecord)(nil), // 8: wandb_internal.SystemMetricsRecord
 }
 var file_core_internal_filestream_proto_wandb_filestream_v1_proto_depIdxs = []int32{
-	2, // 0: wandb.filestream.v1.FileStreamUpload.files:type_name -> wandb.filestream.v1.FileStreamChunk
-	3, // 1: wandb.filestream.v1.FileStreamUpload.history:type_name -> wandb.filestream.v1.MetricsBatchChunk
-	4, // 2: wandb.filestream.v1.MetricsBatchChunk.batch:type_name -> wandb.filestream.v1.MetricsBatch
-	0, // 3: wandb.filestream.v1.MetricsBatch.cell_kinds:type_name -> wandb.filestream.v1.MetricsBatch.Kind
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	3, // 0: wandb.filestream.v1.FileStreamUpload.files:type_name -> wandb.filestream.v1.FileStreamChunk
+	4, // 1: wandb.filestream.v1.FileStreamUpload.history:type_name -> wandb.filestream.v1.MetricsBatchChunk
+	2, // 2: wandb.filestream.v1.FileStreamUpload.system_metrics:type_name -> wandb.filestream.v1.SystemMetricsChunk
+	6, // 3: wandb.filestream.v1.SystemMetricsChunk.writer:type_name -> wandb_internal.WriterInfo
+	7, // 4: wandb.filestream.v1.SystemMetricsChunk.sent_at:type_name -> google.protobuf.Timestamp
+	8, // 5: wandb.filestream.v1.SystemMetricsChunk.records:type_name -> wandb_internal.SystemMetricsRecord
+	7, // 6: wandb.filestream.v1.SystemMetricsChunk.run_started_at:type_name -> google.protobuf.Timestamp
+	5, // 7: wandb.filestream.v1.MetricsBatchChunk.batch:type_name -> wandb.filestream.v1.MetricsBatch
+	0, // 8: wandb.filestream.v1.MetricsBatch.cell_kinds:type_name -> wandb.filestream.v1.MetricsBatch.Kind
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_core_internal_filestream_proto_wandb_filestream_v1_proto_init() }
@@ -612,7 +729,7 @@ func file_core_internal_filestream_proto_wandb_filestream_v1_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc), len(file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
