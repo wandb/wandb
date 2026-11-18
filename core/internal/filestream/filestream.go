@@ -18,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -120,6 +121,9 @@ type fileStream struct {
 	// featureProvider indicates which features the server supports.
 	featureProvider *featurechecker.FeatureProvider
 
+	// useProto resolves the upload format once, off the connection's request loop.
+	useProto func() bool
+
 	// The client for making API requests.
 	apiClient api.RetryableClient
 	baseURL   *url.URL
@@ -182,16 +186,21 @@ func (f *FileStreamFactory) New(
 		beforeRunEndCtx: beforeRunEndCtx,
 		settings:        f.Settings,
 		featureProvider: f.FeatureProvider,
-		logger:          f.Logger,
-		operations:      f.Operations,
-		printer:         f.Printer,
-		apiClient:       apiClient,
-		baseURL:         f.BaseURL,
-		processChan:     make(chan Update, BufferSize),
-		feedbackWait:    &sync.WaitGroup{},
-		deadChanOnce:    &sync.Once{},
-		deadChan:        make(chan struct{}),
-		stats:           f.Stats,
+		useProto: sync.OnceValue(func() bool {
+			return f.FeatureProvider.Enabled(
+				beforeRunEndCtx, spb.ServerFeature_TYPED_SYSTEM_METRICS,
+			)
+		}),
+		logger:       f.Logger,
+		operations:   f.Operations,
+		printer:      f.Printer,
+		apiClient:    apiClient,
+		baseURL:      f.BaseURL,
+		processChan:  make(chan Update, BufferSize),
+		feedbackWait: &sync.WaitGroup{},
+		deadChanOnce: &sync.Once{},
+		deadChan:     make(chan struct{}),
+		stats:        f.Stats,
 	}
 
 	fs.heartbeatPeriod = heartbeatPeriod
