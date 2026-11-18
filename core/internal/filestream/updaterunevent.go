@@ -8,8 +8,8 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// EventUpdate contains a structured run event.
-type EventUpdate struct {
+// RunEventUpdate contains a structured run event.
+type RunEventUpdate struct {
 	Record *spb.EventRecord
 }
 
@@ -18,7 +18,7 @@ type eventAttribute struct {
 	Value string `json:"value"`
 }
 
-func (u *EventUpdate) Apply(ctx UpdateContext) error {
+func (u *RunEventUpdate) Apply(ctx UpdateContext) error {
 	event := u.Record
 	attributes := make(map[string]eventAttribute, len(event.GetAttributes()))
 	for name, attribute := range event.GetAttributes() {
@@ -59,6 +59,6 @@ func (u *EventUpdate) Apply(ctx UpdateContext) error {
 	if err != nil {
 		return fmt.Errorf("filestream: failed to serialize event: %v", err)
 	}
-	ctx.MakeRequest(&FileStreamRequest{Events: []json.RawMessage{body}})
+	ctx.MakeRequest(&FileStreamRequest{RunEvents: []json.RawMessage{body}})
 	return nil
 }

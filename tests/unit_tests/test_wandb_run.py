@@ -293,6 +293,31 @@ def test_log_events_publishes_distinct_ids_and_leaves_implicit_step_unset(
     assert not first.HasField("step_metric_value")
 
 
+@pytest.mark.parametrize(
+    "metric", [{}, {"step_metric": "tokens_seen", "step_metric_value": 42.0}]
+)
+def test_log_events_requires_step_in_shared_mode(mock_run, record_q, metric):
+    run = mock_run(settings={"mode": "shared"})
+
+    with pytest.raises(
+        ValueError, match="^step is required when the run uses shared mode$"
+    ):
+        run.log_events(type="checkpoint", title="Saved", **metric)
+
+    assert record_q.empty()
+
+
+@pytest.mark.parametrize("step", [0, 12000])
+def test_log_events_accepts_explicit_step_in_shared_mode(mock_run, record_q, step):
+    run = mock_run(settings={"mode": "shared"})
+
+    run.log_events(type="checkpoint", title="Saved", step=step)
+
+    event = record_q.get_nowait().event
+    assert event.HasField("step")
+    assert event.step == step
+
+
 def test_log_events_rejects_finished_run(mock_run):
     run = mock_run()
     run._is_finished = True

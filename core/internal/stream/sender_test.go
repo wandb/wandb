@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -148,9 +149,47 @@ func TestSendEventBeforeRunInitialization(t *testing.T) {
 
 	updates := fileStream.GetUpdates()
 	require.Len(t, updates, 1)
-	update, ok := updates[0].(*filestream.EventUpdate)
+	update, ok := updates[0].(*filestream.RunEventUpdate)
 	require.True(t, ok)
 	assert.Same(t, event, update.Record)
+}
+
+func TestSendEventSharedMode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		step *int64
+	}{
+		{"missing step", nil},
+		{"explicit zero", proto.Int64(0)},
+		{"explicit step", proto.Int64(12000)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fileStream := filestreamtest.NewFakeFileStream()
+			logger, logs := observabilitytest.NewDebugRecordingTestLogger(t)
+			x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream,
+				func(factory *stream.SenderFactory) {
+					factory.Settings.Proto.XShared = wrapperspb.Bool(true)
+					factory.Logger = logger
+				})
+			x.Sender.SendRecord(&spb.Record{
+				RecordType: &spb.Record_Event{Event: &spb.EventRecord{
+					EventId: "shared-event", Step: tc.step,
+				}},
+			}, nil)
+
+			updates := fileStream.GetUpdates()
+			if tc.step == nil {
+				assert.Empty(t, updates)
+				assert.Contains(t, logs.String(), "dropping run event without step in shared mode")
+				assert.Contains(t, logs.String(), `"level":"DEBUG"`)
+			} else {
+				require.Len(t, updates, 1)
+				update, ok := updates[0].(*filestream.RunEventUpdate)
+				require.True(t, ok)
+				assert.Equal(t, tc.step, update.Record.Step)
+			}
+		})
+	}
 }
 
 func TestSendEventAfterExit(t *testing.T) {

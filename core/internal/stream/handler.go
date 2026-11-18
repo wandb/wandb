@@ -266,8 +266,8 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	// The above are no-ops in the handler.
 
 	case *spb.Record_Event:
-		if x.Event != nil && x.Event.Step == nil {
-			if h.partialHistory == nil && !h.settings.IsSharedMode() {
+		if x.Event != nil && x.Event.Step == nil && !h.settings.IsSharedMode() {
+			if h.partialHistory == nil {
 				h.initializePartialHistory()
 			}
 			x.Event.Step = proto.Int64(h.partialHistoryStep)

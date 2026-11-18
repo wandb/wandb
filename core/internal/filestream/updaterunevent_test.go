@@ -25,7 +25,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func TestEventUpdate_JSON(t *testing.T) {
+func TestRunEventUpdate_JSON(t *testing.T) {
 	for _, metric := range []bool{false, true} {
 		t.Run(map[bool]string{false: "no metric", true: "zero metric"}[metric], func(t *testing.T) {
 			event := &spb.EventRecord{
@@ -56,7 +56,7 @@ func TestEventUpdate_JSON(t *testing.T) {
 				metricJSON = `,"step_metric":"tokens","step_metric_value":0`
 			}
 			var request *FileStreamRequest
-			require.NoError(t, (&EventUpdate{Record: event}).Apply(UpdateContext{
+			require.NoError(t, (&RunEventUpdate{Record: event}).Apply(UpdateContext{
 				MakeRequest: func(r *FileStreamRequest) { request = r },
 			}))
 			require.NotNil(t, request)
@@ -85,12 +85,12 @@ func TestRunEvents_MergeAndSplit(t *testing.T) {
 	request := &FileStreamRequest{
 		HistoryLines: []string{"history"},
 		EventsLines:  []string{"system"},
-		Events:       []json.RawMessage{first},
+		RunEvents:    []json.RawMessage{first},
 	}
-	request.Merge(&FileStreamRequest{Events: []json.RawMessage{second}, Complete: true})
-	require.Equal(t, []json.RawMessage{first, second}, request.Events)
+	request.Merge(&FileStreamRequest{RunEvents: []json.RawMessage{second}, Complete: true})
+	require.Equal(t, []json.RawMessage{first, second}, request.RunEvents)
 	state := &FileStreamState{MaxRequestSizeBytes: 1}
-	assert.True(t, state.IsAtSizeLimit(&FileStreamRequest{Events: request.Events}))
+	assert.True(t, state.IsAtSizeLimit(&FileStreamRequest{RunEvents: request.RunEvents}))
 	var chunks []*FileStreamRequestJSON
 	for more := true; more; {
 		var chunk *FileStreamRequestJSON
@@ -104,14 +104,14 @@ func TestRunEvents_MergeAndSplit(t *testing.T) {
 	require.Len(t, chunks, 4)
 	assert.Equal(t, []string{"history"}, chunks[0].Files[HistoryFileName].Content)
 	assert.Equal(t, []string{"system"}, chunks[1].Files[EventsFileName].Content)
-	assert.Equal(t, []json.RawMessage{first}, chunks[2].Events)
-	assert.Equal(t, []json.RawMessage{second}, chunks[3].Events)
+	assert.Equal(t, []json.RawMessage{first}, chunks[2].RunEvents)
+	assert.Equal(t, []json.RawMessage{second}, chunks[3].RunEvents)
 	require.NotNil(t, chunks[3].Complete)
 	assert.True(t, *chunks[3].Complete)
-	assert.Empty(t, request.Events)
+	assert.Empty(t, request.RunEvents)
 	chunk, more := pop(t, state, request)
 	assert.False(t, more)
-	assert.Empty(t, chunk.Events)
+	assert.Empty(t, chunk.RunEvents)
 }
 
 func TestRunEvents_BeforeStartAndRetry(t *testing.T) {
@@ -142,8 +142,8 @@ func TestRunEvents_BeforeStartAndRetry(t *testing.T) {
 	fs := factory.New(api.NewClient(api.ClientOptions{
 		RetryMax: 1, RetryWaitMin: time.Nanosecond, RetryWaitMax: time.Nanosecond,
 	}), ctx, time.Hour, rate.NewLimiter(rate.Inf, 1))
-	fs.StreamUpdate(&EventUpdate{Record: &spb.EventRecord{EventId: "first"}})
-	fs.StreamUpdate(&EventUpdate{Record: &spb.EventRecord{EventId: "second"}})
+	fs.StreamUpdate(&RunEventUpdate{Record: &spb.EventRecord{EventId: "first"}})
+	fs.StreamUpdate(&RunEventUpdate{Record: &spb.EventRecord{EventId: "second"}})
 	fs.Start("entity", "project", "run", nil)
 	fs.FinishWithoutExit()
 
@@ -152,29 +152,29 @@ func TestRunEvents_BeforeStartAndRetry(t *testing.T) {
 	var ids []string
 	for _, body := range bodies[1:] {
 		var request struct {
-			Events []struct {
+			RunEvents []struct {
 				ID string `json:"event_id"`
 			} `json:"events"`
 		}
 		require.NoError(t, json.Unmarshal(body, &request))
-		for _, event := range request.Events {
+		for _, event := range request.RunEvents {
 			ids = append(ids, event.ID)
 		}
 	}
 	assert.Equal(t, []string{"first", "second"}, ids)
 }
 
-func TestEventUpdate_EmptyMetricName(t *testing.T) {
+func TestRunEventUpdate_EmptyMetricName(t *testing.T) {
 	var request *FileStreamRequest
-	require.NoError(t, (&EventUpdate{Record: &spb.EventRecord{
+	require.NoError(t, (&RunEventUpdate{Record: &spb.EventRecord{
 		StepMetricValue: proto.Float64(0),
 	}}).Apply(UpdateContext{
 		MakeRequest: func(r *FileStreamRequest) { request = r },
 	}))
 	require.NotNil(t, request)
-	require.Len(t, request.Events, 1)
+	require.Len(t, request.RunEvents, 1)
 	assert.JSONEq(t, `{
 		"event_id":"","timestamp_ms":0,"type":"","title":"","severity":"","step":0,
 		"step_metric":"","step_metric_value":0,"attributes":{}
-	}`, string(request.Events[0]))
+	}`, string(request.RunEvents[0]))
 }

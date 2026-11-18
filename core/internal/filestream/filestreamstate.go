@@ -81,7 +81,8 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	// Use the last summary size to approximate the next.
 	// It is too expensive to serialize the summary every time and too complex
 	// to track its size incrementally.
-	if !request.SummaryUpdates.IsEmpty() || s.UnsentSummary != "" {
+	switch {
+	case !request.SummaryUpdates.IsEmpty(), s.UnsentSummary != "":
 		approxSize += s.LastRunSummarySize
 		if approxSize >= s.MaxRequestSizeBytes {
 			return true
@@ -95,10 +96,14 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 		}
 	}
 
-	for _, event := range request.Events {
+	for _, event := range request.RunEvents {
 		approxSize += len(event)
+		if approxSize >= s.MaxRequestSizeBytes {
+			return true
+		}
 	}
-	return len(request.Events) > 0 && approxSize >= s.MaxRequestSizeBytes
+
+	return false
 }
 
 // Pop extracts a chunk of data from the request, limiting its JSON
@@ -115,18 +120,7 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	poppedEvents := 0
-	for _, event := range request.Events {
-		if !builder.TryAddSize(len(event)) {
-			builder.HasMore = true
-			break
-		}
-		builder.Events = append(builder.Events, event)
-		poppedEvents++
-	}
-	if poppedEvents > 0 {
-		request.Events = slices.Clone(request.Events[poppedEvents:])
-	}
+	s.popRunEvents(builder, request)
 
 	s.popSummary(builder, request, logger, printer)
 	s.popConsoleLines(builder, request)
@@ -197,6 +191,24 @@ func (s *FileStreamState) popEvents(
 		builder.EventsChunk.Content = append(builder.EventsChunk.Content, line)
 		request.EventsLines = request.EventsLines[1:]
 		s.EventsLineNum++
+	}
+}
+
+func (s *FileStreamState) popRunEvents(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+) {
+	poppedEvents := 0
+	for _, event := range request.RunEvents {
+		if !builder.TryAddSize(len(event)) {
+			builder.HasMore = true
+			break
+		}
+		builder.RunEvents = append(builder.RunEvents, event)
+		poppedEvents++
+	}
+	if poppedEvents > 0 {
+		request.RunEvents = slices.Clone(request.RunEvents[poppedEvents:])
 	}
 }
 
@@ -323,7 +335,7 @@ type requestJSONBuilder struct {
 	SummaryChunk      OffsetAndContent
 	ConsoleLinesChunk OffsetAndContent
 
-	Events     []json.RawMessage
+	RunEvents  []json.RawMessage
 	Uploaded   []string
 	Preempting bool
 
@@ -362,7 +374,7 @@ func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 		requestJSON.Files[OutputFileName] = x.ConsoleLinesChunk
 	}
 
-	requestJSON.Events = x.Events
+	requestJSON.RunEvents = x.RunEvents
 	requestJSON.Uploaded = x.Uploaded
 	requestJSON.Preempting = nullify.NilIfZero(x.Preempting)
 

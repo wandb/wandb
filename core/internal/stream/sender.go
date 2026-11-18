@@ -382,8 +382,12 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		if s.receivedExit() {
 			return
 		}
+		if x.Event != nil && x.Event.Step == nil && s.settings.IsSharedMode() {
+			s.logger.Debug("sender: dropping run event without step in shared mode")
+			return
+		}
 		if s.fileStream != nil {
-			s.fileStream.StreamUpdate(&fs.EventUpdate{Record: x.Event})
+			s.fileStream.StreamUpdate(&fs.RunEventUpdate{Record: x.Event})
 		}
 	case *spb.Record_Metric:
 		s.sendMetric(record, x.Metric)

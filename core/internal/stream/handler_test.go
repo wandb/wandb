@@ -794,6 +794,23 @@ func TestHandleEventStep(t *testing.T) {
 	}
 }
 
+func TestHandleEventStepSharedMode(t *testing.T) {
+	inChan := make(chan runwork.Work, stream.BufferSize)
+	handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
+		XShared: wrapperspb.Bool(true),
+	})
+
+	for _, step := range []*int64{nil, proto.Int64(0), proto.Int64(12000)} {
+		inChan <- runwork.NoRequest(runwork.WorkRecord{Record: &spb.Record{
+			RecordType: &spb.Record_Event{Event: &spb.EventRecord{Step: step}},
+		}})
+
+		record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+		require.NotNil(t, record.GetEvent())
+		assert.Equal(t, step, record.GetEvent().Step)
+	}
+}
+
 func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 	tests := []struct {
 		name      string

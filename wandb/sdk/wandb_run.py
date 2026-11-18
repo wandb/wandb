@@ -3714,6 +3714,9 @@ class Run:
             raise ValueError("type must be a nonempty string of at most 4096 bytes")
         if not isinstance(title, str) or not 1 <= len(title.encode("utf-8")) <= 4096:
             raise ValueError("title must be a nonempty string of at most 4096 bytes")
+        match step:
+            case None if self._settings._shared:
+                raise ValueError("step is required when the run uses shared mode")
         if step is not None and (
             isinstance(step, bool) or not isinstance(step, int) or step < 0
         ):
