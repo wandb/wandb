@@ -947,7 +947,9 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		Row:   history,
 		Cells: len(record.GetItem()),
 	})
-	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
+
+	if !s.settings.IsSharedMode() &&
+		!s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
 }
