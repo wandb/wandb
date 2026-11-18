@@ -23,6 +23,7 @@ import (
 // the [NewDatasetCaseService] method instead.
 type DatasetCaseService struct {
 	Options []option.RequestOption
+	Tags    *DatasetCaseTagService
 }
 
 // NewDatasetCaseService generates a new service that applies the given options to
@@ -31,6 +32,7 @@ type DatasetCaseService struct {
 func NewDatasetCaseService(opts ...option.RequestOption) (r *DatasetCaseService) {
 	r = &DatasetCaseService{}
 	r.Options = opts
+	r.Tags = NewDatasetCaseTagService(opts...)
 	return
 }
 
@@ -162,6 +164,9 @@ type DatasetCaseAddParamsCase struct {
 	//
 	// Omit to store null.
 	Output param.Field[CaseValueUnionParam] `json:"output"`
+	// Tag names for this case. The service trims each name, drops repeats, and matches
+	// names case-sensitively.
+	Tags param.Field[[]string] `json:"tags"`
 	// Trajectory to add this case to. It must belong to the same dataset. Omit or send
 	// null for a case outside any trajectory.
 	TrajectoryID param.Field[string] `json:"trajectory_id" format:"uuid"`

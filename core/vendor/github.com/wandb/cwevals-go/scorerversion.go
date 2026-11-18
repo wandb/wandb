@@ -149,7 +149,10 @@ func (r *ScorerVersionService) Get(
 type ScorerVersionNewResponse struct {
 	AllowedTargetKinds []ScorerVersionNewResponseAllowedTargetKind `json:"allowed_target_kinds" api:"required"`
 	Description        string                                      `json:"description"          api:"required,nullable"`
-	Name               string                                      `json:"name"                 api:"required"`
+	// Whether higher scores are better. Null when the scorer version does not set it,
+	// so its scores have no direction.
+	HigherIsBetter bool   `json:"higher_is_better" api:"required,nullable"`
+	Name           string `json:"name"             api:"required"`
 	// Namespace that assigned the scope reference.
 	Namespace ScorerVersionNewResponseNamespace `json:"namespace"  api:"required"`
 	ScopeRef  string                            `json:"scope_ref"  api:"required"`
@@ -164,6 +167,7 @@ type ScorerVersionNewResponse struct {
 type scorerVersionNewResponseJSON struct {
 	AllowedTargetKinds apijson.Field
 	Description        apijson.Field
+	HigherIsBetter     apijson.Field
 	Name               apijson.Field
 	Namespace          apijson.Field
 	ScopeRef           apijson.Field
@@ -265,7 +269,10 @@ func (r scorerVersionListResponseJSON) RawJSON() string {
 type ScorerVersionListResponseResult struct {
 	AllowedTargetKinds []ScorerVersionListResponseResultsAllowedTargetKind `json:"allowed_target_kinds" api:"required"`
 	Description        string                                              `json:"description"          api:"required,nullable"`
-	Name               string                                              `json:"name"                 api:"required"`
+	// Whether higher scores are better. Null when the scorer version does not set it,
+	// so its scores have no direction.
+	HigherIsBetter bool   `json:"higher_is_better" api:"required,nullable"`
+	Name           string `json:"name"             api:"required"`
 	// Namespace that assigned the scope reference.
 	Namespace ScorerVersionListResponseResultsNamespace `json:"namespace"  api:"required"`
 	ScopeRef  string                                    `json:"scope_ref"  api:"required"`
@@ -280,6 +287,7 @@ type ScorerVersionListResponseResult struct {
 type scorerVersionListResponseResultJSON struct {
 	AllowedTargetKinds apijson.Field
 	Description        apijson.Field
+	HigherIsBetter     apijson.Field
 	Name               apijson.Field
 	Namespace          apijson.Field
 	ScopeRef           apijson.Field
@@ -358,7 +366,10 @@ func (r ScorerVersionListResponseResultsValueType) IsKnown() bool {
 type ScorerVersionGetResponse struct {
 	AllowedTargetKinds []ScorerVersionGetResponseAllowedTargetKind `json:"allowed_target_kinds" api:"required"`
 	Description        string                                      `json:"description"          api:"required,nullable"`
-	Name               string                                      `json:"name"                 api:"required"`
+	// Whether higher scores are better. Null when the scorer version does not set it,
+	// so its scores have no direction.
+	HigherIsBetter bool   `json:"higher_is_better" api:"required,nullable"`
+	Name           string `json:"name"             api:"required"`
 	// Namespace that assigned the scope reference.
 	Namespace ScorerVersionGetResponseNamespace `json:"namespace"  api:"required"`
 	ScopeRef  string                            `json:"scope_ref"  api:"required"`
@@ -373,6 +384,7 @@ type ScorerVersionGetResponse struct {
 type scorerVersionGetResponseJSON struct {
 	AllowedTargetKinds apijson.Field
 	Description        apijson.Field
+	HigherIsBetter     apijson.Field
 	Name               apijson.Field
 	Namespace          apijson.Field
 	ScopeRef           apijson.Field
@@ -472,6 +484,9 @@ type ScorerVersionNewParams struct {
 	ValueType param.Field[ScorerVersionNewParamsValueType] `json:"value_type" api:"required"`
 	// Human-readable explanation of what this scorer version measures.
 	Description param.Field[string] `json:"description"`
+	// Whether higher scores are better. Only boolean, integer, and number scorers
+	// accept it. For a boolean scorer, true counts as higher than false.
+	HigherIsBetter param.Field[bool] `json:"higher_is_better"`
 }
 
 func (r ScorerVersionNewParams) MarshalJSON() (data []byte, err error) {

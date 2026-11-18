@@ -142,12 +142,12 @@ func (r *DatasetService) List(
 	return res, err
 }
 
-// Soft-deletes the Dataset. It, its DatasetVersions, their Cases pages, and their
-// fields then return 404, and writes to them are rejected with 404. A Dataset that
-// an Evaluation or EvalTable still sources returns 409 resource_in_use. Delete
-// those Evaluations first. Cases stay readable by ID, and Comparisons and Scores
-// are unchanged. An absent or already deleted Dataset returns 404. A retry with
-// the same Idempotency-Key replays the first response.
+// Soft-deletes the Dataset. It, its DatasetVersions, their Cases pages, their case
+// Tag lists, and their fields then return 404, and writes to them are rejected
+// with 404. A Dataset that an Evaluation or EvalTable still sources returns 409
+// resource_in_use. Delete those Evaluations first. Cases stay readable by ID, and
+// Comparisons and Scores are unchanged. An absent or already deleted Dataset
+// returns 404. A retry with the same Idempotency-Key replays the first response.
 func (r *DatasetService) Delete(
 	ctx context.Context,
 	datasetID string,
@@ -1141,9 +1141,10 @@ type DatasetListParams struct {
 	//
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
-	// Cursor from the previous page's next_cursor. Omit for the first page.
+	// The previous response's next_cursor value. Omit for the first page.
 	Cursor param.Field[string] `query:"cursor"`
-	Limit  param.Field[int64]  `query:"limit"`
+	// Maximum number of results to return in one page.
+	Limit param.Field[int64] `query:"limit"`
 	// Lists only Datasets with exactly this name. Omit to list every Dataset in the
 	// scope.
 	Name param.Field[string] `query:"name"`

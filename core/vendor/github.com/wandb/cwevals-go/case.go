@@ -36,6 +36,8 @@ func NewCaseService(opts ...option.RequestOption) (r *CaseService) {
 
 // Returns one published case, including its input, output, variant, attributes,
 // and the commit that published it.
+//
+// The response has no tags. Read a case's tags through a dataset version.
 func (r *CaseService) Get(
 	ctx context.Context,
 	caseID string,

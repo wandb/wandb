@@ -26,12 +26,13 @@ import (
 // automatically. You should not instantiate this service directly, and instead use
 // the [NewEvaluationService] method instead.
 type EvaluationService struct {
-	Options  []option.RequestOption
-	Metrics  *EvaluationMetricService
-	Rows     *EvaluationRowService
-	Scorers  *EvaluationScorerService
-	Queries  *EvaluationQueryService
-	Versions *EvaluationVersionService
+	Options        []option.RequestOption
+	Metrics        *EvaluationMetricService
+	Rows           *EvaluationRowService
+	TrajectoryRows *EvaluationTrajectoryRowService
+	Scorers        *EvaluationScorerService
+	Queries        *EvaluationQueryService
+	Versions       *EvaluationVersionService
 }
 
 // NewEvaluationService generates a new service that applies the given options to
@@ -42,6 +43,7 @@ func NewEvaluationService(opts ...option.RequestOption) (r *EvaluationService) {
 	r.Options = opts
 	r.Metrics = NewEvaluationMetricService(opts...)
 	r.Rows = NewEvaluationRowService(opts...)
+	r.TrajectoryRows = NewEvaluationTrajectoryRowService(opts...)
 	r.Scorers = NewEvaluationScorerService(opts...)
 	r.Queries = NewEvaluationQueryService(opts...)
 	r.Versions = NewEvaluationVersionService(opts...)
@@ -220,6 +222,65 @@ func (r *EvaluationService) Get(
 	}
 	path := fmt.Sprintf("v1/namespaces/%s/scopes/%s/evaluations/%s", query.Namespace, query.ScopeID, evaluationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
+	return res, err
+}
+
+// Logs results for one variant to a live Case Evaluation using canonical Dataset
+// membership, Cases, Scorers, and Scores. It does not calculate scores. No Dataset
+// or Case IDs are required.
+//
+// Until the keyed Case schema is installed, returns 501 not_implemented with
+// Cache-Control: no-store before making durable writes. The same request and
+// Idempotency-Key can be retried after schema installation.
+//
+// Results with the same variant and example key reuse one canonical Case within
+// the source Dataset, including across requests and Evaluations. Supplied scores
+// merge with earlier scores. Missing scores leave earlier values unchanged. A
+// repeated score uses the latest published value, with later result order winning
+// within one request. Scorer names select the Evaluation's immutable Scorer
+// versions. New names infer number, boolean, or string types on first use.
+// Existing definitions are never changed by logging.
+//
+// A request is limited to 10000 results, 10000 total scores, and 1000 distinct
+// Scorer names.
+//
+// An exact retry with the same Idempotency-Key returns the same IDs. A changed
+// payload with that key returns 409. Writes are resumable, not atomic across the
+// batch: after an interrupted request, some canonical resources may already be
+// visible. Retry the unchanged request with the same key to finish it without
+// duplicate examples. If another request is still creating an example, retry after
+// publication_pending. A new key adds Scores to the same examples. Current and
+// frozen Evaluation rows use the existing read APIs.
+//
+// Request bodies must be at most 16 MiB. Bodies larger than the limit are rejected
+// with 413 Request Entity Too Large.
+func (r *EvaluationService) Log(
+	ctx context.Context,
+	evaluationID string,
+	params EvaluationLogParams,
+	opts ...option.RequestOption,
+) (res *EvaluationLogResponse, err error) {
+	opts = slices.Concat(r.Options, opts)
+	precfg, err := requestconfig.PreRequestOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+	requestconfig.UseDefaultParam(&params.Namespace, precfg.Namespace)
+	requestconfig.UseDefaultParam(&params.ScopeID, precfg.ScopeID)
+	if params.Namespace.Value == "" {
+		err = errors.New("missing required namespace parameter")
+		return nil, err
+	}
+	if params.ScopeID.Value == "" {
+		err = errors.New("missing required scope_id parameter")
+		return nil, err
+	}
+	if evaluationID == "" {
+		err = errors.New("missing required evaluation_id parameter")
+		return nil, err
+	}
+	path := fmt.Sprintf("v1/namespaces/%s/scopes/%s/evaluations/%s/log", params.Namespace, params.ScopeID, evaluationID)
+	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
 	return res, err
 }
 
@@ -1138,6 +1199,36 @@ func (r EvaluationGetResponseSourceKind) IsKnown() bool {
 	return false
 }
 
+type EvaluationLogResponse struct {
+	// One Case ID per result, in request order. Repeated example keys for the same
+	// variant reuse the same ID.
+	CaseIDs []string `json:"case_ids" api:"required" format:"uuid"`
+	// All returned Cases and Scores are published at or before this commit.
+	CommitID int64 `json:"commit_id" api:"required"`
+	// Score IDs in result order, then lexicographic Scorer-name order within each
+	// result.
+	ScoreIDs []string                  `json:"score_ids" api:"required" format:"uuid"`
+	JSON     evaluationLogResponseJSON `json:"-"`
+}
+
+// evaluationLogResponseJSON contains the JSON metadata for the struct
+// [EvaluationLogResponse]
+type evaluationLogResponseJSON struct {
+	CaseIDs     apijson.Field
+	CommitID    apijson.Field
+	ScoreIDs    apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationLogResponse) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationLogResponseJSON) RawJSON() string {
+	return r.raw
+}
+
 type EvaluationNewParams struct {
 	// Namespace that assigned the scope reference.
 	//
@@ -1153,7 +1244,9 @@ type EvaluationNewParams struct {
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
 	Name    param.Field[string] `                api:"required" json:"name"`
-	// Whether this evaluation reads individual cases or trajectories from its source.
+	// Which rows this evaluation lists. A case evaluation supports evaluation rows,
+	// row comparisons, and eval tables. A trajectory evaluation supports trajectory
+	// rows. Saved queries choose their own target_kind and run on either.
 	PrimaryTargetKind param.Field[EvaluationNewParamsPrimaryTargetKind] `json:"primary_target_kind" api:"required"`
 	Source            param.Field[EvaluationNewParamsSourceUnion]       `json:"source"              api:"required"`
 	Attributes        param.Field[map[string]interface{}]               `json:"attributes"`
@@ -1163,7 +1256,9 @@ func (r EvaluationNewParams) MarshalJSON() (data []byte, err error) {
 	return apijson.MarshalRoot(r)
 }
 
-// Whether this evaluation reads individual cases or trajectories from its source.
+// Which rows this evaluation lists. A case evaluation supports evaluation rows,
+// row comparisons, and eval tables. A trajectory evaluation supports trajectory
+// rows. Saved queries choose their own target_kind and run on either.
 type EvaluationNewParamsPrimaryTargetKind string
 
 const (
@@ -1300,9 +1395,10 @@ type EvaluationListParams struct {
 	//
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
-	// Cursor from the previous page's next_cursor. Omit for the first page.
+	// The previous response's next_cursor value. Omit for the first page.
 	Cursor param.Field[string] `query:"cursor"`
-	Limit  param.Field[int64]  `query:"limit"`
+	// Maximum number of results to return in one page.
+	Limit param.Field[int64] `query:"limit"`
 	// Return only evaluations with exactly this name, including evaluation tables.
 	// Omit to list all evaluations in the scope.
 	Name param.Field[string] `query:"name"`
@@ -1346,4 +1442,44 @@ type EvaluationGetParams struct {
 	//
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
+}
+
+type EvaluationLogParams struct {
+	// Namespace that assigned the scope reference.
+	//
+	// Defaults to "wandb" if not set.
+	Namespace param.Field[string] `path:"namespace" api:"required"`
+	// Project reference assigned by the namespace. For wandb, use the internal W&B
+	// project ID, not the project name or entity/project path.
+	//
+	// Percent-encode reserved characters so the reference occupies one URL path
+	// segment. Only printable ASCII is accepted. References are compared exactly,
+	// without parsing.
+	//
+	// Use [option.WithScopeID] on the client to set a global default for this field.
+	ScopeID param.Field[string]                      `path:"scope_id" api:"required"`
+	Results param.Field[[]EvaluationLogParamsResult] `                api:"required" json:"results"`
+	// Model, agent, prompt, or checkpoint shared by these results. Leading and
+	// trailing whitespace are not allowed.
+	Variant param.Field[string] `json:"variant" api:"required"`
+}
+
+func (r EvaluationLogParams) MarshalJSON() (data []byte, err error) {
+	return apijson.MarshalRoot(r)
+}
+
+type EvaluationLogParamsResult struct {
+	// Reference to an example in external data. The service does not fetch it. The
+	// same key and variant within the source Dataset reuse one Case. Leading and
+	// trailing whitespace are not allowed.
+	ExampleKey param.Field[string] `json:"example_key" api:"required"`
+	// Scores keyed by Scorer name. Missing names are inferred and registered. Values
+	// must be numbers, booleans, or strings and must match an existing Scorer's type.
+	// Use an empty object when no scores are supplied. Earlier scores remain
+	// unchanged.
+	Scores param.Field[map[string]interface{}] `json:"scores" api:"required"`
+}
+
+func (r EvaluationLogParamsResult) MarshalJSON() (data []byte, err error) {
+	return apijson.MarshalRoot(r)
 }
