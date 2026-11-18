@@ -72,6 +72,9 @@ type Stream struct {
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
 
+	// started closes after the stream startup has finished
+	started chan struct{}
+
 	// settings is the settings for the stream
 	settings *settings.Settings
 
@@ -84,12 +87,11 @@ type Stream struct {
 	// writerFactory is used to create the Writer component
 	writerFactory *WriterFactory
 
-	// exitFlushReady closes after the transaction log setup completes.
-	exitFlushReady  chan struct{}
-	exitFlushWriter *Writer
+	// writer saves work to the transaction log, or is nil if unavailable.
+	writer *Writer
+
 	exitFlushMu     sync.Mutex
 	exitFlushClosed bool
-	exitFlushWG     sync.WaitGroup
 
 	// flowControlFactory is used to create the FlowControl component
 	flowControlFactory *FlowControlFactory
@@ -152,8 +154,8 @@ func NewStream(
 		settings:           s,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
+		started:            make(chan struct{}),
 		writerFactory:      writerFactory,
-		exitFlushReady:     make(chan struct{}),
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
 		clientID:           clientID,
@@ -170,6 +172,8 @@ func (s *Stream) GetSettings() *settings.Settings {
 
 // Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
+	defer close(s.started)
+
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
@@ -194,8 +198,6 @@ func (s *Stream) Start() {
 func (s *Stream) maybeSavingToTransactionLog(
 	work <-chan runwork.Work,
 ) <-chan runwork.Work {
-	defer close(s.exitFlushReady)
-
 	if s.settings.IsSkipTransactionLog() {
 		s.logger.Info("stream: skipping transaction log due to settings")
 		return work
@@ -225,10 +227,9 @@ func (s *Stream) maybeSavingToTransactionLog(
 		return work
 	}
 
-	writer := s.writerFactory.New(w)
-	s.exitFlushWriter = writer
+	s.writer = s.writerFactory.New(w)
 	flowControl := s.flowControlFactory.New(
-		r, writer.Flush, s.recordParser,
+		r, s.writer.Flush, s.recordParser,
 		FlowControlParams{
 			InMemorySize: 32,   // Max records before off-loading.
 			Limit:        1024, // Max unsaved records before blocking.
@@ -237,13 +238,13 @@ func (s *Stream) maybeSavingToTransactionLog(
 
 	s.wg.Add(1)
 	go func() {
-		writer.Do(work)
+		s.writer.Do(work)
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
 	go func() {
-		flowControl.Do(writer.Chan())
+		flowControl.Do(s.writer.Chan())
 		s.wg.Done()
 	}()
 
@@ -265,7 +266,7 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 			return
 		}
 
-		s.exitFlushWG.Go(func() { s.notifyAfterExit(request) })
+		s.wg.Go(func() { s.notifyAfterExit(request) })
 		s.exitFlushMu.Unlock()
 
 		return
@@ -280,17 +281,11 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 }
 
 func (s *Stream) notifyAfterExit(request *runwork.Request) {
-	select {
-	case <-request.Context().Done():
-		return
-	case <-s.exitFlushReady:
-	}
-
 	var err error
-	if s.exitFlushWriter == nil {
+	if s.writer == nil {
 		err = errors.New("transaction log is unavailable")
 	} else {
-		err = s.exitFlushWriter.WaitForExitFlush(request.Context())
+		err = s.writer.WaitForExitFlush(request.Context())
 	}
 
 	if request.Context().Err() != nil {
@@ -335,8 +330,11 @@ func (s *Stream) Close() {
 	s.exitFlushMu.Unlock()
 
 	s.runWork.Close()
+
+	// Blocks while start may still be running
+	<-s.started
+
 	s.wg.Wait()
-	s.exitFlushWG.Wait()
 	s.logger.Info("stream: all finished")
 
 	// All of the stream's goroutines have finished, so no more analytics
