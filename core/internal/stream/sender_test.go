@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -149,13 +150,16 @@ func TestEventUploadTerminalResponsesDoNotReportNetworkRetries(t *testing.T) {
 		http.StatusNotFound,
 	} {
 		t.Run(strconv.Itoa(status), func(t *testing.T) {
-			requestCount := make(chan struct{}, 2)
+			var requestCount atomic.Int32
 			server := httptest.NewServer(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					assert.Equal(t, "/logs/ingest", r.URL.Path)
 					username, password, ok := r.BasicAuth()
 					assert.True(t, ok && username == "api" && password == "test-api-key")
-					requestCount <- struct{}{}
+					if requestCount.Add(1) > 1 {
+						w.WriteHeader(http.StatusAccepted)
+						return
+					}
 					w.WriteHeader(status)
 				}),
 			)
@@ -164,6 +168,7 @@ func TestEventUploadTerminalResponsesDoNotReportNetworkRetries(t *testing.T) {
 			require.NoError(t, err)
 			peeker := &observability.Peeker{}
 			printer := observability.NewPrinter(4)
+			t.Cleanup(printer.Close)
 			x := makeSenderWithFileStream(
 				t,
 				gqlmock.NewMockClient(),
@@ -181,7 +186,7 @@ func TestEventUploadTerminalResponsesDoNotReportNetworkRetries(t *testing.T) {
 			close(work)
 			x.Sender.Do(work)
 
-			assert.Len(t, requestCount, 1)
+			assert.EqualValues(t, 1, requestCount.Load())
 			assert.Empty(t, peeker.Read())
 			warnings := printer.Read()
 			if status == http.StatusNotFound {
