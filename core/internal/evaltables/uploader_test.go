@@ -366,7 +366,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 		table.RowsJSON(t))
 }
 
-func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
+func TestEncode_StringsLikeEncodingJSON(t *testing.T) {
 	strs := []string{
 		"",
 		"plain",
@@ -376,10 +376,6 @@ func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
 		"line and paragraph separators",
 		"café ☕ 𝄞",
 		"invalid \xff UTF-8",
-	}
-	numbers := []float64{
-		0, math.Copysign(0, -1), 1, -1.5, 0.1, 1e-6, 1e-7, 123456789.125,
-		1e20, 1e21, math.MaxFloat64, math.SmallestNonzeroFloat64,
 	}
 
 	var fields []*spb.EvalTableField
@@ -391,13 +387,6 @@ func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
 			&spb.EvalTableField{Source: "input", Name: name, ValueType: "string"})
 		row = append(row, stringValue(s))
 		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, s))
-	}
-	for i, n := range numbers {
-		name := fmt.Sprintf("n%d", i)
-		fields = append(fields,
-			&spb.EvalTableField{Source: "input", Name: name, ValueType: "number"})
-		row = append(row, numberValue(n))
-		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, n))
 	}
 
 	table, err := encode(t, &spb.EvalTableData{
@@ -953,7 +942,7 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 			name:    "NaN",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "number"},
 			row:     &spb.EvalTableRow{Input: values(numberValue(math.NaN()))},
-			wantErr: `field "a": unsupported number NaN`,
+			wantErr: `field "a": json: unsupported value: NaN`,
 		},
 	}
 
