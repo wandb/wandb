@@ -21,13 +21,11 @@ import (
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
-	"github.com/wandb/wandb/core/internal/runevents"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
@@ -162,9 +160,6 @@ type Sender struct {
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
 
-	eventUploader *runevents.Uploader
-	enqueueEvent  func(*spb.EventRecord)
-
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
 }
@@ -272,39 +267,6 @@ func (f *SenderFactory) NewWithFileStream(
 	}
 	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
-	if !s.settings.IsOffline() {
-		s.enqueueEvent = func(event *spb.EventRecord) {
-			if s.eventUploader == nil {
-				upserter, err := s.runHandle.Upserter()
-				if err != nil {
-					s.logger.Warn("sender: dropped event before run initialized", "error", err)
-					return
-				}
-				path := upserter.RunPath()
-				s.eventUploader = runevents.New(beforeEndCtx, runevents.Params{
-					BaseURL: f.BaseURL,
-					Project: path.Entity + "/" + path.Project,
-					RunID:   path.RunID,
-					Logger:  s.logger,
-					Printer: s.printer,
-					HTTPOptions: api.ClientOptions{
-						RetryWaitMin:       api.DefaultRetryWaitMin,
-						RetryWaitMax:       api.DefaultRetryWaitMax,
-						NonRetryTimeout:    api.DefaultNonRetryTimeout,
-						Proxy:              s.settings.GetProxyFn(),
-						ProxyConnectHeader: s.settings.GetProxyConnectHeader(),
-						InsecureDisableSSL: s.settings.IsInsecureDisableSSL(),
-						PreRetryLayers: httplayers.Concat(
-							httplayers.DefaultHeaders(s.settings.GetExtraHTTPHeaders()),
-							httplayers.LimitTo(f.BaseURL, f.CredentialProvider),
-						),
-					},
-				})
-			}
-			s.eventUploader.Enqueue(event)
-		}
-	}
-
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
@@ -338,9 +300,6 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
 
-	if s.eventUploader != nil {
-		s.eventUploader.Finish()
-	}
 	s.fileStreamStart.Wait()
 
 	s.logger.Info("sender: closed")
@@ -420,8 +379,11 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *spb.Record_Event:
-		if s.enqueueEvent != nil {
-			s.enqueueEvent(x.Event)
+		if s.receivedExit() {
+			return
+		}
+		if s.fileStream != nil {
+			s.fileStream.StreamUpdate(&fs.EventUpdate{Record: x.Event})
 		}
 	case *spb.Record_Metric:
 		s.sendMetric(record, x.Metric)
@@ -744,10 +706,6 @@ func (s *Sender) finishRunSync(
 
 	// Report the run's telemetry metrics.
 	s.stats.RecordRun(context.Background())
-
-	if s.eventUploader != nil {
-		s.eventUploader.Finish()
-	}
 
 	// Mark the run finished, after the FileStream has started.
 	s.fileStreamStart.Wait()
@@ -1281,7 +1239,6 @@ func (s *Sender) sendExit(
 	}
 
 	close(s.receivedExitCh)
-	s.enqueueEvent = nil
 	s.startFinishRun(record, request)
 }
 

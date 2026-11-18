@@ -3,12 +3,7 @@ package stream_test
 import (
 	"bytes"
 	"context"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
-	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +26,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -143,64 +137,40 @@ func makeSenderWithFileStream(
 	}
 }
 
-func TestEventUploadTerminalResponsesDoNotReportNetworkRetries(t *testing.T) {
-	for _, status := range []int{
-		http.StatusBadRequest,
-		http.StatusRequestEntityTooLarge,
-		http.StatusNotFound,
-	} {
-		t.Run(strconv.Itoa(status), func(t *testing.T) {
-			var requestCount atomic.Int32
-			server := httptest.NewServer(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					assert.Equal(t, "/logs/ingest", r.URL.Path)
-					username, password, ok := r.BasicAuth()
-					assert.True(t, ok && username == "api" && password == "test-api-key")
-					if requestCount.Add(1) > 1 {
-						w.WriteHeader(http.StatusAccepted)
-						return
-					}
-					w.WriteHeader(status)
-				}),
-			)
-			t.Cleanup(server.Close)
-			baseURL, err := url.Parse(server.URL)
-			require.NoError(t, err)
-			peeker := &observability.Peeker{}
-			printer := observability.NewPrinter(4)
-			t.Cleanup(printer.Close)
-			x := makeSenderWithFileStream(
-				t,
-				gqlmock.NewMockClient(),
-				filestreamtest.NewFakeFileStream(),
-				func(factory *stream.SenderFactory) {
-					factory.BaseURL = baseURL
-					factory.Peeker = peeker
-					factory.Printer = printer
-				},
-			)
-			work := make(chan runwork.Work, 1)
-			work <- runwork.NoRequest(runwork.WorkRecord{Record: &spb.Record{
-				RecordType: &spb.Record_Event{Event: &spb.EventRecord{EventId: "event"}},
-			}})
-			close(work)
-			x.Sender.Do(work)
+func TestSendEventBeforeRunInitialization(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream,
+		func(factory *stream.SenderFactory) { factory.RunHandle = runhandle.New() })
+	event := &spb.EventRecord{EventId: "event"}
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Event{Event: event},
+	}, nil)
 
-			assert.EqualValues(t, 1, requestCount.Load())
-			assert.Empty(t, peeker.Read())
-			warnings := printer.Read()
-			if status == http.StatusNotFound {
-				assert.Equal(t, []observability.PrinterMessage{
-					{
-						Severity: observability.Warning,
-						Content:  "Event logging is disabled for this project. Uploads for this run have stopped.",
-					},
-				}, warnings)
-			} else {
-				assert.Empty(t, warnings)
-			}
-		})
+	updates := fileStream.GetUpdates()
+	require.Len(t, updates, 1)
+	update, ok := updates[0].(*filestream.EventUpdate)
+	require.True(t, ok)
+	assert.Same(t, event, update.Record)
+}
+
+func TestSendEventAfterExit(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream,
+		func(factory *stream.SenderFactory) { factory.RunHandle = runhandle.New() })
+	request, responses := runworktest.SimpleRequest(t, "exit")
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{}},
+	}, request)
+	select {
+	case <-responses:
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not finish")
 	}
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Event{Event: &spb.EventRecord{EventId: "late"}},
+	}, nil)
+
+	assert.Empty(t, fileStream.GetUpdates())
 }
 
 func TestSendExitBeforeRunInitialization(t *testing.T) {
