@@ -5,6 +5,7 @@ from base64 import urlsafe_b64encode
 from typing import Any, Final, Literal
 from zlib import crc32
 
+from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 
 PLACEHOLDER: Final[str] = "PLACEHOLDER"
@@ -12,9 +13,17 @@ PLACEHOLDER: Final[str] = "PLACEHOLDER"
 
 def sanitize_artifact_name(name: str) -> str:
     """Sanitize the string to satisfy constraints on artifact names."""
-    # If the name is already sanitized, don't change it.
-    if (sanitized := re.sub(r"[^a-zA-Z0-9_\-.]+", "", name)) == name:
+    # If the name is already sanitized and fits within NAME_MAXLEN, don't change it.
+    if (
+        name
+        and len(name) <= NAME_MAXLEN
+        and (sanitized := re.sub(r"[^a-zA-Z0-9_\-.]+", "", name)) == name
+    ):
         return name
+
+    sanitized = re.sub(r"[^a-zA-Z0-9_\-.]+", "", name)
+    if not sanitized:
+        sanitized = "artifact"
 
     # Append a short alphanumeric suffix to maintain uniqueness.
     # Yes, CRC is meant for checksums and not as a general hash function, but
@@ -26,8 +35,15 @@ def sanitize_artifact_name(name: str) -> str:
     crc: int = crc32(name.encode("utf-8")) & 0xFFFFFFFF  # Ensure it's unsigned
     crc_bytes = crc.to_bytes(4, byteorder="big")
     suffix = urlsafe_b64encode(crc_bytes).rstrip(b"=").decode("ascii")
+    full_suffix = f"-{suffix}"
 
-    return f"{sanitized}-{suffix}"
+    max_prefix_len = NAME_MAXLEN - len(full_suffix)
+    if len(sanitized) > max_prefix_len:
+        head = (max_prefix_len - 2) // 2
+        tail = max_prefix_len - 2 - head
+        sanitized = f"{sanitized[:head]}..{sanitized[-tail:]}"
+
+    return f"{sanitized}{full_suffix}"
 
 
 class InternalArtifact(Artifact):
