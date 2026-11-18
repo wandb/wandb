@@ -32,6 +32,8 @@ type RemoteRunParams struct {
 	// BaseURL is the W&B API base URL (e.g. https://api.forge.coreweave.com).
 	BaseURL string
 
+	// Org names an organization scope for a compute query.
+	Org     string
 	Entity  string
 	Project string
 	RunID   string

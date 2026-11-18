@@ -70,7 +70,13 @@ var errRemoteFollow = &QueryError{
 // remoteURL returns the canonical URL of the project, or of the run when
 // runID is set.
 func (p *RemoteRunParams) remoteURL(runID string) string {
-	url := p.BaseURL + "/" + p.Entity + "/" + p.Project
+	if p.Org != "" {
+		return p.BaseURL + "/orgs/" + p.Org
+	}
+	url := p.BaseURL + "/" + p.Entity
+	if p.Project != "" {
+		url += "/" + p.Project
+	}
 	if runID != "" {
 		url += "/runs/" + runID
 	}
@@ -80,14 +86,18 @@ func (p *RemoteRunParams) remoteURL(runID string) string {
 // remoteSource returns the source field of a query object for a remote
 // project, or run when runID is set.
 func (p *RemoteRunParams) remoteSource(runID string) map[string]any {
-	return map[string]any{
+	source := map[string]any{
 		"kind":    "remote",
 		"path":    nil,
 		"url":     p.remoteURL(runID),
-		"entity":  p.Entity,
-		"project": p.Project,
+		"entity":  orNil(p.Entity),
+		"project": orNil(p.Project),
 		"run_id":  orNil(runID),
 	}
+	if p.Org != "" {
+		source["org"] = p.Org
+	}
+	return source
 }
 
 func listRemoteRuns(c *remoteClients, params *RemoteRunParams, q RunsQuery, w io.Writer) error {

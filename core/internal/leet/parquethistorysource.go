@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/go-retryablehttp"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/simplejsonext"
@@ -299,6 +300,14 @@ func newRemoteClients(
 	baseURL string,
 	logger *observability.CoreLogger,
 ) (*remoteClients, error) {
+	return newRemoteClientsWithRetryPolicy(baseURL, logger, nil)
+}
+
+func newRemoteClientsWithRetryPolicy(
+	baseURL string,
+	logger *observability.CoreLogger,
+	retryPolicy retryablehttp.CheckRetry,
+) (*remoteClients, error) {
 	apiKey := os.Getenv("WANDB_API_KEY")
 	if apiKey == "" {
 		return nil, &QueryError{
@@ -324,6 +333,7 @@ func newRemoteClients(
 			s,
 		),
 		http: api.NewClient(api.ClientOptions{
+			RetryPolicy:     retryPolicy,
 			RetryMax:        3,
 			RetryWaitMin:    1 * time.Second,
 			RetryWaitMax:    10 * time.Second,
