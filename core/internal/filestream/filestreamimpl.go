@@ -124,7 +124,8 @@ func (fs *fileStream) startProcessingFeedback(
 				}
 			}
 
-			// Every response says whether deltas are accepted.
+			// A response without the field, as from older servers,
+			// turns deltas off.
 			if res != nil {
 				accept, _ := res["accept_summary_delta"].(bool)
 				fs.acceptSummaryDelta.Store(accept)

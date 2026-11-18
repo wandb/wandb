@@ -953,8 +953,9 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 func (s *Sender) updateSummaryStep(step int64) {
 	s.runSummary.Set(pathtree.PathOf("_step"), step)
 	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
-		Key:       "_step",
-		ValueJson: strconv.FormatInt(step, 10),
+		Key:         "_step",
+		ValueJson:   strconv.FormatInt(step, 10),
+		FromHistory: true,
 	}}})
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }

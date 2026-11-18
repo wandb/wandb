@@ -53,7 +53,13 @@ func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
 	rs := New()
 	if u != nil {
 		u.notFromHistory.ForEachLeaf(func(path pathtree.TreePath, _ struct{}) bool {
-			valueJSON, _ := u.update.GetLeaf(path)
+			// A path that a later update replaced with nested keys
+			// is no longer a leaf.
+			valueJSON, ok := u.update.GetLeaf(path)
+			if !ok {
+				return true
+			}
+
 			if value, err := simplejsonext.UnmarshalString(valueJSON); err == nil {
 				rs.Set(path, value)
 			}

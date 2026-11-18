@@ -74,17 +74,6 @@ func TestState_IsAtSizeLimit_SummaryUpdates(t *testing.T) {
 	assert.True(t, state.IsAtSizeLimit(request))
 }
 
-func TestState_IsAtSizeLimit_UnsentSummary(t *testing.T) {
-	state := &FileStreamState{
-		MaxRequestSizeBytes: 10,
-		LastRunSummarySize:  26,
-		UnsentSummary:       "this is 26 characters long",
-	}
-	request := &FileStreamRequest{}
-
-	assert.True(t, state.IsAtSizeLimit(request))
-}
-
 func TestState_IsAtSizeLimit_Console(t *testing.T) {
 	state := &FileStreamState{MaxRequestSizeBytes: 10}
 	request := &FileStreamRequest{}
@@ -209,29 +198,7 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 	assert.Equal(t, []string{`{"xyz":9}`}, chunk.Content)
 	assert.Equal(t, 7, chunk.Offset)
 	assert.Nil(t, request.SummaryUpdates)
-	assert.Zero(t, state.UnsentSummary)
 	assert.Equal(t, 9, state.LastRunSummarySize)
-	assert.Equal(t, 7, state.SummaryLineNum) // never updated; see docs
-}
-
-func TestState_Pop_AllUnsentSummary(t *testing.T) {
-	state := &FileStreamState{
-		MaxFileLineSize:    99,
-		SummaryLineNum:     7,
-		UnsentSummary:      "test summary",
-		LastRunSummarySize: 12,
-	}
-	request := &FileStreamRequest{}
-
-	json, hasMore := pop(t, state, request)
-
-	assert.False(t, hasMore)
-	chunk := json.Files[SummaryFileName]
-	assert.Equal(t, []string{`test summary`}, chunk.Content)
-	assert.Equal(t, 7, chunk.Offset)
-	assert.Nil(t, request.SummaryUpdates)
-	assert.Zero(t, state.UnsentSummary)
-	assert.Equal(t, 12, state.LastRunSummarySize)
 	assert.Equal(t, 7, state.SummaryLineNum) // never updated; see docs
 }
 
@@ -249,39 +216,23 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 
 	assert.True(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Nil(t, request.SummaryUpdates)
-	assert.Equal(t, `{"key":"value"}`, state.UnsentSummary)
+	assert.False(t, request.SummaryUpdates.IsEmpty())
 	assert.Equal(t, 15, state.LastRunSummarySize)
 	assert.Equal(t, 7, state.SummaryLineNum)
-}
 
-func TestState_Pop_UnsentSummaryTooLarge(t *testing.T) {
-	state := &FileStreamState{
-		MaxFileLineSize:    99,
-		SummaryLineNum:     7,
-		UnsentSummary:      "unsent summary",
-		LastRunSummarySize: 14,
-	}
-	request := &FileStreamRequest{}
-	request.HistoryLines = []string{"the history"}
+	// The summary goes out once there is room.
+	json, hasMore = pop(t, state, request)
 
-	json, hasMore := pop(t, state, request)
-
-	assert.True(t, hasMore)
-	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Equal(t, "unsent summary", state.UnsentSummary)
-	assert.Equal(t, 14, state.LastRunSummarySize)
-	assert.Equal(t, 7, state.SummaryLineNum)
+	assert.False(t, hasMore)
+	assert.Equal(t,
+		[]string{`{"key":"value"}`},
+		json.Files[SummaryFileName].Content)
+	assert.Nil(t, request.SummaryUpdates)
 }
 
 func TestState_Pop_SummaryLineTooLong(t *testing.T) {
-	state := &FileStreamState{
-		MaxFileLineSize:    1,
-		SummaryLineNum:     7,
-		UnsentSummary:      "too long",
-		LastRunSummarySize: 8,
-	}
-	request := &FileStreamRequest{}
+	state := &FileStreamState{MaxFileLineSize: 1, SummaryLineNum: 7}
+	request := &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "12")}
 	logger, logs := observabilitytest.NewRecordingTestLogger(t)
 	printer := observability.NewPrinter(100)
 
@@ -289,7 +240,7 @@ func TestState_Pop_SummaryLineTooLong(t *testing.T) {
 
 	assert.False(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Zero(t, state.UnsentSummary)
+	assert.Nil(t, request.SummaryUpdates)
 	assert.Equal(t, 8, state.LastRunSummarySize)
 	assert.Equal(t, 7, state.SummaryLineNum)
 	assert.Contains(t,
@@ -457,52 +408,56 @@ func popSummaryLine(
 }
 
 func TestState_Pop_SummaryDelta(t *testing.T) {
-	accept := true
-	state := &FileStreamState{
-		MaxFileLineSize: 999,
-	}
-
-	// The first summary of a stream is full.
-	line, isDelta := popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
-	assert.JSONEq(t, `{"a":1}`, line)
-	assert.False(t, isDelta)
-
-	line, isDelta = popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
-	assert.JSONEq(t, `{"b":2}`, line)
-	assert.True(t, isDelta)
-
-	// A delta can't express a removal.
-	removal := runsummary.FromProto(&spb.SummaryRecord{
+	removeA := runsummary.FromProto(&spb.SummaryRecord{
 		Remove: []*spb.SummaryItem{{Key: "a"}},
 	})
-	line, isDelta = popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: removal})
+	steps := []struct {
+		name      string
+		accept    bool
+		updates   *runsummary.Updates
+		want      string
+		wantDelta bool
+	}{
+		{"first summary is full", true, summaryUpdate("a", "1"), `{"a":1}`, false},
+		{"then deltas", true, summaryUpdate("b", "2"), `{"b":2}`, true},
+		{"removal is full", true, removeA, `{"b":2}`, false},
+		{"deltas after removal", true, summaryUpdate("c", "3"), `{"c":3}`, true},
+		{"full without deltas", false, summaryUpdate("d", "4"), `{"b":2,"c":3,"d":4}`, false},
+		{"delta once accepted again", true, summaryUpdate("e", "5"), `{"e":5}`, true},
+	}
+	state := &FileStreamState{MaxFileLineSize: 999}
+
+	for _, step := range steps {
+		line, isDelta := popSummaryLine(t, state, step.accept,
+			&FileStreamRequest{SummaryUpdates: step.updates})
+
+		assert.JSONEq(t, step.want, line, step.name)
+		assert.Equal(t, step.wantDelta, isDelta, step.name)
+	}
+}
+
+func TestState_Pop_SummaryDeltaAfterFullSummarySentWithoutDeltas(t *testing.T) {
+	state := &FileStreamState{MaxFileLineSize: 999}
+	popSummaryLine(t, state, false,
+		&FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
+
+	line, isDelta := popSummaryLine(t, state, true,
+		&FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
+
 	assert.JSONEq(t, `{"b":2}`, line)
-	assert.False(t, isDelta)
-
-	line, isDelta = popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("c", "3")})
-	assert.JSONEq(t, `{"c":3}`, line)
 	assert.True(t, isDelta)
+}
 
-	// Without deltas the full summary is sent, and when they come back the
-	// first summary is full again.
-	accept = false
-	line, isDelta = popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("d", "4")})
-	assert.JSONEq(t, `{"b":2,"c":3,"d":4}`, line)
-	assert.False(t, isDelta)
-	accept = true
-	line, isDelta = popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("e", "5")})
-	assert.JSONEq(t, `{"b":2,"c":3,"d":4,"e":5}`, line)
-	assert.False(t, isDelta)
-	line, isDelta = popSummaryLine(t, state, accept,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("f", "6")})
-	assert.JSONEq(t, `{"f":6}`, line)
-	assert.True(t, isDelta)
+func TestState_Pop_EmptySummaryDeltaIsNotSent(t *testing.T) {
+	state := &FileStreamState{MaxFileLineSize: 999}
+	popSummaryLine(t, state, true,
+		&FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
+	request := &FileStreamRequest{SummaryUpdates: summaryUpdate("b", "null")}
+
+	line, _ := popSummaryLine(t, state, true, request)
+
+	assert.Empty(t, line)
+	assert.Nil(t, request.SummaryUpdates)
 }
 
 func TestState_Pop_SummaryDeltaThenComplete(t *testing.T) {
@@ -548,13 +503,13 @@ func TestState_Pop_SummaryDeltaThatDoesNotFitAccumulates(t *testing.T) {
 	assert.True(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
 
-	request.SummaryUpdates = summaryUpdate("c", "3")
+	request.Merge(&FileStreamRequest{SummaryUpdates: summaryUpdate("c", "3")})
 	line, isDelta := popSummaryLine(t, state, true, request)
 	assert.JSONEq(t, `{"b":2,"c":3}`, line)
 	assert.True(t, isDelta)
 }
 
-func TestState_Pop_UnsentSummaryDeltaNoLongerAccepted(t *testing.T) {
+func TestState_Pop_PendingSummaryDeltaNoLongerAccepted(t *testing.T) {
 	accept := true
 	state := &FileStreamState{
 		MaxFileLineSize:     999,

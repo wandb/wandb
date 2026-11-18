@@ -210,6 +210,11 @@ func TestSendHistoryAppliesSteps(t *testing.T) {
 	request := fileStream.GetRequest(x.Settings)
 	require.Len(t, request.HistoryLines, 1)
 	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
+
+	// _step comes from the history row, so a summary delta leaves it out.
+	delta, err := request.SummaryUpdates.SerializeWithoutHistory()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{}`, string(delta))
 }
 
 func sendHistoryItems(x testFixtures, items ...*spb.HistoryItem) {
