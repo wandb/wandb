@@ -775,26 +775,29 @@ class Api:
             elif parts[2].startswith("sweep"):
                 return self.sweep(path)
             elif parts[2].startswith("report"):
-                if "--" not in parts[-1]:
-                    if "-" in parts[-1]:
-                        raise wandb.Error(
-                            "Invalid report path, should be team/project/reports/Name--XXXX"
-                        )
-                    else:
-                        parts[-1] = "--" + parts[-1]
-                name, id = parts[-1].split("--")
-                return public.BetaReport(
-                    self._service_api,
-                    {
-                        "displayName": urllib.parse.unquote(name.replace("-", " ")),
-                        "id": id,
-                        "spec": "{}",
-                    },
-                    parts[0],
-                    parts[1],
-                )
+                return self._report_from_path_parts(parts)
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
+        )
+
+    def _report_from_path_parts(self, parts: list[str]):
+        if "--" not in parts[-1]:
+            if "-" in parts[-1]:
+                raise wandb.Error(
+                    "Invalid report path, should be team/project/reports/Name--XXXX"
+                )
+            else:
+                parts[-1] = "--" + parts[-1]
+        name, id = parts[-1].split("--")
+        return public.BetaReport(
+            self._service_api,
+            {
+                "displayName": urllib.parse.unquote(name.replace("-", " ")),
+                "id": id,
+                "spec": "{}",
+            },
+            parts[0],
+            parts[1],
         )
 
     def _parse_project_path(self, path):
@@ -843,6 +846,28 @@ class Api:
 
         parts = path.split("/")
 
+        entity, project, id = self._parse_path_parts(parts, entity, project)
+
+        # Ignore whitespace.
+        entity = entity and entity.strip()
+        project = project and project.strip()
+        id = id and id.strip()
+
+        if not entity:
+            raise ValueError(f"Invalid path: {input_path!r} (missing entity)")
+        if not project:
+            raise ValueError(f"Invalid path: {input_path!r} (missing project)")
+        if not id:
+            raise ValueError(f"Invalid path: {input_path!r}")
+
+        return entity, project, id
+
+    @staticmethod
+    def _parse_path_parts(
+        parts: list[str], entity: str | None, project: str | None
+    ) -> tuple[str | None, str | None, str | None]:
+        id: str | None = None
+
         # "entity/project/runs/id"
         if len(parts) == 4 and parts[2] == "runs":
             entity, project, id = parts[0], parts[1], parts[3]
@@ -869,18 +894,6 @@ class Api:
             # "id"
             else:
                 id = parts[0]
-
-        # Ignore whitespace.
-        entity = entity and entity.strip()
-        project = project and project.strip()
-        id = id and id.strip()
-
-        if not entity:
-            raise ValueError(f"Invalid path: {input_path!r} (missing entity)")
-        if not project:
-            raise ValueError(f"Invalid path: {input_path!r} (missing project)")
-        if not id:
-            raise ValueError(f"Invalid path: {input_path!r}")
 
         return entity, project, id
 

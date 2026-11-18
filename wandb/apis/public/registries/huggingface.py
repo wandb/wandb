@@ -326,29 +326,12 @@ class HuggingFaceImport:
                     logged_phase = self.phase
                     if logged_phase is not None:
                         termlog(f"Hugging Face import {self.id}: {logged_phase}")
-                for event in self.events:
-                    if event.id not in seen_event_ids:
-                        seen_event_ids.add(event.id)
-                        detail = f": {event.message}" if event.message else ""
-                        termlog(f"Hugging Face import {self.id}: {event.name}{detail}")
+                self._log_new_events(seen_event_ids)
 
                 if self.done:
                     break
 
-                if deadline is None:
-                    time.sleep(poll_interval)
-                else:
-                    # The deadline is checked before sleeping, so the state it
-                    # reports was fetched after the last sleep: the final
-                    # refresh may start at the deadline, but none starts later.
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise WaitTimeoutError(
-                            f"Hugging Face import {self.id!r} did not finish within"
-                            f" {timeout} seconds (state: {self.state})."
-                        )
-                    time.sleep(min(poll_interval, remaining))
-                self.refresh()
+                self._poll(deadline, timeout, poll_interval)
         except KeyboardInterrupt:
             termlog(
                 f"Hugging Face import {self.id} is still running on the server."
@@ -365,6 +348,31 @@ class HuggingFaceImport:
                 error_message=self.error_message,
             )
         return self
+
+    def _log_new_events(self, seen_event_ids: set[str]) -> None:
+        for event in self.events:
+            if event.id not in seen_event_ids:
+                seen_event_ids.add(event.id)
+                detail = f": {event.message}" if event.message else ""
+                termlog(f"Hugging Face import {self.id}: {event.name}{detail}")
+
+    def _poll(
+        self, deadline: float | None, timeout: float | None, poll_interval: float
+    ) -> None:
+        if deadline is None:
+            time.sleep(poll_interval)
+        else:
+            # The deadline is checked before sleeping, so the state it
+            # reports was fetched after the last sleep: the final
+            # refresh may start at the deadline, but none starts later.
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise WaitTimeoutError(
+                    f"Hugging Face import {self.id!r} did not finish within"
+                    f" {timeout} seconds (state: {self.state})."
+                )
+            time.sleep(min(poll_interval, remaining))
+        self.refresh()
 
     def artifact(self) -> Artifact | None:
         """The imported artifact, or `None` until the import produces one."""
