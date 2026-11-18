@@ -477,9 +477,10 @@ def login(
     If none of the above is true, then this gets the API key from the first of:
 
     - The WANDB_API_KEY environment variable
-    - The api_key setting in a system or workspace settings file
+    - A browser login stored by `wandb login --browser`
     - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
       NETRC environment variable)
+    - The api_key setting in a system or workspace settings file
     - An interactive prompt, if available and `prompt` is True
 
     Args:
