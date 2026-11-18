@@ -36,16 +36,20 @@ type FileStreamState struct {
 	// to properly resume such a run we must update the last line.
 	SummaryLineNum int
 
-	// RunSummary is the run's full summary.
+	// Summary is the run's full summary, and its changes since the last
+	// summary sent while the backend accepts deltas.
 	//
 	// It may be nil if the run has no summary.
-	RunSummary *runsummary.RunSummary
+	Summary *runsummary.SummaryAndDelta
 
-	// UnsentSummary is the serialized RunSummary if it did not fit in
+	// UnsentSummary is the serialized summary if it did not fit in
 	// a previous request.
 	UnsentSummary string
 
-	// LastRunSummarySize is the size in bytes of the RunSummary's
+	// UnsentSummaryIsDelta is whether UnsentSummary is a delta.
+	UnsentSummaryIsDelta bool
+
+	// LastRunSummarySize is the size in bytes of the summary's
 	// last successfully serialized JSON value.
 	//
 	// If there is a non-empty UnsentSummary, this is its length.
@@ -56,24 +60,6 @@ type FileStreamState struct {
 	// This is used when resuming a run, in which case we want the new
 	// console logs to be appended to the old ones.
 	ConsoleLineOffset int
-
-	// AcceptSummaryDelta reports whether the backend accepts summary deltas.
-	//
-	// If nil, the full summary is always sent.
-	AcceptSummaryDelta func() bool
-
-	// summaryDelta is the summary changes since the last summary sent.
-	//
-	// It is nil until a summary is sent while the backend accepts deltas,
-	// so the first summary of a stream is always full.
-	summaryDelta *runsummary.Updates
-
-	// unsentSummaryIsDelta is whether UnsentSummary holds summaryDelta.
-	unsentSummaryIsDelta bool
-
-	// deltaSinceFull is whether a delta was serialized after the last full
-	// summary.
-	deltaSinceFull bool
 }
 
 // IsAtSizeLimit returns true if the next JSON chunk of the request could
@@ -118,9 +104,12 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 // Pop extracts a chunk of data from the request, limiting its JSON
 // representation to approximately the maximum size.
 //
+// acceptSummaryDelta is whether the backend accepts summary deltas.
+//
 // The second return value is true if there remains unsent data in the request.
 func (s *FileStreamState) Pop(
 	request *FileStreamRequest,
+	acceptSummaryDelta bool,
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) (*FileStreamRequestJSON, bool) {
@@ -129,7 +118,7 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	s.popSummary(builder, request, logger, printer)
+	s.popSummary(builder, request, acceptSummaryDelta, logger, printer)
 	s.popConsoleLines(builder, request)
 
 	s.popUploadedFiles(builder, request)
@@ -204,20 +193,35 @@ func (s *FileStreamState) popEvents(
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
+	acceptDelta bool,
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) {
-	acceptDelta := s.AcceptSummaryDelta != nil && s.AcceptSummaryDelta()
 	if !acceptDelta {
-		s.summaryDelta = nil
+		s.Summary.ResetDelta(false)
 	}
 
-	s.takeSummaryUpdates(request, logger)
+	if !request.SummaryUpdates.IsEmpty() {
+		if s.Summary == nil {
+			s.Summary = runsummary.NewSummaryAndDelta()
+		}
+
+		if err := s.Summary.Apply(request.SummaryUpdates); err != nil {
+			// A partial success is possible, so we log and continue.
+			logger.CaptureError(
+				"filestream",
+				fmt.Errorf("filestream: error applying summary updates: %v", err),
+			)
+		}
+		request.SummaryUpdates = nil
+
+		s.serializeSummary(acceptDelta, logger)
+	}
 
 	// After deltas, send the full summary once the backend stops accepting
 	// them, and on the final request.
-	if s.deltaSinceFull && (!acceptDelta || request.Complete) {
-		s.serializeSummary(logger, false)
+	if s.Summary.DeltaSinceFull() && (!acceptDelta || request.Complete) {
+		s.serializeSummary(false, logger)
 	}
 
 	if s.UnsentSummary == "" {
@@ -252,58 +256,17 @@ func (s *FileStreamState) popSummary(
 
 	builder.SummaryChunk.Offset = s.SummaryLineNum
 	builder.SummaryChunk.Content = []string{s.UnsentSummary}
-	builder.SummaryDelta = s.unsentSummaryIsDelta
+	builder.SummaryDelta = s.UnsentSummaryIsDelta
 	s.clearUnsentSummary(acceptDelta)
 }
 
-// takeSummaryUpdates moves the request's summary updates into RunSummary
-// and summaryDelta, and serializes the summary to send.
-func (s *FileStreamState) takeSummaryUpdates(
-	request *FileStreamRequest,
-	logger *observability.CoreLogger,
-) {
-	if request.SummaryUpdates.IsEmpty() {
-		return
-	}
-
-	if s.RunSummary == nil {
-		s.RunSummary = runsummary.New()
-	}
-
-	err := request.SummaryUpdates.Apply(s.RunSummary)
-
-	if err != nil {
-		// A partial success is possible, so we log and continue.
-		logger.CaptureError(
-			"filestream",
-			fmt.Errorf("filestream: error applying summary updates: %v", err),
-		)
-	}
-
-	if s.summaryDelta != nil {
-		s.summaryDelta.Merge(request.SummaryUpdates)
-	}
-	request.SummaryUpdates = nil
-
-	// A delta cannot express a removal.
-	s.serializeSummary(logger,
-		s.summaryDelta != nil && !s.summaryDelta.HasRemovals())
-}
-
-// serializeSummary sets UnsentSummary to summaryDelta or to the full summary.
-//
-// A delta leaves out values from run.log(), which the backend takes from
-// history.
+// serializeSummary sets UnsentSummary to the summary delta or to the full
+// summary.
 func (s *FileStreamState) serializeSummary(
+	preferDelta bool,
 	logger *observability.CoreLogger,
-	asDelta bool,
 ) {
-	serialize := s.RunSummary.Serialize
-	if asDelta {
-		serialize = s.summaryDelta.SerializeWithoutHistory
-	}
-
-	summaryJSON, err := serialize()
+	summaryJSON, isDelta, err := s.Summary.Serialize(preferDelta)
 	if err != nil {
 		// On error, we don't modify UnsentSummary so that we still upload
 		// a previous successfully-serialized value.
@@ -314,28 +277,20 @@ func (s *FileStreamState) serializeSummary(
 		return
 	}
 
-	// An empty delta has nothing to send.
-	if asDelta && string(summaryJSON) == "{}" {
-		s.UnsentSummary = ""
-		s.unsentSummaryIsDelta = false
-		return
-	}
-
 	s.UnsentSummary = string(summaryJSON)
-	s.unsentSummaryIsDelta = asDelta
-	s.deltaSinceFull = asDelta
-	s.LastRunSummarySize = len(summaryJSON)
+	s.UnsentSummaryIsDelta = isDelta
+	if len(summaryJSON) > 0 {
+		s.LastRunSummarySize = len(summaryJSON)
+	}
 }
 
 // clearUnsentSummary marks UnsentSummary as sent or dropped.
+//
+// While the backend accepts deltas, the next summary is a delta from here.
 func (s *FileStreamState) clearUnsentSummary(acceptDelta bool) {
-	s.summaryDelta = nil
-	if acceptDelta {
-		s.summaryDelta = runsummary.NoUpdates()
-	}
-
+	s.Summary.ResetDelta(acceptDelta)
 	s.UnsentSummary = ""
-	s.unsentSummaryIsDelta = false
+	s.UnsentSummaryIsDelta = false
 }
 
 func (s *FileStreamState) popConsoleLines(
