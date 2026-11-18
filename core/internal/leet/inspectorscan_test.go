@@ -147,7 +147,11 @@ func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 			batch := scanBatch(t, scan, 1)
 			assert.Empty(t, batch.Entries)
 			assert.Zero(t, batch.Corrupt)
-			assert.ErrorContains(t, batch.Err, fmt.Sprintf("a newer wandb version is required to read this file: %d", test.version))
+			assert.ErrorContains(t, batch.Err,
+				fmt.Sprintf("a newer wandb version is required to read this file: %d",
+					test.version,
+				),
+			)
 		})
 	}
 }
