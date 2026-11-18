@@ -35,7 +35,8 @@ func NewEvalTableColumnService(opts ...option.RequestOption) (r *EvalTableColumn
 }
 
 // Declares typed input and output fields and named score columns for an evaluation
-// table. Use this operation when you want to choose column types explicitly.
+// table. Use this operation when you want to choose column types explicitly, or to
+// say whether higher scores in a column are better.
 //
 // `Idempotency-Key` is required, but this operation does not replay an earlier
 // response or check whether the key was used with different content.
@@ -200,9 +201,13 @@ func (r EvalTableColumnNewResponseDatasetFieldsExtensionType) IsKnown() bool {
 }
 
 type EvalTableColumnNewResponseScorer struct {
+	// Whether higher scores in this column are better, from the selected scorer
+	// version. Null when that version does not set it, so its scores have no
+	// direction.
+	HigherIsBetter  bool                                       `json:"higher_is_better"  api:"required,nullable"`
 	Name            string                                     `json:"name"              api:"required"`
-	ScorerID        string                                     `json:"scorer_id"         api:"required" format:"uuid"`
-	ScorerVersionID string                                     `json:"scorer_version_id" api:"required" format:"uuid"`
+	ScorerID        string                                     `json:"scorer_id"         api:"required"          format:"uuid"`
+	ScorerVersionID string                                     `json:"scorer_version_id" api:"required"          format:"uuid"`
 	ValueType       EvalTableColumnNewResponseScorersValueType `json:"value_type"        api:"required"`
 	JSON            evalTableColumnNewResponseScorerJSON       `json:"-"`
 }
@@ -210,6 +215,7 @@ type EvalTableColumnNewResponseScorer struct {
 // evalTableColumnNewResponseScorerJSON contains the JSON metadata for the struct
 // [EvalTableColumnNewResponseScorer]
 type evalTableColumnNewResponseScorerJSON struct {
+	HigherIsBetter  apijson.Field
 	Name            apijson.Field
 	ScorerID        apijson.Field
 	ScorerVersionID apijson.Field
@@ -360,6 +366,12 @@ type EvalTableColumnNewParamsScorer struct {
 	// are not allowed.
 	Name      param.Field[string]                                   `json:"name"       api:"required"`
 	ValueType param.Field[EvalTableColumnNewParamsScorersValueType] `json:"value_type" api:"required"`
+	// Whether higher scores in this column are better. Only boolean, integer, and
+	// number columns accept it. A column already registered with a different value, or
+	// with none, returns 400. To change it, create a scorer version with the new value
+	// and select it with add-evaluation-scorers. Omit it to accept the registered
+	// value, or to leave a new column without a direction.
+	HigherIsBetter param.Field[bool] `json:"higher_is_better"`
 }
 
 func (r EvalTableColumnNewParamsScorer) MarshalJSON() (data []byte, err error) {
