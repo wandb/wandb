@@ -22,6 +22,7 @@ type Client struct {
 	Verification *VerificationService
 	Datasets     *DatasetService
 	Cases        *CaseService
+	Tags         *TagService
 	Comparisons  *ComparisonService
 	Scorers      *ScorerService
 	Scores       *ScoreService
@@ -72,6 +73,7 @@ func NewClient(opts ...option.RequestOption) (r *Client) {
 	r.Verification = NewVerificationService(opts...)
 	r.Datasets = NewDatasetService(opts...)
 	r.Cases = NewCaseService(opts...)
+	r.Tags = NewTagService(opts...)
 	r.Comparisons = NewComparisonService(opts...)
 	r.Scorers = NewScorerService(opts...)
 	r.Scores = NewScoreService(opts...)

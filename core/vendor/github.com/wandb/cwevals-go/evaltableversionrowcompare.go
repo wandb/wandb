@@ -226,8 +226,10 @@ type EvalTableVersionRowCompareListResponseRowsEvaluationsRow struct {
 	ExampleKey string                                                          `json:"example_key" api:"required,nullable"`
 	Output     interface{}                                                     `json:"output"      api:"required"`
 	Scores     []EvalTableVersionRowCompareListResponseRowsEvaluationsRowScore `json:"scores"      api:"required"`
-	Variant    string                                                          `json:"variant"     api:"required,nullable"`
-	JSON       evalTableVersionRowCompareListResponseRowsEvaluationsRowJSON    `json:"-"`
+	// Tag names on this case, sorted.
+	Tags    []string                                                     `json:"tags"    api:"required"`
+	Variant string                                                       `json:"variant" api:"required,nullable"`
+	JSON    evalTableVersionRowCompareListResponseRowsEvaluationsRowJSON `json:"-"`
 }
 
 // evalTableVersionRowCompareListResponseRowsEvaluationsRowJSON contains the JSON
@@ -239,6 +241,7 @@ type evalTableVersionRowCompareListResponseRowsEvaluationsRowJSON struct {
 	ExampleKey  apijson.Field
 	Output      apijson.Field
 	Scores      apijson.Field
+	Tags        apijson.Field
 	Variant     apijson.Field
 	raw         string
 	ExtraFields map[string]apijson.Field
@@ -369,8 +372,10 @@ type EvalTableVersionRowCompareSearchResponseRowsEvaluationsRow struct {
 	ExampleKey string                                                            `json:"example_key" api:"required,nullable"`
 	Output     interface{}                                                       `json:"output"      api:"required"`
 	Scores     []EvalTableVersionRowCompareSearchResponseRowsEvaluationsRowScore `json:"scores"      api:"required"`
-	Variant    string                                                            `json:"variant"     api:"required,nullable"`
-	JSON       evalTableVersionRowCompareSearchResponseRowsEvaluationsRowJSON    `json:"-"`
+	// Tag names on this case, sorted.
+	Tags    []string                                                       `json:"tags"    api:"required"`
+	Variant string                                                         `json:"variant" api:"required,nullable"`
+	JSON    evalTableVersionRowCompareSearchResponseRowsEvaluationsRowJSON `json:"-"`
 }
 
 // evalTableVersionRowCompareSearchResponseRowsEvaluationsRowJSON contains the JSON
@@ -382,6 +387,7 @@ type evalTableVersionRowCompareSearchResponseRowsEvaluationsRowJSON struct {
 	ExampleKey  apijson.Field
 	Output      apijson.Field
 	Scores      apijson.Field
+	Tags        apijson.Field
 	Variant     apijson.Field
 	raw         string
 	ExtraFields map[string]apijson.Field
@@ -452,17 +458,21 @@ type EvalTableVersionRowCompareListParams struct {
 	//
 	// - matches a literal asterisk \\ matches a literal backslash
 	//
+	// When rows are cases, the predicate tags:"<name>" matches a case that has that
+	// tag.
+	//
 	// A filter can contain at most 100 predicates and 65,536 bytes of normalized JSON
 	// literals in total.
 	//
-	// Example for an evaluation with an accuracy score column:
+	// Example:
 	//
-	//	variant = "model-a" AND s.accuracy >= 0.8
+	//	variant = "model-a" AND i.split = "test"
 	Filter param.Field[string] `query:"filter"`
 	// Maximum number of results to return in one page.
 	Limit param.Field[int64] `query:"limit"`
 	// Column to sort by, optionally followed by desc for descending order. Without
-	// desc, sorting is ascending. Omit to use the operation's standard order.
+	// desc, sorting is ascending. Rows cannot be sorted by tags. Omit to use the
+	// operation's standard order.
 	OrderBy param.Field[string] `query:"order_by"`
 }
 
@@ -503,17 +513,21 @@ type EvalTableVersionRowCompareSearchParams struct {
 	//
 	// - matches a literal asterisk \\ matches a literal backslash
 	//
+	// When rows are cases, the predicate tags:"<name>" matches a case that has that
+	// tag.
+	//
 	// A filter can contain at most 100 predicates and 65,536 bytes of normalized JSON
 	// literals in total.
 	//
-	// Example for an evaluation with an accuracy score column:
+	// Example:
 	//
-	//	variant = "model-a" AND s.accuracy >= 0.8
+	//	variant = "model-a" AND i.split = "test"
 	Filter param.Field[string] `json:"filter"`
 	// Maximum number of results to return in one page.
 	Limit param.Field[int64] `json:"limit"`
 	// Column to sort by, optionally followed by desc for descending order. Without
-	// desc, sorting is ascending. Omit to use the operation's standard order.
+	// desc, sorting is ascending. Rows cannot be sorted by tags. Omit to use the
+	// operation's standard order.
 	OrderBy param.Field[string] `json:"order_by"`
 }
 
