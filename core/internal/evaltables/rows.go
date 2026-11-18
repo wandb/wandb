@@ -15,7 +15,8 @@ import (
 type rowColumn struct {
 	name string
 
-	// key is the column's JSON object key, with its colon.
+	// key is the column's name as a JSON object key followed by a colon,
+	// such as `"prompt":` for a column named prompt.
 	key []byte
 
 	// valueType is the column's CES value type.
