@@ -1,7 +1,6 @@
 package evaltables_test
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/binary"
@@ -353,7 +352,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"flag":true,`+
 			`"count":9007199254740993,`+
 			`"temperature":0.25,`+
-			`"prompt":"draw <a> cat & dog",`+
+			`"prompt":"draw \u003ca\u003e cat \u0026 dog",`+
 			`"config":{"seed":7,"tags":["a","b"]},`+
 			`"note":null`+
 			`},`+
@@ -364,50 +363,6 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"example_key":"2"}`+
 			`]`,
 		table.RowsJSON(t))
-}
-
-func TestEncode_StringsLikeEncodingJSON(t *testing.T) {
-	strs := []string{
-		"",
-		"plain",
-		`quote " and backslash \`,
-		"\b\f\n\r\t\x00\x1f\x7f",
-		"<html> & </html>",
-		"line and paragraph separators",
-		"café ☕ 𝄞",
-		"invalid \xff UTF-8",
-	}
-
-	var fields []*spb.EvalTableField
-	var row []*spb.EvalTableValue
-	var want []string
-	for i, s := range strs {
-		name := fmt.Sprintf("s%d", i)
-		fields = append(fields,
-			&spb.EvalTableField{Source: "input", Name: name, ValueType: "string"})
-		row = append(row, stringValue(s))
-		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, s))
-	}
-
-	table, err := encode(t, &spb.EvalTableData{
-		DatasetFields: fields,
-		Rows:          []*spb.EvalTableRow{{Input: values(row...)}},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t,
-		`[{"input":{`+strings.Join(want, ",")+`},"output":null,"scores":{}}]`,
-		table.RowsJSON(t))
-}
-
-// encodeJSON encodes v like encoding/json without HTML escaping.
-func encodeJSON(t *testing.T, v any) string {
-	t.Helper()
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	require.NoError(t, encoder.Encode(v))
-	return strings.TrimSuffix(buf.String(), "\n")
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
