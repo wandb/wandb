@@ -4867,7 +4867,7 @@ query ProjectInternalID ($entityName: String!, $projectName: String!) {
 }
 `
 
-// Looks up a project's internal ID, which CES uses as the project's scope ID.
+// Looks up a project's opaque internal ID
 func ProjectInternalID(
 	ctx_ context.Context,
 	client_ graphql.Client,
