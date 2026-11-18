@@ -975,10 +975,16 @@ class InterfaceBase(abc.ABC):
         step_metric_value: float | None,
         severity: str,
         timestamp_ms: int,
-        attributes: dict[str, str | int | float | bool],
+        attributes: dict[str, str | int | float | bool] | None,
     ) -> None:
-        if len(attributes) > 32:
-            raise ValueError("an event can have at most 32 attributes")
+        if step_metric is not None and (
+            not isinstance(step_metric, str) or len(step_metric.encode("utf-8")) > 4096
+        ):
+            raise ValueError("step_metric must be a string of at most 4096 bytes")
+        if attributes is None:
+            attributes = {}
+        if not isinstance(attributes, dict) or len(attributes) > 32:
+            raise ValueError("attributes must be a dictionary of at most 32 entries")
 
         event = pb.EventRecord(
             event_id=event_id,

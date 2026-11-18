@@ -29,7 +29,7 @@ REFERENCE_ATTRIBUTES = set(
         "log",
         "log_artifact",
         "log_code",
-        "log_event",
+        "log_events",
         "log_model",
         "mark_preempting",
         "name",
@@ -161,17 +161,25 @@ def test_run_publish_history(mock_run, parse_records, record_q):
     "kwargs, field",
     [
         ({"type": ""}, "type"),
+        ({"type": "é" * 2048 + "x"}, "type"),
         ({"title": ""}, "title"),
         ({"step": -1}, "step"),
         ({"step": 1.0}, "step"),
         ({"step": True}, "step"),
         ({"step_metric": "tokens"}, "step_metric_value"),
         ({"step_metric_value": 42.0}, "step_metric"),
+        ({"step_metric": b"tokens", "step_metric_value": 0}, "step_metric"),
+        ({"step_metric": "é" * 2048 + "x", "step_metric_value": 0}, "step_metric"),
+        ({"step_metric": "tokens", "step_metric_value": "42"}, "step_metric_value"),
+        ({"step_metric": "tokens", "step_metric_value": 10**400}, "step_metric_value"),
         (
             {"step_metric": "tokens", "step_metric_value": float("inf")},
             "step_metric_value",
         ),
         ({"severity": "CRITICAL"}, "severity"),
+        ({"attributes": []}, "attributes"),
+        ({"attributes": ()}, "attributes"),
+        ({"attributes": ["name"]}, "attributes"),
         ({"attributes": {"": True}}, "attribute"),
         ({"attributes": {"has-dash": True}}, "attribute"),
         ({"attributes": {"accent.é": True}}, "attribute"),
@@ -185,13 +193,25 @@ def test_run_publish_history(mock_run, parse_records, record_q):
         ({"attributes": {"rate": float("nan")}}, "attribute"),
     ],
 )
-def test_log_event_rejects_invalid_arguments(mock_run, record_q, kwargs, field):
+def test_log_events_rejects_invalid_arguments(mock_run, record_q, kwargs, field):
     run = mock_run()
 
     with pytest.raises(ValueError, match=field):
-        run.log_event(**({"type": "checkpoint", "title": "Saved"} | kwargs))
+        run.log_events(**({"type": "checkpoint", "title": "Saved"} | kwargs))
 
     assert record_q.empty()
+
+
+def test_log_events_accepts_maximum_type_and_metric_bytes(mock_run, record_q):
+    run = mock_run()
+    name = "é" * 2048
+
+    run.log_events(type=name, title="Saved", step_metric=name, step_metric_value=42)
+
+    event = record_q.get_nowait().event
+    assert event.type == name
+    assert event.step_metric == name
+    assert event.step_metric_value == 42.0
 
 
 @pytest.mark.parametrize(
@@ -214,18 +234,18 @@ def test_log_event_rejects_invalid_arguments(mock_run, record_q, kwargs, field):
         "id",
     ],
 )
-def test_log_event_rejects_reserved_attributes(mock_run, key):
+def test_log_events_rejects_reserved_attributes(mock_run, key):
     run = mock_run()
 
     with pytest.raises(ValueError, match=key):
-        run.log_event(type="checkpoint", title="Saved", attributes={key: True})
+        run.log_events(type="checkpoint", title="Saved", attributes={key: True})
 
 
-def test_log_event_publishes_typed_record(mock_run, record_q, monkeypatch):
+def test_log_events_publishes_typed_record(mock_run, record_q, monkeypatch):
     run = mock_run()
     monkeypatch.setattr(time, "time_ns", lambda: 1_700_000_000_123_456_789)
 
-    run.log_event(
+    run.log_events(
         type="checkpoint",
         title="Saved",
         step=0,
@@ -257,13 +277,13 @@ def test_log_event_publishes_typed_record(mock_run, record_q, monkeypatch):
     assert not event.attributes["ok"].bool_value
 
 
-def test_log_event_publishes_distinct_ids_and_leaves_implicit_step_unset(
+def test_log_events_publishes_distinct_ids_and_leaves_implicit_step_unset(
     mock_run, record_q
 ):
     run = mock_run()
 
     for _ in range(2):
-        run.log_event(type="checkpoint", title="Saved")
+        run.log_events(type="checkpoint", title="Saved")
 
     first = record_q.get_nowait().event
     second = record_q.get_nowait().event
@@ -273,17 +293,17 @@ def test_log_event_publishes_distinct_ids_and_leaves_implicit_step_unset(
     assert not first.HasField("step_metric_value")
 
 
-def test_log_event_rejects_finished_run(mock_run):
+def test_log_events_rejects_finished_run(mock_run):
     run = mock_run()
     run._is_finished = True
 
-    with pytest.raises(wandb.errors.UsageError, match="log_event"):
-        run.log_event(type="checkpoint", title="Saved")
+    with pytest.raises(wandb.errors.UsageError, match="log_events"):
+        run.log_events(type="checkpoint", title="Saved")
 
 
-def test_log_event_is_noop_on_disabled_run():
+def test_log_events_is_noop_on_disabled_run():
     with wandb.init(mode="disabled") as run:
-        assert run.log_event(type="", title="") is None
+        assert run.log_events(type="", title="") is None
 
 
 @pytest.mark.skipif(

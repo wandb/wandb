@@ -295,7 +295,6 @@ func (f *SenderFactory) NewWithFileStream(
 						ProxyConnectHeader: s.settings.GetProxyConnectHeader(),
 						InsecureDisableSSL: s.settings.IsInsecureDisableSSL(),
 						PreRetryLayers: httplayers.Concat(
-							api.NetworkPeeker(f.Peeker),
 							httplayers.DefaultHeaders(s.settings.GetExtraHTTPHeaders()),
 							httplayers.LimitTo(f.BaseURL, f.CredentialProvider),
 						),

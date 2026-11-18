@@ -252,7 +252,7 @@ func (u *Uploader) upload(batch *eventBatch) bool {
 		return true
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
 		u.printer.Warnf(
-			"Event logging is disabled for this project. Events will stay in the local run log.",
+			"Event logging is disabled for this project. Uploads for this run have stopped.",
 		)
 		return false
 	default:

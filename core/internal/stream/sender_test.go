@@ -3,7 +3,11 @@ package stream_test
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,7 +19,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
-	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
@@ -27,6 +30,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -55,7 +59,7 @@ func makeSenderWithFileStream(
 	t *testing.T,
 	client graphql.Client,
 	fileStream filestream.FileStream,
-	stats ...*filestreamstats.Stats,
+	configure ...func(*stream.SenderFactory),
 ) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
@@ -120,8 +124,8 @@ func makeSenderWithFileStream(
 		RunHandle:               runHandle,
 		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
 	}
-	if len(stats) > 0 {
-		senderFactory.Stats = stats[0]
+	for _, apply := range configure {
+		apply(&senderFactory)
 	}
 	var sender *stream.Sender
 	if fileStream != nil {
@@ -135,6 +139,62 @@ func makeSenderWithFileStream(
 		Settings:  settings,
 		Logger:    logger,
 		Logs:      logs,
+	}
+}
+
+func TestEventUploadTerminalResponsesDoNotReportNetworkRetries(t *testing.T) {
+	for _, status := range []int{
+		http.StatusBadRequest,
+		http.StatusRequestEntityTooLarge,
+		http.StatusNotFound,
+	} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			requestCount := make(chan struct{}, 2)
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, "/logs/ingest", r.URL.Path)
+					username, password, ok := r.BasicAuth()
+					assert.True(t, ok && username == "api" && password == "test-api-key")
+					requestCount <- struct{}{}
+					w.WriteHeader(status)
+				}),
+			)
+			t.Cleanup(server.Close)
+			baseURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+			peeker := &observability.Peeker{}
+			printer := observability.NewPrinter(4)
+			x := makeSenderWithFileStream(
+				t,
+				gqlmock.NewMockClient(),
+				filestreamtest.NewFakeFileStream(),
+				func(factory *stream.SenderFactory) {
+					factory.BaseURL = baseURL
+					factory.Peeker = peeker
+					factory.Printer = printer
+				},
+			)
+			work := make(chan runwork.Work, 1)
+			work <- runwork.NoRequest(runwork.WorkRecord{Record: &spb.Record{
+				RecordType: &spb.Record_Event{Event: &spb.EventRecord{EventId: "event"}},
+			}})
+			close(work)
+			x.Sender.Do(work)
+
+			assert.Len(t, requestCount, 1)
+			assert.Empty(t, peeker.Read())
+			warnings := printer.Read()
+			if status == http.StatusNotFound {
+				assert.Equal(t, []observability.PrinterMessage{
+					{
+						Severity: observability.Warning,
+						Content:  "Event logging is disabled for this project. Uploads for this run have stopped.",
+					},
+				}, warnings)
+			} else {
+				assert.Empty(t, warnings)
+			}
+		})
 	}
 }
 

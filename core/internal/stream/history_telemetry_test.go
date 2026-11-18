@@ -128,7 +128,14 @@ func TestHistoryTelemetry_SenderReadsBeforeUpload(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			stats, proxy := telemetryStats(t)
 			fileStream := filestreamtest.NewFakeFileStream()
-			x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream, stats)
+			x := makeSenderWithFileStream(
+				t,
+				gqlmock.NewMockClient(),
+				fileStream,
+				func(factory *stream.SenderFactory) {
+					factory.Stats = stats
+				},
+			)
 			sendHistoryItems(x, testCase.items...)
 			require.NoError(t, proxy.Shutdown(context.Background()))
 			for source, count := range testCase.sourceCounts {

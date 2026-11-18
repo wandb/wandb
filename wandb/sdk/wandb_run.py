@@ -3677,7 +3677,7 @@ class Run:
     @_log_to_run
     @_raise_if_finished
     @_attach
-    def log_event(
+    def log_events(
         self,
         type: str,
         title: str,
@@ -3693,11 +3693,11 @@ class Run:
         Events can be displayed as overlays on W&B charts.
 
         Args:
-            type: A nonempty event type, such as `checkpoint`.
+            type: A nonempty event type, such as `checkpoint`, up to 4096 UTF-8 bytes.
             title: The event title, up to 4096 UTF-8 bytes.
             step: The W&B step for the event. Defaults to the current step.
-            step_metric: The name of a custom step metric.
-            step_metric_value: The value of the custom step metric. Pass it
+            step_metric: The name of a custom step metric, up to 4096 UTF-8 bytes.
+            step_metric_value: The finite value of the custom step metric. Pass it
                 together with `step_metric`.
             severity: One of `DEBUG`, `INFO`, `WARN`, `ERROR`, or `FATAL`.
                 Case insensitive.
@@ -3710,8 +3710,8 @@ class Run:
             ValueError: If an event argument is invalid.
         """
         timestamp_ms = time.time_ns() // 1_000_000
-        if not isinstance(type, str) or not type:
-            raise ValueError("type must be a nonempty string")
+        if not isinstance(type, str) or not 1 <= len(type.encode("utf-8")) <= 4096:
+            raise ValueError("type must be a nonempty string of at most 4096 bytes")
         if not isinstance(title, str) or not 1 <= len(title.encode("utf-8")) <= 4096:
             raise ValueError("title must be a nonempty string of at most 4096 bytes")
         if step is not None and (
@@ -3722,8 +3722,14 @@ class Run:
             raise ValueError(
                 "step_metric and step_metric_value must be provided together"
             )
-        if step_metric_value is not None and not math.isfinite(step_metric_value):
-            raise ValueError("step_metric_value must be finite")
+        try:
+            valid_metric_value = step_metric_value is None or math.isfinite(
+                step_metric_value
+            )
+        except (TypeError, OverflowError):
+            valid_metric_value = False
+        if not valid_metric_value:
+            raise ValueError("step_metric_value must be a finite number")
         severity = severity.upper() if isinstance(severity, str) else ""
         if severity not in {"DEBUG", "INFO", "WARN", "ERROR", "FATAL"}:
             raise ValueError("severity must be DEBUG, INFO, WARN, ERROR, or FATAL")
@@ -3738,7 +3744,7 @@ class Run:
                 step_metric_value=step_metric_value,
                 severity=severity,
                 timestamp_ms=timestamp_ms,
-                attributes=attributes or {},
+                attributes=attributes,
             )
 
     def __enter__(self) -> Run:
