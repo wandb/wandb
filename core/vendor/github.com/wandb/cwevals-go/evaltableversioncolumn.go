@@ -199,9 +199,13 @@ func (r EvalTableVersionColumnGetResponseDatasetFieldsExtensionType) IsKnown() b
 }
 
 type EvalTableVersionColumnGetResponseScorer struct {
+	// Whether higher scores in this column are better, from the selected scorer
+	// version. Null when that version does not set it, so its scores have no
+	// direction.
+	HigherIsBetter  bool                                              `json:"higher_is_better"  api:"required,nullable"`
 	Name            string                                            `json:"name"              api:"required"`
-	ScorerID        string                                            `json:"scorer_id"         api:"required" format:"uuid"`
-	ScorerVersionID string                                            `json:"scorer_version_id" api:"required" format:"uuid"`
+	ScorerID        string                                            `json:"scorer_id"         api:"required"          format:"uuid"`
+	ScorerVersionID string                                            `json:"scorer_version_id" api:"required"          format:"uuid"`
 	ValueType       EvalTableVersionColumnGetResponseScorersValueType `json:"value_type"        api:"required"`
 	JSON            evalTableVersionColumnGetResponseScorerJSON       `json:"-"`
 }
@@ -209,6 +213,7 @@ type EvalTableVersionColumnGetResponseScorer struct {
 // evalTableVersionColumnGetResponseScorerJSON contains the JSON metadata for the
 // struct [EvalTableVersionColumnGetResponseScorer]
 type evalTableVersionColumnGetResponseScorerJSON struct {
+	HigherIsBetter  apijson.Field
 	Name            apijson.Field
 	ScorerID        apijson.Field
 	ScorerVersionID apijson.Field

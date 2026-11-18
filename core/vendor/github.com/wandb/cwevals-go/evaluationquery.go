@@ -44,11 +44,10 @@ func NewEvaluationQueryService(opts ...option.RequestOption) (r *EvaluationQuery
 // scores. For example, you can group by model variant and calculate a mean score
 // for each variant.
 //
-// The evaluation must target cases, and the definition must match its latest data.
-// Every scorer the query reads, in a metric, a group_by column, or a pass_at_k per
-// column, must allow the query's target_kind, or the request returns 400. Saving
-// the query does not calculate results. Use the query's results operation to run
-// it.
+// The definition must match the evaluation's latest data. Every scorer the query
+// reads, in a metric, a group_by column, or a pass_at_k per column, must allow the
+// query's target_kind, or the request returns 400. Saving the query does not
+// calculate results. Use the query's results operation to run it.
 //
 // Request bodies must be at most 1 MiB. Bodies larger than the limit are rejected
 // with 413 Request Entity Too Large.
@@ -241,7 +240,9 @@ type EvaluationQueryNewResponseDefinitionMetric struct {
 	//   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 	//     and false are counted.
 	//   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-	//     succeeds. Requires boolean scores, k, and per.
+	//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+	//     successes, so it rejects a scorer version whose higher_is_better is false,
+	//     where true is the bad outcome.
 	//
 	// For pass_at_k, per identifies each task. A task with n attempts and c true
 	// scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -271,8 +272,8 @@ type EvaluationQueryNewResponseDefinitionMetric struct {
 	// trajectory query, such as an input task field.
 	//
 	//   - Required for pass_at_k and rejected for other aggregations.
-	//   - Must not also appear in group_by, and must not be depth or
-	//     parent_trajectory_id.
+	//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+	//     or tags.
 	//   - Targets with no value in this column form one task.
 	//   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 	//     the result row limit.
@@ -313,7 +314,9 @@ func (r evaluationQueryNewResponseDefinitionMetricJSON) RawJSON() string {
 //   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 //     and false are counted.
 //   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-//     succeeds. Requires boolean scores, k, and per.
+//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+//     successes, so it rejects a scorer version whose higher_is_better is false,
+//     where true is the bad outcome.
 //
 // For pass_at_k, per identifies each task. A task with n attempts and c true
 // scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -372,8 +375,8 @@ func (r EvaluationQueryNewResponseDefinitionMetricsMissing) IsKnown() bool {
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -418,7 +421,8 @@ func (r *EvaluationQueryNewResponseDefinitionMetricsPer) UnmarshalJSON(data []by
 // [EvaluationQueryNewResponseDefinitionMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionMetricsPerScoreEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionMetricsPerDepthEvaluationColumn],
-// [EvaluationQueryNewResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryNewResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn].
 func (r EvaluationQueryNewResponseDefinitionMetricsPer) AsUnion() EvaluationQueryNewResponseDefinitionMetricsPerUnion {
 	return r.union
 }
@@ -427,8 +431,8 @@ func (r EvaluationQueryNewResponseDefinitionMetricsPer) AsUnion() EvaluationQuer
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -437,8 +441,9 @@ func (r EvaluationQueryNewResponseDefinitionMetricsPer) AsUnion() EvaluationQuer
 // [EvaluationQueryNewResponseDefinitionMetricsPerVariantEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionMetricsPerScoreEvaluationColumn],
-// [EvaluationQueryNewResponseDefinitionMetricsPerDepthEvaluationColumn] or
-// [EvaluationQueryNewResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryNewResponseDefinitionMetricsPerDepthEvaluationColumn],
+// [EvaluationQueryNewResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn]
+// or [EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn].
 type EvaluationQueryNewResponseDefinitionMetricsPerUnion interface {
 	implementsEvaluationQueryNewResponseDefinitionMetricsPer()
 }
@@ -475,6 +480,11 @@ func init() {
 				EvaluationQueryNewResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter:         gjson.JSON,
+			Type:               reflect.TypeOf(EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn{}),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -708,6 +718,46 @@ func (r EvaluationQueryNewResponseDefinitionMetricsPerParentTrajectoryIDEvaluati
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn struct {
+	Kind EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnJSON contains
+// the JSON metadata for the struct
+// [EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn]
+type evaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumn) implementsEvaluationQueryNewResponseDefinitionMetricsPer() {
+}
+
+type EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnKindTags EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryNewResponseDefinitionMetricsPerTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryNewResponseDefinitionMetricsPerKind string
 
 const (
@@ -716,6 +766,7 @@ const (
 	EvaluationQueryNewResponseDefinitionMetricsPerKindScore              EvaluationQueryNewResponseDefinitionMetricsPerKind = "score"
 	EvaluationQueryNewResponseDefinitionMetricsPerKindDepth              EvaluationQueryNewResponseDefinitionMetricsPerKind = "depth"
 	EvaluationQueryNewResponseDefinitionMetricsPerKindParentTrajectoryID EvaluationQueryNewResponseDefinitionMetricsPerKind = "parent_trajectory_id"
+	EvaluationQueryNewResponseDefinitionMetricsPerKindTags               EvaluationQueryNewResponseDefinitionMetricsPerKind = "tags"
 )
 
 func (r EvaluationQueryNewResponseDefinitionMetricsPerKind) IsKnown() bool {
@@ -724,7 +775,8 @@ func (r EvaluationQueryNewResponseDefinitionMetricsPerKind) IsKnown() bool {
 		EvaluationQueryNewResponseDefinitionMetricsPerKindDatasetField,
 		EvaluationQueryNewResponseDefinitionMetricsPerKindScore,
 		EvaluationQueryNewResponseDefinitionMetricsPerKindDepth,
-		EvaluationQueryNewResponseDefinitionMetricsPerKindParentTrajectoryID:
+		EvaluationQueryNewResponseDefinitionMetricsPerKindParentTrajectoryID,
+		EvaluationQueryNewResponseDefinitionMetricsPerKindTags:
 		return true
 	}
 	return false
@@ -790,7 +842,8 @@ func (r *EvaluationQueryNewResponseDefinitionGroupBy) UnmarshalJSON(data []byte)
 // [EvaluationQueryNewResponseDefinitionGroupByDatasetFieldEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionGroupByScoreEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionGroupByDepthEvaluationColumn],
-// [EvaluationQueryNewResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryNewResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn].
 func (r EvaluationQueryNewResponseDefinitionGroupBy) AsUnion() EvaluationQueryNewResponseDefinitionGroupByUnion {
 	return r.union
 }
@@ -802,8 +855,9 @@ func (r EvaluationQueryNewResponseDefinitionGroupBy) AsUnion() EvaluationQueryNe
 // [EvaluationQueryNewResponseDefinitionGroupByVariantEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionGroupByDatasetFieldEvaluationColumn],
 // [EvaluationQueryNewResponseDefinitionGroupByScoreEvaluationColumn],
-// [EvaluationQueryNewResponseDefinitionGroupByDepthEvaluationColumn] or
-// [EvaluationQueryNewResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryNewResponseDefinitionGroupByDepthEvaluationColumn],
+// [EvaluationQueryNewResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn]
+// or [EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn].
 type EvaluationQueryNewResponseDefinitionGroupByUnion interface {
 	implementsEvaluationQueryNewResponseDefinitionGroupBy()
 }
@@ -840,6 +894,11 @@ func init() {
 				EvaluationQueryNewResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter:         gjson.JSON,
+			Type:               reflect.TypeOf(EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn{}),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -1073,6 +1132,46 @@ func (r EvaluationQueryNewResponseDefinitionGroupByParentTrajectoryIDEvaluationC
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn struct {
+	Kind EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnJSON contains the
+// JSON metadata for the struct
+// [EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn]
+type evaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumn) implementsEvaluationQueryNewResponseDefinitionGroupBy() {
+}
+
+type EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnKindTags EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryNewResponseDefinitionGroupByTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryNewResponseDefinitionGroupByKind string
 
 const (
@@ -1081,6 +1180,7 @@ const (
 	EvaluationQueryNewResponseDefinitionGroupByKindScore              EvaluationQueryNewResponseDefinitionGroupByKind = "score"
 	EvaluationQueryNewResponseDefinitionGroupByKindDepth              EvaluationQueryNewResponseDefinitionGroupByKind = "depth"
 	EvaluationQueryNewResponseDefinitionGroupByKindParentTrajectoryID EvaluationQueryNewResponseDefinitionGroupByKind = "parent_trajectory_id"
+	EvaluationQueryNewResponseDefinitionGroupByKindTags               EvaluationQueryNewResponseDefinitionGroupByKind = "tags"
 )
 
 func (r EvaluationQueryNewResponseDefinitionGroupByKind) IsKnown() bool {
@@ -1089,7 +1189,8 @@ func (r EvaluationQueryNewResponseDefinitionGroupByKind) IsKnown() bool {
 		EvaluationQueryNewResponseDefinitionGroupByKindDatasetField,
 		EvaluationQueryNewResponseDefinitionGroupByKindScore,
 		EvaluationQueryNewResponseDefinitionGroupByKindDepth,
-		EvaluationQueryNewResponseDefinitionGroupByKindParentTrajectoryID:
+		EvaluationQueryNewResponseDefinitionGroupByKindParentTrajectoryID,
+		EvaluationQueryNewResponseDefinitionGroupByKindTags:
 		return true
 	}
 	return false
@@ -1239,7 +1340,9 @@ type EvaluationQueryListResponseEvaluationQueriesDefinitionMetric struct {
 	//   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 	//     and false are counted.
 	//   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-	//     succeeds. Requires boolean scores, k, and per.
+	//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+	//     successes, so it rejects a scorer version whose higher_is_better is false,
+	//     where true is the bad outcome.
 	//
 	// For pass_at_k, per identifies each task. A task with n attempts and c true
 	// scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -1269,8 +1372,8 @@ type EvaluationQueryListResponseEvaluationQueriesDefinitionMetric struct {
 	// trajectory query, such as an input task field.
 	//
 	//   - Required for pass_at_k and rejected for other aggregations.
-	//   - Must not also appear in group_by, and must not be depth or
-	//     parent_trajectory_id.
+	//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+	//     or tags.
 	//   - Targets with no value in this column form one task.
 	//   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 	//     the result row limit.
@@ -1312,7 +1415,9 @@ func (r evaluationQueryListResponseEvaluationQueriesDefinitionMetricJSON) RawJSO
 //   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 //     and false are counted.
 //   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-//     succeeds. Requires boolean scores, k, and per.
+//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+//     successes, so it rejects a scorer version whose higher_is_better is false,
+//     where true is the bad outcome.
 //
 // For pass_at_k, per identifies each task. A task with n attempts and c true
 // scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -1372,8 +1477,8 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsMissing) Is
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -1420,7 +1525,8 @@ func (r *EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPer) Unmar
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerScoreEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerDepthEvaluationColumn],
-// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn].
 func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPer) AsUnion() EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerUnion {
 	return r.union
 }
@@ -1429,8 +1535,8 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPer) AsUnio
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -1439,9 +1545,10 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPer) AsUnio
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerVariantEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerScoreEvaluationColumn],
-// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerDepthEvaluationColumn]
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerDepthEvaluationColumn],
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerParentTrajectoryIDEvaluationColumn]
 // or
-// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn].
 type EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerUnion interface {
 	implementsEvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPer()
 }
@@ -1484,6 +1591,13 @@ func init() {
 				EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter: gjson.JSON,
+			Type: reflect.TypeOf(
+				EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn{},
+			),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -1723,6 +1837,48 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerParentTr
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn struct {
+	Kind EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnJSON
+// contains the JSON metadata for the struct
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn]
+type evaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn) UnmarshalJSON(
+	data []byte,
+) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumn) implementsEvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPer() {
+}
+
+type EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnKindTags EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind string
 
 const (
@@ -1731,6 +1887,7 @@ const (
 	EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindScore              EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind = "score"
 	EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindDepth              EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind = "depth"
 	EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindParentTrajectoryID EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind = "parent_trajectory_id"
+	EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindTags               EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind = "tags"
 )
 
 func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind) IsKnown() bool {
@@ -1739,7 +1896,8 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKind) Is
 		EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindDatasetField,
 		EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindScore,
 		EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindDepth,
-		EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindParentTrajectoryID:
+		EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindParentTrajectoryID,
+		EvaluationQueryListResponseEvaluationQueriesDefinitionMetricsPerKindTags:
 		return true
 	}
 	return false
@@ -1807,7 +1965,8 @@ func (r *EvaluationQueryListResponseEvaluationQueriesDefinitionGroupBy) Unmarsha
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByDatasetFieldEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByScoreEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByDepthEvaluationColumn],
-// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn].
 func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupBy) AsUnion() EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByUnion {
 	return r.union
 }
@@ -1819,9 +1978,10 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupBy) AsUnion()
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByVariantEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByDatasetFieldEvaluationColumn],
 // [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByScoreEvaluationColumn],
-// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByDepthEvaluationColumn]
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByDepthEvaluationColumn],
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByParentTrajectoryIDEvaluationColumn]
 // or
-// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn].
 type EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByUnion interface {
 	implementsEvaluationQueryListResponseEvaluationQueriesDefinitionGroupBy()
 }
@@ -1864,6 +2024,13 @@ func init() {
 				EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter: gjson.JSON,
+			Type: reflect.TypeOf(
+				EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn{},
+			),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -2103,6 +2270,48 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByParentTraje
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn struct {
+	Kind EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnJSON
+// contains the JSON metadata for the struct
+// [EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn]
+type evaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn) UnmarshalJSON(
+	data []byte,
+) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumn) implementsEvaluationQueryListResponseEvaluationQueriesDefinitionGroupBy() {
+}
+
+type EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnKindTags EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind string
 
 const (
@@ -2111,6 +2320,7 @@ const (
 	EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindScore              EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind = "score"
 	EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindDepth              EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind = "depth"
 	EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindParentTrajectoryID EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind = "parent_trajectory_id"
+	EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindTags               EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind = "tags"
 )
 
 func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind) IsKnown() bool {
@@ -2119,7 +2329,8 @@ func (r EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKind) IsKno
 		EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindDatasetField,
 		EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindScore,
 		EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindDepth,
-		EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindParentTrajectoryID:
+		EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindParentTrajectoryID,
+		EvaluationQueryListResponseEvaluationQueriesDefinitionGroupByKindTags:
 		return true
 	}
 	return false
@@ -2246,7 +2457,9 @@ type EvaluationQueryGetResponseDefinitionMetric struct {
 	//   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 	//     and false are counted.
 	//   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-	//     succeeds. Requires boolean scores, k, and per.
+	//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+	//     successes, so it rejects a scorer version whose higher_is_better is false,
+	//     where true is the bad outcome.
 	//
 	// For pass_at_k, per identifies each task. A task with n attempts and c true
 	// scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -2276,8 +2489,8 @@ type EvaluationQueryGetResponseDefinitionMetric struct {
 	// trajectory query, such as an input task field.
 	//
 	//   - Required for pass_at_k and rejected for other aggregations.
-	//   - Must not also appear in group_by, and must not be depth or
-	//     parent_trajectory_id.
+	//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+	//     or tags.
 	//   - Targets with no value in this column form one task.
 	//   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 	//     the result row limit.
@@ -2318,7 +2531,9 @@ func (r evaluationQueryGetResponseDefinitionMetricJSON) RawJSON() string {
 //   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 //     and false are counted.
 //   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-//     succeeds. Requires boolean scores, k, and per.
+//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+//     successes, so it rejects a scorer version whose higher_is_better is false,
+//     where true is the bad outcome.
 //
 // For pass_at_k, per identifies each task. A task with n attempts and c true
 // scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -2377,8 +2592,8 @@ func (r EvaluationQueryGetResponseDefinitionMetricsMissing) IsKnown() bool {
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -2423,7 +2638,8 @@ func (r *EvaluationQueryGetResponseDefinitionMetricsPer) UnmarshalJSON(data []by
 // [EvaluationQueryGetResponseDefinitionMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionMetricsPerScoreEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionMetricsPerDepthEvaluationColumn],
-// [EvaluationQueryGetResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryGetResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn].
 func (r EvaluationQueryGetResponseDefinitionMetricsPer) AsUnion() EvaluationQueryGetResponseDefinitionMetricsPerUnion {
 	return r.union
 }
@@ -2432,8 +2648,8 @@ func (r EvaluationQueryGetResponseDefinitionMetricsPer) AsUnion() EvaluationQuer
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -2442,8 +2658,9 @@ func (r EvaluationQueryGetResponseDefinitionMetricsPer) AsUnion() EvaluationQuer
 // [EvaluationQueryGetResponseDefinitionMetricsPerVariantEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionMetricsPerScoreEvaluationColumn],
-// [EvaluationQueryGetResponseDefinitionMetricsPerDepthEvaluationColumn] or
-// [EvaluationQueryGetResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryGetResponseDefinitionMetricsPerDepthEvaluationColumn],
+// [EvaluationQueryGetResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn]
+// or [EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn].
 type EvaluationQueryGetResponseDefinitionMetricsPerUnion interface {
 	implementsEvaluationQueryGetResponseDefinitionMetricsPer()
 }
@@ -2480,6 +2697,11 @@ func init() {
 				EvaluationQueryGetResponseDefinitionMetricsPerParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter:         gjson.JSON,
+			Type:               reflect.TypeOf(EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn{}),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -2713,6 +2935,46 @@ func (r EvaluationQueryGetResponseDefinitionMetricsPerParentTrajectoryIDEvaluati
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn struct {
+	Kind EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnJSON contains
+// the JSON metadata for the struct
+// [EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn]
+type evaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumn) implementsEvaluationQueryGetResponseDefinitionMetricsPer() {
+}
+
+type EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnKindTags EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryGetResponseDefinitionMetricsPerTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryGetResponseDefinitionMetricsPerKind string
 
 const (
@@ -2721,6 +2983,7 @@ const (
 	EvaluationQueryGetResponseDefinitionMetricsPerKindScore              EvaluationQueryGetResponseDefinitionMetricsPerKind = "score"
 	EvaluationQueryGetResponseDefinitionMetricsPerKindDepth              EvaluationQueryGetResponseDefinitionMetricsPerKind = "depth"
 	EvaluationQueryGetResponseDefinitionMetricsPerKindParentTrajectoryID EvaluationQueryGetResponseDefinitionMetricsPerKind = "parent_trajectory_id"
+	EvaluationQueryGetResponseDefinitionMetricsPerKindTags               EvaluationQueryGetResponseDefinitionMetricsPerKind = "tags"
 )
 
 func (r EvaluationQueryGetResponseDefinitionMetricsPerKind) IsKnown() bool {
@@ -2729,7 +2992,8 @@ func (r EvaluationQueryGetResponseDefinitionMetricsPerKind) IsKnown() bool {
 		EvaluationQueryGetResponseDefinitionMetricsPerKindDatasetField,
 		EvaluationQueryGetResponseDefinitionMetricsPerKindScore,
 		EvaluationQueryGetResponseDefinitionMetricsPerKindDepth,
-		EvaluationQueryGetResponseDefinitionMetricsPerKindParentTrajectoryID:
+		EvaluationQueryGetResponseDefinitionMetricsPerKindParentTrajectoryID,
+		EvaluationQueryGetResponseDefinitionMetricsPerKindTags:
 		return true
 	}
 	return false
@@ -2795,7 +3059,8 @@ func (r *EvaluationQueryGetResponseDefinitionGroupBy) UnmarshalJSON(data []byte)
 // [EvaluationQueryGetResponseDefinitionGroupByDatasetFieldEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionGroupByScoreEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionGroupByDepthEvaluationColumn],
-// [EvaluationQueryGetResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryGetResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn].
 func (r EvaluationQueryGetResponseDefinitionGroupBy) AsUnion() EvaluationQueryGetResponseDefinitionGroupByUnion {
 	return r.union
 }
@@ -2807,8 +3072,9 @@ func (r EvaluationQueryGetResponseDefinitionGroupBy) AsUnion() EvaluationQueryGe
 // [EvaluationQueryGetResponseDefinitionGroupByVariantEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionGroupByDatasetFieldEvaluationColumn],
 // [EvaluationQueryGetResponseDefinitionGroupByScoreEvaluationColumn],
-// [EvaluationQueryGetResponseDefinitionGroupByDepthEvaluationColumn] or
-// [EvaluationQueryGetResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn].
+// [EvaluationQueryGetResponseDefinitionGroupByDepthEvaluationColumn],
+// [EvaluationQueryGetResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn]
+// or [EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn].
 type EvaluationQueryGetResponseDefinitionGroupByUnion interface {
 	implementsEvaluationQueryGetResponseDefinitionGroupBy()
 }
@@ -2845,6 +3111,11 @@ func init() {
 				EvaluationQueryGetResponseDefinitionGroupByParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter:         gjson.JSON,
+			Type:               reflect.TypeOf(EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn{}),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -3078,6 +3349,46 @@ func (r EvaluationQueryGetResponseDefinitionGroupByParentTrajectoryIDEvaluationC
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn struct {
+	Kind EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnJSON contains the
+// JSON metadata for the struct
+// [EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn]
+type evaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumn) implementsEvaluationQueryGetResponseDefinitionGroupBy() {
+}
+
+type EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnKindTags EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryGetResponseDefinitionGroupByTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryGetResponseDefinitionGroupByKind string
 
 const (
@@ -3086,6 +3397,7 @@ const (
 	EvaluationQueryGetResponseDefinitionGroupByKindScore              EvaluationQueryGetResponseDefinitionGroupByKind = "score"
 	EvaluationQueryGetResponseDefinitionGroupByKindDepth              EvaluationQueryGetResponseDefinitionGroupByKind = "depth"
 	EvaluationQueryGetResponseDefinitionGroupByKindParentTrajectoryID EvaluationQueryGetResponseDefinitionGroupByKind = "parent_trajectory_id"
+	EvaluationQueryGetResponseDefinitionGroupByKindTags               EvaluationQueryGetResponseDefinitionGroupByKind = "tags"
 )
 
 func (r EvaluationQueryGetResponseDefinitionGroupByKind) IsKnown() bool {
@@ -3094,7 +3406,8 @@ func (r EvaluationQueryGetResponseDefinitionGroupByKind) IsKnown() bool {
 		EvaluationQueryGetResponseDefinitionGroupByKindDatasetField,
 		EvaluationQueryGetResponseDefinitionGroupByKindScore,
 		EvaluationQueryGetResponseDefinitionGroupByKindDepth,
-		EvaluationQueryGetResponseDefinitionGroupByKindParentTrajectoryID:
+		EvaluationQueryGetResponseDefinitionGroupByKindParentTrajectoryID,
+		EvaluationQueryGetResponseDefinitionGroupByKindTags:
 		return true
 	}
 	return false
@@ -3178,11 +3491,14 @@ type EvaluationQueryNewParamsDefinition struct {
 	// Omit, send null, or use an empty list to calculate metrics across all targets. A
 	// trajectory query reads dataset fields from each trajectory's root case and
 	// scores from the trajectory, and can also group by the trajectory's depth and
-	// parent_trajectory_id.
+	// parent_trajectory_id. A case query can also group by tags. Each tag name forms a
+	// group, a case with several tags counts in each of them, and cases with no tags
+	// form the null group.
 	GroupBy param.Field[[]EvaluationQueryNewParamsDefinitionGroupByUnion] `json:"group_by"`
 	// Targets whose scores the query aggregates. Omit or use case to aggregate the
 	// dataset's cases. trajectory aggregates scores on the dataset's trajectories and
-	// groups each trajectory by its root case's variant and fields.
+	// groups each trajectory by its root case's variant and fields. It does not have
+	// to match the evaluation's primary_target_kind.
 	TargetKind param.Field[EvaluationQueryNewParamsDefinitionTargetKind] `json:"target_kind"`
 	// Definition version.
 	V param.Field[int64] `json:"v"`
@@ -3205,7 +3521,9 @@ type EvaluationQueryNewParamsDefinitionMetric struct {
 	//   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 	//     and false are counted.
 	//   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-	//     succeeds. Requires boolean scores, k, and per.
+	//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+	//     successes, so it rejects a scorer version whose higher_is_better is false,
+	//     where true is the bad outcome.
 	//
 	// For pass_at_k, per identifies each task. A task with n attempts and c true
 	// scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -3235,8 +3553,8 @@ type EvaluationQueryNewParamsDefinitionMetric struct {
 	// trajectory query, such as an input task field.
 	//
 	//   - Required for pass_at_k and rejected for other aggregations.
-	//   - Must not also appear in group_by, and must not be depth or
-	//     parent_trajectory_id.
+	//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+	//     or tags.
 	//   - Targets with no value in this column form one task.
 	//   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 	//     the result row limit.
@@ -3259,7 +3577,9 @@ func (r EvaluationQueryNewParamsDefinitionMetric) MarshalJSON() (data []byte, er
 //   - **count**: Number of non-null integer, number, boolean, or string scores. Zero
 //     and false are counted.
 //   - **pass_at_k**: Estimated probability that at least one of k attempts at a task
-//     succeeds. Requires boolean scores, k, and per.
+//     succeeds. Requires boolean scores, k, and per. It counts true scores as
+//     successes, so it rejects a scorer version whose higher_is_better is false,
+//     where true is the bad outcome.
 //
 // For pass_at_k, per identifies each task. A task with n attempts and c true
 // scores contributes 1 - C(n-c, k) / C(n, k), and the result averages the tasks.
@@ -3318,8 +3638,8 @@ func (r EvaluationQueryNewParamsDefinitionMetricsMissing) IsKnown() bool {
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -3342,8 +3662,8 @@ func (r EvaluationQueryNewParamsDefinitionMetricsPer) implementsEvaluationQueryN
 // trajectory query, such as an input task field.
 //
 //   - Required for pass_at_k and rejected for other aggregations.
-//   - Must not also appear in group_by, and must not be depth or
-//     parent_trajectory_id.
+//   - Must not also appear in group_by, and must not be depth, parent_trajectory_id,
+//     or tags.
 //   - Targets with no value in this column form one task.
 //   - A page returns 400 if the number of groups multiplied by their tasks exceeds
 //     the result row limit.
@@ -3354,6 +3674,7 @@ func (r EvaluationQueryNewParamsDefinitionMetricsPer) implementsEvaluationQueryN
 // [EvaluationQueryNewParamsDefinitionMetricsPerScoreEvaluationColumn],
 // [EvaluationQueryNewParamsDefinitionMetricsPerDepthEvaluationColumn],
 // [EvaluationQueryNewParamsDefinitionMetricsPerParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumn],
 // [EvaluationQueryNewParamsDefinitionMetricsPer].
 type EvaluationQueryNewParamsDefinitionMetricsPerUnion interface {
 	implementsEvaluationQueryNewParamsDefinitionMetricsPerUnion()
@@ -3511,6 +3832,32 @@ func (r EvaluationQueryNewParamsDefinitionMetricsPerParentTrajectoryIDEvaluation
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumn struct {
+	Kind param.Field[EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumnKind] `json:"kind" api:"required"`
+}
+
+func (r EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumn) MarshalJSON() (data []byte, err error) {
+	return apijson.MarshalRoot(r)
+}
+
+func (r EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumn) implementsEvaluationQueryNewParamsDefinitionMetricsPerUnion() {
+}
+
+type EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumnKindTags EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryNewParamsDefinitionMetricsPerTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryNewParamsDefinitionMetricsPerKind string
 
 const (
@@ -3519,6 +3866,7 @@ const (
 	EvaluationQueryNewParamsDefinitionMetricsPerKindScore              EvaluationQueryNewParamsDefinitionMetricsPerKind = "score"
 	EvaluationQueryNewParamsDefinitionMetricsPerKindDepth              EvaluationQueryNewParamsDefinitionMetricsPerKind = "depth"
 	EvaluationQueryNewParamsDefinitionMetricsPerKindParentTrajectoryID EvaluationQueryNewParamsDefinitionMetricsPerKind = "parent_trajectory_id"
+	EvaluationQueryNewParamsDefinitionMetricsPerKindTags               EvaluationQueryNewParamsDefinitionMetricsPerKind = "tags"
 )
 
 func (r EvaluationQueryNewParamsDefinitionMetricsPerKind) IsKnown() bool {
@@ -3527,7 +3875,8 @@ func (r EvaluationQueryNewParamsDefinitionMetricsPerKind) IsKnown() bool {
 		EvaluationQueryNewParamsDefinitionMetricsPerKindDatasetField,
 		EvaluationQueryNewParamsDefinitionMetricsPerKindScore,
 		EvaluationQueryNewParamsDefinitionMetricsPerKindDepth,
-		EvaluationQueryNewParamsDefinitionMetricsPerKindParentTrajectoryID:
+		EvaluationQueryNewParamsDefinitionMetricsPerKindParentTrajectoryID,
+		EvaluationQueryNewParamsDefinitionMetricsPerKindTags:
 		return true
 	}
 	return false
@@ -3575,6 +3924,7 @@ func (r EvaluationQueryNewParamsDefinitionGroupBy) implementsEvaluationQueryNewP
 // [EvaluationQueryNewParamsDefinitionGroupByScoreEvaluationColumn],
 // [EvaluationQueryNewParamsDefinitionGroupByDepthEvaluationColumn],
 // [EvaluationQueryNewParamsDefinitionGroupByParentTrajectoryIDEvaluationColumn],
+// [EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumn],
 // [EvaluationQueryNewParamsDefinitionGroupBy].
 type EvaluationQueryNewParamsDefinitionGroupByUnion interface {
 	implementsEvaluationQueryNewParamsDefinitionGroupByUnion()
@@ -3732,6 +4082,32 @@ func (r EvaluationQueryNewParamsDefinitionGroupByParentTrajectoryIDEvaluationCol
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumn struct {
+	Kind param.Field[EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumnKind] `json:"kind" api:"required"`
+}
+
+func (r EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumn) MarshalJSON() (data []byte, err error) {
+	return apijson.MarshalRoot(r)
+}
+
+func (r EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumn) implementsEvaluationQueryNewParamsDefinitionGroupByUnion() {
+}
+
+type EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumnKind string
+
+const (
+	EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumnKindTags EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationQueryNewParamsDefinitionGroupByTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationQueryNewParamsDefinitionGroupByKind string
 
 const (
@@ -3740,6 +4116,7 @@ const (
 	EvaluationQueryNewParamsDefinitionGroupByKindScore              EvaluationQueryNewParamsDefinitionGroupByKind = "score"
 	EvaluationQueryNewParamsDefinitionGroupByKindDepth              EvaluationQueryNewParamsDefinitionGroupByKind = "depth"
 	EvaluationQueryNewParamsDefinitionGroupByKindParentTrajectoryID EvaluationQueryNewParamsDefinitionGroupByKind = "parent_trajectory_id"
+	EvaluationQueryNewParamsDefinitionGroupByKindTags               EvaluationQueryNewParamsDefinitionGroupByKind = "tags"
 )
 
 func (r EvaluationQueryNewParamsDefinitionGroupByKind) IsKnown() bool {
@@ -3748,7 +4125,8 @@ func (r EvaluationQueryNewParamsDefinitionGroupByKind) IsKnown() bool {
 		EvaluationQueryNewParamsDefinitionGroupByKindDatasetField,
 		EvaluationQueryNewParamsDefinitionGroupByKindScore,
 		EvaluationQueryNewParamsDefinitionGroupByKindDepth,
-		EvaluationQueryNewParamsDefinitionGroupByKindParentTrajectoryID:
+		EvaluationQueryNewParamsDefinitionGroupByKindParentTrajectoryID,
+		EvaluationQueryNewParamsDefinitionGroupByKindTags:
 		return true
 	}
 	return false
@@ -3772,7 +4150,8 @@ func (r EvaluationQueryNewParamsDefinitionGroupBySource) IsKnown() bool {
 
 // Targets whose scores the query aggregates. Omit or use case to aggregate the
 // dataset's cases. trajectory aggregates scores on the dataset's trajectories and
-// groups each trajectory by its root case's variant and fields.
+// groups each trajectory by its root case's variant and fields. It does not have
+// to match the evaluation's primary_target_kind.
 type EvaluationQueryNewParamsDefinitionTargetKind string
 
 const (
