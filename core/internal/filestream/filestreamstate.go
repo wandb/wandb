@@ -196,6 +196,13 @@ func (s *FileStreamState) popSummary(
 		return
 	}
 
+	// History sent after a summary overrides the summary's values for the
+	// keys it logs, so the summary waits for the history logged before it.
+	if len(request.HistoryLines) > 0 {
+		builder.HasMore = true
+		return
+	}
+
 	if s.RunSummary == nil {
 		s.RunSummary = runsummary.New()
 	}

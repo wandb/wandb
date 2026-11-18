@@ -190,6 +190,28 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 	assert.Equal(t, 7, state.SummaryLineNum) // never updated; see docs
 }
 
+func TestState_Pop_SummaryWaitsForHistory(t *testing.T) {
+	state := &FileStreamState{MaxRequestSizeBytes: 30, MaxFileLineSize: 99}
+	request := &FileStreamRequest{
+		HistoryLines:   []string{"10 bytes..", "this row has 21 bytes"},
+		SummaryUpdates: summaryUpdate("a", "1"),
+	}
+
+	// The summary would fit next to the first row, but the second row
+	// doesn't, so the summary waits for it.
+	json, hasMore := pop(t, state, request)
+	assert.True(t, hasMore)
+	assert.Equal(t, []string{"10 bytes.."}, json.Files[HistoryFileName].Content)
+	assert.NotContains(t, json.Files, SummaryFileName)
+
+	json, hasMore = pop(t, state, request)
+	assert.False(t, hasMore)
+	assert.Equal(t,
+		[]string{"this row has 21 bytes"},
+		json.Files[HistoryFileName].Content)
+	assert.Equal(t, []string{`{"a":1}`}, json.Files[SummaryFileName].Content)
+}
+
 func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
 	request := &FileStreamRequest{}
@@ -496,15 +518,15 @@ func TestState_Pop_SummaryDeltaEndOfStream(t *testing.T) {
 
 	t.Run("full summary waits for the last request", func(t *testing.T) {
 		state := deltaState()
-		state.MaxRequestSizeBytes = 17 // one history line and the delta
+		state.MaxRequestSizeBytes = 17 // one history line and the summary
 		request := &FileStreamRequest{
 			Complete:       true,
 			HistoryLines:   []string{"history 1", "history 2"},
 			SummaryUpdates: summaryUpdate("a", "1"),
 		}
 
-		_, isDelta := popSummaryLine(t, state, request)
-		assert.True(t, isDelta)
+		line, _ := popSummaryLine(t, state, request)
+		assert.Empty(t, line)
 
 		line, isDelta := popSummaryLine(t, state, request)
 		assert.JSONEq(t, `{"a":1}`, line)
