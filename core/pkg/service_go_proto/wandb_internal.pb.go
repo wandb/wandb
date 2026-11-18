@@ -2493,12 +2493,18 @@ func (x *HistoryStep) GetNum() int64 {
 }
 
 type HistoryRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Item          []*HistoryItem         `protobuf:"bytes,1,rep,name=item,proto3" json:"item,omitempty"`
-	Step          *HistoryStep           `protobuf:"bytes,2,opt,name=step,proto3" json:"step,omitempty"`
-	XInfo         *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Item  []*HistoryItem         `protobuf:"bytes,1,rep,name=item,proto3" json:"item,omitempty"`
+	Step  *HistoryStep           `protobuf:"bytes,2,opt,name=step,proto3" json:"step,omitempty"`
+	// The time the step was logged relative to the start of this run segment.
+	//
+	// In other words, this is relative to the start of the .wandb file (if one
+	// exists). In a resumed run, this is different from the "runtime", which is
+	// the time from the start of the run.
+	RelativeTimeMs *int64       `protobuf:"varint,3,opt,name=relative_time_ms,json=relativeTimeMs,proto3,oneof" json:"relative_time_ms,omitempty"`
+	XInfo          *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *HistoryRecord) Reset() {
@@ -2543,6 +2549,13 @@ func (x *HistoryRecord) GetStep() *HistoryStep {
 		return x.Step
 	}
 	return nil
+}
+
+func (x *HistoryRecord) GetRelativeTimeMs() int64 {
+	if x != nil && x.RelativeTimeMs != nil {
+		return *x.RelativeTimeMs
+	}
+	return 0
 }
 
 func (x *HistoryRecord) GetXInfo() *XRecordInfo {
@@ -12055,11 +12068,13 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\n" +
 	"value_json\x18\x10 \x01(\tR\tvalueJson\"\x1f\n" +
 	"\vHistoryStep\x12\x10\n" +
-	"\x03num\x18\x01 \x01(\x03R\x03num\"\xa4\x01\n" +
+	"\x03num\x18\x01 \x01(\x03R\x03num\"\xe8\x01\n" +
 	"\rHistoryRecord\x12/\n" +
 	"\x04item\x18\x01 \x03(\v2\x1b.wandb_internal.HistoryItemR\x04item\x12/\n" +
-	"\x04step\x18\x02 \x01(\v2\x1b.wandb_internal.HistoryStepR\x04step\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x96\x02\n" +
+	"\x04step\x18\x02 \x01(\v2\x1b.wandb_internal.HistoryStepR\x04step\x12-\n" +
+	"\x10relative_time_ms\x18\x03 \x01(\x03H\x00R\x0erelativeTimeMs\x88\x01\x01\x121\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04InfoB\x13\n" +
+	"\x11_relative_time_ms\"\x96\x02\n" +
 	"\vHistoryItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
 	"\n" +
@@ -13319,6 +13334,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Result_ConfigResult)(nil),
 		(*Result_Response)(nil),
 	}
+	file_wandb_proto_wandb_internal_proto_msgTypes[19].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[20].OneofWrappers = []any{
 		(*HistoryItem_None)(nil),
 		(*HistoryItem_Boolean)(nil),

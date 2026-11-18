@@ -289,6 +289,14 @@ message HistoryStep {
 message HistoryRecord {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
+
+  // The time the step was logged relative to the start of this run segment.
+  //
+  // In other words, this is relative to the start of the .wandb file (if one
+  // exists). In a resumed run, this is different from the "runtime", which is
+  // the time from the start of the run.
+  optional int64 relative_time_ms = 3;
+
   _RecordInfo _info = 200;
 }
 
