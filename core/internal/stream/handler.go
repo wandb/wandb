@@ -1179,7 +1179,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
-	historyRecord := &spb.HistoryRecord{Item: items}
+	relativeTimeMs := h.runHandle.RelativeTime().Milliseconds()
+	historyRecord := &spb.HistoryRecord{
+		Item:           items,
+		RelativeTimeMs: &relativeTimeMs,
+	}
 	if useStep {
 		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
 	}
