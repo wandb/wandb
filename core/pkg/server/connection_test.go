@@ -8,8 +8,9 @@ import (
 	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestConnection_ManageConnectionDataReturnsWhenPeerCloses(t *testing.T) {
