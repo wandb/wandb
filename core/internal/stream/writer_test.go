@@ -19,15 +19,6 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func waitForExitFlush(t *testing.T, writer *stream.Writer) <-chan error {
-	t.Helper()
-
-	result := make(chan error, 1)
-	go func() { result <- writer.WaitForExitFlush(t.Context()) }()
-
-	return result
-}
-
 func startTestWriter(t *testing.T) (*transactionlog.Reader, *stream.Writer, chan runwork.Work) {
 	t.Helper()
 
@@ -113,21 +104,16 @@ func TestWriter_ExitFlushWaitsForExit(t *testing.T) {
 			for range writer.Chan() {
 			}
 		}()
-		result := waitForExitFlush(t, writer)
-		synctest.Wait()
-		select {
-		case <-result:
-			t.Fatal("request responded before exit")
-		default:
-		}
 		input <- runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
 			RecordType: &spb.Record_Output{Output: &spb.OutputRecord{Line: "data"}},
 		}))
 		<-writer.Chan()
+		_, err := logReader.Read()
+		require.Error(t, err, "the output should not be readable before exit")
+		require.NoError(t, logReader.ResetLastRead())
 		input <- runwork.NoRequest(runwork.WorkFromRecord(makeExitRecord()))
 		synctest.Wait() // The writer is blocked forwarding exit to the sender.
 
-		require.NoError(t, <-result)
 		first, err := logReader.Read()
 		require.NoError(t, err)
 		assert.Equal(t, "data", first.GetOutput().GetLine())
@@ -145,13 +131,6 @@ func TestWriter_ExitFlushAfterPreviousWriteFailure(t *testing.T) {
 			for range writer.Chan() {
 			}
 		}()
-		result := waitForExitFlush(t, writer)
-		synctest.Wait()
-		select {
-		case <-result:
-			t.Fatal("request responded before exit")
-		default:
-		}
 		input <- runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
 			Uuid:       "\xff",
 			RecordType: &spb.Record_Output{Output: &spb.OutputRecord{Line: "data"}},
@@ -160,7 +139,6 @@ func TestWriter_ExitFlushAfterPreviousWriteFailure(t *testing.T) {
 		input <- runwork.NoRequest(runwork.WorkFromRecord(makeExitRecord()))
 		synctest.Wait() // The writer is blocked forwarding exit to the sender.
 
-		require.NoError(t, <-result)
 		exit, err := logReader.Read()
 		require.NoError(t, err)
 		require.NotNil(t, exit.GetExit())
@@ -175,13 +153,6 @@ func TestWriter_ExitFlushAfterExitWriteFailure(t *testing.T) {
 			for range writer.Chan() {
 			}
 		}()
-		result := waitForExitFlush(t, writer)
-		synctest.Wait()
-		select {
-		case <-result:
-			t.Fatal("request responded before exit")
-		default:
-		}
 		input <- runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
 			RecordType: &spb.Record_Output{Output: &spb.OutputRecord{Line: "data"}},
 		}))
@@ -191,30 +162,10 @@ func TestWriter_ExitFlushAfterExitWriteFailure(t *testing.T) {
 		input <- runwork.NoRequest(runwork.WorkFromRecord(exitRecord))
 		synctest.Wait() // The writer is blocked forwarding exit to the sender.
 
-		require.NoError(t, <-result)
 		first, err := logReader.Read()
 		require.NoError(t, err)
 		assert.Equal(t, "data", first.GetOutput().GetLine())
 		_, err = logReader.Read()
 		require.ErrorIs(t, err, io.EOF)
-	})
-}
-
-func TestWriter_RejectsExitFlushWhenClosedWithoutExit(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		_, logWriter := transactionlogtest.ReaderWriter(t)
-		writerFactory := &stream.WriterFactory{
-			Logger:   observabilitytest.NewTestLogger(t),
-			Settings: settings.New(),
-		}
-		writer := writerFactory.New(logWriter)
-		input := make(chan runwork.Work)
-		result := waitForExitFlush(t, writer)
-		go writer.Do(input)
-		close(input)
-
-		require.Error(t, <-result)
-		for range writer.Chan() {
-		}
 	})
 }

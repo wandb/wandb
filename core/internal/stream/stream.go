@@ -2,7 +2,6 @@ package stream
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,8 +86,9 @@ type Stream struct {
 	// writerFactory is used to create the Writer component
 	writerFactory *WriterFactory
 
-	// writer saves work to the transaction log, or is nil if unavailable.
-	writer *Writer
+	// transactionLogReady closes after the exit flush or if the writer stops.
+	// It is nil if the transaction log is unavailable.
+	transactionLogReady <-chan struct{}
 
 	exitFlushMu     sync.Mutex
 	exitFlushClosed bool
@@ -227,9 +227,9 @@ func (s *Stream) maybeSavingToTransactionLog(
 		return work
 	}
 
-	s.writer = s.writerFactory.New(w)
+	writer := s.writerFactory.New(w)
 	flowControl := s.flowControlFactory.New(
-		r, s.writer.Flush, s.recordParser,
+		r, writer.Flush, s.recordParser,
 		FlowControlParams{
 			InMemorySize: 32,   // Max records before off-loading.
 			Limit:        1024, // Max unsaved records before blocking.
@@ -238,16 +238,17 @@ func (s *Stream) maybeSavingToTransactionLog(
 
 	s.wg.Add(1)
 	go func() {
-		s.writer.Do(work)
+		writer.Do(work)
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
 	go func() {
-		flowControl.Do(s.writer.Chan())
+		flowControl.Do(writer.Chan())
 		s.wg.Done()
 	}()
 
+	s.transactionLogReady = writer.exitFlushDone
 	return flowControl.Chan()
 }
 
@@ -281,23 +282,24 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 }
 
 func (s *Stream) notifyAfterExit(request *runwork.Request) {
-	var err error
-	if s.writer == nil {
-		err = errors.New("transaction log is unavailable")
-	} else {
-		err = s.writer.WaitForExitFlush(request.Context())
+	select {
+	case <-request.Context().Done():
+		return
+	case <-s.started:
 	}
 
-	if request.Context().Err() != nil {
+	if s.transactionLogReady == nil {
+		request.WillNotRespond()
 		return
 	}
 
-	if err != nil {
-		request.Respond(&spb.ServerResponse{
-			ServerResponseType: &spb.ServerResponse_ErrorResponse{
-				ErrorResponse: &spb.ServerErrorResponse{Message: err.Error()},
-			},
-		})
+	select {
+	case <-request.Context().Done():
+		return
+	case <-s.transactionLogReady:
+	}
+
+	if request.Context().Err() != nil {
 		return
 	}
 

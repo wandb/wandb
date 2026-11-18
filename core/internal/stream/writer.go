@@ -2,7 +2,6 @@ package stream
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -53,9 +52,8 @@ type Writer struct {
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
 
-	exitFlushDone chan struct{}
-	exitFlushed   bool
-	exitFlushErr  error
+	exitFlushDone      chan struct{}
+	exitFlushAttempted bool
 
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
@@ -78,26 +76,12 @@ func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
 	return w.out
 }
 
-// WaitForExitFlush waits for the exit flush or the writer to stop.
-//
-// It returns the flush error, an error if the writer stops before exit, or the
-// context error if the wait is canceled.
-func (w *Writer) WaitForExitFlush(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-w.exitFlushDone:
-		return w.exitFlushErr
-	}
-}
-
 // Do saves all input Work and pushes it to the output channel,
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise("stream")
 	defer func() {
-		if !w.exitFlushed {
-			w.exitFlushErr = errors.New("transaction log closed before an exit record")
+		if !w.exitFlushAttempted {
 			close(w.exitFlushDone)
 		}
 		close(w.out)
@@ -169,9 +153,8 @@ func (w *Writer) process(work runwork.Work) {
 			)
 		}
 
-		if !w.exitFlushed {
-			w.exitFlushed = true
-			w.exitFlushErr = err
+		if !w.exitFlushAttempted {
+			w.exitFlushAttempted = true
 			close(w.exitFlushDone)
 		}
 	}
