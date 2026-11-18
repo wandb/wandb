@@ -1,7 +1,6 @@
 package evaltables_test
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/binary"
@@ -353,7 +352,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"flag":true,`+
 			`"count":9007199254740993,`+
 			`"temperature":0.25,`+
-			`"prompt":"draw <a> cat & dog",`+
+			`"prompt":"draw \u003ca\u003e cat \u0026 dog",`+
 			`"config":{"seed":7,"tags":["a","b"]},`+
 			`"note":null`+
 			`},`+
@@ -364,61 +363,6 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"example_key":"2"}`+
 			`]`,
 		table.RowsJSON(t))
-}
-
-func TestEncode_StringsAndNumbersLikeEncodingJSON(t *testing.T) {
-	strs := []string{
-		"",
-		"plain",
-		`quote " and backslash \`,
-		"\b\f\n\r\t\x00\x1f\x7f",
-		"<html> & </html>",
-		"line and paragraph separators",
-		"café ☕ 𝄞",
-		"invalid \xff UTF-8",
-	}
-	numbers := []float64{
-		0, math.Copysign(0, -1), 1, -1.5, 0.1, 1e-6, 1e-7, 123456789.125,
-		1e20, 1e21, math.MaxFloat64, math.SmallestNonzeroFloat64,
-	}
-
-	var fields []*spb.EvalTableField
-	var row []*spb.EvalTableValue
-	var want []string
-	for i, s := range strs {
-		name := fmt.Sprintf("s%d", i)
-		fields = append(fields,
-			&spb.EvalTableField{Source: "input", Name: name, ValueType: "string"})
-		row = append(row, stringValue(s))
-		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, s))
-	}
-	for i, n := range numbers {
-		name := fmt.Sprintf("n%d", i)
-		fields = append(fields,
-			&spb.EvalTableField{Source: "input", Name: name, ValueType: "number"})
-		row = append(row, numberValue(n))
-		want = append(want, encodeJSON(t, name)+":"+encodeJSON(t, n))
-	}
-
-	table, err := encode(t, &spb.EvalTableData{
-		DatasetFields: fields,
-		Rows:          []*spb.EvalTableRow{{Input: values(row...)}},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t,
-		`[{"input":{`+strings.Join(want, ",")+`},"output":null,"scores":{}}]`,
-		table.RowsJSON(t))
-}
-
-// encodeJSON encodes v like encoding/json without HTML escaping.
-func encodeJSON(t *testing.T, v any) string {
-	t.Helper()
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	require.NoError(t, encoder.Encode(v))
-	return strings.TrimSuffix(buf.String(), "\n")
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
@@ -953,7 +897,7 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 			name:    "NaN",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "number"},
 			row:     &spb.EvalTableRow{Input: values(numberValue(math.NaN()))},
-			wantErr: `field "a": unsupported number NaN`,
+			wantErr: `field "a": json: unsupported value: NaN`,
 		},
 	}
 

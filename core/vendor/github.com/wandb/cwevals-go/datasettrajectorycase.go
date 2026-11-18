@@ -104,13 +104,15 @@ type DatasetTrajectoryCaseListResponseCase struct {
 	CaseID     string                 `json:"case_id"    api:"required" format:"uuid"`
 	// Trajectories nested under this trajectory whose root is this case, in the order
 	// they were created. Empty when there are none.
-	ChildTrajectoryIDs []string                                  `json:"child_trajectory_ids" api:"required"          format:"uuid"`
-	CommitID           int64                                     `json:"commit_id"            api:"required"`
-	ExampleKey         string                                    `json:"example_key"          api:"required,nullable"`
-	Input              interface{}                               `json:"input"                api:"required"`
-	Output             interface{}                               `json:"output"               api:"required"`
-	Variant            string                                    `json:"variant"              api:"required,nullable"`
-	JSON               datasetTrajectoryCaseListResponseCaseJSON `json:"-"`
+	ChildTrajectoryIDs []string    `json:"child_trajectory_ids" api:"required"          format:"uuid"`
+	CommitID           int64       `json:"commit_id"            api:"required"`
+	ExampleKey         string      `json:"example_key"          api:"required,nullable"`
+	Input              interface{} `json:"input"                api:"required"`
+	Output             interface{} `json:"output"               api:"required"`
+	// Tag names on this case, sorted.
+	Tags    []string                                  `json:"tags"    api:"required"`
+	Variant string                                    `json:"variant" api:"required,nullable"`
+	JSON    datasetTrajectoryCaseListResponseCaseJSON `json:"-"`
 }
 
 // datasetTrajectoryCaseListResponseCaseJSON contains the JSON metadata for the
@@ -123,6 +125,7 @@ type datasetTrajectoryCaseListResponseCaseJSON struct {
 	ExampleKey         apijson.Field
 	Input              apijson.Field
 	Output             apijson.Field
+	Tags               apijson.Field
 	Variant            apijson.Field
 	raw                string
 	ExtraFields        map[string]apijson.Field

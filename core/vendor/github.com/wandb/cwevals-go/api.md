@@ -59,6 +59,16 @@ Methods:
 
 - <code title="patch /v1/namespaces/{namespace}/scopes/{scope_id}/datasets/{dataset_id}/cases">client.Datasets.Cases.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseService.Add">Add</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, datasetID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseAddParams">DatasetCaseAddParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseAddResponse">DatasetCaseAddResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
+### Tags
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseTagUpdateResponse">DatasetCaseTagUpdateResponse</a>
+
+Methods:
+
+- <code title="patch /v1/namespaces/{namespace}/scopes/{scope_id}/datasets/{dataset_id}/cases/tags">client.Datasets.Cases.Tags.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseTagService.Update">Update</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, datasetID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseTagUpdateParams">DatasetCaseTagUpdateParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetCaseTagUpdateResponse">DatasetCaseTagUpdateResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
 ## Fields
 
 Response Types:
@@ -88,10 +98,22 @@ Methods:
 Response Types:
 
 - <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseListResponse">DatasetVersionCaseListResponse</a>
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseSearchResponse">DatasetVersionCaseSearchResponse</a>
 
 Methods:
 
 - <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/dataset-versions/{dataset_version_id}/cases">client.Datasets.Versions.Cases.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, datasetVersionID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseListParams">DatasetVersionCaseListParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseListResponse">DatasetVersionCaseListResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="post /v1/namespaces/{namespace}/scopes/{scope_id}/dataset-versions/{dataset_version_id}/cases/search">client.Datasets.Versions.Cases.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseService.Search">Search</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, datasetVersionID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseSearchParams">DatasetVersionCaseSearchParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseSearchResponse">DatasetVersionCaseSearchResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
+#### Tags
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseTagListResponse">DatasetVersionCaseTagListResponse</a>
+
+Methods:
+
+- <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/dataset-versions/{dataset_version_id}/cases/tags">client.Datasets.Versions.Cases.Tags.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseTagService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, datasetVersionID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseTagListParams">DatasetVersionCaseTagListParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#DatasetVersionCaseTagListResponse">DatasetVersionCaseTagListResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
 ### Fields
 
@@ -136,6 +158,16 @@ Response Types:
 Methods:
 
 - <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/cases/{case_id}">client.Cases.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#CaseService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, caseID <a href="https://pkg.go.dev/builtin#string">string</a>, query <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#CaseGetParams">CaseGetParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#CaseGetResponse">CaseGetResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
+# Tags
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#TagListResponse">TagListResponse</a>
+
+Methods:
+
+- <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/tags">client.Tags.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#TagService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, query <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#TagListParams">TagListParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#TagListResponse">TagListResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
 # Comparisons
 
@@ -198,6 +230,7 @@ Response Types:
 - <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationUpdateResponse">EvaluationUpdateResponse</a>
 - <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationListResponse">EvaluationListResponse</a>
 - <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationGetResponse">EvaluationGetResponse</a>
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationLogResponse">EvaluationLogResponse</a>
 
 Methods:
 
@@ -206,6 +239,7 @@ Methods:
 - <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations">client.Evaluations.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationListParams">EvaluationListParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationListResponse">EvaluationListResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 - <code title="delete /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}">client.Evaluations.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationService.Delete">Delete</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, body <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationDeleteParams">EvaluationDeleteParams</a>) <a href="https://pkg.go.dev/builtin#error">error</a></code>
 - <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}">client.Evaluations.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, query <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationGetParams">EvaluationGetParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationGetResponse">EvaluationGetResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="post /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}/log">client.Evaluations.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationService.Log">Log</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationLogParams">EvaluationLogParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationLogResponse">EvaluationLogResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
 ## Metrics
 
@@ -230,6 +264,20 @@ Methods:
 
 - <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}/rows">client.Evaluations.Rows.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationRowService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationRowListParams">EvaluationRowListParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationRowListResponse">EvaluationRowListResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 - <code title="post /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}/rows/search">client.Evaluations.Rows.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationRowService.Search">Search</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationRowSearchParams">EvaluationRowSearchParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationRowSearchResponse">EvaluationRowSearchResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
+## TrajectoryRows
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowListResponse">EvaluationTrajectoryRowListResponse</a>
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowGetResponse">EvaluationTrajectoryRowGetResponse</a>
+- <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowSearchResponse">EvaluationTrajectoryRowSearchResponse</a>
+
+Methods:
+
+- <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}/trajectory-rows">client.Evaluations.TrajectoryRows.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowListParams">EvaluationTrajectoryRowListParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowListResponse">EvaluationTrajectoryRowListResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="get /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}/trajectory-rows/{trajectory_id}">client.Evaluations.TrajectoryRows.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, trajectoryID <a href="https://pkg.go.dev/builtin#string">string</a>, query <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowGetParams">EvaluationTrajectoryRowGetParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowGetResponse">EvaluationTrajectoryRowGetResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="post /v1/namespaces/{namespace}/scopes/{scope_id}/evaluations/{evaluation_id}/trajectory-rows/search">client.Evaluations.TrajectoryRows.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowService.Search">Search</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, evaluationID <a href="https://pkg.go.dev/builtin#string">string</a>, params <a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowSearchParams">EvaluationTrajectoryRowSearchParams</a>) (\*<a href="https://pkg.go.dev/github.com/wandb/cwevals-go">cwevals</a>.<a href="https://pkg.go.dev/github.com/wandb/cwevals-go#EvaluationTrajectoryRowSearchResponse">EvaluationTrajectoryRowSearchResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
 ## Scorers
 

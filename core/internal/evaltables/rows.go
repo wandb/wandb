@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"math"
 	"strconv"
-	"unicode/utf8"
 
 	ces "github.com/wandb/cwevals-go"
 
@@ -203,7 +201,11 @@ func (e *rowEncoder) appendValue(
 	case *spb.EvalTableValue_IntValue:
 		return strconv.AppendInt(buf, value.IntValue, 10), nil
 	case *spb.EvalTableValue_NumberValue:
-		return appendJSONFloat(buf, value.NumberValue)
+		number, err := json.Marshal(value.NumberValue)
+		if err != nil {
+			return nil, err
+		}
+		return append(buf, number...), nil
 	case *spb.EvalTableValue_StringValue:
 		return appendJSONString(buf, value.StringValue), nil
 	case *spb.EvalTableValue_JsonValue:
@@ -284,84 +286,9 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
-// appendJSONFloat appends f as encoding/json would encode it.
-//
-// This and appendJSONString avoid encoding/json's allocation per value,
-// since a table can have millions of cells.
-func appendJSONFloat(buf []byte, f float64) ([]byte, error) {
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return nil, fmt.Errorf("unsupported number %v", f)
-	}
-
-	format := byte('f')
-	if abs := math.Abs(f); abs != 0 && (abs < 1e-6 || abs >= 1e21) {
-		format = 'e'
-	}
-	buf = strconv.AppendFloat(buf, f, format, -1, 64)
-
-	if format == 'e' {
-		// Shorten e-09 to e-9, like encoding/json.
-		n := len(buf)
-		if n >= 4 && buf[n-4] == 'e' && buf[n-3] == '-' && buf[n-2] == '0' {
-			buf[n-2] = buf[n-1]
-			buf = buf[:n-1]
-		}
-	}
-	return buf, nil
-}
-
-// appendJSONString appends s as a JSON string, escaped as encoding/json
-// escapes it without HTML escaping.
+// appendJSONString appends s as a JSON string.
 func appendJSONString(buf []byte, s string) []byte {
-	const hex = "0123456789abcdef"
-
-	buf = append(buf, '"')
-	start := 0
-	for i := 0; i < len(s); {
-		if b := s[i]; b < utf8.RuneSelf {
-			if b >= 0x20 && b != '"' && b != '\\' {
-				i++
-				continue
-			}
-
-			buf = append(buf, s[start:i]...)
-			switch b {
-			case '"', '\\':
-				buf = append(buf, '\\', b)
-			case '\b':
-				buf = append(buf, '\\', 'b')
-			case '\f':
-				buf = append(buf, '\\', 'f')
-			case '\n':
-				buf = append(buf, '\\', 'n')
-			case '\r':
-				buf = append(buf, '\\', 'r')
-			case '\t':
-				buf = append(buf, '\\', 't')
-			default:
-				buf = append(buf, '\\', 'u', '0', '0', hex[b>>4], hex[b&0xf])
-			}
-			i++
-			start = i
-			continue
-		}
-
-		r, size := utf8.DecodeRuneInString(s[i:])
-		switch {
-		case r == utf8.RuneError && size == 1:
-			buf = append(buf, s[start:i]...)
-			buf = append(buf, `�`...)
-		case r == ' ' || r == ' ':
-			// Valid JSON, but not valid JavaScript.
-			buf = append(buf, s[start:i]...)
-			buf = append(buf, '\\', 'u', '2', '0', '2', hex[r&0xf])
-		default:
-			i += size
-			continue
-		}
-		i += size
-		start = i
-	}
-	buf = append(buf, s[start:]...)
-	return append(buf, '"')
+	// Marshaling a string can't fail.
+	encoded, _ := json.Marshal(s)
+	return append(buf, encoded...)
 }
