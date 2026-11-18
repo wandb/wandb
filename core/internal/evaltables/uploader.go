@@ -71,7 +71,7 @@ func (u *Uploader) Encode(
 		return nil, usageError{err}
 	}
 
-	encoder, err := newRowEncoder(data)
+	encoder, err := newRowEncoder(data, runPath)
 	if err != nil {
 		return nil, usageError{err}
 	}
@@ -100,6 +100,11 @@ func datasetFieldParams(
 				ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource())),
 			ValueType: ces.F(
 				ces.EvalTableColumnNewParamsDatasetFieldsValueType(field.GetValueType())),
+		}
+
+		if extensionType, ok := mediaExtensionTypes[field.GetWandbMediaType()]; ok {
+			params[i].ExtensionType = ces.F(extensionType)
+			params[i].ExtensionSchemaVersion = ces.F(int64(mediaSchemaVersion))
 		}
 	}
 
@@ -134,6 +139,7 @@ func validateColumns(
 		source := ces.EvalTableColumnNewParamsDatasetFieldsSource(field.GetSource())
 		valueType := ces.EvalTableColumnNewParamsDatasetFieldsValueType(field.GetValueType())
 		mediaType := field.GetWandbMediaType()
+		_, isKnownMediaType := mediaExtensionTypes[mediaType]
 
 		switch {
 		case !source.IsKnown():
@@ -144,7 +150,7 @@ func validateColumns(
 			return fmt.Errorf(
 				"field %q has unknown value type %q",
 				field.GetName(), valueType)
-		case mediaType != "":
+		case mediaType != "" && !isKnownMediaType:
 			return fmt.Errorf(
 				"field %q has unknown media type %q",
 				field.GetName(), mediaType)
