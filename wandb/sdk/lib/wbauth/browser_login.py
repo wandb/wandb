@@ -22,7 +22,7 @@ import tempfile
 import time
 import urllib.parse
 import webbrowser
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from typing import IO, Any, cast
 
 import requests
@@ -251,10 +251,9 @@ def save_credentials(
         host: The W&B server the login is for.
         tokens: The tokens to store.
     """
-    with _credentials_lock(credentials_file):
-        contents = _read_file(credentials_file, strict=True)
-        _user_credentials(contents)[host.url] = tokens.to_json()
-        _write_file(credentials_file, contents)
+    contents = _read_file(credentials_file, strict=True)
+    _user_credentials(contents)[host.url] = tokens.to_json()
+    _write_file(credentials_file, contents)
 
 
 def clear_credentials(
@@ -269,92 +268,11 @@ def clear_credentials(
         credentials_file: The path to the credentials file.
         host: The W&B server the login is for.
     """
-    with _credentials_lock(credentials_file):
-        contents = _read_file(credentials_file, strict=True)
-        existing = load_credentials(credentials_file, host)
-        if _user_credentials(contents).pop(host.url, None) is not None:
-            _write_file(credentials_file, contents)
-        return existing
-
-
-@contextlib.contextmanager
-def _credentials_lock(path: pathlib.Path) -> Generator[None]:
-    """Locks ``<credentials file>.lock``, which wandb-core also locks.
-
-    Like wandb-core, proceeds without the lock if it cannot be taken.
-    """
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(path.with_name(f"{path.name}.lock"), os.O_RDWR | os.O_CREAT, 0o666)
-    except OSError:
-        yield
-        return
-
-    with contextlib.ExitStack() as stack:
-        stack.callback(os.close, fd)
-        with contextlib.suppress(OSError):
-            _lock_fd(fd)
-            stack.callback(_unlock_fd, fd)
-        yield
-
-
-def _lock_fd(fd: int) -> None:
-    if sys.platform == "win32":
-        _win_lock(fd, exclusive=True)
-        return
-
-    import fcntl
-
-    fcntl.flock(fd, fcntl.LOCK_EX)
-
-
-def _unlock_fd(fd: int) -> None:
-    if sys.platform == "win32":
-        _win_lock(fd, exclusive=False)
-        return
-
-    import fcntl
-
-    fcntl.flock(fd, fcntl.LOCK_UN)
-
-
-def _win_lock(fd: int, *, exclusive: bool) -> None:
-    """Calls LockFileEx or UnlockFileEx, as wandb-core does on Windows."""
-    import ctypes
-    import msvcrt
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    handle = msvcrt.get_osfhandle(fd)
-    # A zeroed OVERLAPPED locks from offset 0.
-    overlapped = (ctypes.c_char * 32)()
-    if exclusive:
-        kernel32.LockFileEx.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_void_p,
-        ]
-        kernel32.LockFileEx.restype = ctypes.c_int
-        # LOCKFILE_EXCLUSIVE_LOCK over the whole file; blocks until available.
-        ok = kernel32.LockFileEx(
-            handle, 0x2, 0, 0xFFFFFFFF, 0xFFFFFFFF, ctypes.byref(overlapped)
-        )
-    else:
-        kernel32.UnlockFileEx.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_void_p,
-        ]
-        kernel32.UnlockFileEx.restype = ctypes.c_int
-        ok = kernel32.UnlockFileEx(
-            handle, 0, 0xFFFFFFFF, 0xFFFFFFFF, ctypes.byref(overlapped)
-        )
-    if not ok:
-        raise OSError(ctypes.get_last_error())
+    contents = _read_file(credentials_file, strict=True)
+    existing = load_credentials(credentials_file, host)
+    if _user_credentials(contents).pop(host.url, None) is not None:
+        _write_file(credentials_file, contents)
+    return existing
 
 
 def _read_file(path: pathlib.Path, *, strict: bool = False) -> dict[str, Any]:
