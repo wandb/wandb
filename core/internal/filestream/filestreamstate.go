@@ -41,12 +41,10 @@ type FileStreamState struct {
 	// It may be nil if the run has no summary.
 	RunSummary *runsummary.RunSummary
 
-	// LastRunSummarySize is the size in bytes of the last serialized summary,
-	// used to estimate the size of the next one.
+	// LastRunSummarySize is the size in bytes of the last serialized summary.
 	LastRunSummarySize int
 
-	// SummaryDelta is whether the backend accepts summary deltas
-	// for this stream.
+	// SummaryDelta is whether the backend accepts summary deltas.
 	SummaryDelta bool
 
 	// ConsoleLineOffset is an offset to add to all console updates.
@@ -183,13 +181,8 @@ func (s *FileStreamState) popEvents(
 
 // popSummary adds the summary to the request if it changed.
 //
-// Summary updates stay in the request until a summary is sent, so they are
-// the changes since the last summary sent. If the backend accepts deltas,
-// they are sent without values from history, which the backend takes from
-// the history it receives. The full summary is sent instead:
-//   - for changes that remove a key, which a delta can't express
-//   - at the end of the stream, changed or not, so that the backend ends up
-//     with every value
+// In delta mode, it sends only the changes that aren't values from history.
+// A change that removes a key and the end of the stream send the full summary.
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
@@ -201,20 +194,41 @@ func (s *FileStreamState) popSummary(
 		return
 	}
 
-	asDelta := s.SummaryDelta && !final &&
+	if s.RunSummary == nil {
+		s.RunSummary = runsummary.New()
+	}
+
+	// Updates stay in the request until the summary is sent, so they may be
+	// applied more than once, which changes nothing.
+	err := request.SummaryUpdates.Apply(s.RunSummary)
+	if err != nil {
+		// A partial success is possible, so we log and continue.
+		logger.CaptureError(
+			"filestream",
+			fmt.Errorf("filestream: error applying summary updates: %v", err),
+		)
+	}
+
+	isDelta := s.SummaryDelta && !final &&
 		!request.SummaryUpdates.HasRemovals()
-	summaryJSON, err := s.serializeSummary(request.SummaryUpdates, asDelta, logger)
-	switch {
-	case err != nil:
+
+	var summaryJSON []byte
+	if isDelta {
+		summaryJSON, err = request.SummaryUpdates.SerializeWithoutHistory()
+	} else {
+		summaryJSON, err = s.RunSummary.Serialize()
+	}
+
+	if err != nil {
 		logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: failed to serialize summary: %v", err),
 		)
 		request.SummaryUpdates = nil
 		return
+	}
 
-	case asDelta && string(summaryJSON) == "{}":
-		// Every change is a value from history, or a None.
+	if isDelta && string(summaryJSON) == "{}" {
 		request.SummaryUpdates = nil
 		return
 	}
@@ -236,48 +250,19 @@ func (s *FileStreamState) popSummary(
 				s.MaxFileLineSize,
 			)
 
-		// Drop the summary. Later changes are sent as usual.
 		request.SummaryUpdates = nil
 		return
 	}
 
 	if !builder.TryAddSize(len(summaryJSON)) {
-		// The updates stay in the request and merge with later changes.
 		builder.HasMore = true
 		return
 	}
 
 	builder.SummaryChunk.Offset = s.SummaryLineNum
 	builder.SummaryChunk.Content = []string{string(summaryJSON)}
-	builder.SummaryDelta = asDelta
+	builder.SummaryDelta = isDelta
 	request.SummaryUpdates = nil
-}
-
-// serializeSummary applies the updates to RunSummary and returns the updates
-// without values from history if asDelta is true, or else the full summary.
-func (s *FileStreamState) serializeSummary(
-	updates *runsummary.Updates,
-	asDelta bool,
-	logger *observability.CoreLogger,
-) ([]byte, error) {
-	if s.RunSummary == nil {
-		s.RunSummary = runsummary.New()
-	}
-
-	// Updates that didn't fit in an earlier request were applied then.
-	// Applying them again has no further effect.
-	if err := updates.Apply(s.RunSummary); err != nil {
-		// A partial success is possible, so we log and continue.
-		logger.CaptureError(
-			"filestream",
-			fmt.Errorf("filestream: error applying summary updates: %v", err),
-		)
-	}
-
-	if asDelta {
-		return updates.SerializeWithoutHistory()
-	}
-	return s.RunSummary.Serialize()
 }
 
 func (s *FileStreamState) popConsoleLines(

@@ -45,16 +45,13 @@ func (u *Updates) HasRemovals() bool {
 	return u != nil && !u.remove.IsEmpty()
 }
 
-// SerializeWithoutHistory returns the values set by the updates in the format
-// of [RunSummary.Serialize], except values from run.log().
-//
-// Ignores removals and values that fail to unmarshal.
+// SerializeWithoutHistory returns the values set by the updates, except
+// values from run.log(), in the format of [RunSummary.Serialize].
 func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
 	rs := New()
 	if u != nil {
 		u.notFromHistory.ForEachLeaf(func(path pathtree.TreePath, _ struct{}) bool {
-			// A path that a later update replaced with nested keys
-			// is no longer a leaf.
+			// A later update may have replaced the path with nested keys.
 			valueJSON, ok := u.update.GetLeaf(path)
 			if !ok {
 				return true

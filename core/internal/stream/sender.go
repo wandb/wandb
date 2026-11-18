@@ -101,8 +101,7 @@ type Sender struct {
 	// It is nil in offline mode.
 	graphqlClient graphql.Client
 
-	// serverHasSummaryDelta reports whether the server has the
-	// FILESTREAM_SUMMARY_DELTA feature.
+	// serverHasSummaryDelta is the FILESTREAM_SUMMARY_DELTA server feature.
 	serverHasSummaryDelta func() bool
 
 	// fileStream uploads data to the backend.
@@ -526,10 +525,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 }
 
 // acceptsSummaryDelta asks the backend whether the run's filestream may
-// send its summary as deltas.
-//
-// The answer holds for the whole stream. It is false if the backend
-// can't be asked, in which case the filestream sends full summaries.
+// send its summary as deltas. It returns false if it can't ask.
 func (s *Sender) acceptsSummaryDelta(runPath runbranch.RunPath) bool {
 	if s.graphqlClient == nil || !s.serverHasSummaryDelta() {
 		return false

@@ -68,10 +68,7 @@ type FileStream interface {
 	// the `offsetMap` specifies the initial file offsets for each file
 	// type (history, output logs, events, summary).
 	//
-	// summaryDelta is whether the backend accepts summary deltas for
-	// this stream. If so, summaries carry only the values that changed and
-	// that the backend can't take from history, except for the full summary
-	// at the end of the stream.
+	// summaryDelta is whether the backend accepts summary deltas.
 	Start(
 		entity string,
 		project string,
