@@ -183,6 +183,7 @@ const (
 	EvaluationVersionQueryResultListResponseGroupByKindScore              EvaluationVersionQueryResultListResponseGroupByKind = "score"
 	EvaluationVersionQueryResultListResponseGroupByKindDepth              EvaluationVersionQueryResultListResponseGroupByKind = "depth"
 	EvaluationVersionQueryResultListResponseGroupByKindParentTrajectoryID EvaluationVersionQueryResultListResponseGroupByKind = "parent_trajectory_id"
+	EvaluationVersionQueryResultListResponseGroupByKindTags               EvaluationVersionQueryResultListResponseGroupByKind = "tags"
 )
 
 func (r EvaluationVersionQueryResultListResponseGroupByKind) IsKnown() bool {
@@ -191,7 +192,8 @@ func (r EvaluationVersionQueryResultListResponseGroupByKind) IsKnown() bool {
 		EvaluationVersionQueryResultListResponseGroupByKindDatasetField,
 		EvaluationVersionQueryResultListResponseGroupByKindScore,
 		EvaluationVersionQueryResultListResponseGroupByKindDepth,
-		EvaluationVersionQueryResultListResponseGroupByKindParentTrajectoryID:
+		EvaluationVersionQueryResultListResponseGroupByKindParentTrajectoryID,
+		EvaluationVersionQueryResultListResponseGroupByKindTags:
 		return true
 	}
 	return false
@@ -377,7 +379,8 @@ func (r *EvaluationVersionQueryResultListResponseMetricsPer) UnmarshalJSON(data 
 // [EvaluationVersionQueryResultListResponseMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationVersionQueryResultListResponseMetricsPerScoreEvaluationColumn],
 // [EvaluationVersionQueryResultListResponseMetricsPerDepthEvaluationColumn],
-// [EvaluationVersionQueryResultListResponseMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationVersionQueryResultListResponseMetricsPerParentTrajectoryIDEvaluationColumn],
+// [EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn].
 func (r EvaluationVersionQueryResultListResponseMetricsPer) AsUnion() EvaluationVersionQueryResultListResponseMetricsPerUnion {
 	return r.union
 }
@@ -389,8 +392,9 @@ func (r EvaluationVersionQueryResultListResponseMetricsPer) AsUnion() Evaluation
 // [EvaluationVersionQueryResultListResponseMetricsPerVariantEvaluationColumn],
 // [EvaluationVersionQueryResultListResponseMetricsPerDatasetFieldEvaluationColumn],
 // [EvaluationVersionQueryResultListResponseMetricsPerScoreEvaluationColumn],
-// [EvaluationVersionQueryResultListResponseMetricsPerDepthEvaluationColumn] or
-// [EvaluationVersionQueryResultListResponseMetricsPerParentTrajectoryIDEvaluationColumn].
+// [EvaluationVersionQueryResultListResponseMetricsPerDepthEvaluationColumn],
+// [EvaluationVersionQueryResultListResponseMetricsPerParentTrajectoryIDEvaluationColumn]
+// or [EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn].
 type EvaluationVersionQueryResultListResponseMetricsPerUnion interface {
 	implementsEvaluationVersionQueryResultListResponseMetricsPer()
 }
@@ -433,6 +437,13 @@ func init() {
 				EvaluationVersionQueryResultListResponseMetricsPerParentTrajectoryIDEvaluationColumn{},
 			),
 			DiscriminatorValue: "parent_trajectory_id",
+		},
+		apijson.UnionVariant{
+			TypeFilter: gjson.JSON,
+			Type: reflect.TypeOf(
+				EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn{},
+			),
+			DiscriminatorValue: "tags",
 		},
 	)
 }
@@ -672,6 +683,48 @@ func (r EvaluationVersionQueryResultListResponseMetricsPerParentTrajectoryIDEval
 	return false
 }
 
+// Case queries only. Groups by tag name.
+type EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn struct {
+	Kind EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnKind `json:"kind" api:"required"`
+	JSON evaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnJSON `json:"-"`
+}
+
+// evaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnJSON
+// contains the JSON metadata for the struct
+// [EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn]
+type evaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnJSON struct {
+	Kind        apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn) UnmarshalJSON(
+	data []byte,
+) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r evaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnJSON) RawJSON() string {
+	return r.raw
+}
+
+func (r EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumn) implementsEvaluationVersionQueryResultListResponseMetricsPer() {
+}
+
+type EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnKind string
+
+const (
+	EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnKindTags EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnKind = "tags"
+)
+
+func (r EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnKind) IsKnown() bool {
+	switch r {
+	case EvaluationVersionQueryResultListResponseMetricsPerTagsEvaluationColumnKindTags:
+		return true
+	}
+	return false
+}
+
 type EvaluationVersionQueryResultListResponseMetricsPerKind string
 
 const (
@@ -680,6 +733,7 @@ const (
 	EvaluationVersionQueryResultListResponseMetricsPerKindScore              EvaluationVersionQueryResultListResponseMetricsPerKind = "score"
 	EvaluationVersionQueryResultListResponseMetricsPerKindDepth              EvaluationVersionQueryResultListResponseMetricsPerKind = "depth"
 	EvaluationVersionQueryResultListResponseMetricsPerKindParentTrajectoryID EvaluationVersionQueryResultListResponseMetricsPerKind = "parent_trajectory_id"
+	EvaluationVersionQueryResultListResponseMetricsPerKindTags               EvaluationVersionQueryResultListResponseMetricsPerKind = "tags"
 )
 
 func (r EvaluationVersionQueryResultListResponseMetricsPerKind) IsKnown() bool {
@@ -688,7 +742,8 @@ func (r EvaluationVersionQueryResultListResponseMetricsPerKind) IsKnown() bool {
 		EvaluationVersionQueryResultListResponseMetricsPerKindDatasetField,
 		EvaluationVersionQueryResultListResponseMetricsPerKindScore,
 		EvaluationVersionQueryResultListResponseMetricsPerKindDepth,
-		EvaluationVersionQueryResultListResponseMetricsPerKindParentTrajectoryID:
+		EvaluationVersionQueryResultListResponseMetricsPerKindParentTrajectoryID,
+		EvaluationVersionQueryResultListResponseMetricsPerKindTags:
 		return true
 	}
 	return false

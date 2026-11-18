@@ -513,9 +513,10 @@ type EvaluationVersionListParams struct {
 	//
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
-	// Cursor from the previous page's next_cursor. Omit for the first page.
+	// The previous response's next_cursor value. Omit for the first page.
 	Cursor param.Field[string] `query:"cursor"`
-	Limit  param.Field[int64]  `query:"limit"`
+	// Maximum number of results to return in one page.
+	Limit param.Field[int64] `query:"limit"`
 }
 
 // URLQuery serializes [EvaluationVersionListParams]'s query parameters as

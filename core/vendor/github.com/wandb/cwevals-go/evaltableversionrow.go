@@ -52,6 +52,16 @@ func NewEvalTableVersionRowService(opts ...option.RequestOption) (r *EvalTableVe
 // `input`, `output`, and `score` are also accepted as the longer forms of `i`,
 // `o`, and `s`.
 //
+// Column selection changes the response shape without changing which rows match or
+// their order. Selected names resolve against the queried DatasetVersion and
+// ScorerVersions, including JSON-valued columns. Fixed row fields and complete
+// attributes remain present. Exact selections return empty input/output objects
+// for unselected categories and non-object values, and an empty scores array when
+// no Scores are selected. Missing fields and Scores are omitted. Explicit nulls
+// remain present. Filters and sorting can use hidden columns. Cursors bind row
+// membership and ordering independently of column selection, so callers can change
+// columns while reading the same page or continuing a traversal.
+//
 // The encoded request target (path and query string) must be at most 8000 bytes.
 // Larger requests return 414 URI Too Long with error code `request_uri_too_long`.
 // Retry the same parameters through the corresponding POST `/rows/search`
@@ -96,6 +106,16 @@ func (r *EvalTableVersionRowService) List(
 //
 // Filtering and sorting happen before pagination. Use this operation when the
 // parameters are too large for a URL.
+//
+// Column selection changes the response shape without changing which rows match or
+// their order. Selected names resolve against the queried DatasetVersion and
+// ScorerVersions, including JSON-valued columns. Fixed row fields and complete
+// attributes remain present. Exact selections return empty input/output objects
+// for unselected categories and non-object values, and an empty scores array when
+// no Scores are selected. Missing fields and Scores are omitted. Explicit nulls
+// remain present. Filters and sorting can use hidden columns. Cursors bind row
+// membership and ordering independently of column selection, so callers can change
+// columns while reading the same page or continuing a traversal.
 //
 // Request bodies must be at most 1 MiB. Bodies larger than the limit are rejected
 // with 413 Request Entity Too Large.
@@ -164,8 +184,10 @@ type EvalTableVersionRowListResponseRow struct {
 	Input      interface{}                                `json:"input"       api:"required"`
 	Output     interface{}                                `json:"output"      api:"required"`
 	Scores     []EvalTableVersionRowListResponseRowsScore `json:"scores"      api:"required"`
-	Variant    string                                     `json:"variant"     api:"required,nullable"`
-	JSON       evalTableVersionRowListResponseRowJSON     `json:"-"`
+	// Tag names on this case, sorted.
+	Tags    []string                               `json:"tags"    api:"required"`
+	Variant string                                 `json:"variant" api:"required,nullable"`
+	JSON    evalTableVersionRowListResponseRowJSON `json:"-"`
 }
 
 // evalTableVersionRowListResponseRowJSON contains the JSON metadata for the struct
@@ -177,6 +199,7 @@ type evalTableVersionRowListResponseRowJSON struct {
 	Input       apijson.Field
 	Output      apijson.Field
 	Scores      apijson.Field
+	Tags        apijson.Field
 	Variant     apijson.Field
 	raw         string
 	ExtraFields map[string]apijson.Field
@@ -247,8 +270,10 @@ type EvalTableVersionRowSearchResponseRow struct {
 	Input      interface{}                                  `json:"input"       api:"required"`
 	Output     interface{}                                  `json:"output"      api:"required"`
 	Scores     []EvalTableVersionRowSearchResponseRowsScore `json:"scores"      api:"required"`
-	Variant    string                                       `json:"variant"     api:"required,nullable"`
-	JSON       evalTableVersionRowSearchResponseRowJSON     `json:"-"`
+	// Tag names on this case, sorted.
+	Tags    []string                                 `json:"tags"    api:"required"`
+	Variant string                                   `json:"variant" api:"required,nullable"`
+	JSON    evalTableVersionRowSearchResponseRowJSON `json:"-"`
 }
 
 // evalTableVersionRowSearchResponseRowJSON contains the JSON metadata for the
@@ -260,6 +285,7 @@ type evalTableVersionRowSearchResponseRowJSON struct {
 	Input       apijson.Field
 	Output      apijson.Field
 	Scores      apijson.Field
+	Tags        apijson.Field
 	Variant     apijson.Field
 	raw         string
 	ExtraFields map[string]apijson.Field
@@ -314,6 +340,12 @@ type EvalTableVersionRowListParams struct {
 	//
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
+	// Comma-separated i.<name>, o.<name>, or s.<name> selectors with
+	// input/output/score aliases and JSON-quoted names, such as i."two words". Omit,
+	// leave blank, or use _ for all dynamic columns. Use none for zero. Unknown names,
+	// duplicate selectors after alias normalization, and lists combining selectors
+	// with _ or none are rejected.
+	Columns param.Field[string] `query:"columns"`
 	// The previous response's next_cursor value. Omit for the first page.
 	Cursor param.Field[string] `query:"cursor"`
 	// Selects rows using column comparisons joined with AND, OR, and NOT. Parentheses
@@ -326,17 +358,21 @@ type EvalTableVersionRowListParams struct {
 	//
 	// - matches a literal asterisk \\ matches a literal backslash
 	//
+	// When rows are cases, the predicate tags:"<name>" matches a case that has that
+	// tag.
+	//
 	// A filter can contain at most 100 predicates and 65,536 bytes of normalized JSON
 	// literals in total.
 	//
-	// Example for an evaluation with an accuracy score column:
+	// Example:
 	//
-	//	variant = "model-a" AND s.accuracy >= 0.8
+	//	variant = "model-a" AND i.split = "test"
 	Filter param.Field[string] `query:"filter"`
 	// Maximum number of results to return in one page.
 	Limit param.Field[int64] `query:"limit"`
 	// Column to sort by, optionally followed by desc for descending order. Without
-	// desc, sorting is ascending. Omit to use the operation's standard order.
+	// desc, sorting is ascending. Rows cannot be sorted by tags. Omit to use the
+	// operation's standard order.
 	OrderBy param.Field[string] `query:"order_by"`
 }
 
@@ -363,6 +399,12 @@ type EvalTableVersionRowSearchParams struct {
 	//
 	// Use [option.WithScopeID] on the client to set a global default for this field.
 	ScopeID param.Field[string] `path:"scope_id" api:"required"`
+	// Comma-separated i.<name>, o.<name>, or s.<name> selectors with
+	// input/output/score aliases and JSON-quoted names, such as i."two words". Omit,
+	// leave blank, or use _ for all dynamic columns. Use none for zero. Unknown names,
+	// duplicate selectors after alias normalization, and lists combining selectors
+	// with _ or none are rejected.
+	Columns param.Field[string] `json:"columns"`
 	// The previous response's next_cursor value. Omit for the first page.
 	Cursor param.Field[string] `json:"cursor"`
 	// Selects rows using column comparisons joined with AND, OR, and NOT. Parentheses
@@ -375,17 +417,21 @@ type EvalTableVersionRowSearchParams struct {
 	//
 	// - matches a literal asterisk \\ matches a literal backslash
 	//
+	// When rows are cases, the predicate tags:"<name>" matches a case that has that
+	// tag.
+	//
 	// A filter can contain at most 100 predicates and 65,536 bytes of normalized JSON
 	// literals in total.
 	//
-	// Example for an evaluation with an accuracy score column:
+	// Example:
 	//
-	//	variant = "model-a" AND s.accuracy >= 0.8
+	//	variant = "model-a" AND i.split = "test"
 	Filter param.Field[string] `json:"filter"`
 	// Maximum number of results to return in one page.
 	Limit param.Field[int64] `json:"limit"`
 	// Column to sort by, optionally followed by desc for descending order. Without
-	// desc, sorting is ascending. Omit to use the operation's standard order.
+	// desc, sorting is ascending. Rows cannot be sorted by tags. Omit to use the
+	// operation's standard order.
 	OrderBy param.Field[string] `json:"order_by"`
 }
 
