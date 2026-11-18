@@ -6,6 +6,10 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
+
+	"github.com/stretchr/testify/require"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestConnection_ManageConnectionDataReturnsWhenPeerCloses(t *testing.T) {
@@ -76,4 +80,20 @@ func TestConnection_ManageConnectionDataReturnsWhenServerStops(t *testing.T) {
 			t.Fatal("client connection remained open after server shutdown")
 		}
 	})
+}
+
+func TestConnection_InformInitRejectsDisabledHistoryEncodings(t *testing.T) {
+	conn := &Connection{
+		connLifetimeCtx: context.Background(),
+		outChan:         make(chan *spb.ServerResponse, 1),
+	}
+	conn.handleInformInit("invalid-settings", &spb.ServerInformInitRequest{
+		Settings: &spb.Settings{
+			XHistoryValueEncodingJson:  wrapperspb.Bool(false),
+			XHistoryValueEncodingTyped: wrapperspb.Bool(false),
+		},
+	})
+	response := <-conn.outChan
+	require.Equal(t, "invalid-settings", response.RequestId)
+	require.Contains(t, response.GetErrorResponse().GetMessage(), "at least one")
 }

@@ -413,6 +413,15 @@ func (nc *Connection) handleInformInit(
 	msg *spb.ServerInformInitRequest,
 ) {
 	s := settings.From(msg.GetSettings())
+	if err := s.ValidateHistoryValueEncoding(); err != nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: requestID,
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{Message: err.Error()},
+			},
+		})
+		return
+	}
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id)

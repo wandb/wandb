@@ -16,7 +16,7 @@ from typing import Any, Literal
 from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ModelWrapValidatorHandler
 from typing_extensions import Self
 
 import wandb
@@ -57,17 +57,10 @@ CLIENT_ONLY_SETTINGS = (
 )
 """Python-only keys that are not fields on the settings proto."""
 
-HISTORY_VALUE_ENCODING_JSON = "json"
-HISTORY_VALUE_ENCODING_TYPED = "typed"
-
-HISTORY_VALUE_ENCODINGS = (
-    HISTORY_VALUE_ENCODING_JSON,
-    HISTORY_VALUE_ENCODING_TYPED,
+_HISTORY_VALUE_ENCODING_FIELDS = (
+    "x_history_value_encoding_typed",
+    "x_history_value_encoding_json",
 )
-"""The forms `x_history_value_encoding` accepts."""
-
-HISTORY_VALUE_ENCODING_DEFAULT = HISTORY_VALUE_ENCODING_JSON
-"""The form written when `x_history_value_encoding` is unset or unrecognized."""
 
 
 class Settings(BaseModel, validate_assignment=True):
@@ -774,13 +767,14 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore -->
     """
 
-    x_history_value_encoding: str = HISTORY_VALUE_ENCODING_DEFAULT
-    """Which forms of each logged history value the SDK writes.
+    x_history_value_encoding_typed: bool = False
+    """Whether history records include typed values.
 
-    A comma-separated list of "json" and "typed", in any order. With
-    "json", the SDK writes the legacy JSON form of the value. With "typed",
-    it writes the typed form of the value. The default is "json". An
-    unrecognized value falls back to the default with a warning.
+    <!-- lazydoc-ignore -->
+    """
+
+    x_history_value_encoding_json: bool = True
+    """Whether history records include JSON values. At least one encoding must be enabled.
 
     <!-- lazydoc-ignore -->
     """
@@ -1252,27 +1246,31 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return run_moment
 
-    @field_validator("x_history_value_encoding", mode="after")
+    @model_validator(mode="wrap")
     @classmethod
-    def validate_x_history_value_encoding(cls, value: str) -> str:
-        """Normalize the history value encoding.
-
-        <!-- lazydoc-ignore -->
-        """
-        # Remove duplicates, normalize case. dict.fromkeys() preserves order of first occurrence.
-        forms = list(dict.fromkeys(form.strip().lower() for form in value.split(",")))
-
-        if any(form not in HISTORY_VALUE_ENCODINGS for form in forms):
-            wandb.termwarn(
-                f"Ignoring unsupported x_history_value_encoding {value!r}."
-                f" Writing {HISTORY_VALUE_ENCODING_DEFAULT!r} history values.",
-                repeat=False,
+    def validate_history_value_encodings(
+        cls, values: Any, handler: ModelWrapValidatorHandler[Self]
+    ) -> Self:
+        # Model validation can fail after assignment changes the instance.
+        previous = values.__dict__.copy() if isinstance(values, cls) else None
+        previous_fields = (
+            values.model_fields_set.copy() if previous is not None else None
+        )
+        valid_encoding = False
+        try:
+            result = handler(values)
+            valid_encoding = (
+                result.x_history_value_encoding_json
+                or result.x_history_value_encoding_typed
             )
-            return HISTORY_VALUE_ENCODING_DEFAULT
-
-        # Store the stripped, lowercased forms so that a reader can split
-        # on "," and compare without parsing again.
-        return ",".join(forms)
+        finally:
+            if not valid_encoding and previous is not None:
+                values.__dict__.clear()
+                values.__dict__.update(previous)
+                object.__setattr__(values, "__pydantic_fields_set__", previous_fields)
+        if not valid_encoding:
+            raise ValueError("at least one history value encoding must be enabled")
+        return result
 
     @field_validator("http_proxy", mode="after")
     @classmethod
@@ -1988,6 +1986,7 @@ class Settings(BaseModel, validate_assignment=True):
             env.USER_EMAIL: "email",
         }
 
+        updates = {}
         for setting, value in environ.items():
             if not setting.startswith(env_prefix):
                 continue
@@ -2009,7 +2008,9 @@ class Settings(BaseModel, validate_assignment=True):
             if value is None:
                 continue
 
-            setattr(self, key, value)
+            updates[key] = value
+
+        self.update_from_dict(updates)
 
     def update_from_system_environment(self):
         """Update settings from the system environment.
@@ -2100,9 +2101,26 @@ class Settings(BaseModel, validate_assignment=True):
 
         <!-- lazydoc-ignore -->
         """
+        encoding_updates = {
+            key: value
+            for key, value in settings.items()
+            if key in _HISTORY_VALUE_ENCODING_FIELDS and value is not None
+        }
+        candidate = None
+        if encoding_updates:
+            # Validate the final pair before applying either flag.
+            candidate = type(self).model_validate(
+                {name: getattr(self, name) for name in type(self).model_fields}
+                | encoding_updates
+            )
         for key, value in dict(settings).items():
-            if value is not None:
+            if value is not None and key not in _HISTORY_VALUE_ENCODING_FIELDS:
                 setattr(self, key, value)
+        if candidate is not None:
+            self.__dict__.update(
+                {key: getattr(candidate, key) for key in encoding_updates}
+            )
+            self.__pydantic_fields_set__.update(encoding_updates)
 
     def update_from_settings(self, settings: Settings) -> None:
         """Update settings from another instance of `Settings`.

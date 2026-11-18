@@ -182,22 +182,25 @@ def partial_history_items(record_q) -> dict[str, pb.HistoryItem]:
 
 
 @pytest.mark.parametrize(
-    "encoding, want_json, want_typed",
+    "want_json, want_typed",
     [
-        ("json", True, False),
-        ("typed", False, True),
-        ("json,typed", True, True),
-        ("typed,json", True, True),
+        (True, False),
+        (False, True),
+        (True, True),
     ],
 )
 def test_publish_partial_history_honors_the_setting(
     mock_run,
     record_q,
-    encoding,
     want_json,
     want_typed,
 ):
-    run = mock_run(settings={"x_history_value_encoding": encoding})
+    run = mock_run(
+        settings={
+            "x_history_value_encoding_json": want_json,
+            "x_history_value_encoding_typed": want_typed,
+        }
+    )
 
     run.log({"loss": 0.5})
 

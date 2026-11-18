@@ -20,10 +20,6 @@ from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.lib import json_util as json
 from wandb.sdk.lib.filesystem import FilesDict, PolicyName
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
-from wandb.sdk.wandb_settings import (
-    HISTORY_VALUE_ENCODING_JSON,
-    HISTORY_VALUE_ENCODING_TYPED,
-)
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -781,9 +777,8 @@ class InterfaceBase(abc.ABC):
         if "_timestamp" not in data:
             data["_timestamp"] = time.time()
 
-        encoding = run._settings.x_history_value_encoding.split(",")
-        json_form = HISTORY_VALUE_ENCODING_JSON in encoding
-        typed_form = HISTORY_VALUE_ENCODING_TYPED in encoding
+        json_form = run._settings.x_history_value_encoding_json
+        typed_form = run._settings.x_history_value_encoding_typed
 
         partial_history = pb.PartialHistoryRequest()
         for k, v in data.items():

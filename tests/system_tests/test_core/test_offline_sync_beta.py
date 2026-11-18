@@ -212,9 +212,12 @@ def test_syncs_run(
         assert "test_file.txt" in files
 
 
-@pytest.mark.parametrize("encoding", ("json", "typed", "json,typed"))
+@pytest.mark.parametrize(
+    "json_form, typed_form", [(True, False), (False, True), (True, True)]
+)
 def test_syncs_history_values_from_completed_offline_run(
-    encoding: str,
+    json_form: bool,
+    typed_form: bool,
     wandb_backend_spy: WandbBackendSpy,
     runner: CliRunner,
 ):
@@ -222,7 +225,10 @@ def test_syncs_history_values_from_completed_offline_run(
     wide = 2**53 + 1
     with wandb.init(
         mode="offline",
-        settings=wandb.Settings(x_history_value_encoding=encoding),
+        settings=wandb.Settings(
+            x_history_value_encoding_json=json_form,
+            x_history_value_encoding_typed=typed_form,
+        ),
     ) as run:
         run.log({"wide": wide, "first": 0}, step=2)
         run.log({"second": False}, step=5)

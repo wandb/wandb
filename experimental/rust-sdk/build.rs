@@ -11,6 +11,10 @@ fn main() -> Result<()> {
         "../../wandb/proto/wandb_telemetry.proto",
         "../../wandb/proto/wandb_internal.proto",
         "../../wandb/proto/wandb_server.proto",
+        "../../wandb/proto/wandb_api.proto",
+        "../../wandb/proto/wandb_sweep_scheduler.proto",
+        "../../wandb/proto/wandb_sync.proto",
+        "../../wandb/proto/wandb_otel.proto",
     ];
     let temp_dir = tempdir().expect("Could not create temp dir");
     let mut temp_files = Vec::new();

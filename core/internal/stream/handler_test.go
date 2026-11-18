@@ -773,21 +773,20 @@ func TestHandlePartialHistory(t *testing.T) {
 func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 	tests := []struct {
 		name      string
-		encoding  string
 		wantJSON  bool
 		wantTyped bool
 	}{
-		{"default", "", true, false},
-		{"json", "json", true, false},
-		{"typed", "typed", false, true},
-		{"dual write", "json,typed", true, true},
+		{"json", true, false},
+		{"typed", false, true},
+		{"dual write", true, true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
 			handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
-				XHistoryValueEncoding: wrapperspb.String(test.encoding),
+				XHistoryValueEncodingJson:  wrapperspb.Bool(test.wantJSON),
+				XHistoryValueEncodingTyped: wrapperspb.Bool(test.wantTyped),
 				// skip summary records so we only get a history record
 				XServerSideDerivedSummary: wrapperspb.Bool(true),
 			})

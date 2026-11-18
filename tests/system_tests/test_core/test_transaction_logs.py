@@ -48,22 +48,24 @@ def _inspect_records(sync_file: str) -> list[pb.Record]:
 
 
 @pytest.mark.parametrize(
-    ("encoding", "version", "want_json", "want_typed"),
+    ("version", "want_json", "want_typed"),
     [
-        ("json", 0, True, False),
-        ("typed", 1, False, True),
-        ("json,typed", 0, True, True),
+        (0, True, False),
+        (1, False, True),
+        (0, True, True),
     ],
 )
 def test_transaction_log_history_encoding(
-    encoding: str,
     version: int,
     want_json: bool,
     want_typed: bool,
 ):
     with wandb.init(
         mode="offline",
-        settings=wandb.Settings(x_history_value_encoding=encoding),
+        settings=wandb.Settings(
+            x_history_value_encoding_json=want_json,
+            x_history_value_encoding_typed=want_typed,
+        ),
     ) as run:
         run.log({"metric": 0.5}, step=0)
 
