@@ -33,7 +33,11 @@ func emptyWandbFile(t *testing.T) string {
 
 func assertUnsupportedVersion(t *testing.T, err error, version byte) {
 	t.Helper()
-	assert.ErrorContains(t, err, fmt.Sprintf("a newer wandb version is required to read this file: %d", version))
+	assert.ErrorContains(t, err,
+		fmt.Sprintf("a newer wandb version is required to read this file: %d",
+			version,
+		),
+	)
 }
 
 func Test_ReadAfterWrite(t *testing.T) {
