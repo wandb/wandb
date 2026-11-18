@@ -423,7 +423,11 @@ def test_backup_sync_dir_callback(tmp_path, monkeypatch):
             assert callback_finished.wait(timeout=5)
             return wait_with_progress(*args, **kwargs)
 
-        monkeypatch.setattr(wandb.sdk.wandb_run, "wait_with_progress", wait_after_backup)
+        monkeypatch.setattr(
+            wandb.sdk.wandb_run,
+            "wait_with_progress",
+            wait_after_backup,
+        )
 
     assert len(backups) == 1
     assert backups[0][0] == sync_dir

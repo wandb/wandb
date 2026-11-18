@@ -2756,11 +2756,14 @@ class Run:
 
         sync_dir = pathlib.Path(self._settings.sync_dir)
 
+        def wait_for_exit_flush() -> None:
+            result = handle.wait_or(timeout=None)
+            if not result.response.HasField("wait_for_run_exit_flush_response"):
+                raise RuntimeError("Unexpected exit flush response")
+
         def backup_sync_dir() -> None:
             try:
-                result = handle.wait_or(timeout=None)
-                if not result.response.HasField("wait_for_run_exit_flush_response"):
-                    raise RuntimeError("Unexpected exit flush response")
+                wait_for_exit_flush()
 
                 backup_fn(sync_dir)
             except Exception as exc:
