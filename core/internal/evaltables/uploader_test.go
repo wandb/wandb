@@ -16,7 +16,6 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// encode validates and encodes an EvalTable.
 func encode(
 	t *testing.T,
 	request *spb.EvalTableData,

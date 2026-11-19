@@ -16,7 +16,8 @@ import (
 type rowColumn struct {
 	name string
 
-	// key is the column's JSON object key, with its colon.
+	// key is the column's name as a JSON object key followed by a colon,
+	// such as `"expected":` for a column named expected.
 	key []byte
 
 	// valueType is the column's CES value type.
@@ -36,8 +37,6 @@ type rowEncoder struct {
 	scores  []rowColumn
 }
 
-// newRowEncoder returns an encoder for the table's rows.
-//
 // The table's columns must have passed validateColumns.
 func newRowEncoder(
 	data *spb.EvalTableData,
@@ -88,7 +87,6 @@ func newRowColumn(name, valueType, mediaType string) (rowColumn, error) {
 	}, nil
 }
 
-// encodeRows returns the CES row JSON of rows.
 func (e *rowEncoder) encodeRows(rows []*spb.EvalTableRow) ([][]byte, error) {
 	encoded := make([][]byte, len(rows))
 	for i, row := range rows {
@@ -153,7 +151,10 @@ func (e *rowEncoder) appendPart(
 	return e.appendValues(buf, part, columns, values.GetValues())
 }
 
-// appendValues appends an object of the columns' values.
+// appendValues appends a JSON object mapping each column's name to the
+// value at the same position in values, such as {"expected":"cat","weight":0.5}.
+//
+// part names the values in errors.
 func (e *rowEncoder) appendValues(
 	buf []byte,
 	part string,
@@ -251,7 +252,6 @@ func (c rowColumn) fits(value *spb.EvalTableValue) bool {
 	}
 }
 
-// valueKind describes a value's type for errors.
 func valueKind(value *spb.EvalTableValue) string {
 	switch value.GetValue().(type) {
 	case *spb.EvalTableValue_BoolValue:
@@ -271,7 +271,6 @@ func valueKind(value *spb.EvalTableValue) string {
 	}
 }
 
-// columnKind describes a column's type for errors.
 func columnKind(column rowColumn) string {
 	if column.mediaType != "" {
 		return column.mediaType + " column"
@@ -279,7 +278,6 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
-// appendJSON appends v encoded as JSON.
 func appendJSON(buf []byte, v any) ([]byte, error) {
 	encoded, err := json.Marshal(v)
 	if err != nil {
