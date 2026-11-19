@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"cmp"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -77,6 +78,13 @@ func (f *Filter) Clear() {
 func (f *Filter) restore(query string, mode FilterMatchMode) {
 	f.applied = query
 	f.mode = mode
+}
+
+// Set applies a pattern and match mode, keeping the mode when it is
+// undefined, and reports the change.
+func (f *Filter) Set(query string, mode FilterMatchMode) {
+	f.restore(query, cmp.Or(mode, f.mode))
+	f.changed()
 }
 
 func (f *Filter) changed() {

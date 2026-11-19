@@ -66,6 +66,15 @@ func (mg *MetricsGrid) ExitFilterMode(apply bool) {
 	mg.drawVisible()
 }
 
+// SetFilter applies a filter pattern and match mode.
+func (mg *MetricsGrid) SetFilter(query string, mode FilterMatchMode) {
+	mg.mu.Lock()
+	mg.filter.Set(query, mode)
+	mg.mu.Unlock()
+	mg.ApplyFilter()
+	mg.drawVisible()
+}
+
 // ClearFilter removes the active filter.
 func (mg *MetricsGrid) ClearFilter() {
 	mg.mu.Lock()
