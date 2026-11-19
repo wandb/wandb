@@ -503,7 +503,7 @@ func TestEncode_KeepsNullMedia(t *testing.T) {
 		table.CESRowsJSON(t))
 }
 
-func TestEncode_NullsOversizedMedia(t *testing.T) {
+func TestEncode_RejectsOversizedMedia(t *testing.T) {
 	const maxMediaValueBytes = 3_500_000
 	fields := []*spb.EvalTableField{
 		{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
@@ -523,19 +523,24 @@ func TestEncode_NullsOversizedMedia(t *testing.T) {
 		len(`[{"input":null,"output":{"image":},"scores":{}}]`)
 
 	testCases := []struct {
-		name      string
-		size      int
-		oversized bool
+		name    string
+		size    int
+		wantErr string
 	}{
 		{name: "under the limit", size: maxMediaValueBytes - 1},
-		{name: "at the limit", size: maxMediaValueBytes, oversized: true},
+		{
+			name: "at the limit",
+			size: maxMediaValueBytes,
+			wantErr: `field "image": media value is 3500000 bytes, ` +
+				`must be under 3500000 (row 2)`,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			caption := strings.Repeat("a", tc.size-emptySize)
 
-			table, err := encode(t, &spb.EvalTableData{
+			_, err := encode(t, &spb.EvalTableData{
 				DatasetFields: fields,
 				Rows: []*spb.EvalTableRow{
 					{Output: values(mediaValue(imageJSON("a cat")))},
@@ -543,21 +548,12 @@ func TestEncode_NullsOversizedMedia(t *testing.T) {
 				},
 			})
 
-			require.NoError(t, err)
-			rowsJSON := table.CESRowsJSON(t)
-			if !tc.oversized {
-				assert.False(t, strings.Contains(rowsJSON, `"image":null`))
-				assert.Empty(t, table.OversizedMediaCells())
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
 				return
 			}
-			assert.True(t, strings.HasSuffix(rowsJSON,
-				`,{"input":null,"output":{"image":null},"scores":{}}]`))
-			require.Len(t, table.OversizedMediaCells(), 1)
-			cell := table.OversizedMediaCells()[0]
-			assert.EqualValues(t, 2, cell.GetRow())
-			assert.Equal(t, "output", cell.GetSource())
-			assert.Equal(t, "image", cell.GetName())
-			assert.EqualValues(t, tc.size, cell.GetSize())
+			assert.EqualError(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
 		})
 	}
 }
