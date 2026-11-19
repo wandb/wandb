@@ -48,18 +48,18 @@ def _inspect_records(sync_file: str) -> list[pb.Record]:
 
 
 @pytest.mark.parametrize(
-    ("encoding", "version", "want_json", "want_typed"),
+    ("encoding", "version", "want_value_json", "want_kind"),
     [
-        ("json", 0, True, False),
-        ("typed", 1, False, True),
-        ("json,typed", 0, True, True),
+        ("json", 0, "0.5", None),
+        ("typed", 1, "", "number"),
+        ("json,typed", 0, "0.5", "number"),
     ],
 )
 def test_transaction_log_history_encoding(
     encoding: str,
     version: int,
-    want_json: bool,
-    want_typed: bool,
+    want_value_json: str,
+    want_kind: str | None,
 ):
     with wandb.init(
         mode="offline",
@@ -79,12 +79,7 @@ def test_transaction_log_history_encoding(
                 history_items.append(item)
     assert history_items
     for item in history_items:
-        if want_json:
-            assert item.value_json == "0.5"
-        else:
-            assert item.value_json == ""
-        if want_typed:
-            assert item.WhichOneof("value") == "number"
+        assert item.value_json == want_value_json
+        assert item.WhichOneof("value") == want_kind
+        if want_kind == "number":
             assert item.number == 0.5
-        else:
-            assert item.WhichOneof("value") is None
