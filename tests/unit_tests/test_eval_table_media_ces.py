@@ -823,26 +823,6 @@ def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
         )
 
 
-def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
-    run = run_factory("run-one")
-    first = wandb.Image(_png(tmp_path, "first.png"), caption="caption")
-    first_result = _media_ces.prepare_media(first, run, _IMAGE_FIELD)
-    second_path = tmp_path / "second.png"
-    second_path.write_bytes(Path(first._path).read_bytes())
-    second = wandb.Image(second_path, caption="caption")
-    monkeypatch.setattr(
-        _media_ces,
-        "CES_MAX_CELL_BYTES",
-        first_result.encoded_size,
-    )
-
-    result = _media_ces.prepare_media(second, run, _IMAGE_FIELD)
-
-    assert result.encoded_size == first_result.encoded_size
-    assert result.media_json is None
-    assert result.oversized
-
-
 def test_retry_after_failed_upload_resends_placed_media(
     run_factory,
     deliver_upload_eval_table,

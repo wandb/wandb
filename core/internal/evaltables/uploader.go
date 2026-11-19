@@ -105,6 +105,10 @@ type EncodedTable struct {
 	// the table's W&B rows file, if it has one, so that Upload neither holds
 	// those rows' JSON in memory nor encodes them again.
 	cesRowsPath string
+
+	// oversizedMedia lists the media cells encoded as null because their
+	// CES extension value was too large.
+	oversizedMedia []*spb.EvalTableOversizedMediaCell
 }
 
 func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
@@ -135,7 +139,8 @@ func (t *EncodedTable) Close() error {
 // Encode validates an EvalTable of the run at runPath and encodes its rows.
 //
 // It encodes every row, so that an invalid table fails before Upload
-// writes anything to CES. The caller must Close the returned table.
+// writes anything to CES. It encodes media cells whose CES extension value
+// is too large as null. The caller must Close the returned table.
 //
 // Errors in the table satisfy IsUsageError. Cancelling ctx stops reading a
 // W&B rows file.
@@ -171,16 +176,17 @@ func Encode(
 		if err := table.writeCESRowsFile(ctx, encoder, path); err != nil {
 			return nil, err
 		}
-		return table, nil
+	} else {
+		for rowJSON, err := range encoder.encodeRows(inlineRows(data)) {
+			if err != nil {
+				return nil, err
+			}
+			table.nrows++
+			table.cesRows = append(table.cesRows, rowJSON)
+		}
 	}
 
-	for rowJSON, err := range encoder.encodeRows(inlineRows(data)) {
-		if err != nil {
-			return nil, err
-		}
-		table.nrows++
-		table.cesRows = append(table.cesRows, rowJSON)
-	}
+	table.oversizedMedia = encoder.oversizedMedia
 	return table, nil
 }
 
@@ -307,6 +313,7 @@ func (u *Uploader) Upload(
 		EvaluationVersionId: version.EvaluationVersionID,
 		DatasetId:           created.DatasetID,
 		DatasetVersionId:    version.DatasetVersionID,
+		OversizedMediaCells: table.oversizedMedia,
 	}, nil
 }
 
