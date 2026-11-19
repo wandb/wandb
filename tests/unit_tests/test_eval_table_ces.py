@@ -400,68 +400,29 @@ def test_ces_eval_table_writes_supported_media(
     assert request.dataset_fields[0].wandb_media_type == "image-file"
 
 
-def _log_image_table(run, deliver: MagicMock, nimages: int, oversized_rows: list[int]):
-    """Log an EvalTable of images, as if wandb-core nulled the given rows."""
-    from PIL import Image as PILImage
-
-    response = deliver.return_value.wait_or.return_value.response
-    response.upload_eval_table_response.oversized_media_cells.extend(
-        pb.EvalTableOversizedMediaCell(
-            row=row, source="output", name="image", size=3_600_000
-        )
-        for row in oversized_rows
-    )
-    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
-    table = wandb.EvalTable(columns=["image"], data=[[image]] * nimages, backend="ces")
-    run.log({"media_eval": table})
-
-
-@pytest.mark.parametrize(
-    ("oversized_rows", "expected_metrics"),
-    [
-        ([], ["eval_table_ces_media_write"]),
-        (
-            [1],
-            [
-                "eval_table_ces_media_write",
-                "eval_table_ces_media_write_with_oversized_cells",
-            ],
-        ),
-    ],
-)
-def test_ces_eval_table_media_telemetry_counts_affected_writes(
+def test_ces_eval_table_records_media_telemetry(
     monkeypatch,
     deliver_upload_eval_table,
     run,
-    oversized_rows,
-    expected_metrics,
 ):
+    from PIL import Image as PILImage
+
     recorder = MagicMock()
     monkeypatch.setattr(ces, "get_telemetry_recorder", lambda: recorder)
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
 
-    _log_image_table(run, deliver_upload_eval_table, 1, oversized_rows)
-
-    assert [
-        call.args[0] for call in recorder.increment_counter.call_args_list
-    ] == expected_metrics
-    recorder.log.assert_not_called()
-
-
-def test_ces_eval_table_warns_about_oversized_media(
-    deliver_upload_eval_table,
-    mock_wandb_log,
-    run,
-):
-    _log_image_table(run, deliver_upload_eval_table, 7, [1, 2, 3, 4, 5, 6])
-
-    mock_wandb_log.assert_warned(
-        "EvalTable uploaded 6 of 7 media cells as null because their CES values "
-        "reached the 3.5 MB limit. First affected: "
-        + ", ".join(
-            f"row {row}, output column 'image' (3600000 bytes)" for row in range(1, 6)
-        )
-        + "."
+    run.log(
+        {
+            "media_eval": wandb.EvalTable(
+                columns=["image"], data=[[image]], backend="ces"
+            )
+        }
     )
+
+    assert [call.args[0] for call in recorder.increment_counter.call_args_list] == [
+        "eval_table_ces_media_write"
+    ]
+    recorder.log.assert_not_called()
 
 
 def test_ces_eval_table_writes_supported_media_in_raise_mode(

@@ -1404,23 +1404,6 @@ message UploadEvalTableResponse {
   // The code is USAGE if the request's table is invalid, and UNSUPPORTED
   // in offline mode.
   ErrorInfo error = 5;
-
-  // Media cells that wandb-core uploaded as null, because their CES
-  // extension value was too large.
-  repeated EvalTableOversizedMediaCell oversized_media_cells = 6;
-}
-
-message EvalTableOversizedMediaCell {
-  // The cell's row, counting from 1.
-  int64 row = 1;
-
-  // The cell's dataset field.
-  // One of: cwevals.EvalTableColumnNewParamsDatasetFieldsSource
-  string source = 2;
-  string name = 3;
-
-  // The size of the cell's CES extension value, in bytes of compact JSON.
-  int64 size = 4;
 }
 
 /*
