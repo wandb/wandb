@@ -34,6 +34,8 @@ type rowColumn struct {
 }
 
 // rowEncoder writes the CES row JSON of an EvalTable's typed rows.
+//
+// It encodes one table's rows, once, as it records their oversized media.
 type rowEncoder struct {
 	media *mediaConverter
 
