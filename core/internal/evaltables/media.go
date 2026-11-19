@@ -50,7 +50,6 @@ type wandbMediaFile struct {
 	Size         int64  `json:"size"`
 }
 
-// convertMedia converts W&B media JSON to a CES extension value.
 func (c *mediaConverter) convertMedia(
 	mediaJSON json.RawMessage,
 	mediaType string,
