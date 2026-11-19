@@ -100,22 +100,22 @@ type EncodedTable struct {
 	columns ces.EvalTableColumnNewParams
 	nrows   int
 
-	// rowsJSON is the CES JSON of the table's inline rows.
-	rowsJSON [][]byte
+	// cesRows is the CES JSON of the table's inline rows.
+	cesRows [][]byte
 
-	// rowsJSONPath is a temporary file of the CES JSON of the table's
-	// rows file, if it has one, so that Upload neither holds those rows'
-	// JSON in memory nor encodes them again.
-	rowsJSONPath string
+	// cesRowsPath is the CES rows file: a temporary file of the CES JSON of
+	// the table's W&B rows file, if it has one, so that Upload neither holds
+	// those rows' JSON in memory nor encodes them again.
+	cesRowsPath string
 }
 
 func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
-	if t.rowsJSONPath != "" {
-		return rowsJSONFromFile(t.rowsJSONPath)
+	if t.cesRowsPath != "" {
+		return cesRowsFromFile(t.cesRowsPath)
 	}
 
 	return func(yield func([]byte, error) bool) {
-		for _, row := range t.rowsJSON {
+		for _, row := range t.cesRows {
 			if !yield(row, nil) {
 				return
 			}
@@ -124,8 +124,8 @@ func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 }
 
 func (t *EncodedTable) Close() {
-	if t.rowsJSONPath != "" {
-		_ = os.Remove(t.rowsJSONPath)
+	if t.cesRowsPath != "" {
+		_ = os.Remove(t.cesRowsPath)
 	}
 }
 
@@ -138,8 +138,8 @@ func (t *EncodedTable) Close() {
 func (u *Uploader) Encode(
 	data *spb.EvalTableData,
 ) (*EncodedTable, error) {
-	if len(data.GetRows()) > 0 && data.GetRowsFilePath() != "" {
-		return nil, usageError{errors.New("request has both rows and a rows file")}
+	if len(data.GetRows()) > 0 && data.GetWandbRowsFilePath() != "" {
+		return nil, usageError{errors.New("request has both rows and a W&B rows file")}
 	}
 
 	upserter, err := u.runHandle.Upserter()
@@ -167,8 +167,8 @@ func (u *Uploader) Encode(
 		columns: columns,
 	}
 
-	if path := data.GetRowsFilePath(); path != "" {
-		if err := table.writeRowsJSON(encoder, path); err != nil {
+	if path := data.GetWandbRowsFilePath(); path != "" {
+		if err := table.writeCESRowsFile(encoder, path); err != nil {
 			return nil, err
 		}
 		return table, nil
@@ -179,28 +179,28 @@ func (u *Uploader) Encode(
 			return nil, err
 		}
 		table.nrows++
-		table.rowsJSON = append(table.rowsJSON, rowJSON)
+		table.cesRows = append(table.cesRows, rowJSON)
 	}
 	return table, nil
 }
 
-// writeRowsJSON encodes the rows in a rows file into a temporary file next
-// to it, one row's JSON per line.
+// writeCESRowsFile encodes the rows in a W&B rows file into a CES rows file
+// next to it, one row's CES JSON per line.
 //
-// Row JSON is compact, so it never contains a newline.
-func (t *EncodedTable) writeRowsJSON(
+// CES row JSON is compact, so it never contains a newline.
+func (t *EncodedTable) writeCESRowsFile(
 	encoder *rowEncoder,
-	rowsFilePath string,
+	wandbRowsPath string,
 ) (err error) {
 	file, err := os.CreateTemp(
-		filepath.Dir(rowsFilePath), "wandb-eval-table-*.rows.jsonl")
+		filepath.Dir(wandbRowsPath), "wandb-eval-table-*.ces-rows.jsonl")
 	if err != nil {
-		return fmt.Errorf("evaltables: failed to create rows JSON file: %v", err)
+		return fmt.Errorf("evaltables: failed to create CES rows file: %v", err)
 	}
-	t.rowsJSONPath = file.Name()
+	t.cesRowsPath = file.Name()
 	defer func() {
 		if closeErr := file.Close(); err == nil && closeErr != nil {
-			err = fmt.Errorf("evaltables: failed to write rows JSON: %v", closeErr)
+			err = fmt.Errorf("evaltables: failed to write CES rows file: %v", closeErr)
 		}
 		if err != nil {
 			t.Close()
@@ -209,7 +209,7 @@ func (t *EncodedTable) writeRowsJSON(
 
 	// Write errors are sticky, so Flush reports any of them.
 	writer := bufio.NewWriter(file)
-	for rowJSON, err := range encoder.encodeRows(rowsFromFile(rowsFilePath)) {
+	for rowJSON, err := range encoder.encodeRows(wandbRowsFromFile(wandbRowsPath)) {
 		if err != nil {
 			return err
 		}
@@ -218,29 +218,29 @@ func (t *EncodedTable) writeRowsJSON(
 		_ = writer.WriteByte('\n')
 	}
 	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("evaltables: failed to write rows JSON: %v", err)
+		return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)
 	}
 	return nil
 }
 
-// rowsJSONFromFile returns the rows' JSON in a file from writeRowsJSON.
-func rowsJSONFromFile(path string) iter.Seq2[[]byte, error] {
+// cesRowsFromFile returns the rows in a CES rows file.
+func cesRowsFromFile(path string) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		file, err := os.Open(path)
 		if err != nil {
-			yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
+			yield(nil, fmt.Errorf("evaltables: failed to read CES rows file: %v", err))
 			return
 		}
 		defer func() { _ = file.Close() }()
 
 		reader := bufio.NewReader(file)
 		for {
-			row, err := readRowJSON(reader)
+			row, err := readCESRow(reader)
 			if errors.Is(err, io.EOF) {
 				return
 			}
 			if err != nil {
-				yield(nil, fmt.Errorf("evaltables: failed to read rows JSON: %v", err))
+				yield(nil, fmt.Errorf("evaltables: failed to read CES rows file: %v", err))
 				return
 			}
 			if !yield(row, nil) {
@@ -250,10 +250,10 @@ func rowsJSONFromFile(path string) iter.Seq2[[]byte, error] {
 	}
 }
 
-// readRowJSON reads one line of row JSON.
+// readCESRow reads one row from a CES rows file.
 //
 // It returns io.EOF only at the end of the file, between rows.
-func readRowJSON(reader *bufio.Reader) ([]byte, error) {
+func readCESRow(reader *bufio.Reader) ([]byte, error) {
 	line, err := reader.ReadBytes('\n')
 	switch {
 	case errors.Is(err, io.EOF) && len(line) > 0:
@@ -438,39 +438,39 @@ func inlineRows(
 	}
 }
 
-// maxRowFileMessageBytes limits the size of a row in a rows file.
+// maxWandbRowBytes limits the size of a row in a W&B rows file.
 //
 // A row's proto encoding can be larger than its CES JSON, such as for many
 // small numbers, so this allows rows well above CES's request limit and
 // leaves the exact check to rowEncoder.
-const maxRowFileMessageBytes = 4 * maxRequestBodyBytes
+const maxWandbRowBytes = 4 * maxRequestBodyBytes
 
-// rowsFromFile returns the rows in a gzipped file of EvalTableRow messages,
-// each preceded by its size as a varint.
-func rowsFromFile(path string) iter.Seq2[*spb.EvalTableRow, error] {
+// wandbRowsFromFile returns the rows in a W&B rows file: a gzipped file of
+// EvalTableRow messages, each preceded by its size as a varint.
+func wandbRowsFromFile(path string) iter.Seq2[*spb.EvalTableRow, error] {
 	return func(yield func(*spb.EvalTableRow, error) bool) {
 		file, err := os.Open(path)
 		if err != nil {
-			yield(nil, fmt.Errorf("evaltables: failed to read rows: %v", err))
+			yield(nil, fmt.Errorf("evaltables: failed to read W&B rows file: %v", err))
 			return
 		}
 		defer func() { _ = file.Close() }()
 
 		gzReader, err := gzip.NewReader(file)
 		if err != nil {
-			yield(nil, fmt.Errorf("evaltables: failed to read rows: %v", err))
+			yield(nil, fmt.Errorf("evaltables: failed to read W&B rows file: %v", err))
 			return
 		}
 		defer func() { _ = gzReader.Close() }()
 
 		reader := bufio.NewReader(gzReader)
 		for {
-			row, err := readRow(reader)
+			row, err := readWandbRow(reader)
 			switch {
 			case errors.Is(err, io.EOF):
 				return
 			case err != nil:
-				yield(nil, fmt.Errorf("evaltables: failed to read rows: %v", err))
+				yield(nil, fmt.Errorf("evaltables: failed to read W&B rows file: %v", err))
 				return
 			case !yield(row, nil):
 				return
@@ -479,16 +479,16 @@ func rowsFromFile(path string) iter.Seq2[*spb.EvalTableRow, error] {
 	}
 }
 
-// readRow reads a varint-delimited EvalTableRow, or returns io.EOF at the
+// readWandbRow reads a varint-delimited EvalTableRow, or returns io.EOF at the
 // end of the file.
-func readRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
+func readWandbRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
 	size, err := binary.ReadUvarint(reader)
 	if err != nil {
 		return nil, err
 	}
-	if size > maxRowFileMessageBytes {
+	if size > maxWandbRowBytes {
 		return nil, fmt.Errorf(
-			"row is %d bytes, must be at most %d", size, maxRowFileMessageBytes)
+			"row is %d bytes, must be at most %d", size, maxWandbRowBytes)
 	}
 
 	message := make([]byte, size)

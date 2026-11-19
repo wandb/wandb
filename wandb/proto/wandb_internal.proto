@@ -1310,16 +1310,16 @@ message EvalTableData {
 
   // The table's rows in order.
   //
-  // At most one of {rows, rows_file_path} may be set.
+  // At most one of {rows, wandb_rows_file_path} may be set.
   repeated EvalTableRow rows = 4;
 
-  // A gzipped file of the table's rows, as EvalTableRow messages, each
-  // preceded by its size as a varint.
+  // A W&B rows file: a gzipped file of the table's rows as EvalTableRow
+  // messages, each preceded by its size as a varint.
   //
   // It is used for tables too large to send inline. The client owns the
   // file and deletes it after the response; wandb-core only reads it, and
   // may write temporary files in the same directory.
-  string rows_file_path = 5;
+  string wandb_rows_file_path = 5;
 
   // Run files that the table's media cells reference, relative to the run's
   // files directory, for wandb-core to upload. Cells get their CES URIs
