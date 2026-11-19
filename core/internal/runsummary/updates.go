@@ -13,7 +13,7 @@ import (
 
 // Updates is a collection of updates to a run's summary.
 //
-// A nil value acts like no updates but cannot be mutated with Merge or Set.
+// A nil value acts like no updates but cannot be mutated with Merge/Set/Remove.
 type Updates struct {
 	// update contains values to add to or change in the summary.
 	//
