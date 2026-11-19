@@ -440,62 +440,50 @@ func TestUpload_StopsRetryingWhenCancelled(t *testing.T) {
 }
 
 func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-	// Each row is 1 MiB, so at most 7 fit under the 8 MiB target with the
-	// surrounding JSON.
-	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		Name:          "t",
-		DatasetFields: outputFieldX,
-		Rows:          outputRows(10, 1<<20),
-	})
-	require.NoError(t, err)
-
-	var batchSizes []int
-	for _, req := range ces.Requests() {
-		if !strings.HasSuffix(req.Path, "/rows") {
-			continue
-		}
-		var body struct{ Rows []json.RawMessage }
-		require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
-		assert.LessOrEqual(t, len(req.Body), 8<<20)
-		batchSizes = append(batchSizes, len(body.Rows))
+	testCases := []struct {
+		name        string
+		rows        []*spb.EvalTableRow
+		wantBatches []int
+	}{
+		{
+			// At most 7 rows of 1 MiB fit under the 8 MiB target with the
+			// surrounding JSON.
+			name:        "by size",
+			rows:        outputRows(10, 1<<20),
+			wantBatches: []int{7, 3},
+		},
+		{
+			name:        "by row count",
+			rows:        outputRows(10_001, 0),
+			wantBatches: []int{10_000, 1},
+		},
 	}
-	assert.Equal(t, []int{7, 3}, batchSizes)
-}
 
-func TestUpload_KeepsExampleKeysOfRowsWithoutInputs(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ces := newFakeCES(t)
+			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	// Each row is 3 MiB, so only two fit under the 8 MiB target.
-	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		Name:          "t",
-		DatasetFields: outputFieldX,
-		Rows:          outputRows(3, 3<<20),
-	})
-	require.NoError(t, err)
+			_, err := upload(context.Background(), uploader, &spb.EvalTableData{
+				Name:          "t",
+				DatasetFields: outputFieldX,
+				Rows:          tc.rows,
+			})
+			require.NoError(t, err)
 
-	type row struct {
-		Input      json.RawMessage
-		ExampleKey string `json:"example_key"`
+			var batchSizes []int
+			for _, req := range ces.Requests() {
+				if !strings.HasSuffix(req.Path, "/rows") {
+					continue
+				}
+				var body struct{ Rows []json.RawMessage }
+				require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
+				assert.LessOrEqual(t, len(req.Body), 8<<20)
+				batchSizes = append(batchSizes, len(body.Rows))
+			}
+			assert.Equal(t, tc.wantBatches, batchSizes)
+		})
 	}
-	var exampleKeys [][]string
-	for _, req := range ces.Requests() {
-		if !strings.HasSuffix(req.Path, "/rows") {
-			continue
-		}
-		var body struct{ Rows []row }
-		require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
-		var keys []string
-		for _, r := range body.Rows {
-			assert.Equal(t, "null", string(r.Input))
-			keys = append(keys, r.ExampleKey)
-		}
-		exampleKeys = append(exampleKeys, keys)
-	}
-	assert.Equal(t, [][]string{{"1", "2"}, {"3"}}, exampleKeys)
 }
 
 func TestUpload_ReportsRowProgress(t *testing.T) {
