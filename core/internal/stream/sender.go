@@ -281,7 +281,6 @@ func (f *SenderFactory) NewWithFileStream(
 			CredentialProvider: f.CredentialProvider,
 			GraphqlClient:      f.GraphqlClient,
 			Logger:             f.Logger,
-			RunHandle:          f.RunHandle,
 			Settings:           f.Settings,
 		})
 	}
@@ -1450,7 +1449,12 @@ func (s *Sender) uploadEvalTable(
 	ctx context.Context,
 	msg *spb.UploadEvalTableRequest,
 ) (*spb.UploadEvalTableResponse, error) {
-	table, err := s.evalTableUploader.Encode(msg.GetTable())
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		return nil, fmt.Errorf("sender: uploadEvalTable: %v", err)
+	}
+
+	table, err := evaltables.Encode(msg.GetTable(), upserter.RunPath())
 	if err != nil {
 		return nil, err
 	}

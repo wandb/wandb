@@ -22,8 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/evaltables"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
-	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runupsertertest"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -126,14 +125,10 @@ func newTestUploaderWithSettings(
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(gqlmock.WithOpName("ProjectInternalID"), projectJSON)
 
-	runHandle := runhandle.New()
-	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
-
 	return evaltables.NewUploader(evaltables.UploaderParams{
 		CredentialProvider: api.NewAPIKeyCredentialProvider("test-api-key"),
 		GraphqlClient:      mockGQL,
 		Logger:             observabilitytest.NewTestLogger(t),
-		RunHandle:          runHandle,
 		Settings:           s,
 	}), mockGQL
 }
@@ -143,11 +138,17 @@ func upload(
 	uploader *evaltables.Uploader,
 	request *spb.EvalTableData,
 ) (*spb.UploadEvalTableResponse, error) {
-	table, err := uploader.Encode(request)
+	table, err := evaltables.Encode(request, testRunPath)
 	if err != nil {
 		return nil, err
 	}
 	return uploader.Upload(ctx, table)
+}
+
+var testRunPath = runbranch.RunPath{
+	Entity:  "test-entity",
+	Project: "test-project",
+	RunID:   "test-run",
 }
 
 func encode(
@@ -155,9 +156,7 @@ func encode(
 	request *spb.EvalTableData,
 ) (*evaltables.EncodedTable, error) {
 	t.Helper()
-	uploader, _ := newTestUploaderWithSettings(
-		t, projectFoundJSON, settings.From(&spb.Settings{}))
-	return uploader.Encode(request)
+	return evaltables.Encode(request, testRunPath)
 }
 
 func boolValue(v bool) *spb.EvalTableValue {
