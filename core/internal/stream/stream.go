@@ -255,21 +255,7 @@ func (s *Stream) maybeSavingToTransactionLog(
 // HandleRecord ingests a record from the client.
 func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
-	if record.GetRequest().GetWaitForRunExitFlush() != nil {
-		if request == nil {
-			return
-		}
-
-		s.exitFlushMu.Lock()
-		if s.runWork.BeforeEndCtx().Err() != nil {
-			s.exitFlushMu.Unlock()
-			request.WillNotRespond()
-			return
-		}
-
-		s.wg.Go(func() { s.notifyAfterExit(request) })
-		s.exitFlushMu.Unlock()
-
+	if s.handleStreamRecord(record, request) {
 		return
 	}
 
@@ -279,6 +265,30 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	}
 
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
+}
+
+// handleStreamRecord handles records outside the normal Handler pipeline.
+//
+// E.g. A WaitForRunExitFlush request observes the Writer directly,
+// an area the sender has no visibility in.
+func (s *Stream) handleStreamRecord(record *spb.Record, request *runwork.Request) bool {
+	if record.GetRequest().GetWaitForRunExitFlush() == nil {
+		return false
+	}
+	if request == nil {
+		return true
+	}
+
+	s.exitFlushMu.Lock()
+	if s.runWork.BeforeEndCtx().Err() != nil {
+		s.exitFlushMu.Unlock()
+		request.WillNotRespond()
+		return true
+	}
+
+	s.wg.Go(func() { s.notifyAfterExit(request) })
+	s.exitFlushMu.Unlock()
+	return true
 }
 
 func (s *Stream) notifyAfterExit(request *runwork.Request) {
