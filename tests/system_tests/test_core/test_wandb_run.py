@@ -547,6 +547,6 @@ def test_sigterm_shuts_down_core_with_an_unfinished_run(tmp_path, wandb_backend_
     run_id = log_path.stem.removeprefix("run-")
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run_id)
-        assert [row["sigterm_marker"] for row in history] == [123]
+        assert [row["sigterm_marker"] for row in history.values()] == [123]
         assert snapshot.completed(run_id=run_id)
         assert snapshot.exit_code(run_id=run_id) == 1
