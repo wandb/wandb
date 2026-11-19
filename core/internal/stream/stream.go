@@ -264,10 +264,7 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
 }
 
-// handleStreamRecord handles records outside the normal Handler pipeline.
-//
-// E.g. A WaitForRunExitFlush request observes the Writer directly,
-// an area the sender has no visibility in.
+// handleStreamRecord handles records outside the normal Handler-Writer-Sender pipeline.
 func (s *Stream) handleStreamRecord(record *spb.Record, request *runwork.Request) bool {
 	if record.GetRequest().GetWaitForRunExitFlush() != nil {
 		s.handleWaitForRunExitFlush(request)
@@ -281,12 +278,6 @@ func (s *Stream) handleWaitForRunExitFlush(request *runwork.Request) {
 	if request == nil {
 		return
 	}
-
-	if s.runWork.BeforeEndCtx().Err() != nil {
-		request.WillNotRespond()
-		return
-	}
-
 	go s.notifyAfterExit(request)
 }
 
@@ -337,12 +328,8 @@ func (s *Stream) notifyAfterExit(request *runwork.Request) {
 // or else this blocks indefinitely.
 func (s *Stream) Close() {
 	s.logger.Info("stream: finishing up")
-
 	s.runWork.Close()
-
-	// Blocks while start may still be running
-	<-s.started
-
+	<-s.started // block in case Start() runs concurrently with Close()
 	s.wg.Wait()
 	s.logger.Info("stream: all finished")
 
