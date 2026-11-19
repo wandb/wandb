@@ -963,7 +963,7 @@ func TestVerifyWandbHeader_InvalidMagic(t *testing.T) {
 }
 
 func TestVerifyWandbHeader_AfterSeekPastFirstBlock(t *testing.T) {
-	var writtenVersion byte = 0x0D
+	var writtenVersion uint8 = 0x0D
 	buf := new(bytes.Buffer)
 	w := NewWriterExt(buf, CRCAlgoIEEE, writtenVersion)
 	first := strings.Repeat("x", blockSize)

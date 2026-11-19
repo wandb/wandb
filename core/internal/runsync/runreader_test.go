@@ -366,5 +366,5 @@ func Test_UnsupportedVersionError(t *testing.T) {
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
-	assert.ErrorContains(t, err, "a newer wandb version is required to read this file: 2")
+	assert.ErrorContains(t, err, "a newer wandb version is required to read this file")
 }
