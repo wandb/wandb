@@ -156,7 +156,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         log_artifact: pb.LogArtifactRequest | None = None,
         download_artifact: pb.DownloadArtifactRequest | None = None,
         link_artifact: pb.LinkArtifactRequest | None = None,
-        upload_eval_table: pb.UploadEvalTableRequest | None = None,
         defer: pb.DeferRequest | None = None,
         attach: pb.AttachRequest | None = None,
         server_info: pb.ServerInfoRequest | None = None,
@@ -201,8 +200,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.download_artifact.CopyFrom(download_artifact)
         elif link_artifact:
             request.link_artifact.CopyFrom(link_artifact)
-        elif upload_eval_table:
-            request.upload_eval_table.CopyFrom(upload_eval_table)
         elif defer:
             request.defer.CopyFrom(defer)
         elif attach:
@@ -410,8 +407,10 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         self,
         upload_eval_table: pb.UploadEvalTableRequest,
     ) -> MailboxHandle[pb.Result]:
-        rec = self._make_request(upload_eval_table=upload_eval_table)
-        return self._deliver(rec)
+        request = pb.Request(upload_eval_table=upload_eval_table)
+        record = self._make_record(request=request)
+        record.control.local = True
+        return self._deliver(record)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)
