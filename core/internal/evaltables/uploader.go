@@ -137,13 +137,15 @@ func (t *EncodedTable) Close() error {
 // It encodes every row, so that an invalid table fails before Upload
 // writes anything to CES. The caller must Close the returned table.
 //
-// Errors in the table satisfy IsUsageError.
+// Errors in the table satisfy IsUsageError. Cancelling ctx stops reading a
+// W&B rows file.
 func Encode(
+	ctx context.Context,
 	data *spb.EvalTableData,
 	runPath runbranch.RunPath,
 ) (*EncodedTable, error) {
 	if len(data.GetRows()) > 0 && data.GetWandbRowsFilePath() != "" {
-		return nil, usageError{errors.New("request has both rows and a W&B rows file")}
+		return nil, errors.New("evaltables: request has both rows and a W&B rows file")
 	}
 
 	columns := ces.EvalTableColumnNewParams{
@@ -166,7 +168,7 @@ func Encode(
 	}
 
 	if path := data.GetWandbRowsFilePath(); path != "" {
-		if err := table.writeCESRowsFile(encoder, path); err != nil {
+		if err := table.writeCESRowsFile(ctx, encoder, path); err != nil {
 			return nil, err
 		}
 		return table, nil
@@ -187,6 +189,7 @@ func Encode(
 //
 // CES row JSON is compact, so it never contains a newline.
 func (t *EncodedTable) writeCESRowsFile(
+	ctx context.Context,
 	encoder *rowEncoder,
 	wandbRowsPath string,
 ) (err error) {
@@ -206,7 +209,7 @@ func (t *EncodedTable) writeCESRowsFile(
 	}()
 
 	writer := bufio.NewWriter(file)
-	for rowJSON, err := range encoder.encodeRows(wandbRowsFromFile(wandbRowsPath)) {
+	for rowJSON, err := range encoder.encodeRows(wandbRowsFromFile(ctx, wandbRowsPath)) {
 		if err != nil {
 			return err
 		}
@@ -504,7 +507,10 @@ const maxWandbRowBytes = 4 * maxRequestBodyBytes
 
 // wandbRowsFromFile returns the rows in a W&B rows file: a gzipped file of
 // EvalTableRow messages, each preceded by its size as a varint.
-func wandbRowsFromFile(path string) iter.Seq2[*spb.EvalTableRow, error] {
+func wandbRowsFromFile(
+	ctx context.Context,
+	path string,
+) iter.Seq2[*spb.EvalTableRow, error] {
 	return func(yield func(*spb.EvalTableRow, error) bool) {
 		file, err := os.Open(path)
 		if err != nil {
@@ -522,6 +528,11 @@ func wandbRowsFromFile(path string) iter.Seq2[*spb.EvalTableRow, error] {
 
 		reader := bufio.NewReader(gzReader)
 		for {
+			if err := ctx.Err(); err != nil {
+				yield(nil, err)
+				return
+			}
+
 			row, err := readWandbRow(reader)
 			switch {
 			case errors.Is(err, io.EOF):
@@ -695,8 +706,9 @@ type idempotencyKeys struct {
 // Uploads can't key on where the table is logged: in shared mode, writers
 // to the same run can log the same key at the same step.
 //
-// CES replays a request with the same key and body, and rejects one with
-// the same key but a different body.
+// CES replays a create, row append, or version request with the same key,
+// and rejects one with the same key but a different body. Repeating an
+// identical column declaration is a no-op.
 func newIdempotencyKeys() idempotencyKeys {
 	return idempotencyKeys{
 		prefix: fmt.Sprintf(

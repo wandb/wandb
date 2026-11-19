@@ -104,7 +104,7 @@ func (e *rowEncoder) encodeRows(
 
 			rowJSON, err := e.encodeRow(row)
 			if err != nil {
-				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i)})
+				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i+1)})
 				return
 			}
 			if !yield(rowJSON, nil) {
@@ -295,10 +295,14 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
+// appendJSON appends v as JSON without escaping HTML characters, which would
+// only make rows larger.
 func appendJSON(buf []byte, v any) ([]byte, error) {
-	encoded, err := json.Marshal(v)
-	if err != nil {
+	out := bytes.NewBuffer(buf)
+	encoder := json.NewEncoder(out)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(v); err != nil {
 		return nil, err
 	}
-	return append(buf, encoded...), nil
+	return bytes.TrimSuffix(out.Bytes(), []byte("\n")), nil
 }

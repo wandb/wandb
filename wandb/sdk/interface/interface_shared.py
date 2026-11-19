@@ -403,12 +403,14 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec = self._make_request(link_artifact=link_artifact)
         return self._deliver(rec)
 
+    @override
     def _deliver_upload_eval_table(
         self,
         upload_eval_table: pb.UploadEvalTableRequest,
     ) -> MailboxHandle[pb.Result]:
-        request = pb.Request(upload_eval_table=upload_eval_table)
-        record = self._make_record(request=request)
+        # Copy the table into the record only once, since it can be large.
+        record = pb.Record()
+        record.request.upload_eval_table.CopyFrom(upload_eval_table)
         record.control.local = True
         return self._deliver(record)
 

@@ -26,8 +26,9 @@ import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
@@ -1407,21 +1408,15 @@ class Run:
             UsageError: If wandb-core rejects the table as invalid.
             UnsupportedError: If the run can't log EvalTables, such as in
                 offline mode.
-            CommError: If the upload fails.
+            Error: If the upload fails.
         """
-        from wandb.proto import wandb_internal_pb2 as pb
-
         assert self._interface
 
         handle = self._interface.deliver_upload_eval_table(request)
         response = handle.wait_or(timeout=None).response.upload_eval_table_response
-        if not response.HasField("error"):
-            return response
-        if response.error.code == pb.ErrorInfo.USAGE:
-            raise UsageError(response.error.message)
-        if response.error.code == pb.ErrorInfo.UNSUPPORTED:
-            raise UnsupportedError(response.error.message)
-        raise CommError(f"Failed to upload EvalTable: {response.error.message}")
+        if error := ProtobufErrorHandler.to_exception(response.error):
+            raise error
+        return response
 
     def _pop_all_charts(
         self,

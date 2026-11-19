@@ -5,6 +5,7 @@ import gzip
 import logging
 import math
 import os
+import pathlib
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -41,7 +42,7 @@ _VARINT_CONTINUATION_BIT = 0x80
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
-# Allow ten count-limited batches while failing fast on runaway tables.
+# Fails fast on runaway tables.
 _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
@@ -137,7 +138,7 @@ def _set_rows_or_wandb_rows_file(
     table_data: pb.EvalTableData,
     rows: Sequence[pb.EvalTableRow],
     *,
-    staging_dir: str,
+    staging_dir: pathlib.Path,
 ) -> Iterator[None]:
     """Set the table data's `rows`, or its `wandb_rows_file_path` for large tables.
 
@@ -154,7 +155,7 @@ def _set_rows_or_wandb_rows_file(
         yield
         return
 
-    os.makedirs(staging_dir, exist_ok=True)
+    staging_dir.mkdir(parents=True, exist_ok=True)
     file = tempfile.NamedTemporaryFile(
         dir=staging_dir,
         prefix="wandb-eval-table-",
@@ -246,21 +247,17 @@ class CESWriter:
                 f"First affected: {locations}.",
             )
 
-        table = pb.EvalTableData(
-            name=name,
-            dataset_fields=write_payloads.dataset_fields,
-            scorers=write_payloads.scorers,
-            upload_media_paths=write_payloads.upload_media_paths,
-        )
-        staging_dir = os.path.join(
-            bound_run.run._settings.sync_dir, "tmp", "eval-tables"
-        )
+        # Build the request in place, since copying a table can be costly.
+        request = pb.UploadEvalTableRequest()
+        request.table.name = name
+        request.table.dataset_fields.extend(write_payloads.dataset_fields)
+        request.table.scorers.extend(write_payloads.scorers)
+        request.table.upload_media_paths.extend(write_payloads.upload_media_paths)
+        staging_dir = pathlib.Path(bound_run.run.sync_dir) / "tmp" / "eval-tables"
         with _set_rows_or_wandb_rows_file(
-            table, write_payloads.rows, staging_dir=staging_dir
+            request.table, write_payloads.rows, staging_dir=staging_dir
         ):
-            response = bound_run.run._upload_eval_table(
-                pb.UploadEvalTableRequest(table=table)
-            )
+            response = bound_run.run._upload_eval_table(request)
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",
