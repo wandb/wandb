@@ -25,9 +25,10 @@ func exitFlushRecord() *spb.Record {
 
 func TestStream_ExitFlushNotifiesMultipleAndLateRequests(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		logger := observabilitytest.NewTestLogger(t)
 		reader, logWriter := transactionlogtest.ReaderWriter(t)
 		writer := (&WriterFactory{
-			Logger:   observabilitytest.NewTestLogger(t),
+			Logger:   logger,
 			Settings: settings.New(),
 		}).New(logWriter)
 		input := make(chan runwork.Work)
@@ -40,9 +41,10 @@ func TestStream_ExitFlushNotifiesMultipleAndLateRequests(t *testing.T) {
 		started := make(chan struct{})
 		close(started)
 		stream := &Stream{
-			logger:              observabilitytest.NewTestLogger(t),
+			logger:              logger,
 			started:             started,
 			transactionLogReady: writer.exitFlushDone,
+			runWork:             runwork.New(1, logger),
 		}
 		first, firstResponses := runworktest.SimpleRequest(t, "first")
 		second, secondResponses := runworktest.SimpleRequest(t, "second")
@@ -85,7 +87,8 @@ func TestStream_ExitFlushWithoutWriter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		started := make(chan struct{})
 		close(started)
-		stream := &Stream{logger: observabilitytest.NewTestLogger(t), started: started}
+		logger := observabilitytest.NewTestLogger(t)
+		stream := &Stream{logger: logger, started: started, runWork: runwork.New(1, logger)}
 		request, responses := runworktest.SimpleRequest(t, "flush")
 
 		stream.HandleRecord(exitFlushRecord(), request)
@@ -99,13 +102,15 @@ func TestStream_ExitFlushWithoutWriter(t *testing.T) {
 
 func TestStream_ExitFlushCancellationWhileWaitingForWriter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		logger := observabilitytest.NewTestLogger(t)
 		writer := &Writer{exitFlushDone: make(chan struct{})}
 		started := make(chan struct{})
 		close(started)
 		stream := &Stream{
-			logger:              observabilitytest.NewTestLogger(t),
+			logger:              logger,
 			started:             started,
 			transactionLogReady: writer.exitFlushDone,
+			runWork:             runwork.New(1, logger),
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		responses := make(chan *spb.ServerResponse, 1)
@@ -124,7 +129,7 @@ func TestStream_ExitFlushCancellationWhileWaitingForWriter(t *testing.T) {
 	})
 }
 
-func TestStream_ExitFlushRespondsOnCloseWithoutExit(t *testing.T) {
+func TestStream_ExitFlushRespondsWhenWriterStopsWithoutExit(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logger := observabilitytest.NewTestLogger(t)
 		_, logWriter := transactionlogtest.ReaderWriter(t)
@@ -137,23 +142,25 @@ func TestStream_ExitFlushRespondsOnCloseWithoutExit(t *testing.T) {
 			transactionLogReady: writer.exitFlushDone,
 			runWork:             runwork.New(1, logger),
 		}
+		input := make(chan runwork.Work)
 		stream.wg.Add(1)
 		go func() {
 			defer stream.wg.Done()
-			writer.Do(stream.runWork.Chan())
+			writer.Do(input)
 		}()
 		request, responses := runworktest.SimpleRequest(t, "flush")
 
 		stream.HandleRecord(exitFlushRecord(), request)
-		stream.Close()
-		late, lateResponses := runworktest.SimpleRequest(t, "late")
-		stream.HandleRecord(exitFlushRecord(), late)
-
+		synctest.Wait()
+		close(input)
 		response := <-responses
 		require.NotNil(
 			t,
 			response.GetResultCommunicate().GetResponse().GetWaitForRunExitFlushResponse(),
 		)
+		stream.Close()
+		late, lateResponses := runworktest.SimpleRequest(t, "late")
+		stream.HandleRecord(exitFlushRecord(), late)
 		require.NotNil(t, (<-lateResponses).GetErrorResponse())
 	})
 }
