@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"time"
 
 	ces "github.com/wandb/cwevals-go"
 	"github.com/wandb/cwevals-go/option"
@@ -56,6 +57,10 @@ func parseCESBaseURL(s *settings.Settings) (*url.URL, error) {
 	return cesBaseURL, nil
 }
 
+// cesRequestTimeout limits each attempt of a CES request. Row append
+// bodies can be up to 16 MiB, so it allows for slow uplinks.
+const cesRequestTimeout = 2 * time.Minute
+
 func newCESHTTPClient(
 	cesBaseURL *url.URL,
 	credentialProvider api.CredentialProvider,
@@ -67,7 +72,7 @@ func newCESHTTPClient(
 		RetryMax:           api.DefaultRetryMax,
 		RetryWaitMin:       api.DefaultRetryWaitMin,
 		RetryWaitMax:       api.DefaultRetryWaitMax,
-		NonRetryTimeout:    api.DefaultNonRetryTimeout,
+		NonRetryTimeout:    cesRequestTimeout,
 		Proxy:              s.GetProxyFn(),
 		ProxyConnectHeader: s.GetProxyConnectHeader(),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),

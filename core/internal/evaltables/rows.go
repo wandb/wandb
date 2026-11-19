@@ -1,6 +1,7 @@
 package evaltables
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,7 +93,7 @@ func (e *rowEncoder) encodeRows(rows []*spb.EvalTableRow) ([][]byte, error) {
 	for i, row := range rows {
 		rowJSON, err := e.encodeRow(row)
 		if err != nil {
-			return nil, fmt.Errorf("%v (row %d)", err, i)
+			return nil, fmt.Errorf("%v (row %d)", err, i+1)
 		}
 		encoded[i] = rowJSON
 	}
@@ -278,10 +279,14 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
+// appendJSON appends v as JSON without escaping HTML characters, which would
+// only make rows larger.
 func appendJSON(buf []byte, v any) ([]byte, error) {
-	encoded, err := json.Marshal(v)
-	if err != nil {
+	out := bytes.NewBuffer(buf)
+	encoder := json.NewEncoder(out)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(v); err != nil {
 		return nil, err
 	}
-	return append(buf, encoded...), nil
+	return bytes.TrimSuffix(out.Bytes(), []byte("\n")), nil
 }
