@@ -10291,13 +10291,9 @@ type UploadEvalTableResponse struct {
 	//
 	// The code is USAGE if the request's table is invalid, and UNSUPPORTED
 	// in offline mode.
-	Error *ErrorInfo `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
-	// A warning for the user about media cells that wandb-core uploaded as
-	// null because their CES extension value was too large, or empty if
-	// there were none.
-	OversizedMediaWarning string `protobuf:"bytes,6,opt,name=oversized_media_warning,json=oversizedMediaWarning,proto3" json:"oversized_media_warning,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	Error         *ErrorInfo `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UploadEvalTableResponse) Reset() {
@@ -10363,13 +10359,6 @@ func (x *UploadEvalTableResponse) GetError() *ErrorInfo {
 		return x.Error
 	}
 	return nil
-}
-
-func (x *UploadEvalTableResponse) GetOversizedMediaWarning() string {
-	if x != nil {
-		return x.OversizedMediaWarning
-	}
-	return ""
 }
 
 // DownloadArtifact:
@@ -13424,15 +13413,14 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fEvalTableScorer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"value_type\x18\x02 \x01(\tR\tvalueType\"\xa8\x02\n" +
+	"value_type\x18\x02 \x01(\tR\tvalueType\"\xf0\x01\n" +
 	"\x17UploadEvalTableResponse\x12#\n" +
 	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x122\n" +
 	"\x15evaluation_version_id\x18\x02 \x01(\tR\x13evaluationVersionId\x12\x1d\n" +
 	"\n" +
 	"dataset_id\x18\x03 \x01(\tR\tdatasetId\x12,\n" +
 	"\x12dataset_version_id\x18\x04 \x01(\tR\x10datasetVersionId\x12/\n" +
-	"\x05error\x18\x05 \x01(\v2\x19.wandb_internal.ErrorInfoR\x05error\x126\n" +
-	"\x17oversized_media_warning\x18\x06 \x01(\tR\x15oversizedMediaWarning\"\x8d\x02\n" +
+	"\x05error\x18\x05 \x01(\v2\x19.wandb_internal.ErrorInfoR\x05error\"\x8d\x02\n" +
 	"\x17DownloadArtifactRequest\x12\x1f\n" +
 	"\vartifact_id\x18\x01 \x01(\tR\n" +
 	"artifactId\x12#\n" +

@@ -2816,11 +2816,6 @@ pub struct UploadEvalTableResponse {
     /// in offline mode.
     #[prost(message, optional, tag = "5")]
     pub error: ::core::option::Option<ErrorInfo>,
-    /// A warning for the user about media cells that wandb-core uploaded as
-    /// null because their CES extension value was too large, or empty if
-    /// there were none.
-    #[prost(string, tag = "6")]
-    pub oversized_media_warning: ::prost::alloc::string::String,
 }
 /// DownloadArtifact:
 #[allow(clippy::all)]
