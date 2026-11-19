@@ -1,7 +1,6 @@
 package evaltables
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,7 +86,7 @@ func (c *mediaConverter) convertMedia(
 		return nil, err
 	}
 
-	return marshalJSON(value)
+	return appendJSON(nil, value)
 }
 
 func (c *mediaConverter) imageValue(
@@ -209,16 +208,4 @@ func (c *mediaConverter) uri(file wandbMediaFile) (string, error) {
 	}
 
 	return "wandb-run-file://" + strings.Join(components, "/"), nil
-}
-
-// marshalJSON encodes v without escaping HTML characters, which would only
-// make rows larger.
-func marshalJSON(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(v); err != nil {
-		return nil, err
-	}
-	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
