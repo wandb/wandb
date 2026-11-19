@@ -743,6 +743,24 @@ func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
 	assert.True(t, evaltables.IsUsageError(err))
 }
 
+func TestUpload_SucceedsWithoutProgress(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	op := wboperation.NewOperations().New("uploading eval table t")
+	_, err := op.NewProgress()
+	require.NoError(t, err)
+
+	_, err = upload(op.Context(context.Background()), uploader,
+		&spb.EvalTableData{
+			Name:          "t",
+			DatasetFields: outputFieldX,
+			Rows:          outputRows(1, 1),
+		})
+
+	require.NoError(t, err)
+	assert.Len(t, ces.Requests(), 4)
+}
+
 func TestUpload_NoCESURL(t *testing.T) {
 	uploader, _ := newTestUploaderWithSettings(t, projectFoundJSON, settings.New())
 
