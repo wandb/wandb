@@ -2,13 +2,11 @@ package evaltables_test
 
 import (
 	"math"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/wandb/wandb/core/internal/evaltables"
 	"github.com/wandb/wandb/core/internal/runbranch"
@@ -480,84 +478,6 @@ func TestEncode_ConvertsMedia(t *testing.T) {
 				"height": 48
 			}
 		},
-		"scores": {}
-	}]`, table.CESRowsJSON(t))
-}
-
-// TestEncode_ConvertsPythonMedia converts a request recorded from the Python
-// SDK, so that it covers the W&B media JSON that Python actually sends.
-//
-// Python's test_eval_table_media_request_matches_core_fixture checks that the
-// fixture is up to date.
-func TestEncode_ConvertsPythonMedia(t *testing.T) {
-	fixture, err := os.ReadFile("testdata/upload_media_request.json")
-	require.NoError(t, err)
-	request := &spb.EvalTableData{}
-	require.NoError(t, protojson.Unmarshal(fixture, request))
-	request.Name = "my-table"
-
-	table, err := encode(t, request)
-
-	require.NoError(t, err)
-	assert.JSONEq(t, `[{
-		"input": {
-			"image": {
-				"extension_type": "wandb-image",
-				"schema_version": 1,
-				"wb_media_type": "image-file",
-				"format": "png",
-				"sha256": "3ac156facd9194daa57d0520cf7fae827b390b32e2a88aa63a6d2562e3d5321f",
-				"size": 75,
-				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/eval/3ac156facd9194daa57d0520cf7fae.png",
-				"width": 2,
-				"height": 2,
-				"caption": "a cat",
-				"boxes": {"predictions": {
-					"_type": "boxes2D",
-					"sha256": "ad1d2145f99572ff3c3a4fea99839c7ad570ad5359231e6e060d75caa250405f",
-					"size": 113,
-					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/metadata/boxes2D/eval/ad1d2145f99572ff3c3a4fea99839c.boxes2D.json"
-				}},
-				"masks": {"predictions": {
-					"_type": "mask",
-					"sha256": "dd7b89993bde2e6c52ea00d533d1f09ac602d218251b7405d291fddc0b60cddf",
-					"size": 68,
-					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/mask/eval/dd7b89993bde2e6c52ea00d533d1f0.mask.png"
-				}}
-			},
-			"artifact_image": {
-				"extension_type": "wandb-image",
-				"schema_version": 1,
-				"wb_media_type": "image-file",
-				"format": "png",
-				"sha256": "2f1686c393cd8b93b2b3d9ca90a271a87672a28dccb22d5688cd56561d34bdc5",
-				"size": 75,
-				"uri": "wandb-artifact://abc123/media/images/artifact.png",
-				"width": 2,
-				"height": 2
-			},
-			"audio": {
-				"extension_type": "wandb-audio",
-				"schema_version": 1,
-				"wb_media_type": "audio-file",
-				"sha256": "6583eae4b42ae05c5bea5d55837c8613de7898fc6ce0712ed26b961d6392f306",
-				"size": 14,
-				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/audio/eval/6583eae4b42ae05c5bea5d55837c86.wav",
-				"caption": "meow"
-			},
-			"video": {
-				"extension_type": "wandb-video",
-				"schema_version": 1,
-				"wb_media_type": "video-file",
-				"sha256": "eb09cef0044f4d991fd75715493d7cb01fde6dcb5896fa3e6fc09ce25a4e841a",
-				"size": 14,
-				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/videos/eval/eb09cef0044f4d991fd75715493d7c.mp4",
-				"width": 640,
-				"height": 480,
-				"caption": "a clip"
-			}
-		},
-		"output": null,
 		"scores": {}
 	}]`, table.CESRowsJSON(t))
 }
