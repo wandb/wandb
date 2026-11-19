@@ -15,8 +15,6 @@ const (
 	// maxRequestBodyBytes is CES's request body limit.
 	maxRequestBodyBytes = 16 << 20
 
-	// rowBatchPrefix and rowBatchSuffix enclose the rows in a row append
-	// request body.
 	rowBatchPrefix = `{"rows":[`
 	rowBatchSuffix = `]}`
 )
