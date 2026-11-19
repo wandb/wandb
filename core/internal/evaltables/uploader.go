@@ -89,9 +89,15 @@ type EncodedTable struct {
 	runPath runbranch.RunPath
 	columns ces.EvalTableColumnNewParams
 	cesRows [][]byte
+
+	// oversizedMedia lists the media cells encoded as null because their
+	// CES extension value was too large.
+	oversizedMedia []*spb.EvalTableOversizedMediaCell
 }
 
 // Encode validates an EvalTable of the run at runPath and encodes its rows.
+//
+// It encodes media cells whose CES extension value is too large as null.
 //
 // Errors in the table satisfy IsUsageError.
 func Encode(
@@ -116,10 +122,11 @@ func Encode(
 	}
 
 	return &EncodedTable{
-		name:    data.GetName(),
-		runPath: runPath,
-		columns: columns,
-		cesRows: cesRows,
+		name:           data.GetName(),
+		runPath:        runPath,
+		columns:        columns,
+		cesRows:        cesRows,
+		oversizedMedia: encoder.oversizedMedia,
 	}, nil
 }
 
@@ -162,6 +169,7 @@ func (u *Uploader) Upload(
 		EvaluationVersionId: version.EvaluationVersionID,
 		DatasetId:           created.DatasetID,
 		DatasetVersionId:    version.DatasetVersionID,
+		OversizedMediaCells: table.oversizedMedia,
 	}, nil
 }
 
