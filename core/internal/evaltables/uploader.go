@@ -125,10 +125,15 @@ func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
 	}
 }
 
-func (t *EncodedTable) Close() {
-	if t.cesRowsPath != "" {
-		_ = os.Remove(t.cesRowsPath)
+// Close removes the table's CES rows file, if it has one.
+func (t *EncodedTable) Close() error {
+	if t.cesRowsPath == "" {
+		return nil
 	}
+	if err := os.Remove(t.cesRowsPath); err != nil {
+		return fmt.Errorf("evaltables: failed to remove CES rows file: %v", err)
+	}
+	return nil
 }
 
 // Encode validates an EvalTable and encodes its rows.
@@ -205,19 +210,22 @@ func (t *EncodedTable) writeCESRowsFile(
 			err = fmt.Errorf("evaltables: failed to write CES rows file: %v", closeErr)
 		}
 		if err != nil {
-			t.Close()
+			err = errors.Join(err, t.Close())
 		}
 	}()
 
-	// Write errors are sticky, so Flush reports any of them.
 	writer := bufio.NewWriter(file)
 	for rowJSON, err := range encoder.encodeRows(wandbRowsFromFile(wandbRowsPath)) {
 		if err != nil {
 			return err
 		}
 		t.nrows++
-		_, _ = writer.Write(rowJSON)
-		_ = writer.WriteByte('\n')
+		if _, err := writer.Write(rowJSON); err != nil {
+			return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)
+		}
+		if err := writer.WriteByte('\n'); err != nil {
+			return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)
+		}
 	}
 	if err := writer.Flush(); err != nil {
 		return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)

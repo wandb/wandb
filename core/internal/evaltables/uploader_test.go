@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -151,8 +152,8 @@ func upload(
 	if err != nil {
 		return nil, err
 	}
-	defer table.Close()
-	return uploader.Upload(ctx, table)
+	response, err := uploader.Upload(ctx, table)
+	return response, errors.Join(err, table.Close())
 }
 
 func encode(
@@ -164,7 +165,7 @@ func encode(
 		t, projectFoundJSON, settings.From(&spb.Settings{}))
 	table, err := uploader.Encode(request)
 	if table != nil {
-		t.Cleanup(table.Close)
+		t.Cleanup(func() { assert.NoError(t, table.Close()) })
 	}
 	return table, err
 }
@@ -659,9 +660,9 @@ func TestUpload_ReadsWandbRowsFileOnlyWhileEncoding(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(path))
 	_, err = uploader.Upload(context.Background(), table)
-	table.Close()
 
 	require.NoError(t, err)
+	require.NoError(t, table.Close())
 	assert.Equal(t,
 		`{"rows":[{"input":null,"output":{"x":"1"},"scores":{}}]}`,
 		ces.Requests()[2].Body)
