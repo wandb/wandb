@@ -243,39 +243,27 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		return
 	}
 
-	s, _ := historyStep(history)
-	step := int(s)
-	var mediaFieldsByKey map[string]map[string]string
-
 	if acc.values == nil {
 		acc.values = make(map[string]float64)
 	}
-	clear(acc.values)
+	s, _ := historyRowValues(history, acc.values)
+	step := int(s)
+
+	var mediaFieldsByKey map[string]map[string]string
 	for _, item := range history.GetItem() {
-		if item == nil {
+		mediaKey, field, ok := historyMediaField(item)
+		if !ok {
 			continue
 		}
-
-		if mediaKey, field, ok := historyMediaField(item); ok {
-			if mediaFieldsByKey == nil {
-				mediaFieldsByKey = make(map[string]map[string]string)
-			}
-			fields := mediaFieldsByKey[mediaKey]
-			if fields == nil {
-				fields = make(map[string]string)
-				mediaFieldsByKey[mediaKey] = fields
-			}
-			fields[field] = historyItemString(item)
-			continue
+		if mediaFieldsByKey == nil {
+			mediaFieldsByKey = make(map[string]map[string]string)
 		}
-
-		key := historyItemKey(item)
-		if key == "" {
-			continue
+		fields := mediaFieldsByKey[mediaKey]
+		if fields == nil {
+			fields = make(map[string]string)
+			mediaFieldsByKey[mediaKey] = fields
 		}
-		if val, ok := historyItemFloat(item); ok {
-			acc.values[key] = val
-		}
+		fields[field] = historyItemString(item)
 	}
 
 	if ts, ok := acc.values["_timestamp"]; ok {
@@ -335,6 +323,30 @@ func (acc *historyAccumulator) toMsg(runPath string) (HistoryMsg, bool) {
 		Media:     acc.media,
 		StepTimes: acc.stepTimes,
 	}, true
+}
+
+// historyRowValues clears values and fills it with the record's numeric
+// items by key, including internal keys such as _runtime and leaving out
+// the fields of media values. It returns the record's step, or false when
+// the record has none.
+func historyRowValues(history *spb.HistoryRecord, values map[string]float64) (int64, bool) {
+	clear(values)
+	for _, item := range history.GetItem() {
+		if item == nil {
+			continue
+		}
+		if _, _, ok := historyMediaField(item); ok {
+			continue
+		}
+		key := historyItemKey(item)
+		if key == "" {
+			continue
+		}
+		if val, ok := historyItemFloat(item); ok {
+			values[key] = val
+		}
+	}
+	return historyStep(history)
 }
 
 // historyItemKey returns the dotted nested key, or the flat key when there is none.

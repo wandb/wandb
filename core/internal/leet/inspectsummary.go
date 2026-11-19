@@ -125,22 +125,37 @@ func (d *runDigest) apply(record *spb.Record) {
 // changed for RunCrashTimeout, as in the TUI.
 func (d *runDigest) state() (string, string) {
 	age := time.Since(d.lastWrite).Round(time.Second)
+	state := runState(d.exit, d.run.ID != "", d.lastWrite)
+	d.overview.SetRunState(state)
+
 	var detail string
 	switch {
 	case d.exit != nil:
-		d.overview.SetRunState(runStateForExitCode(d.exit.GetExitCode()))
 		detail = fmt.Sprintf("exit code %d", d.exit.GetExitCode())
-	case d.run.ID == "":
-		d.overview.SetRunState(RunStateUnknown)
+	case state == RunStateUnknown:
 		detail = "no run record yet"
-	case age > RunCrashTimeout:
-		d.overview.SetRunState(RunStateCrashed)
+	case state == RunStateCrashed:
 		detail = fmt.Sprintf("no exit record, last write %v ago", age)
 	default:
-		d.overview.SetRunState(RunStateRunning)
 		detail = fmt.Sprintf("last write %v ago", age)
 	}
-	return strings.ToLower(d.overview.StateString()), detail
+	return strings.ToLower(state.String()), detail
+}
+
+// runState returns the state of a run read from its file: from its exit
+// record, else unknown without a run record, else crashed once the file
+// has gone RunCrashTimeout without a write, else running.
+func runState(exit *spb.RunExitRecord, haveRun bool, lastWrite time.Time) RunState {
+	switch {
+	case exit != nil:
+		return runStateForExitCode(exit.GetExitCode())
+	case !haveRun:
+		return RunStateUnknown
+	case time.Since(lastWrite) > RunCrashTimeout:
+		return RunStateCrashed
+	default:
+		return RunStateRunning
+	}
 }
 
 // consoleTail returns the last console lines and the total line count.
