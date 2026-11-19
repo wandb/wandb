@@ -128,15 +128,15 @@ def _ordered(
 
 
 @contextlib.contextmanager
-def _add_rows(
-    table: pb.EvalTableData,
+def _set_rows_or_wandb_rows_file(
+    table_data: pb.EvalTableData,
     rows: Sequence[pb.EvalTableRow],
     *,
     staging_dir: str,
 ) -> Iterator[None]:
-    """Add rows to a table, in a temporary file for large tables.
+    """Set the table data's `rows`, or its `wandb_rows_file_path` for large tables.
 
-    The file is in `staging_dir` and is deleted when the context exits.
+    The W&B rows file is in `staging_dir` and is deleted when the context exits.
     wandb-core only reads it, and responds after the upload finishes.
     """
     total_bytes = 0
@@ -145,7 +145,7 @@ def _add_rows(
         if total_bytes > _ROWS_FILE_THRESHOLD_BYTES:
             break
     else:
-        table.rows.extend(rows)
+        table_data.rows.extend(rows)
         yield
         return
 
@@ -158,8 +158,8 @@ def _add_rows(
     )
     try:
         with file:
-            _write_rows(file, rows)
-        table.wandb_rows_file_path = file.name
+            _write_wandb_rows_file(file, rows)
+        table_data.wandb_rows_file_path = file.name
         yield
     finally:
         # A failure to remove the file, such as while wandb-core still has
@@ -168,10 +168,10 @@ def _add_rows(
         try:
             os.remove(file.name)
         except OSError as e:
-            _logger.warning("Failed to remove EvalTable rows file %s: %s", file.name, e)
+            _logger.warning("Failed to remove W&B rows file %s: %s", file.name, e)
 
 
-def _write_rows(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> None:
+def _write_wandb_rows_file(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> None:
     """Write rows gzipped, each preceded by its size as a varint.
 
     This is protobuf's length-delimited encoding.
@@ -250,7 +250,9 @@ class CESWriter:
         staging_dir = os.path.join(
             bound_run.run._settings.sync_dir, "tmp", "eval-tables"
         )
-        with _add_rows(table, write_payloads.rows, staging_dir=staging_dir):
+        with _set_rows_or_wandb_rows_file(
+            table, write_payloads.rows, staging_dir=staging_dir
+        ):
             response = bound_run.run._upload_eval_table(
                 pb.UploadEvalTableRequest(table=table)
             )
