@@ -33,8 +33,6 @@ const (
 
 	maxRowsPerBatch = 10_000
 
-	// rowBatchPrefix and rowBatchSuffix enclose the rows in a row append
-	// request body.
 	rowBatchPrefix = `{"rows":[`
 	rowBatchSuffix = `]}`
 
