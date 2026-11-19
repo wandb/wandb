@@ -725,7 +725,10 @@ func TestUpload_RejectsBadWandbRowsFile(t *testing.T) {
 			assert.ErrorContains(t, err, "evaltables: failed to read W&B rows file: "+tc.wantErr)
 			assert.False(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
-			assert.NotContains(t, strings.Join(filesIn(t, filepath.Dir(path)), "\n"), ".ces-rows.jsonl")
+			// No CES rows file is left behind.
+			for _, file := range filesIn(t, filepath.Dir(path)) {
+				assert.NotContains(t, file, ".ces-rows.jsonl")
+			}
 		})
 	}
 }
