@@ -35,6 +35,14 @@ type ReaderOptions struct {
 	// asFunc allows drivers to expose driver-specific types;
 	// see Bucket.As for more details.
 	BeforeRead func(asFunc func(any) bool) error
+	// BufferSize changes the default size in bytes of the chunks that a
+	// parallel download fetches per request, if supported. Only used when a
+	// DownloaderAt download is performed; ignored otherwise.
+	BufferSize int
+	// MaxConcurrency changes the default number of parts fetched concurrently
+	// by a parallel download, if supported. Only used when a DownloaderAt
+	// download is performed; ignored otherwise.
+	MaxConcurrency int
 }
 
 // Reader reads an object from the blob.
@@ -351,6 +359,17 @@ type Bucket interface {
 	// ErrorCode. There may be open readers or writers that will receive calls.
 	// It is up to the driver as to how these will be handled.
 	Close() error
+}
+
+// DownloaderAt is an optional interface for Bucket. If a driver implements it,
+// blob.Bucket.Download uses DownloadAt when the download destination is an
+// io.WriterAt, e.g. to fetch the object with a provider's parallel/ranged
+// downloader. Implementing it avoids the eager read that would otherwise be
+// issued via NewRangeReader and then discarded.
+//
+// If set, opts.BeforeRead is called once before the download begins.
+type DownloaderAt interface {
+	DownloadAt(ctx context.Context, key string, w io.WriterAt, opts *ReaderOptions) error
 }
 
 // SignedURLOptions sets options for SignedURL.

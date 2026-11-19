@@ -194,16 +194,8 @@ func (s *FileStreamState) popSummary(
 			s.RunSummary = runsummary.New()
 		}
 
-		err := request.SummaryUpdates.Apply(s.RunSummary)
+		request.SummaryUpdates.Apply(s.RunSummary)
 		request.SummaryUpdates = nil
-
-		if err != nil {
-			// A partial success is possible, so we log and continue.
-			logger.CaptureError(
-				"filestream",
-				fmt.Errorf("filestream: error applying summary updates: %v", err),
-			)
-		}
 
 		summaryJSON, err := s.RunSummary.Serialize()
 		if err != nil {

@@ -75,6 +75,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
+	"cloud.google.com/go/storage/transfermanager"
 	"github.com/google/wire"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
@@ -842,6 +843,63 @@ func (b *bucket) NewRangeReader(ctx context.Context, key string, offset, length 
 		},
 		raw: r,
 	}, nil
+}
+
+var _ driver.DownloaderAt = (*bucket)(nil)
+
+// DownloadAt implements driver.DownloaderAt. It uses the GCS transfer manager
+// to fetch the object with concurrent ranged reads, writing parts directly into
+// w. transfermanager is a subpackage of cloud.google.com/go/storage, which this
+// driver already depends on, and it reuses the driver's existing *storage.Client.
+func (b *bucket) DownloadAt(ctx context.Context, key string, w io.WriterAt, opts *driver.ReaderOptions) error {
+	key = escapeKey(key)
+	var topts []transfermanager.Option
+	if opts.BufferSize != 0 {
+		topts = append(topts, transfermanager.WithPartSize(int64(opts.BufferSize)))
+	}
+	if opts.MaxConcurrency != 0 {
+		topts = append(topts, transfermanager.WithWorkers(opts.MaxConcurrency))
+	}
+	d, err := transfermanager.NewDownloader(b.client, topts...)
+	if err != nil {
+		return err
+	}
+	in := &transfermanager.DownloadObjectInput{
+		Bucket:      b.name,
+		Object:      key,
+		Destination: w,
+	}
+	if opts.BeforeRead != nil {
+		asFunc := func(i any) bool {
+			if p, ok := i.(**transfermanager.DownloadObjectInput); ok {
+				*p = in
+				return true
+			}
+			if p, ok := i.(**transfermanager.Downloader); ok {
+				*p = d
+				return true
+			}
+			return false
+		}
+		if err := opts.BeforeRead(asFunc); err != nil {
+			_, _ = d.WaitAndClose()
+			return err
+		}
+	}
+	if err := d.DownloadObject(ctx, in); err != nil {
+		_, _ = d.WaitAndClose()
+		return err
+	}
+	outs, err := d.WaitAndClose()
+	if err != nil {
+		return err
+	}
+	for _, out := range outs {
+		if out.Err != nil {
+			return out.Err
+		}
+	}
+	return nil
 }
 
 // escapeKey does all required escaping for UTF-8 strings to work with GCS.
