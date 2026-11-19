@@ -886,12 +886,18 @@ func (h *Handler) handleRequestJobInput(
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
 func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
-	if err := runsummary.FromProto(summary).Apply(h.runSummary); err != nil {
+	updates, err := runsummary.FromProto(summary)
+
+	if err != nil {
 		h.logger.CaptureError(
 			"stream",
 			fmt.Errorf("handler: error processing summary: %v", err),
 		)
+
+		// Continue, partial success is possible.
 	}
+
+	updates.Apply(h.runSummary)
 }
 
 // updateRunTiming updates the `_wandb.runtime` summary metric which
