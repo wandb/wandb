@@ -1,9 +1,11 @@
 package evaltables
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"strconv"
 
 	ces "github.com/wandb/cwevals-go"
@@ -87,16 +89,30 @@ func newRowColumn(name, valueType, mediaType string) (rowColumn, error) {
 	}, nil
 }
 
-func (e *rowEncoder) encodeRows(rows []*spb.EvalTableRow) ([][]byte, error) {
-	encoded := make([][]byte, len(rows))
-	for i, row := range rows {
-		rowJSON, err := e.encodeRow(row)
-		if err != nil {
-			return nil, fmt.Errorf("%v (row %d)", err, i)
+// encodeRows stops after the first error, and errors encoding a row
+// satisfy IsUsageError.
+func (e *rowEncoder) encodeRows(
+	rows iter.Seq2[*spb.EvalTableRow, error],
+) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		i := 0
+		for row, err := range rows {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			rowJSON, err := e.encodeRow(row)
+			if err != nil {
+				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i)})
+				return
+			}
+			if !yield(rowJSON, nil) {
+				return
+			}
+			i++
 		}
-		encoded[i] = rowJSON
 	}
-	return encoded, nil
 }
 
 // encodeRow returns a row's CES row JSON, of the form
@@ -203,10 +219,11 @@ func (e *rowEncoder) appendValue(
 	case *spb.EvalTableValue_StringValue:
 		return appendJSON(buf, value.StringValue)
 	case *spb.EvalTableValue_JsonValue:
-		if !json.Valid([]byte(value.JsonValue)) {
+		out := bytes.NewBuffer(buf)
+		if err := json.Compact(out, []byte(value.JsonValue)); err != nil {
 			return nil, errors.New("invalid JSON")
 		}
-		return append(buf, value.JsonValue...), nil
+		return out.Bytes(), nil
 	case *spb.EvalTableValue_WandbMediaJson:
 		converted, err := e.media.convertMedia(
 			json.RawMessage(value.WandbMediaJson),
