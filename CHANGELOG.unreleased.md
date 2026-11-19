@@ -23,6 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics and hardware metadata are collected on Google TPU 8t and TPU 8i hosts (@dmitryduev in https://github.com/wandb/wandb/pull/13340)
 - The automations API supports sandbox events: `OnSandboxState` fires when a W&B sandbox in a project or team is created, completes or fails, filtered with `SandboxEvent.state` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13281)
 - `EvalTable` takes `key_column`, which names a column that identifies each row's example, so that eval comparisons match rows by its values instead of by their inputs or position (@kelu-wandb in https://github.com/wandb/wandb/pull/13382)
+- Offline runs can log `EvalTable(backend="ces")`, and `wandb sync` uploads the tables (@kelu-wandb in https://github.com/wandb/wandb/pull/13405)
 
 ### Changed
 
