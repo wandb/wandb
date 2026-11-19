@@ -706,7 +706,7 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 85
+// Next ID: 86
 message Request {
   reserved 11, 18, 22, 75, 76, 79, 80;
 
@@ -746,6 +746,7 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     SyncFinishRequest sync_finish = 81;
+    WaitForRunExitFlushRequest wait_for_run_exit_flush = 85;
 
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
@@ -760,7 +761,7 @@ message Request {
 /*
  * Response: all non persistent responses to Requests
  *
- * Next ID: 75
+ * Next ID: 77
  */
 message Response {
   reserved 28, 32, 72, 73;
@@ -790,6 +791,7 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
+    WaitForRunExitFlushResponse wait_for_run_exit_flush_response = 76;
     OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
@@ -1236,6 +1238,16 @@ message RunStatusResponse {
   // int64 sync_history_step = 3;
   // google.protobuf.Timestamp sync_history_time = 4;
 }
+
+// Waits until the transaction log has been flushed after the run's exit record.
+//
+// After this message is record has been received by a client
+// it signals that the transaction log file's contents are finalized and can be read by other programs,
+// for example to create a backup.
+message WaitForRunExitFlushRequest {}
+
+// Indicates the transaction log was successfully flushed.
+message WaitForRunExitFlushResponse {}
 
 /*
  * CheckVersion:

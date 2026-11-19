@@ -1779,13 +1779,13 @@ pub struct AlertResult {}
 /// step with a PartialHistoryRequest, which produces artificial Records
 /// when a step is committed).
 ///
-/// Next ID: 85
+/// Next ID: 86
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 85, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1860,6 +1860,8 @@ pub mod request {
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
+        #[prost(message, tag = "85")]
+        WaitForRunExitFlush(super::WaitForRunExitFlushRequest),
         /// Requests information about tasks the service is performing.
         #[prost(message, tag = "82")]
         Operations(super::OperationStatsRequest),
@@ -1872,13 +1874,13 @@ pub mod request {
 }
 /// Response: all non persistent responses to Requests
 ///
-/// Next ID: 75
+/// Next ID: 77
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 75, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 76, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1931,6 +1933,8 @@ pub mod response {
         LinkArtifactResponse(super::LinkArtifactResponse),
         #[prost(message, tag = "70")]
         SyncResponse(super::SyncResponse),
+        #[prost(message, tag = "76")]
+        WaitForRunExitFlushResponse(super::WaitForRunExitFlushResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
@@ -2609,6 +2613,18 @@ pub struct RunStatusResponse {
     #[prost(message, optional, tag = "3")]
     pub sync_time: ::core::option::Option<::prost_types::Timestamp>,
 }
+/// Waits until the transaction log has been flushed after the run's exit record.
+///
+/// After this message is record has been received by a client
+/// it signals that the transaction log file's contents are finalized and can be read by other programs,
+/// for example to create a backup.
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct WaitForRunExitFlushRequest {}
+/// Indicates the transaction log was successfully flushed.
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct WaitForRunExitFlushResponse {}
 /// CheckVersion:
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
