@@ -90,8 +90,8 @@ type Stream struct {
 	// It is nil if the transaction log is unavailable.
 	transactionLogReady <-chan struct{}
 
-	exitFlushMu     sync.Mutex
-	exitFlushClosed bool
+	// exitFlushMu synchronizes request registration with stream closure.
+	exitFlushMu sync.Mutex
 
 	// flowControlFactory is used to create the FlowControl component
 	flowControlFactory *FlowControlFactory
@@ -261,7 +261,7 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 		}
 
 		s.exitFlushMu.Lock()
-		if s.exitFlushClosed {
+		if s.runWork.BeforeEndCtx().Err() != nil {
 			s.exitFlushMu.Unlock()
 			request.WillNotRespond()
 			return
@@ -285,6 +285,9 @@ func (s *Stream) notifyAfterExit(request *runwork.Request) {
 	select {
 	case <-request.Context().Done():
 		return
+	case <-s.runWork.BeforeEndCtx().Done():
+		request.WillNotRespond()
+		return
 	case <-s.started:
 	}
 
@@ -295,6 +298,9 @@ func (s *Stream) notifyAfterExit(request *runwork.Request) {
 
 	select {
 	case <-request.Context().Done():
+		return
+	case <-s.runWork.BeforeEndCtx().Done():
+		request.WillNotRespond()
 		return
 	case <-s.transactionLogReady:
 	}
@@ -324,10 +330,8 @@ func (s *Stream) Close() {
 	s.logger.Info("stream: finishing up")
 
 	s.exitFlushMu.Lock()
-	s.exitFlushClosed = true
-	s.exitFlushMu.Unlock()
-
 	s.runWork.Close()
+	s.exitFlushMu.Unlock()
 
 	// Blocks while start may still be running
 	<-s.started
