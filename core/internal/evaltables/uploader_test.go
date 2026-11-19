@@ -368,20 +368,40 @@ func TestUpload_ReportsOversizedMedia(t *testing.T) {
 	image := `{"_type":"image-file","path":"a.png","format":"png",` +
 		`"sha256":"a","size":1,"caption":"` + strings.Repeat("a", 3_500_000) + `"}`
 
-	response, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		DatasetFields: []*spb.EvalTableField{
-			{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
+	row := &spb.EvalTableRow{Input: values(mediaValue(image))}
+	fields := []*spb.EvalTableField{
+		{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
+	}
+	testCases := []struct {
+		name string
+		data *spb.EvalTableData
+	}{
+		{
+			name: "inline rows",
+			data: &spb.EvalTableData{DatasetFields: fields, Rows: []*spb.EvalTableRow{row}},
 		},
-		Rows: []*spb.EvalTableRow{{Input: values(mediaValue(image))}},
-	})
+		{
+			name: "W&B rows file",
+			data: &spb.EvalTableData{
+				DatasetFields:     fields,
+				WandbRowsFilePath: writeWandbRowsFile(t, row),
+			},
+		},
+	}
 
-	require.NoError(t, err)
-	require.Len(t, response.GetOversizedMediaCells(), 1)
-	cell := response.GetOversizedMediaCells()[0]
-	assert.EqualValues(t, 1, cell.GetRow())
-	assert.Equal(t, "input", cell.GetSource())
-	assert.Equal(t, "image", cell.GetName())
-	assert.Greater(t, cell.GetSize(), int64(3_500_000))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			response, err := upload(context.Background(), uploader, tc.data)
+
+			require.NoError(t, err)
+			require.Len(t, response.GetOversizedMediaCells(), 1)
+			cell := response.GetOversizedMediaCells()[0]
+			assert.EqualValues(t, 1, cell.GetRow())
+			assert.Equal(t, "input", cell.GetSource())
+			assert.Equal(t, "image", cell.GetName())
+			assert.Greater(t, cell.GetSize(), int64(3_500_000))
+		})
+	}
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
