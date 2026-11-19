@@ -368,7 +368,10 @@ func TestUpload_ReportsOversizedMedia(t *testing.T) {
 	image := `{"_type":"image-file","path":"a.png","format":"png",` +
 		`"sha256":"a","size":1,"caption":"` + strings.Repeat("a", 3_500_000) + `"}`
 
-	row := &spb.EvalTableRow{Input: values(mediaValue(image))}
+	rows := []*spb.EvalTableRow{
+		{Input: values(nullValue())},
+		{Input: values(mediaValue(image))},
+	}
 	fields := []*spb.EvalTableField{
 		{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
 	}
@@ -378,13 +381,13 @@ func TestUpload_ReportsOversizedMedia(t *testing.T) {
 	}{
 		{
 			name: "inline rows",
-			data: &spb.EvalTableData{DatasetFields: fields, Rows: []*spb.EvalTableRow{row}},
+			data: &spb.EvalTableData{DatasetFields: fields, Rows: rows},
 		},
 		{
 			name: "W&B rows file",
 			data: &spb.EvalTableData{
 				DatasetFields:     fields,
-				WandbRowsFilePath: writeWandbRowsFile(t, row),
+				WandbRowsFilePath: writeWandbRowsFile(t, rows...),
 			},
 		},
 	}
@@ -396,7 +399,7 @@ func TestUpload_ReportsOversizedMedia(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, response.GetOversizedMediaCells(), 1)
 			cell := response.GetOversizedMediaCells()[0]
-			assert.EqualValues(t, 1, cell.GetRow())
+			assert.EqualValues(t, 2, cell.GetRow())
 			assert.Equal(t, "input", cell.GetSource())
 			assert.Equal(t, "image", cell.GetName())
 			assert.Greater(t, cell.GetSize(), int64(3_500_000))
