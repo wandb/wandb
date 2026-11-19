@@ -228,3 +228,33 @@ def test_logs_ces_eval_table_with_media(wandb_backend_spy, tmp_path):
     assert {
         urllib.parse.unquote(uri.removeprefix(run_file_prefix)) for uri in uris
     } <= uploaded_files
+
+
+def test_nulls_oversized_ces_media(wandb_backend_spy, tmp_path, mock_wandb_log):
+    image_path = tmp_path / "cat.png"
+    PILImage.new("RGB", (2, 2)).save(image_path)
+    small = wandb.Image(str(image_path), caption="a cat")
+    large = wandb.Image(str(image_path), caption="a" * 3_500_000)
+
+    with wandb.init() as run:
+        run.log(
+            {
+                "eval": wandb.EvalTable(
+                    columns=["image"],
+                    data=[[small], [large]],
+                    input_columns=["image"],
+                    backend="ces",
+                )
+            }
+        )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        _, _, rows, _ = snapshot.ces_requests()
+
+    first, second = rows.body["rows"]
+    assert first["input"]["image"]["caption"] == "a cat"
+    assert second["input"]["image"] is None
+    mock_wandb_log.assert_warned(
+        "EvalTable uploaded 1 of 2 media cells as null because their CES values "
+        "reached the 3.5 MB limit. First affected: row 2, input column 'image'"
+    )

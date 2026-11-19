@@ -18,6 +18,10 @@ import (
 type rowColumn struct {
 	name string
 
+	// source is the column's dataset field source, "input" or "output",
+	// or empty for a score column.
+	source string
+
 	// key is the column's name as a JSON object key followed by a colon,
 	// such as `"expected":` for a column named expected.
 	key []byte
@@ -37,6 +41,13 @@ type rowEncoder struct {
 	inputs  []rowColumn
 	outputs []rowColumn
 	scores  []rowColumn
+
+	// row is the number of the row being encoded, counting from 1.
+	row int
+
+	// oversizedMedia lists the media cells encoded as null because their
+	// CES extension value was too large.
+	oversizedMedia []*spb.EvalTableOversizedMediaCell
 }
 
 // The table's columns must have passed validateColumns.
@@ -48,7 +59,11 @@ func newRowEncoder(
 
 	for _, field := range data.GetDatasetFields() {
 		column, err := newRowColumn(
-			field.GetName(), field.GetValueType(), field.GetWandbMediaType())
+			field.GetName(),
+			field.GetSource(),
+			field.GetValueType(),
+			field.GetWandbMediaType(),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +80,7 @@ func newRowEncoder(
 	}
 
 	for _, scorer := range data.GetScorers() {
-		column, err := newRowColumn(scorer.GetName(), scorer.GetValueType(), "")
+		column, err := newRowColumn(scorer.GetName(), "", scorer.GetValueType(), "")
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +90,7 @@ func newRowEncoder(
 	return e, nil
 }
 
-func newRowColumn(name, valueType, mediaType string) (rowColumn, error) {
+func newRowColumn(name, source, valueType, mediaType string) (rowColumn, error) {
 	key, err := appendJSON(nil, name)
 	if err != nil {
 		return rowColumn{}, fmt.Errorf("column %q: %v", name, err)
@@ -83,6 +98,7 @@ func newRowColumn(name, valueType, mediaType string) (rowColumn, error) {
 
 	return rowColumn{
 		name:      name,
+		source:    source,
 		key:       append(key, ':'),
 		valueType: valueType,
 		mediaType: mediaType,
@@ -102,6 +118,7 @@ func (e *rowEncoder) encodeRows(
 				return
 			}
 
+			e.row = i + 1
 			rowJSON, err := e.encodeRow(row)
 			if err != nil {
 				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i+1)})
@@ -231,6 +248,16 @@ func (e *rowEncoder) appendValue(
 		)
 		if err != nil {
 			return nil, err
+		}
+		if len(converted) >= maxMediaValueBytes {
+			e.oversizedMedia = append(e.oversizedMedia,
+				&spb.EvalTableOversizedMediaCell{
+					Row:    int64(e.row),
+					Source: column.source,
+					Name:   column.name,
+					Size:   int64(len(converted)),
+				})
+			return append(buf, "null"...), nil
 		}
 		return append(buf, converted...), nil
 	default:
