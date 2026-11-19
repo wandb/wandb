@@ -172,6 +172,49 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     }
 
 
+def test_ces_eval_table_in_offline_run_omits_dataset_ids(
+    deliver_upload_eval_table,
+    mock_run,
+    monkeypatch,
+):
+    run = mock_run(settings={"mode": "offline"})
+    feature_enabled = MagicMock()
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    deliver_upload_eval_table.return_value.wait_or.return_value = pb.Result(
+        response=pb.Response(
+            upload_eval_table_response=pb.UploadEvalTableResponse(
+                evaluation_id="evaluation-1",
+                evaluation_version_id="evaluation-version-1",
+            )
+        )
+    )
+    et = wandb.EvalTable(
+        columns=["prompt", "answer"],
+        data=[["2+2", "4"]],
+        input_columns=["prompt"],
+        output_columns=["answer"],
+        backend="ces",
+    )
+
+    run.log({"math_eval": et})
+
+    [request] = _sent(deliver_upload_eval_table)
+    assert request.name == "math_eval"
+    feature_enabled.assert_not_called()
+    assert et.to_json(run) == {
+        "_type": "eval-table-ces",
+        "schema_version": 1,
+        "ncols": 2,
+        "nrows": 1,
+        "log_mode": "IMMUTABLE",
+        "evaluation_id": "evaluation-1",
+        "evaluation_version_id": "evaluation-version-1",
+    }
+
+
 def test_ces_eval_table_sends_large_tables_in_a_rows_file(
     deliver_upload_eval_table,
     run,

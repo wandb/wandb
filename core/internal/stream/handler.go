@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/evaltables"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
@@ -223,6 +224,7 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
+	case *spb.Record_EvalTable:
 	case *spb.Record_Environment:
 	// The above are no-ops in the handler.
 
@@ -307,7 +309,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_DownloadArtifact:
 		h.handleRequestDownloadArtifact(record, request)
 	case *spb.Request_UploadEvalTable:
-		h.fwdRecord(record, request)
+		h.handleRequestUploadEvalTable(record, x.UploadEvalTable, request)
 	case *spb.Request_Attach:
 		h.handleRequestAttach(record, request)
 	case *spb.Request_Pause:
@@ -505,6 +507,61 @@ func (h *Handler) handleRequestRunStart(
 	}
 
 	h.respond(request, &spb.Response{})
+}
+
+// handleRequestUploadEvalTable forwards an EvalTable for the Sender to
+// upload, or in offline mode, records it for `wandb sync` to upload.
+func (h *Handler) handleRequestUploadEvalTable(
+	record *spb.Record,
+	msg *spb.UploadEvalTableRequest,
+	request *runwork.Request,
+) {
+	if !h.settings.IsOffline() {
+		h.fwdRecord(record, request)
+		return
+	}
+
+	response := &spb.UploadEvalTableResponse{}
+	if evalTable, err := h.recordEvalTable(msg.GetTable()); err != nil {
+		code := spb.ErrorInfo_UNKNOWN
+		if evaltables.IsUsageError(err) {
+			code = spb.ErrorInfo_USAGE
+		} else {
+			h.logger.CaptureError(
+				"stream",
+				fmt.Errorf("handler: failed to record EvalTable: %v", err),
+			)
+		}
+		response.Error = &spb.ErrorInfo{Code: code, Message: err.Error()}
+	} else {
+		h.fwdRecord(
+			&spb.Record{RecordType: &spb.Record_EvalTable{EvalTable: evalTable}},
+			nil,
+		)
+		response.EvaluationId = evalTable.GetEvaluationId()
+		response.EvaluationVersionId = evalTable.GetEvaluationVersionId()
+	}
+
+	h.respond(request, &spb.Response{
+		ResponseType: &spb.Response_UploadEvalTableResponse{
+			UploadEvalTableResponse: response,
+		},
+	})
+}
+
+// recordEvalTable validates an offline run's EvalTable and returns the
+// record to upload it from.
+//
+// It blocks the Handler while it validates the table, as the client waits
+// for the response anyway.
+func (h *Handler) recordEvalTable(
+	data *spb.EvalTableData,
+) (*spb.EvalTableRecord, error) {
+	upserter, err := h.runHandle.Upserter()
+	if err != nil {
+		return nil, fmt.Errorf("handler: recordEvalTable: %v", err)
+	}
+	return evaltables.NewRecord(data, upserter.RunPath(), h.settings.GetSyncDir())
 }
 
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
