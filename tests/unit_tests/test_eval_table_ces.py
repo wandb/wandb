@@ -89,9 +89,9 @@ def _read_rows_file(path: str) -> list[pb.EvalTableRow]:
         while True:
             byte = data[position]
             position += 1
-            size |= (byte & 0x7F) << shift
-            shift += 7
-            if byte < 0x80:
+            size |= (byte & ces._VARINT_PAYLOAD_MASK) << shift
+            shift += ces._VARINT_PAYLOAD_BITS
+            if not byte & ces._VARINT_CONTINUATION_BIT:
                 break
         rows.append(pb.EvalTableRow.FromString(data[position : position + size]))
         position += size
