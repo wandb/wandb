@@ -504,7 +504,7 @@ func TestEncode_KeepsNullMedia(t *testing.T) {
 }
 
 func TestEncode_RejectsOversizedMedia(t *testing.T) {
-	const maxMediaValueBytes = 3_500_000
+	const clickhouseSingleRowInsertBytesLimit = 3_500_000
 	fields := []*spb.EvalTableField{
 		{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
 	}
@@ -527,10 +527,10 @@ func TestEncode_RejectsOversizedMedia(t *testing.T) {
 		size    int
 		wantErr string
 	}{
-		{name: "under the limit", size: maxMediaValueBytes - 1},
+		{name: "under the limit", size: clickhouseSingleRowInsertBytesLimit - 1},
 		{
 			name: "at the limit",
-			size: maxMediaValueBytes,
+			size: clickhouseSingleRowInsertBytesLimit,
 			wantErr: `field "image": media value is 3500000 bytes, ` +
 				`must be under 3500000 (row 2)`,
 		},
