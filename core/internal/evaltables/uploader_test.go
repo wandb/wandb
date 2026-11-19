@@ -142,7 +142,7 @@ func upload(
 	uploader *evaltables.Uploader,
 	request *spb.EvalTableData,
 ) (*spb.UploadEvalTableResponse, error) {
-	table, err := evaltables.Encode(request, testRunPath)
+	table, err := evaltables.Encode(ctx, request, testRunPath)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func encode(
 	request *spb.EvalTableData,
 ) (*evaltables.EncodedTable, error) {
 	t.Helper()
-	table, err := evaltables.Encode(request, testRunPath)
+	table, err := evaltables.Encode(context.Background(), request, testRunPath)
 	if table != nil {
 		t.Cleanup(func() { assert.NoError(t, table.Close()) })
 	}
@@ -550,7 +550,7 @@ func writeGzipFile(t *testing.T, data []byte) string {
 func TestUpload_ReadsWandbRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	// Longer than bufio.Scanner's default line limit.
+	// Longer than bufio.Reader's buffer, so the row spans reads.
 	long := strings.Repeat("a", 70_000)
 	path := writeWandbRowsFile(t,
 		&spb.EvalTableRow{Output: values(stringValue("1"))},
@@ -639,7 +639,7 @@ func TestUpload_ReadsWandbRowsFileOnlyWhileEncoding(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 
-	table, err := evaltables.Encode(&spb.EvalTableData{
+	table, err := evaltables.Encode(context.Background(), &spb.EvalTableData{
 		Name:              "t",
 		DatasetFields:     outputFieldX,
 		WandbRowsFilePath: path,
@@ -685,6 +685,11 @@ func TestUpload_RejectsBadWandbRowsFile(t *testing.T) {
 			wantErr: "row is 1073741824 bytes",
 		},
 		{
+			name:    "missing",
+			write:   func(t *testing.T) string { return filepath.Join(t.TempDir(), "rows.pb.gz") },
+			wantErr: "open ",
+		},
+		{
 			name: "not gzip",
 			write: func(t *testing.T) string {
 				path := filepath.Join(t.TempDir(), "rows.pb.gz")
@@ -712,13 +717,31 @@ func TestUpload_RejectsBadWandbRowsFile(t *testing.T) {
 			ces := newFakeCES(t)
 			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
+			path := tc.write(t)
+
 			_, err := upload(context.Background(), uploader,
-				&spb.EvalTableData{Name: "t", WandbRowsFilePath: tc.write(t)})
+				&spb.EvalTableData{Name: "t", WandbRowsFilePath: path})
 
 			assert.ErrorContains(t, err, "evaltables: failed to read W&B rows file: "+tc.wantErr)
+			assert.False(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
+			assert.NotContains(t, strings.Join(filesIn(t, filepath.Dir(path)), "\n"), ".ces-rows.jsonl")
 		})
 	}
+}
+
+func TestEncode_StopsReadingWandbRowsFileWhenCancelled(t *testing.T) {
+	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := evaltables.Encode(ctx, &spb.EvalTableData{
+		DatasetFields:     outputFieldX,
+		WandbRowsFilePath: path,
+	}, testRunPath)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, []string{path}, filesIn(t, filepath.Dir(path)))
 }
 
 func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
