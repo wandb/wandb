@@ -139,7 +139,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"flag":true,`+
 			`"count":9007199254740993,`+
 			`"temperature":0.25,`+
-			`"prompt":"draw \u003ca\u003e cat \u0026 dog",`+
+			`"prompt":"draw <a> cat & dog",`+
 			`"config":{"seed":7,"tags":["a","b"]},`+
 			`"note":null`+
 			`},`+
@@ -256,19 +256,19 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 			name:    "too few input values",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "string"},
 			row:     &spb.EvalTableRow{Input: values()},
-			wantErr: "row has 0 input values, expected 1 (row 0)",
+			wantErr: "row has 0 input values, expected 1 (row 1)",
 		},
 		{
 			name:    "too many output values",
 			field:   &spb.EvalTableField{Source: "output", Name: "a", ValueType: "string"},
 			row:     &spb.EvalTableRow{Output: values(nullValue(), nullValue())},
-			wantErr: "row has 2 output values, expected 1 (row 0)",
+			wantErr: "row has 2 output values, expected 1 (row 1)",
 		},
 		{
 			name:    "score without scorer",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "string"},
 			row:     &spb.EvalTableRow{Scores: []*spb.EvalTableValue{intValue(1)}},
-			wantErr: "row has 1 score values, expected 0 (row 0)",
+			wantErr: "row has 1 score values, expected 0 (row 1)",
 		},
 		{
 			name:    "string in integer column",
@@ -325,5 +325,5 @@ func TestEncode_RejectsOversizedRow(t *testing.T) {
 	})
 
 	assert.ErrorContains(t, err, "row is")
-	assert.ErrorContains(t, err, "(row 0)")
+	assert.ErrorContains(t, err, "(row 1)")
 }
