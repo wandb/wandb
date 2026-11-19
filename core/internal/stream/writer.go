@@ -52,8 +52,8 @@ type Writer struct {
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
 
-	exitFlushDone      chan struct{}
-	exitFlushAttempted bool
+	exitFlushDone     chan struct{}
+	exitFlushSignaled bool
 
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
@@ -85,12 +85,8 @@ func (w *Writer) ExitFlushDone() <-chan struct{} {
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise("stream")
-	defer func() {
-		if !w.exitFlushAttempted {
-			close(w.exitFlushDone)
-		}
-		close(w.out)
-	}()
+	defer close(w.out)
+	defer w.signalFlushedAfterExit()
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
 	// A nil channel never fires, which disables the periodic flush.
@@ -158,13 +154,18 @@ func (w *Writer) process(work runwork.Work) {
 			)
 		}
 
-		if !w.exitFlushAttempted {
-			w.exitFlushAttempted = true
-			close(w.exitFlushDone)
-		}
+		w.signalFlushedAfterExit()
 	}
 
 	w.out <- savedWork
+}
+
+func (w *Writer) signalFlushedAfterExit() {
+	if w.exitFlushSignaled {
+		return
+	}
+	w.exitFlushSignaled = true
+	close(w.exitFlushDone)
 }
 
 // finish closes the transaction log writer.
