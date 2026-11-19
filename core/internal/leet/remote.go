@@ -15,6 +15,15 @@ import (
 // The host is used as-is; canonicalization (e.g. wandb.ai -> api.wandb.ai)
 // is the launcher's responsibility.
 func ParseRemoteURL(s string) (*RemoteRunParams, error) {
+	return parseRemoteURL(s, false)
+}
+
+// ParseRemoteScopeURL also accepts /orgs/<org> and /<team> compute scopes.
+func ParseRemoteScopeURL(s string) (*RemoteRunParams, error) {
+	return parseRemoteURL(s, true)
+}
+
+func parseRemoteURL(s string, allowScope bool) (*RemoteRunParams, error) {
 	u, err := url.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("invalid remote URL %q: %w", s, err)
@@ -27,6 +36,18 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	}
 
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	baseURL := u.Scheme + "://" + u.Host
+	if allowScope {
+		switch {
+		case len(parts) == 1 && parts[0] != "" && parts[0] != "orgs":
+			return &RemoteRunParams{BaseURL: baseURL, Entity: parts[0]}, nil
+		case len(parts) == 2 && parts[0] == "orgs" && parts[1] != "":
+			return &RemoteRunParams{BaseURL: baseURL, Org: parts[1]}, nil
+		}
+		if parts[0] == "orgs" {
+			return nil, fmt.Errorf("organization URL must be https://<host>/orgs/<org>, got %q", s)
+		}
+	}
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return nil, fmt.Errorf(
 			"remote URL must be https://<host>/<entity>/<project> or "+
@@ -36,7 +57,7 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	}
 
 	params := &RemoteRunParams{
-		BaseURL: u.Scheme + "://" + u.Host,
+		BaseURL: baseURL,
 		Entity:  parts[0],
 		Project: parts[1],
 	}

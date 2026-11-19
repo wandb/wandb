@@ -1,0 +1,240 @@
+// Contract 2: the Compute read API. Settled Nov 17 2026 by the orchestrator.
+//
+// The design (Confluence 2490106212, "Serve one Compute API") puts these calls
+// in public API v1 (wandb/core#60698). That API is still an open draft and is
+// not on main, so the PoC follows gorilla's existing Connect pattern
+// (services/gorilla/api/history) and keeps the design's call names. The
+// package and service names are placeholders until public API v1 lands.
+//
+// Lives at services/gorilla/api/compute/compute.proto in wandb/core, and the
+// SDK keeps a byte-identical copy apart from go_package.
+
+syntax = "proto3";
+
+package compute.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/wandb/wandb/core/internal/leet/computeproto";
+
+service ComputeService {
+  // GPU-hours and their means for a scope and period, on a named basis.
+  rpc ComputeUsage(ComputeUsageRequest) returns (ComputeUsageResponse);
+  // Per-device series for one run, each labeled with its writer.
+  rpc ComputeDrilldown(ComputeDrilldownRequest) returns (ComputeDrilldownResponse);
+  // The definition of every system metric field, from the record's MetricInfo.
+  rpc FieldCatalog(FieldCatalogRequest) returns (FieldCatalogResponse);
+}
+
+enum Basis {
+  BASIS_UNSPECIFIED = 0;
+  // Every run that uses a device counts its own time on it.
+  BASIS_ASSOCIATED = 1;
+  // The time a device was in use by at least one run, counted per 15 s
+  // bucket. A bucket several runs used is split evenly between them.
+  BASIS_PHYSICAL = 2;
+  // What the scheduler reserved. Accepted and returned as unavailable.
+  BASIS_ALLOCATED = 3;
+}
+
+enum GroupBy {
+  GROUP_BY_UNSPECIFIED = 0;
+  GROUP_BY_TEAM = 1;
+  GROUP_BY_PROJECT = 2;
+  GROUP_BY_USER = 3;
+  GROUP_BY_RUN = 4;
+  GROUP_BY_DEVICE = 5;
+  GROUP_BY_PARENT_DEVICE = 6;
+  GROUP_BY_DEVICE_MODEL = 7;
+  GROUP_BY_DAY = 8;
+}
+
+// What to count. `org` or `team` is required, and a team implies its org.
+// The other fields narrow it. The caller's permissions narrow it further: an
+// org admin reads the whole org, everyone else reads the projects they can
+// open (PoC rule).
+message Scope {
+  // Organization name.
+  string org = 1;
+  // Team (entity) name.
+  string team = 2;
+  // Project name. Needs `team`.
+  string project = 3;
+  // Username of the runs' owner.
+  string user = 4;
+  // Runs that carry every one of these tags.
+  repeated string tags = 5;
+  // Run ids (the 8-character names). Needs `team` and `project`.
+  repeated string runs = 6;
+}
+
+// Whole UTC days, both inclusive, as YYYY-MM-DD.
+message Period {
+  string start = 1;
+  string end = 2;
+}
+
+message Filters {
+  // Keep devices whose model is one of these, for example "NVIDIA H100 80GB HBM3".
+  repeated string device_models = 1;
+  // Keep devices whose type is one of these: "nvidia_gpu", "amd_gpu",
+  // "google_tpu", "aws_trainium", "apple_gpu".
+  repeated string device_types = 2;
+}
+
+message ComputeUsageRequest {
+  Scope scope = 1;
+  Period period = 2;
+  Basis basis = 3;
+  // One row per distinct combination. Empty returns one row for the scope.
+  repeated GroupBy group_by = 4;
+  Filters filters = 5;
+}
+
+message ComputeUsageResponse {
+  // "compute.usage/1"
+  string schema = 1;
+  // "compute-defs/1"
+  string definition_version = 2;
+  // "associated", "physical" or "allocated".
+  string basis = 3;
+  Period period = 4;
+  // Server time of the last insert in scope. Unset when the scope has no rows.
+  google.protobuf.Timestamp as_of = 5;
+  repeated UsageRow rows = 6;
+}
+
+message UsageRow {
+  // The group's keys: "team", "project", "user", "run", "device",
+  // "parent_device", "device_model", "day". A project is "<team>/<project>"
+  // and a run is "<team>/<project>/<run id>".
+  map<string, string> group = 1;
+
+  // On the response's basis. Unset means not measured: the group's runs sent
+  // no system metrics, or the basis is allocated.
+  optional double gpu_hours = 2;
+  // Held by a run's job or used by its process, and not counted as used.
+  optional double assigned_idle_gpu_hours = 3;
+  // Runs in the group, including runs without samples.
+  uint32 runs = 4;
+  // Distinct devices with used time. A partition is a device.
+  uint32 devices = 5;
+  // GPU-hours on the response's basis by device model. A device without a
+  // model is under its device type.
+  map<string, double> hardware = 6;
+
+  // Means weighted by device time. Unset when no device in the group reports
+  // the field.
+  optional double gpu_utilization_ratio = 7;
+  optional double tensor_active_ratio = 8;
+  optional double power_w = 9;
+  // Mean power times held time.
+  optional double energy_kwh = 10;
+
+  Coverage coverage = 11;
+}
+
+message Coverage {
+  // Buckets with a presence row over the buckets between each device's first
+  // and last presence row.
+  double observed_share = 1;
+  // Share of device time with a vendor uuid.
+  double uuid_share = 2;
+  // Share of used time backed by the run's own process on the device.
+  double process_share = 3;
+  uint32 writers_reporting = 4;
+  // Unset when no writer sent a world size.
+  optional uint32 writers_expected = 5;
+  uint32 runs_without_samples = 6;
+  // Gaps in each writer's sequence numbers.
+  uint32 dropped_samples = 7;
+  // Writers whose clock was off by more than a minute.
+  uint32 clock_skewed_writers = 8;
+  // "unavailable"
+  string allocation = 9;
+}
+
+message ComputeDrilldownRequest {
+  string team = 1;
+  string project = 2;
+  // The run's id (the 8-character name).
+  string run = 3;
+  // Both optional. Unset means the run's first and last sample.
+  google.protobuf.Timestamp start = 4;
+  google.protobuf.Timestamp end = 5;
+  // Field paths in the record, for example
+  // "accelerators.nvidia.sm_active_ratio". At least one.
+  repeated string fields = 6;
+  // Number of equal time bins over the period. 0 means 200.
+  uint32 bins = 7;
+  // Keep one device, by uuid. Empty keeps every device.
+  string device = 8;
+}
+
+message ComputeDrilldownResponse {
+  // "compute.drilldown/1"
+  string schema = 1;
+  // "compute-defs/1"
+  string definition_version = 2;
+  google.protobuf.Timestamp as_of = 3;
+  google.protobuf.Timestamp start = 4;
+  google.protobuf.Timestamp end = 5;
+  repeated Series series = 6;
+}
+
+// One field of one device as one writer reported it.
+message Series {
+  string field = 1;
+  string device_uuid = 2;
+  uint32 device_index = 3;
+  string device_type = 4;
+  string model = 5;
+  string parent_uuid = 6;
+  string profile = 7;
+  // "process", "scheduler" or "visible_devices".
+  string binding = 8;
+  string writer_id = 9;
+  string writer_label = 10;
+  optional int32 rank = 11;
+  string hostname = 12;
+  // The list element for a host or process field, in the stored form.
+  string attributes = 13;
+  repeated Bin bins = 14;
+}
+
+// Bins without samples are left out.
+message Bin {
+  google.protobuf.Timestamp start = 1;
+  uint32 count = 2;
+  double min = 3;
+  double max = 4;
+  double avg = 5;
+  double last = 6;
+}
+
+message FieldCatalogRequest {}
+
+message FieldCatalogResponse {
+  repeated FieldInfo fields = 1;
+}
+
+message FieldInfo {
+  // The field's path in the record, the id stored rows and both calls use.
+  string path = 1;
+  string unit = 2;
+  string display = 3;
+  // "gauge" or "counter".
+  string kind = 4;
+  optional double range_min = 5;
+  optional double range_max = 6;
+  repeated FieldName names = 7;
+}
+
+// One OpenTelemetry name of a field.
+message FieldName {
+  // Accelerator types the name applies to, as stored in device_type. Empty
+  // means any.
+  repeated string accelerator_types = 1;
+  string name = 2;
+  map<string, string> attributes = 3;
+}

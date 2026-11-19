@@ -86,6 +86,8 @@ def leet() -> None:
         wandb leet console --last 50  Print the last console lines of a run as JSON
         wandb leet summary <run-url>  The same for a run on the W&B server
         wandb leet system --bins 60   Print a run's system metrics as JSON
+        wandb leet compute usage URL Print compute usage for a W&B scope as JSON
+        wandb leet compute drilldown URL --fields F  Print device series as JSON
         wandb leet session status     Steer the LEET open on a wandb directory
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
@@ -619,6 +621,111 @@ def system(
     )
 
 
+@leet.group()
+@click.help_option("-h", "--help")
+def compute() -> None:
+    """Read compute usage and per-device series from the W&B server."""
+
+
+@compute.command(cls=ScriptCommand)
+@click.argument("scope_url")
+@click.option(
+    "--period",
+    default="30d",
+    show_default=True,
+    help="Whole UTC days: YYYY-MM, YYYY-MM-DD:YYYY-MM-DD, or Nd ending today.",
+)
+@click.option(
+    "--basis",
+    type=click.Choice(["associated", "physical", "allocated"]),
+    default="physical",
+    show_default=True,
+    help="Compute accounting basis.",
+)
+@click.option(
+    "--group-by",
+    default="",
+    metavar="KEYS",
+    help="Comma-separated team,project,user,run,device,parent_device,device_model,day.",
+)
+@click.option("--user", default="", help="Keep runs owned by this username.")
+@click.option("--tag", multiple=True, help="Keep runs with every tag. Repeatable.")
+@click.option(
+    "--device-model", multiple=True, help="Keep these device models. Repeatable."
+)
+@click.option(
+    "--device-type", multiple=True, help="Keep these device types. Repeatable."
+)
+@click.option(
+    "--compare",
+    is_flag=True,
+    help="Also read the preceding equal-length period or previous calendar month.",
+)
+@click.help_option("-h", "--help")
+def usage(
+    scope_url: str,
+    period: str,
+    basis: str,
+    group_by: str,
+    user: str,
+    tag: tuple[str, ...],
+    device_model: tuple[str, ...],
+    device_type: tuple[str, ...],
+    compare: bool,
+) -> None:
+    """Print compute usage for a W&B organization, team, project or run as JSON.
+
+    SCOPE_URL is https://<host>/orgs/<org>, https://<host>/<team>,
+    https://<host>/<team>/<project>, or a W&B run URL. The server defines
+    the metrics and limits results to what the API key can read.
+    """
+    launch_query(
+        ("compute", "usage"),
+        scope_url,
+        remote_only=True,
+        allow_scope=True,
+        period=period,
+        basis=basis,
+        group_by=group_by,
+        user=user,
+        tag=tag,
+        device_model=device_model,
+        device_type=device_type,
+        compare=compare,
+    )
+
+
+@compute.command(cls=ScriptCommand)
+@click.argument("run_url")
+@click.option(
+    "--fields",
+    required=True,
+    metavar="PATHS",
+    help="Comma-separated typed field paths.",
+)
+@click.option(
+    "--bins", type=int, default=200, show_default=True, help="Time bins per series."
+)
+@click.option("--device", default="", metavar="UUID", help="Keep one device by UUID.")
+@click.option("--start", default="", metavar="RFC3339", help="First time to include.")
+@click.option("--end", default="", metavar="RFC3339", help="Last time to include.")
+@click.help_option("-h", "--help")
+def drilldown(
+    run_url: str, fields: str, bins: int, device: str, start: str, end: str
+) -> None:
+    """Print per-device compute series for a W&B run URL as JSON."""
+    launch_query(
+        ("compute", "drilldown"),
+        run_url,
+        remote_only=True,
+        fields=fields,
+        bins=bins,
+        device=device,
+        start=start,
+        end=end,
+    )
+
+
 @leet.command(cls=ScriptCommand)
 @click.argument("args", nargs=-1, required=True, metavar="[PATH] METHOD")
 @click.option(
@@ -883,26 +990,37 @@ def launch_inspect(
 
 
 def launch_query(
-    command: str, path: str | None, **flags: str | int | bool | None
+    command: str | tuple[str, ...],
+    path: str | None,
+    *,
+    remote_only: bool = False,
+    allow_scope: bool = False,
+    **flags: str | int | bool | tuple[str, ...] | None,
 ) -> Never:
     """Run a wandb-core leet query command on a local run or a W&B URL.
 
     Each flag is passed to wandb-core under its own name with underscores
     replaced by dashes; flags that are unset, empty or False are left out.
+    A tuple repeats the flag once per value.
     """
     env = None
     if path is not None and path.startswith(("https://", "http://")):
-        source_args, env = _remote_query_source(path, flags)
+        source_args, env = _remote_query_source(path, flags, allow_scope=allow_scope)
+    elif remote_only:
+        _fatal_json("bad_request", "compute requires a W&B URL")
     else:
         source_args = _local_query_source(path)
 
-    args = _base_args("leet", command)
+    args = _base_args("leet", *((command,) if isinstance(command, str) else command))
     for name, value in flags.items():
         if value is None or value == "" or value is False:
             continue
         flag = "--" + name.replace("_", "-")
         if value is True:
             args.append(flag)
+        elif isinstance(value, tuple):
+            for item in value:
+                args.extend([flag, item])
         else:
             args.extend([flag, str(value)])
     args.extend(source_args)
@@ -911,13 +1029,16 @@ def launch_query(
 
 
 def _remote_query_source(
-    path: str, flags: dict[str, str | int | bool | None]
+    path: str,
+    flags: dict[str, str | int | bool | tuple[str, ...] | None],
+    *,
+    allow_scope: bool = False,
 ) -> tuple[list[str], dict[str, str]]:
     """The source arguments and environment of a query on a W&B URL."""
     if flags.get("run"):
         _fatal_json("bad_request", "run cannot be used with a URL")
     try:
-        remote = _create_remote_launch_config(path)
+        remote = _create_remote_launch_config(path, allow_scope=allow_scope)
     except ValueError as e:
         _fatal_json("bad_request", str(e))
     except (UsageError, AuthenticationError) as e:
@@ -984,13 +1105,15 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
     return ["--remote-url", config.remote_url]
 
 
-def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
+def _create_remote_launch_config(
+    path: str, *, allow_scope: bool = False
+) -> RemoteLaunchConfig:
     """Create a LEET launch configuration for a remote project or run.
 
     Raises ValueError for an invalid URL and UsageError or
     AuthenticationError when no API key is found for its server.
     """
-    base_url, remote_url = _parse_remote_url(path)
+    base_url, remote_url = _parse_remote_url(path, allow_scope=allow_scope)
 
     auth = wbauth.authenticate_session(
         host=base_url,
@@ -1018,12 +1141,13 @@ def _app_urls(base_url: str) -> list[str]:
     return prefixes
 
 
-def _parse_remote_url(path: str) -> tuple[str, str]:
+def _parse_remote_url(path: str, *, allow_scope: bool = False) -> tuple[str, str]:
     """Validate a W&B project or run URL and return (base_url, canonical_url).
 
     Canonicalization maps W&B app URLs to their API base URLs and keeps only
     the entity, the project and, for a run page, the run ID. Raises
-    ValueError for any other URL.
+    ValueError for any other URL. With allow_scope, also accepts team and
+    organization URLs for compute usage.
     """
     invalid = ValueError(
         f"Invalid remote URL: {path!r}."
@@ -1046,6 +1170,11 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
                 break
 
     parts = run_path.strip("/").split("/")
+    if allow_scope:
+        if len(parts) == 1 and parts[0] and parts[0] != "orgs":
+            return base_url, f"{base_url}/{parts[0]}"
+        if parts[0] == "orgs" and (len(parts) != 2 or not parts[1]):
+            raise invalid
     if len(parts) < 2 or not all(parts[:2]):
         raise invalid
 

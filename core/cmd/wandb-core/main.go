@@ -368,12 +368,14 @@ type leetOptions struct {
 	run string
 
 	// request is the JSON-RPC request wandb-core leet session sends.
-	request      string
-	runs         leet.RunsQuery
-	history      leet.HistoryQuery
-	summaryQuery leet.SummaryQuery
-	console      leet.ConsoleQuery
-	system       leet.SystemQuery
+	request          string
+	runs             leet.RunsQuery
+	history          leet.HistoryQuery
+	summaryQuery     leet.SummaryQuery
+	console          leet.ConsoleQuery
+	system           leet.SystemQuery
+	computeUsage     leet.ComputeUsageQuery
+	computeDrilldown leet.ComputeDrilldownQuery
 
 	// remoteURL is the W&B URL of the project or run to open
 	// (e.g. https://api.forge.coreweave.com/<entity>/<project> or
@@ -476,6 +478,11 @@ var leetCommands = []*leetCommand{
 		run:       runLeetSystem,
 	},
 	{
+		name:   "compute",
+		short:  "Read compute usage and per-device metrics as JSON",
+		script: true,
+	},
+	{
 		name:        "session",
 		args:        "<wandb-directory>",
 		short:       "Send a request to the LEET showing a wandb directory",
@@ -518,7 +525,13 @@ func parseLeetArgs(args []string) (*leetCommand, *leetOptions, error) {
 			cmd, args = leetCommands[i], args[1:]
 		}
 	}
+	if cmd.name == "compute" {
+		return parseLeetComputeArgs(cmd, args)
+	}
+	return parseLeetCommandArgs(cmd, args)
+}
 
+func parseLeetCommandArgs(cmd *leetCommand, args []string) (*leetCommand, *leetOptions, error) {
 	opts := &leetOptions{}
 	fs := flag.NewFlagSet("leet "+cmd.name, flag.ContinueOnError)
 	bindLeetCommonFlags(fs, opts)

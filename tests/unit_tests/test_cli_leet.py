@@ -148,9 +148,104 @@ def test_mcp_passes_the_api_key_only_when_found(runner, core_calls, monkeypatch)
     assert "WANDB_API_KEY" not in envs[1]
 
 
-def test_leet_summary_hands_a_url_to_core(runner, core_calls, monkeypatch):
+@pytest.mark.parametrize(
+    ("command", "flags", "path", "core_flags"),
+    [
+        (["summary"], ["--keys", "acc"], "entity/project/runs/id", ["--keys", "acc"]),
+        (
+            ["compute", "usage"],
+            [
+                "--period",
+                "2026-10",
+                "--basis",
+                "associated",
+                "--group-by",
+                "team,project",
+                "--user",
+                "alice",
+                "--tag",
+                "training",
+                "--tag",
+                "nightly",
+                "--device-model",
+                "NVIDIA H100",
+                "--device-model",
+                "NVIDIA A100",
+                "--device-type",
+                "nvidia_gpu",
+                "--device-type",
+                "amd_gpu",
+                "--compare",
+            ],
+            "orgs/org",
+            [
+                "--period",
+                "2026-10",
+                "--basis",
+                "associated",
+                "--group-by",
+                "team,project",
+                "--user",
+                "alice",
+                "--tag",
+                "training",
+                "--tag",
+                "nightly",
+                "--device-model",
+                "NVIDIA H100",
+                "--device-model",
+                "NVIDIA A100",
+                "--device-type",
+                "nvidia_gpu",
+                "--device-type",
+                "amd_gpu",
+                "--compare",
+            ],
+        ),
+        *[
+            (
+                ["compute", "usage"],
+                [],
+                path,
+                ["--period", "30d", "--basis", "physical"],
+            )
+            for path in ("entity", "entity/project", "entity/project/runs/id")
+        ],
+        (
+            ["compute", "drilldown"],
+            [
+                "--fields",
+                "accelerators.nvidia.sm_active_ratio",
+                "--bins",
+                "20",
+                "--device",
+                "GPU-1",
+                "--start",
+                "2026-10-01T00:00:00Z",
+                "--end",
+                "2026-10-02T00:00:00Z",
+            ],
+            "entity/project/runs/id",
+            [
+                "--fields",
+                "accelerators.nvidia.sm_active_ratio",
+                "--bins",
+                "20",
+                "--device",
+                "GPU-1",
+                "--start",
+                "2026-10-01T00:00:00Z",
+                "--end",
+                "2026-10-02T00:00:00Z",
+            ],
+        ),
+    ],
+)
+def test_leet_query_hands_a_url_to_core(
+    runner, core_calls, monkeypatch, command, flags, path, core_flags
+):
     key = "X" * 40
-    url = "https://api.forge.coreweave.com/entity/project/runs/id"
+    url = f"https://api.forge.coreweave.com/{path}"
     auth = leet.wbauth.AuthApiKey(host=urls.DEFAULT_BASE_URL, api_key=key)
     monkeypatch.setattr(leet.wbauth, "authenticate_session", lambda **kwargs: auth)
     envs: list[dict[str, str]] = []
@@ -162,7 +257,7 @@ def test_leet_summary_hands_a_url_to_core(runner, core_calls, monkeypatch):
 
     result = runner.invoke(
         cli.cli,
-        ["leet", "summary", "--keys", "acc", "https://wandb.ai/entity/project/runs/id"],
+        ["leet", *command, *flags, f"https://wandb.ai/{path}"],
     )
 
     assert result.exit_code == 0
@@ -170,16 +265,21 @@ def test_leet_summary_hands_a_url_to_core(runner, core_calls, monkeypatch):
         [
             "wandb-core",
             "leet",
-            "summary",
+            *command,
             "--base-url",
             _BASE_URL,
-            "--keys",
-            "acc",
+            *core_flags,
             "--remote-url",
             url,
         ]
     ]
     assert envs[0]["WANDB_API_KEY"] == key
+
+    if command[0] == "compute":
+        result = runner.invoke(cli.cli, ["leet", *command, *flags, "./wandb"])
+        assert result.exit_code == 1
+        assert json.loads(result.stderr)["error"] == "bad_request"
+        return
 
     result = runner.invoke(cli.cli, ["leet", "summary", "--run", "x", url])
     assert result.exit_code == 1
