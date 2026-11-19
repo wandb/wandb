@@ -420,8 +420,6 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.GQLVar("artifactId", gomock.Eq("serverId")))
 }
 
-// sendUploadEvalTable sends an UploadEvalTable request and returns
-// its response.
 func sendUploadEvalTable(
 	t *testing.T,
 	x testFixtures,

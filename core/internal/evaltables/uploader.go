@@ -422,7 +422,6 @@ func newIdempotencyKeys() idempotencyKeys {
 	}
 }
 
-// option returns a request option setting the key for an operation.
 func (k idempotencyKeys) option(operation string) option.RequestOption {
 	return option.WithHeader("Idempotency-Key", k.prefix+"-"+operation)
 }

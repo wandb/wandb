@@ -138,7 +138,6 @@ func newTestUploaderWithSettings(
 	}), mockGQL
 }
 
-// upload encodes and uploads an EvalTable.
 func upload(
 	ctx context.Context,
 	uploader *evaltables.Uploader,
@@ -151,7 +150,6 @@ func upload(
 	return uploader.Upload(ctx, table)
 }
 
-// encode validates and encodes an EvalTable without uploading it.
 func encode(
 	t *testing.T,
 	request *spb.EvalTableData,
