@@ -37,8 +37,6 @@ func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 }
 
 // GetStream gets a stream from the mux.
-//
-// If the stream is still starting the function blocks until the stream is started.
 func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 	sm.mutex.RLock()
 	stream, ok := sm.mux[streamId]
@@ -46,8 +44,6 @@ func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 	if !ok {
 		return nil, fmt.Errorf("stream %s not found", streamId)
 	}
-
-	<-stream.started
 	return stream, nil
 }
 
