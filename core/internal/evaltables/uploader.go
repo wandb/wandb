@@ -43,10 +43,10 @@ func IsUsageError(err error) bool {
 // EncodedTable is an EvalTable that has been validated and encoded for
 // CES.
 type EncodedTable struct {
-	name     string
-	runPath  runbranch.RunPath
-	columns  ces.EvalTableColumnNewParams
-	rowsJSON [][]byte
+	name    string
+	runPath runbranch.RunPath
+	columns ces.EvalTableColumnNewParams
+	cesRows [][]byte
 }
 
 // Encode validates an EvalTable and encodes its rows.
@@ -73,16 +73,16 @@ func (u *Uploader) Encode(
 	if err != nil {
 		return nil, usageError{err}
 	}
-	rowsJSON, err := encoder.encodeRows(data.GetRows())
+	cesRows, err := encoder.encodeRows(data.GetRows())
 	if err != nil {
 		return nil, usageError{err}
 	}
 
 	return &EncodedTable{
-		name:     data.GetName(),
-		runPath:  runPath,
-		columns:  columns,
-		rowsJSON: rowsJSON,
+		name:    data.GetName(),
+		runPath: runPath,
+		columns: columns,
+		cesRows: cesRows,
 	}, nil
 }
 

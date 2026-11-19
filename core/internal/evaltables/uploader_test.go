@@ -151,7 +151,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"scores":{"passed":null,"votes":null,"accuracy":null,"rank":null,"grade":null},`+
 			`"example_key":"2"}`+
 			`]`,
-		table.RowsJSON(t))
+		table.CESRowsJSON(t))
 }
 
 func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
