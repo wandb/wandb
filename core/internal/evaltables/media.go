@@ -16,12 +16,13 @@ import (
 // that mediaConverter produces.
 const mediaSchemaVersion = 1
 
-// maxMediaValueBytes is the size of compact JSON at which a CES extension
-// value is too large, and its cell is uploaded as null instead.
+// maxMediaValueBytes is the size of compact JSON at which a media cell's
+// CES extension value is too large, and the cell is uploaded as null.
 //
-// It stays under the 3.5 MB ClickHouse single-row insert limit that Weave
-// adopted after larger rows failed in production (wandb/weave#2353,
-// wandb/weave#5448). CES enforces the same limit on image lists.
+// It matches CES's limit on image list values, and the 3.5 MB ClickHouse
+// single-row insert limit that Weave adopted after larger rows failed in
+// production (wandb/weave#2353, wandb/weave#5448). It bounds each value,
+// not the row.
 const maxMediaValueBytes = 3_500_000
 
 const (
