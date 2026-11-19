@@ -2800,7 +2800,7 @@ pub struct EvalTableScorer {
     pub value_type: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UploadEvalTableResponse {
     #[prost(string, tag = "1")]
     pub evaluation_id: ::prost::alloc::string::String,
@@ -2816,26 +2816,6 @@ pub struct UploadEvalTableResponse {
     /// in offline mode.
     #[prost(message, optional, tag = "5")]
     pub error: ::core::option::Option<ErrorInfo>,
-    /// Media cells that wandb-core uploaded as null, because their CES
-    /// extension value was too large.
-    #[prost(message, repeated, tag = "6")]
-    pub oversized_media_cells: ::prost::alloc::vec::Vec<EvalTableOversizedMediaCell>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct EvalTableOversizedMediaCell {
-    /// The cell's row, counting from 1.
-    #[prost(int64, tag = "1")]
-    pub row: i64,
-    /// The cell's dataset field.
-    /// One of: cwevals.EvalTableColumnNewParamsDatasetFieldsSource
-    #[prost(string, tag = "2")]
-    pub source: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub name: ::prost::alloc::string::String,
-    /// The size of the cell's CES extension value, in bytes of compact JSON.
-    #[prost(int64, tag = "4")]
-    pub size: i64,
 }
 /// DownloadArtifact:
 #[allow(clippy::all)]
