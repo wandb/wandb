@@ -24,26 +24,24 @@ func emptyWandbFile(t *testing.T) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
 	return path
 }
 
-func assertUnsupportedVersion(t *testing.T, err error, version byte) {
+func assertUnsupportedVersion(t *testing.T, err error) {
 	t.Helper()
 	assert.ErrorContains(t, err,
-		fmt.Sprintf("a newer wandb version is required to read this file: %d",
-			version,
-		),
+		"a newer wandb version is required to read this file",
 	)
 }
 
 func Test_ReadAfterWrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
 	require.NoError(t, writer.Close())
@@ -61,7 +59,7 @@ func Test_OpenWriter_FileExists(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte{}, 0o666))
 
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 
 	assert.Nil(t, writer)
 	assert.ErrorIs(t, err, os.ErrExist)
@@ -69,7 +67,7 @@ func Test_OpenWriter_FileExists(t *testing.T) {
 
 func Test_Write_AlreadyClosed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	require.NoError(t, writer.Close())
@@ -113,7 +111,7 @@ func Test_Read_EOF(t *testing.T) {
 func Test_Read_SkipsCorruptData(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	// The first 7 bytes of the first block are the W&B header.
@@ -159,7 +157,7 @@ func Test_Read_SkipsCorruptData(t *testing.T) {
 func Test_ResetLastRead(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
 	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
@@ -187,7 +185,7 @@ func Test_ResetLastRead(t *testing.T) {
 func Test_NextRecordOffset_SeekRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
 	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
@@ -219,7 +217,7 @@ func Test_EOF(t *testing.T) {
 	// Test that EOF and ErrUnexpectedEOF errors are correctly wrapped.
 
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path, byte(0))
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -292,7 +290,7 @@ func Test_Read_UnsupportedNewVersion(t *testing.T) {
 	_, err = reader.Read()
 	reader.Close()
 
-	assertUnsupportedVersion(t, err, 2)
+	assertUnsupportedVersion(t, err)
 }
 
 func Test_OpenWriter_UnsupportedVersion(t *testing.T) {
@@ -301,13 +299,13 @@ func Test_OpenWriter_UnsupportedVersion(t *testing.T) {
 	w, err := transactionlog.OpenWriter(path, 2)
 
 	assert.Nil(t, w)
-	assertUnsupportedVersion(t, err, 2)
+	assertUnsupportedVersion(t, err)
 	assert.NoFileExists(t, path)
 }
 
 func Test_OpenWriter_WritesVersion(t *testing.T) {
 
-	for _, version := range []byte{byte(0), byte(1)} {
+	for _, version := range []uint8{0, 1} {
 		t.Run(string(version), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), fmt.Sprintf("run.wandb.%d", version))
 			w, err := transactionlog.OpenWriter(path, version)
@@ -350,7 +348,7 @@ func Test_ReadAfterSeek_VerifiesHeader(t *testing.T) {
 }
 
 func TestRead_SeekChecksHeaderAndPreservesOffset(t *testing.T) {
-	version := byte(2)
+	var version uint8 = 2
 	records := []*spb.Record{
 		{RecordType: &spb.Record_OutputRaw{
 			OutputRaw: &spb.OutputRawRecord{
@@ -374,9 +372,9 @@ func TestRead_SeekChecksHeaderAndPreservesOffset(t *testing.T) {
 	defer r.Close()
 	require.NoError(t, r.SeekRecord(offset))
 	_, err = r.Read()
-	assertUnsupportedVersion(t, err, version)
+	assertUnsupportedVersion(t, err)
 	require.NoError(t, r.ResetLastRead())
 	assert.Equal(t, offset, r.NextRecordOffset())
 	_, err = r.Read()
-	assertUnsupportedVersion(t, err, version)
+	assertUnsupportedVersion(t, err)
 }

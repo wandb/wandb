@@ -2,7 +2,6 @@ package leet_test
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,7 +132,7 @@ func TestReadInspectorBatch_LiveAppend(t *testing.T) {
 func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 	for _, test := range []struct {
 		name    string
-		version byte
+		version uint8
 	}{
 		{name: "next version", version: 2},
 		{name: "maximum version", version: 255},
@@ -148,9 +147,7 @@ func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 			assert.Empty(t, batch.Entries)
 			assert.Zero(t, batch.Corrupt)
 			assert.ErrorContains(t, batch.Err,
-				fmt.Sprintf("a newer wandb version is required to read this file: %d",
-					test.version,
-				),
+				"a newer wandb version is required to read this file",
 			)
 		})
 	}
@@ -278,7 +275,7 @@ func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
 
 	w, err := transactionlog.OpenWriter(
 		filepath.Join(runDir, "run-abc123.wandb"),
-		byte(0),
+		0,
 	)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(&spb.Record{
