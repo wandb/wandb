@@ -13,9 +13,6 @@ import (
 type FakeFileStream struct {
 	mu      sync.Mutex
 	updates []filestream.Update
-
-	// summaryDelta is the value passed to Start.
-	summaryDelta bool
 }
 
 func NewFakeFileStream() *FakeFileStream {
@@ -60,18 +57,7 @@ func (fs *FakeFileStream) Start(
 	project string,
 	runID string,
 	offsetMap filestream.FileStreamOffsetMap,
-	summaryDelta bool,
 ) {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-	fs.summaryDelta = summaryDelta
-}
-
-// StartedWithSummaryDelta returns the summaryDelta passed to Start.
-func (fs *FakeFileStream) StartedWithSummaryDelta() bool {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-	return fs.summaryDelta
 }
 
 func (fs *FakeFileStream) FinishWithExit(int32) {}

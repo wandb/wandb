@@ -1,8 +1,17 @@
 package filestream
 
 import (
+	"errors"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/settings"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestStopState_FeedbackTable(t *testing.T) {
@@ -37,4 +46,75 @@ func TestStopState_FeedbackTable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitialState_SummaryDelta(t *testing.T) {
+	const query = "ProjectAcceptsSummaryDelta"
+	tests := []struct {
+		name    string
+		feature bool
+		stub    func(*gqlmock.MockClient)
+		want    bool
+	}{
+		{"accepted", true, func(c *gqlmock.MockClient) {
+			c.StubMatchOnce(gqlmock.WithOpName(query),
+				`{"project": {"acceptsSummaryDelta": true}}`)
+		}, true},
+		{"not accepted", true, func(c *gqlmock.MockClient) {
+			c.StubMatchOnce(gqlmock.WithOpName(query),
+				`{"project": {"acceptsSummaryDelta": false}}`)
+		}, false},
+		{"no project", true, func(c *gqlmock.MockClient) {
+			c.StubMatchOnce(gqlmock.WithOpName(query), `{"project": null}`)
+		}, false},
+		{"query fails", true, func(c *gqlmock.MockClient) {
+			c.StubMatchWithError(gqlmock.WithOpName(query), errors.New("down"))
+		}, false},
+		{"server without the feature is not asked", false, nil, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gqlmock.NewMockClient()
+			if tc.stub != nil {
+				tc.stub(client)
+			}
+			fs := &fileStream{
+				beforeRunEndCtx: t.Context(),
+				settings:        settings.New(),
+				logger:          observabilitytest.NewTestLogger(t),
+				graphqlClient:   client,
+				featureProvider: featurechecker.NewPreloaded(
+					map[spb.ServerFeature]bool{
+						spb.ServerFeature_FILESTREAM_SUMMARY_DELTA: tc.feature,
+					}),
+			}
+
+			state := fs.initialState("entity", "project", nil)
+
+			assert.Equal(t, tc.want, state.SummaryDelta)
+			assert.True(t, client.AllStubsUsed())
+			if !tc.feature {
+				assert.Empty(t, client.AllRequests())
+			}
+		})
+	}
+}
+
+func TestInitialState_NoGraphqlClient(t *testing.T) {
+	fs := &fileStream{
+		beforeRunEndCtx: t.Context(),
+		settings:        settings.New(),
+		featureProvider: featurechecker.NewPreloaded(
+			map[spb.ServerFeature]bool{
+				spb.ServerFeature_FILESTREAM_SUMMARY_DELTA: true,
+			}),
+	}
+
+	state := fs.initialState("entity", "project", FileStreamOffsetMap{
+		HistoryChunk: 7,
+	})
+
+	assert.False(t, state.SummaryDelta)
+	assert.Equal(t, 7, state.HistoryLineNum)
 }

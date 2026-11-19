@@ -107,8 +107,10 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	s.popSummary(builder, request, logger, printer)
 	s.popConsoleLines(builder, request)
+
+	// Last of the files, so that popSummary knows whether any data remains.
+	s.popSummary(builder, request, logger, printer)
 
 	s.popUploadedFiles(builder, request)
 	s.popPreempting(builder, request)

@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
 	"golang.org/x/time/rate"
 
@@ -28,6 +29,10 @@ const (
 	OutputFileName           = "output.log"
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultTransmitInterval  = 15 * time.Second
+
+	// summaryDeltaQueryTimeout bounds asking the backend whether it accepts
+	// summary deltas when a stream starts.
+	summaryDeltaQueryTimeout = 10 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
@@ -67,14 +72,11 @@ type FileStream interface {
 	// `entity`, `project` and `runID`). In case we are resuming a run,
 	// the `offsetMap` specifies the initial file offsets for each file
 	// type (history, output logs, events, summary).
-	//
-	// summaryDelta is whether the backend accepts summary deltas.
 	Start(
 		entity string,
 		project string,
 		runID string,
 		offsetMap FileStreamOffsetMap,
-		summaryDelta bool,
 	)
 
 	// FinishWithExit marks the run as complete and blocks until all
@@ -123,6 +125,9 @@ type fileStream struct {
 	// featureProvider indicates which features the server supports.
 	featureProvider *featurechecker.FeatureProvider
 
+	// graphqlClient makes GraphQL requests. It may be nil.
+	graphqlClient graphql.Client
+
 	// The client for making API requests.
 	apiClient api.RetryableClient
 	baseURL   *url.URL
@@ -157,11 +162,16 @@ var FileStreamProviders = wire.NewSet(
 type FileStreamFactory struct {
 	BaseURL         api.WBBaseURL
 	FeatureProvider *featurechecker.FeatureProvider
-	Logger          *observability.CoreLogger
-	Operations      *wboperation.WandbOperations
-	Printer         *observability.Printer
-	Settings        *settings.Settings
-	Stats           *filestreamstats.Stats
+
+	// GraphqlClient is used to ask whether the run's project accepts
+	// summary deltas. If nil, full summaries are sent.
+	GraphqlClient graphql.Client
+
+	Logger     *observability.CoreLogger
+	Operations *wboperation.WandbOperations
+	Printer    *observability.Printer
+	Settings   *settings.Settings
+	Stats      *filestreamstats.Stats
 }
 
 // New returns a new FileStream.
@@ -185,6 +195,7 @@ func (f *FileStreamFactory) New(
 		beforeRunEndCtx: beforeRunEndCtx,
 		settings:        f.Settings,
 		featureProvider: f.FeatureProvider,
+		graphqlClient:   f.GraphqlClient,
 		logger:          f.Logger,
 		operations:      f.Operations,
 		printer:         f.Printer,
@@ -215,7 +226,6 @@ func (fs *fileStream) Start(
 	project string,
 	runID string,
 	offsetMap FileStreamOffsetMap,
-	summaryDelta bool,
 ) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
 
@@ -226,8 +236,9 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
+	state := fs.initialState(entity, project, offsetMap)
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
-	feedbackChan := fs.startTransmitting(transmitChan, offsetMap, summaryDelta)
+	feedbackChan := fs.startTransmitting(transmitChan, state)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
 }
 

@@ -16,19 +16,21 @@ import (
 // A nil value acts like no updates but cannot be mutated with Merge.
 type Updates struct {
 	// update contains values to add to or change in the summary.
-	//
-	// Leaves in the tree are JSON-encoded values (supporting +-Infinity
-	// and NaN).
-	update *pathtree.PathTree[string]
+	update *pathtree.PathTree[updatedValue]
 
 	// remove contains paths to remove from the summary.
 	//
 	// None of the paths appear in 'update'.
 	remove *pathtree.PathTree[struct{}]
+}
 
-	// notFromHistory contains the paths in 'update' whose value is not the
-	// key's latest value from run.log().
-	notFromHistory *pathtree.PathTree[struct{}]
+// updatedValue is a new value for a path in the summary.
+type updatedValue struct {
+	// json is the JSON-encoded value (supporting +-Infinity and NaN).
+	json string
+
+	// fromHistory is whether it's the key's latest value from run.log().
+	fromHistory bool
 }
 
 // IsEmpty returns whether the Updates instance contains any changes.
@@ -50,14 +52,12 @@ func (u *Updates) HasRemovals() bool {
 func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
 	rs := New()
 	if u != nil {
-		u.notFromHistory.ForEachLeaf(func(path pathtree.TreePath, _ struct{}) bool {
-			// A later update may have replaced the path with nested keys.
-			valueJSON, ok := u.update.GetLeaf(path)
-			if !ok {
+		u.update.ForEachLeaf(func(path pathtree.TreePath, v updatedValue) bool {
+			if v.fromHistory {
 				return true
 			}
 
-			if value, err := simplejsonext.UnmarshalString(valueJSON); err == nil {
+			if value, err := simplejsonext.UnmarshalString(v.json); err == nil {
 				rs.Set(path, value)
 			}
 			return true
@@ -69,9 +69,8 @@ func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
 // NoUpdates returns a mutable Updates instance that makes no changes.
 func NoUpdates() *Updates {
 	return &Updates{
-		update:         pathtree.New[string](),
-		remove:         pathtree.New[struct{}](),
-		notFromHistory: pathtree.New[struct{}](),
+		update: pathtree.New[updatedValue](),
+		remove: pathtree.New[struct{}](),
 	}
 }
 
@@ -81,17 +80,16 @@ func FromProto(record *spb.SummaryRecord) *Updates {
 
 	for _, item := range record.GetUpdate() {
 		path := keyPath(item)
-		u.update.Set(path, item.GetValueJson())
-		if !item.GetFromHistory() {
-			u.notFromHistory.Set(path, struct{}{})
-		}
+		u.update.Set(path, updatedValue{
+			json:        item.GetValueJson(),
+			fromHistory: item.GetFromHistory(),
+		})
 	}
 
 	for _, item := range record.GetRemove() {
 		path := keyPath(item)
 		u.remove.Set(path, struct{}{})
 		u.update.Remove(path)
-		u.notFromHistory.Remove(path)
 	}
 
 	return u
@@ -105,7 +103,6 @@ func (u *Updates) IgnoreStep() {
 	step := pathtree.PathOf("_step")
 	u.update.Remove(step)
 	u.remove.Remove(step)
-	u.notFromHistory.Remove(step)
 }
 
 // Merge merges the given Updates into this Updates instance,
@@ -117,14 +114,9 @@ func (u *Updates) Merge(newUpdates *Updates) {
 	}
 
 	newUpdates.update.ForEachLeaf(
-		func(path pathtree.TreePath, valueJSON string) bool {
+		func(path pathtree.TreePath, value updatedValue) bool {
 			u.remove.Remove(path)
-			u.update.Set(path, valueJSON)
-			if _, ok := newUpdates.notFromHistory.GetLeaf(path); ok {
-				u.notFromHistory.Set(path, struct{}{})
-			} else {
-				u.notFromHistory.Remove(path)
-			}
+			u.update.Set(path, value)
 			return true
 		})
 
@@ -132,7 +124,6 @@ func (u *Updates) Merge(newUpdates *Updates) {
 		func(path pathtree.TreePath, _ struct{}) bool {
 			u.remove.Set(path, struct{}{})
 			u.update.Remove(path)
-			u.notFromHistory.Remove(path)
 			return true
 		})
 }
@@ -149,8 +140,8 @@ func (u *Updates) Apply(rs *RunSummary) error {
 	var errs []error
 
 	u.update.ForEachLeaf(
-		func(path pathtree.TreePath, valueJSON string) bool {
-			value, err := simplejsonext.UnmarshalString(valueJSON)
+		func(path pathtree.TreePath, v updatedValue) bool {
+			value, err := simplejsonext.UnmarshalString(v.json)
 
 			if err != nil {
 				errs = append(errs,

@@ -512,6 +512,26 @@ func TestState_Pop_SummaryDeltaEndOfStream(t *testing.T) {
 	})
 }
 
+func TestState_Pop_SummaryDeltaEndOfStreamAfterConsoleLines(t *testing.T) {
+	state := deltaState()
+	state.MaxRequestSizeBytes = 12 // the summary or the line, not both
+	popSummaryLine(t, state,
+		&FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
+	lines := &sparselist.SparseList[string]{}
+	lines.Put(0, "console!!")
+	request := &FileStreamRequest{Complete: true, ConsoleLines: lines}
+
+	json, hasMore := pop(t, state, request)
+	assert.True(t, hasMore)
+	assert.Equal(t, []string{"console!!"}, json.Files[OutputFileName].Content)
+	assert.NotContains(t, json.Files, SummaryFileName)
+
+	json, hasMore = pop(t, state, request)
+	assert.False(t, hasMore)
+	assert.Equal(t, []string{`{"a":1}`}, json.Files[SummaryFileName].Content)
+	assert.NotNil(t, json.Complete)
+}
+
 func TestState_Pop_SummaryDeltaThatDoesNotFitAccumulates(t *testing.T) {
 	state := deltaState()
 	state.MaxRequestSizeBytes = 10

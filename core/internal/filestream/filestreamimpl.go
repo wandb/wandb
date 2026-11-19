@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/filestreamstats"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -59,6 +60,71 @@ func (fs *fileStream) startProcessingUpdates(
 	return requests
 }
 
+// initialState returns the state for a new stream to the given project.
+func (fs *fileStream) initialState(
+	entity string,
+	project string,
+	initialOffsets FileStreamOffsetMap,
+) *FileStreamState {
+	state := &FileStreamState{
+		MaxRequestSizeBytes: max(
+			int(fs.settings.GetFileStreamMaxBytes()),
+			defaultMaxRequestSizeBytes,
+		),
+		MaxFileLineSize: max(
+			int(fs.settings.GetFileStreamMaxLineBytes()),
+			defaultMaxFileLineBytes,
+		),
+		SummaryDelta: fs.acceptsSummaryDelta(entity, project),
+	}
+
+	if initialOffsets != nil {
+		state.HistoryLineNum = initialOffsets[HistoryChunk]
+		state.EventsLineNum = initialOffsets[EventsChunk]
+		state.SummaryLineNum = initialOffsets[SummaryChunk]
+		state.ConsoleLineOffset = initialOffsets[OutputChunk]
+	}
+
+	return state
+}
+
+// acceptsSummaryDelta asks the backend whether the project accepts summary
+// deltas. It returns false if it can't get an answer in time.
+func (fs *fileStream) acceptsSummaryDelta(entity, project string) bool {
+	if fs.graphqlClient == nil ||
+		!fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx,
+			spb.ServerFeature_FILESTREAM_SUMMARY_DELTA,
+		) {
+		return false
+	}
+
+	// Uploads wait for the answer, so don't let retries hold them up.
+	ctx, cancel := context.WithTimeout(
+		fs.beforeRunEndCtx,
+		summaryDeltaQueryTimeout,
+	)
+	defer cancel()
+
+	response, err := gql.ProjectAcceptsSummaryDelta(
+		ctx,
+		fs.graphqlClient,
+		entity,
+		project,
+	)
+	if err != nil {
+		fs.logger.Warn(
+			"filestream: sending full summaries after failing to check"+
+				" for summary deltas",
+			"error", err,
+		)
+		return false
+	}
+
+	return response.GetProject() != nil &&
+		response.GetProject().GetAcceptsSummaryDelta()
+}
+
 // startTransmitting makes requests to the filestream API.
 //
 // It ingests a channel of requests and outputs a channel of API responses.
@@ -69,28 +135,8 @@ func (fs *fileStream) startProcessingUpdates(
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
 	requests <-chan *FileStreamRequest,
-	initialOffsets FileStreamOffsetMap,
-	summaryDelta bool,
+	state *FileStreamState,
 ) <-chan map[string]any {
-	state := &FileStreamState{
-		SummaryDelta: summaryDelta,
-		MaxRequestSizeBytes: max(
-			int(fs.settings.GetFileStreamMaxBytes()),
-			defaultMaxRequestSizeBytes,
-		),
-		MaxFileLineSize: max(
-			int(fs.settings.GetFileStreamMaxLineBytes()),
-			defaultMaxFileLineBytes,
-		),
-	}
-
-	if initialOffsets != nil {
-		state.HistoryLineNum = initialOffsets[HistoryChunk]
-		state.EventsLineNum = initialOffsets[EventsChunk]
-		state.SummaryLineNum = initialOffsets[SummaryChunk]
-		state.ConsoleLineOffset = initialOffsets[OutputChunk]
-	}
-
 	transmissions := CollectLoop{
 		Logger:            fs.logger,
 		Printer:           fs.printer,

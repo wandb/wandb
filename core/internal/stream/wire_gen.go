@@ -80,6 +80,7 @@ func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResou
 	fileStreamFactory := &filestream.FileStreamFactory{
 		BaseURL:         wbBaseURL,
 		FeatureProvider: featureProvider,
+		GraphqlClient:   client,
 		Logger:          coreLogger,
 		Operations:      wandbOperations,
 		Printer:         printer,

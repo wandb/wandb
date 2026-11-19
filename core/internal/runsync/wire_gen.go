@@ -54,6 +54,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 	fileStreamFactory := &filestream.FileStreamFactory{
 		BaseURL:         wbBaseURL,
 		FeatureProvider: featureProvider,
+		GraphqlClient:   client,
 		Logger:          logger,
 		Operations:      wandbOperations,
 		Printer:         printer,
