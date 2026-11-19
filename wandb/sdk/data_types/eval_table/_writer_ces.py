@@ -507,11 +507,11 @@ class CESWriter:
                 )
                 if oversized_size is not None:
                     oversized_cells += 1
-                    if len(oversized_locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
-                        oversized_locations.append(
-                            f"row {row_index}, {source} column {name!r} "
-                            f"({oversized_size} bytes)"
-                        )
+                    self._record_oversized_location(
+                        oversized_locations,
+                        f"row {row_index}, {source} column {name!r} "
+                        f"({oversized_size} bytes)",
+                    )
             else:
                 normalized, primitive_type = self._normalize_primitive(value, column)
                 value_type = (
@@ -523,6 +523,12 @@ class CESWriter:
                 types[key] = self._merge_field_type(column, types.get(key), value_type)
             normalized_values[name] = normalized
         return normalized_values, media_cells, oversized_cells
+
+    @staticmethod
+    def _record_oversized_location(locations: list[str], location: str) -> None:
+        """Append a location unless the reporting cap has been reached."""
+        if len(locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
+            locations.append(location)
 
     def _normalize_row_score_values(
         self,
@@ -614,15 +620,7 @@ class CESWriter:
         if isinstance(value, float) or (
             np is not None and isinstance(value, np.floating)
         ):
-            normalized = float(value)
-            if math.isnan(normalized):
-                # JSON has no NaN literal; send null while retaining numeric schema.
-                return None, "number"
-            if not math.isfinite(normalized):
-                raise UsageError(
-                    f"CES EvalTable column {column!r} contains a non-finite number."
-                )
-            return normalized, "number"
+            return self._normalize_float(float(value), column), "number"
         if isinstance(value, str) or (np is not None and isinstance(value, np.str_)):
             return str(value), "string"
 
@@ -630,6 +628,17 @@ class CESWriter:
             f"CES EvalTable column {column!r} contains unsupported value "
             f"type {type(value).__name__!r}; only primitive values are supported."
         )
+
+    def _normalize_float(self, value: float, column: ColumnKey) -> float | None:
+        """Return a JSON-safe float, mapping NaN to None and rejecting infinities."""
+        if math.isnan(value):
+            # JSON has no NaN literal; send null while retaining numeric schema.
+            return None
+        if not math.isfinite(value):
+            raise UsageError(
+                f"CES EvalTable column {column!r} contains a non-finite number."
+            )
+        return value
 
     def _validate_name(self, kind: str, name: str, *, max_length: int) -> None:
         if not name or len(name) > max_length:
