@@ -9,22 +9,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/evaltables"
-	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runupsertertest"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+var testRunPath = runbranch.RunPath{
+	Entity:  "test-entity",
+	Project: "test-project",
+	RunID:   "test-run",
+}
 
 func encode(
 	t *testing.T,
 	request *spb.EvalTableData,
 ) (*evaltables.EncodedTable, error) {
 	t.Helper()
-	runHandle := runhandle.New()
-	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
-	uploader := evaltables.NewUploader(evaltables.UploaderParams{
-		RunHandle: runHandle,
-	})
-	return uploader.Encode(request)
+	return evaltables.Encode(request, testRunPath)
 }
 
 func boolValue(v bool) *spb.EvalTableValue {

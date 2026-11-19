@@ -7,7 +7,6 @@ import (
 	ces "github.com/wandb/cwevals-go"
 
 	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/internal/runhandle"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -18,18 +17,6 @@ const (
 	rowBatchPrefix = `{"rows":[`
 	rowBatchSuffix = `]}`
 )
-
-type Uploader struct {
-	runHandle *runhandle.RunHandle
-}
-
-type UploaderParams struct {
-	RunHandle *runhandle.RunHandle
-}
-
-func NewUploader(params UploaderParams) *Uploader {
-	return &Uploader{runHandle: params.RunHandle}
-}
 
 // usageError is a problem with a request's table, which the user can fix.
 type usageError struct{ error }
@@ -49,18 +36,13 @@ type EncodedTable struct {
 	cesRows [][]byte
 }
 
-// Encode validates an EvalTable and encodes its rows.
+// Encode validates an EvalTable of the run at runPath and encodes its rows.
 //
 // Errors in the table satisfy IsUsageError.
-func (u *Uploader) Encode(
+func Encode(
 	data *spb.EvalTableData,
+	runPath runbranch.RunPath,
 ) (*EncodedTable, error) {
-	upserter, err := u.runHandle.Upserter()
-	if err != nil {
-		return nil, fmt.Errorf("evaltables: %v", err)
-	}
-	runPath := upserter.RunPath()
-
 	columns := ces.EvalTableColumnNewParams{
 		DatasetFields: ces.F(datasetFieldParams(data.GetDatasetFields())),
 		Scorers:       ces.F(scorerParams(data.GetScorers())),
