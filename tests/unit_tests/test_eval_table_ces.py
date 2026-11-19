@@ -269,7 +269,7 @@ def test_ces_eval_table_logs_failure_to_remove_rows_file(
         et.to_json(run)
 
     logger.warning.assert_called_once()
-    assert "Failed to remove EvalTable rows file" in logger.warning.call_args.args[0]
+    assert "Failed to remove W&B rows file" in logger.warning.call_args.args[0]
 
 
 def test_ces_eval_table_without_inputs_keys_rows_by_position(
