@@ -360,7 +360,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"scores":{"passed":null,"votes":null,"accuracy":null,"rank":null,"grade":null},`+
 			`"example_key":"2"}`+
 			`]`,
-		table.RowsJSON(t))
+		table.CESRowsJSON(t))
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
@@ -1092,7 +1092,7 @@ func TestEncode_ConvertsMedia(t *testing.T) {
 			}
 		},
 		"scores": {}
-	}]`, table.RowsJSON(t))
+	}]`, table.CESRowsJSON(t))
 }
 
 // TestEncode_ConvertsPythonMedia converts a request recorded from the Python
@@ -1170,7 +1170,7 @@ func TestEncode_ConvertsPythonMedia(t *testing.T) {
 		},
 		"output": null,
 		"scores": {}
-	}]`, table.RowsJSON(t))
+	}]`, table.CESRowsJSON(t))
 }
 
 func TestEncode_KeepsNullMedia(t *testing.T) {
@@ -1191,7 +1191,7 @@ func TestEncode_KeepsNullMedia(t *testing.T) {
 			`{"input":{"image":null},"output":null,"scores":{}},`+
 			`{"input":null,"output":{"image":null},"scores":{}}`+
 			`]`,
-		table.RowsJSON(t))
+		table.CESRowsJSON(t))
 }
 
 func TestEncode_RejectsInvalidMedia(t *testing.T) {
