@@ -32,6 +32,11 @@ _logger = logging.getLogger(__name__)
 # wandb-core in a file. wandb-core streams the file, but holds inline rows in
 # memory several times over until the upload ends.
 _ROWS_FILE_THRESHOLD_BYTES = 64 << 20
+# Each byte of a varint holds 7 bits of the value, low bits first, and sets
+# its high bit if more bytes follow.
+_VARINT_PAYLOAD_BITS = 7
+_VARINT_PAYLOAD_MASK = 0x7F
+_VARINT_CONTINUATION_BIT = 0x80
 # Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
@@ -194,9 +199,9 @@ def _write_wandb_rows_file(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> 
 def _encode_varint(value: int) -> bytes:
     """Encode a non-negative integer as a protobuf varint."""
     encoded = bytearray()
-    while value >= 0x80:
-        encoded.append((value & 0x7F) | 0x80)
-        value >>= 7
+    while value > _VARINT_PAYLOAD_MASK:
+        encoded.append((value & _VARINT_PAYLOAD_MASK) | _VARINT_CONTINUATION_BIT)
+        value >>= _VARINT_PAYLOAD_BITS
     encoded.append(value)
     return bytes(encoded)
 
