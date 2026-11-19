@@ -269,20 +269,25 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 // E.g. A WaitForRunExitFlush request observes the Writer directly,
 // an area the sender has no visibility in.
 func (s *Stream) handleStreamRecord(record *spb.Record, request *runwork.Request) bool {
-	if record.GetRequest().GetWaitForRunExitFlush() == nil {
-		return false
-	}
-	if request == nil {
+	if record.GetRequest().GetWaitForRunExitFlush() != nil {
+		s.handleWaitForRunExitFlush(request)
 		return true
+	}
+
+	return false
+}
+
+func (s *Stream) handleWaitForRunExitFlush(request *runwork.Request) {
+	if request == nil {
+		return
 	}
 
 	if s.runWork.BeforeEndCtx().Err() != nil {
 		request.WillNotRespond()
-		return true
+		return
 	}
 
 	go s.notifyAfterExit(request)
-	return true
 }
 
 func (s *Stream) notifyAfterExit(request *runwork.Request) {
