@@ -299,10 +299,6 @@ func (s *Stream) notifyAfterExit(request *runwork.Request) {
 	case <-s.transactionLogReady:
 	}
 
-	if request.Context().Err() != nil {
-		return
-	}
-
 	request.Respond(&spb.ServerResponse{
 		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
 			ResultCommunicate: &spb.Result{
