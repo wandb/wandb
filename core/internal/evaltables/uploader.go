@@ -147,63 +147,23 @@ func (u *Uploader) Upload(
 	if err != nil {
 		return nil, err
 	}
-	scope := ces.F(scopeID)
-	columns := table.columns
-	columns.ScopeID = scope
-	keys := newIdempotencyKeys()
 
-	created, err := evalTables.New(
-		ctx,
-		ces.EvalTableNewParams{ScopeID: scope, Name: ces.F(table.name)},
-		keys.option("create"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
+	upload := &tableUpload{
+		evalTables: evalTables,
+		scopeID:    scopeID,
+		keys:       newIdempotencyKeys(),
 	}
 
-	_, err = evalTables.Columns.New(
-		ctx,
-		created.EvaluationID,
-		columns,
-		keys.option("columns"),
-	)
+	created, err := upload.create(ctx, table)
 	if err != nil {
-		return nil, fmt.Errorf("evaltables: failed to add columns: %v", err)
+		return nil, err
 	}
-
-	// Without progress, the upload still runs, but reports no progress.
-	progress, err := wboperation.Get(ctx).NewProgress()
+	if err := upload.addRows(ctx, table, u.newProgress(ctx)); err != nil {
+		return nil, err
+	}
+	version, err := upload.cutVersion(ctx)
 	if err != nil {
-		u.logger.CaptureError("evaltables", fmt.Errorf("evaltables: %v", err))
-	}
-	totalRows := len(table.cesRows)
-	rowsDone := 0
-	for i, batch := range rowBatches(table.cesRows) {
-		_, err = evalTables.Rows.Add(
-			ctx,
-			created.EvaluationID,
-			ces.EvalTableRowAddParams{ScopeID: scope},
-			keys.option(fmt.Sprintf("rows-%d", i)),
-			// The rows are already JSON, so send them without decoding them
-			// into the CES SDK's types.
-			option.WithRequestBody("application/json", batch.body),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("evaltables: failed to add rows: %v", err)
-		}
-
-		rowsDone += batch.rows
-		progress.SetUnitsOfTotal(rowsDone, totalRows, "rows")
-	}
-
-	version, err := evalTables.Versions.New(
-		ctx,
-		created.EvaluationID,
-		ces.EvalTableVersionNewParams{ScopeID: scope},
-		keys.option("version"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("evaltables: failed to cut version: %v", err)
+		return nil, err
 	}
 
 	return &spb.UploadEvalTableResponse{
@@ -212,6 +172,99 @@ func (u *Uploader) Upload(
 		DatasetId:           created.DatasetID,
 		DatasetVersionId:    version.DatasetVersionID,
 	}, nil
+}
+
+// newProgress returns the progress of the upload's operation, or nil if
+// it can't, in which case the upload reports no progress.
+func (u *Uploader) newProgress(ctx context.Context) *wboperation.WandbProgress {
+	progress, err := wboperation.Get(ctx).NewProgress()
+	if err != nil {
+		u.logger.CaptureError("evaltables", fmt.Errorf("evaltables: %v", err))
+	}
+	return progress
+}
+
+// tableUpload makes the CES requests of one Upload.
+type tableUpload struct {
+	evalTables *ces.EvalTableService
+	scopeID    string
+	keys       idempotencyKeys
+
+	// evaluationID is the created EvalTable's ID, set by create.
+	evaluationID string
+}
+
+// create creates the EvalTable in CES and adds its columns.
+func (t *tableUpload) create(
+	ctx context.Context,
+	table *EncodedTable,
+) (*ces.EvalTableNewResponse, error) {
+	created, err := t.evalTables.New(
+		ctx,
+		ces.EvalTableNewParams{ScopeID: ces.F(t.scopeID), Name: ces.F(table.name)},
+		t.keys.option("create"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
+	}
+	t.evaluationID = created.EvaluationID
+
+	columns := table.columns
+	columns.ScopeID = ces.F(t.scopeID)
+	_, err = t.evalTables.Columns.New(
+		ctx,
+		t.evaluationID,
+		columns,
+		t.keys.option("columns"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evaltables: failed to add columns: %v", err)
+	}
+
+	return created, nil
+}
+
+// addRows adds the table's rows in batches, reporting them to progress.
+func (t *tableUpload) addRows(
+	ctx context.Context,
+	table *EncodedTable,
+	progress *wboperation.WandbProgress,
+) error {
+	totalRows := len(table.cesRows)
+	rowsDone := 0
+	for i, batch := range rowBatches(table.cesRows) {
+		_, err := t.evalTables.Rows.Add(
+			ctx,
+			t.evaluationID,
+			ces.EvalTableRowAddParams{ScopeID: ces.F(t.scopeID)},
+			t.keys.option(fmt.Sprintf("rows-%d", i)),
+			// The rows are already JSON, so send them without decoding them
+			// into the CES SDK's types.
+			option.WithRequestBody("application/json", batch.body),
+		)
+		if err != nil {
+			return fmt.Errorf("evaltables: failed to add rows: %v", err)
+		}
+
+		rowsDone += batch.rows
+		progress.SetUnitsOfTotal(rowsDone, totalRows, "rows")
+	}
+	return nil
+}
+
+func (t *tableUpload) cutVersion(
+	ctx context.Context,
+) (*ces.EvalTableVersionNewResponse, error) {
+	version, err := t.evalTables.Versions.New(
+		ctx,
+		t.evaluationID,
+		ces.EvalTableVersionNewParams{ScopeID: ces.F(t.scopeID)},
+		t.keys.option("version"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evaltables: failed to cut version: %v", err)
+	}
+	return version, nil
 }
 
 // projectScopeID returns the internal ID of the run's project.
