@@ -6,9 +6,13 @@ fake CES in place of the CoreWeave Evaluation Service.
 
 from __future__ import annotations
 
+import os
+from typing import Any
+
 import pytest
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.data_types.eval_table import _writer_ces
 
 _ROWS = [
     {
@@ -127,3 +131,22 @@ def test_logs_ces_eval_table(wandb_backend_spy):
     run = _log_eval_table()
 
     _assert_logged_to_ces(wandb_backend_spy, run)
+
+
+def test_logs_ces_eval_table_from_rows_file(wandb_backend_spy, monkeypatch):
+    monkeypatch.setattr(_writer_ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    rows_files_written = 0
+    write_rows = _writer_ces._write_rows
+
+    def counting_write_rows(*args: Any, **kwargs: Any) -> None:
+        nonlocal rows_files_written
+        rows_files_written += 1
+        write_rows(*args, **kwargs)
+
+    monkeypatch.setattr(_writer_ces, "_write_rows", counting_write_rows)
+
+    run = _log_eval_table()
+
+    assert rows_files_written == 1
+    _assert_logged_to_ces(wandb_backend_spy, run)
+    assert os.listdir(os.path.join(run.settings.sync_dir, "tmp", "eval-tables")) == []
