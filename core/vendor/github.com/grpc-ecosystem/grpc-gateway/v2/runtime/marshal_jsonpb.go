@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // JSONPb is a Marshaler which marshals/unmarshals into/from JSON
@@ -31,6 +32,21 @@ func (*JSONPb) ContentType(_ interface{}) string {
 
 // Marshal marshals "v" into JSON.
 func (j *JSONPb) Marshal(v interface{}) ([]byte, error) {
+	if p, ok := v.(proto.Message); ok {
+		// protojson already returns a freshly allocated slice that the caller owns, so
+		// routing it through a bytes.Buffer only added an allocation and a copy of the
+		// whole message per call. Every unary response goes through here.
+		//
+		// The error is returned with a nil slice rather than whatever protojson produced
+		// alongside it, matching what the bytes.Buffer path did: marshalTo returned before
+		// writing anything, so a failed Marshal never handed back partial output.
+		b, err := j.MarshalOptions.Marshal(p)
+		if err != nil {
+			return nil, err
+		}
+		return b, nil
+	}
+
 	var buf bytes.Buffer
 	if err := j.marshalTo(&buf, v); err != nil {
 		return nil, err
@@ -279,6 +295,9 @@ func decodeNonProtoField(d *json.Decoder, unmarshaler protojson.UnmarshalOptions
 			seen[bk.Interface()] = struct{}{}
 			bv := reflect.New(rv.Type().Elem())
 			if v == nil {
+				if err := rejectNullEnumItem(rv.Type().Elem()); err != nil {
+					return err
+				}
 				null := json.RawMessage("null")
 				v = &null
 			}
@@ -309,6 +328,11 @@ func decodeNonProtoField(d *json.Decoder, unmarshaler protojson.UnmarshalOptions
 			rv.Set(reflect.MakeSlice(rv.Type(), 0, 0))
 		}
 		for _, item := range sl {
+			if string(item) == "null" {
+				if err := rejectNullEnumItem(rv.Type().Elem()); err != nil {
+					return err
+				}
+			}
 			bv := reflect.New(rv.Type().Elem())
 			if err := unmarshalJSONPb([]byte(item), unmarshaler, bv.Interface()); err != nil {
 				return err
@@ -324,7 +348,17 @@ func decodeNonProtoField(d *json.Decoder, unmarshaler protojson.UnmarshalOptions
 		}
 		switch v := repr.(type) {
 		case string:
-			// TODO(yugui) Should use proto.StructProperties?
+			// protojson writes enums by name, so accept the name here too.
+			if e, ok := rv.Interface().(protoreflect.Enum); ok {
+				if ev := e.Descriptor().Values().ByName(protoreflect.Name(v)); ev != nil {
+					rv.SetInt(int64(ev.Number()))
+					return nil
+				}
+				if unmarshaler.DiscardUnknown {
+					return nil
+				}
+				return fmt.Errorf("invalid value %q for enum %s", v, e.Descriptor().FullName())
+			}
 			return fmt.Errorf("unmarshaling of symbolic enum %q not supported: %T", repr, rv.Interface())
 		case float64:
 			// Enum values are int32 on the wire. A fractional or out-of-range
@@ -335,11 +369,25 @@ func decodeNonProtoField(d *json.Decoder, unmarshaler protojson.UnmarshalOptions
 			}
 			rv.Set(reflect.ValueOf(int32(v)).Convert(rv.Type()))
 			return nil
+		case nil:
+			// protojson leaves a null enum field unset.
+			return nil
 		default:
 			return fmt.Errorf("cannot assign %#v into Go type %T", repr, rv.Interface())
 		}
 	}
 	return d.Decode(v)
+}
+
+// rejectNullEnumItem returns an error when t is an enum other than
+// google.protobuf.NullValue. protojson leaves a null enum field unset, but
+// rejects null as a list item or map value of such an enum.
+func rejectNullEnumItem(t reflect.Type) error {
+	e, ok := reflect.Zero(t).Interface().(protoreflect.Enum)
+	if !ok || e.Descriptor().FullName() == "google.protobuf.NullValue" {
+		return nil
+	}
+	return fmt.Errorf("invalid value null for enum %s", e.Descriptor().FullName())
 }
 
 // duplicateObjectKey returns the first key that appears more than once in the
