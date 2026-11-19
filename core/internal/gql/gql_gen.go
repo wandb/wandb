@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -1222,12 +1223,14 @@ func (v *HistoryPageResponse) GetProject() *HistoryPageProject { return v.Projec
 
 // LeetRun includes the GraphQL fields of Run requested by the fragment LeetRun.
 type LeetRun struct {
-	Name        string   `json:"name"`
-	DisplayName string   `json:"displayName"`
-	State       string   `json:"state"`
-	Notes       string   `json:"notes"`
-	Tags        []string `json:"tags"`
-	Config      string   `json:"config"`
+	Name        string     `json:"name"`
+	DisplayName string     `json:"displayName"`
+	State       string     `json:"state"`
+	Notes       string     `json:"notes"`
+	Tags        []string   `json:"tags"`
+	Config      string     `json:"config"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	HeartbeatAt *time.Time `json:"heartbeatAt"`
 }
 
 // GetName returns LeetRun.Name, and is useful for accessing the field via an interface.
@@ -1247,6 +1250,12 @@ func (v *LeetRun) GetTags() []string { return v.Tags }
 
 // GetConfig returns LeetRun.Config, and is useful for accessing the field via an interface.
 func (v *LeetRun) GetConfig() string { return v.Config }
+
+// GetCreatedAt returns LeetRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetCreatedAt() time.Time { return v.CreatedAt }
+
+// GetHeartbeatAt returns LeetRun.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetHeartbeatAt() *time.Time { return v.HeartbeatAt }
 
 // LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
 type LinkArtifactLinkArtifactLinkArtifactPayload struct {
@@ -1437,6 +1446,16 @@ func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetConfig(
 	return v.LeetRun.Config
 }
 
+// GetCreatedAt returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetCreatedAt() time.Time {
+	return v.LeetRun.CreatedAt
+}
+
+// GetHeartbeatAt returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetHeartbeatAt() *time.Time {
+	return v.LeetRun.HeartbeatAt
+}
+
 func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1474,6 +1493,10 @@ type __premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun str
 	Tags []string `json:"tags"`
 
 	Config string `json:"config"`
+
+	CreatedAt time.Time `json:"createdAt"`
+
+	HeartbeatAt *time.Time `json:"heartbeatAt"`
 }
 
 func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) MarshalJSON() ([]byte, error) {
@@ -1493,6 +1516,8 @@ func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) __premarsh
 	retval.Notes = v.LeetRun.Notes
 	retval.Tags = v.LeetRun.Tags
 	retval.Config = v.LeetRun.Config
+	retval.CreatedAt = v.LeetRun.CreatedAt
+	retval.HeartbeatAt = v.LeetRun.HeartbeatAt
 	return &retval, nil
 }
 
@@ -1585,6 +1610,12 @@ func (v *QueryRunInfoProjectRun) GetTags() []string { return v.LeetRun.Tags }
 // GetConfig returns QueryRunInfoProjectRun.Config, and is useful for accessing the field via an interface.
 func (v *QueryRunInfoProjectRun) GetConfig() string { return v.LeetRun.Config }
 
+// GetCreatedAt returns QueryRunInfoProjectRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetCreatedAt() time.Time { return v.LeetRun.CreatedAt }
+
+// GetHeartbeatAt returns QueryRunInfoProjectRun.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetHeartbeatAt() *time.Time { return v.LeetRun.HeartbeatAt }
+
 func (v *QueryRunInfoProjectRun) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1626,6 +1657,10 @@ type __premarshalQueryRunInfoProjectRun struct {
 	Tags []string `json:"tags"`
 
 	Config string `json:"config"`
+
+	CreatedAt time.Time `json:"createdAt"`
+
+	HeartbeatAt *time.Time `json:"heartbeatAt"`
 }
 
 func (v *QueryRunInfoProjectRun) MarshalJSON() ([]byte, error) {
@@ -1647,6 +1682,8 @@ func (v *QueryRunInfoProjectRun) __premarshalJSON() (*__premarshalQueryRunInfoPr
 	retval.Notes = v.LeetRun.Notes
 	retval.Tags = v.LeetRun.Tags
 	retval.Config = v.LeetRun.Config
+	retval.CreatedAt = v.LeetRun.CreatedAt
+	retval.HeartbeatAt = v.LeetRun.HeartbeatAt
 	return &retval, nil
 }
 
@@ -4854,6 +4891,8 @@ fragment LeetRun on Run {
 	notes
 	tags
 	config
+	createdAt
+	heartbeatAt
 }
 `
 
@@ -4950,6 +4989,8 @@ fragment LeetRun on Run {
 	notes
 	tags
 	config
+	createdAt
+	heartbeatAt
 }
 `
 
