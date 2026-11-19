@@ -1394,11 +1394,6 @@ message UploadEvalTableResponse {
   // The code is USAGE if the request's table is invalid, and UNSUPPORTED
   // in offline mode.
   ErrorInfo error = 5;
-
-  // A warning for the user about media cells that wandb-core uploaded as
-  // null because their CES extension value was too large, or empty if
-  // there were none.
-  string oversized_media_warning = 6;
 }
 
 /*
