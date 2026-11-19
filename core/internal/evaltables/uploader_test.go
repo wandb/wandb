@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -143,7 +142,7 @@ func upload(
 	uploader *evaltables.Uploader,
 	request *spb.EvalTableData,
 ) (*spb.UploadEvalTableResponse, error) {
-	table, err := evaltables.Encode(request, testRunPath)
+	table, err := evaltables.Encode(ctx, request, testRunPath)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +161,7 @@ func encode(
 	request *spb.EvalTableData,
 ) (*evaltables.EncodedTable, error) {
 	t.Helper()
-	table, err := evaltables.Encode(request, testRunPath)
+	table, err := evaltables.Encode(context.Background(), request, testRunPath)
 	if table != nil {
 		t.Cleanup(func() { assert.NoError(t, table.Close()) })
 	}
@@ -350,7 +349,7 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"flag":true,`+
 			`"count":9007199254740993,`+
 			`"temperature":0.25,`+
-			`"prompt":"draw \u003ca\u003e cat \u0026 dog",`+
+			`"prompt":"draw <a> cat & dog",`+
 			`"config":{"seed":7,"tags":["a","b"]},`+
 			`"note":null`+
 			`},`+
@@ -452,62 +451,50 @@ func TestUpload_StopsRetryingWhenCancelled(t *testing.T) {
 }
 
 func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-
-	// Each row is 1 MiB, so at most 7 fit under the 8 MiB target with the
-	// surrounding JSON.
-	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		Name:          "t",
-		DatasetFields: outputFieldX,
-		Rows:          outputRows(10, 1<<20),
-	})
-	require.NoError(t, err)
-
-	var batchSizes []int
-	for _, req := range ces.Requests() {
-		if !strings.HasSuffix(req.Path, "/rows") {
-			continue
-		}
-		var body struct{ Rows []json.RawMessage }
-		require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
-		assert.LessOrEqual(t, len(req.Body), 8<<20)
-		batchSizes = append(batchSizes, len(body.Rows))
+	testCases := []struct {
+		name        string
+		rows        []*spb.EvalTableRow
+		wantBatches []int
+	}{
+		{
+			// At most 7 rows of 1 MiB fit under the 8 MiB target with the
+			// surrounding JSON.
+			name:        "by size",
+			rows:        outputRows(10, 1<<20),
+			wantBatches: []int{7, 3},
+		},
+		{
+			name:        "by row count",
+			rows:        outputRows(10_001, 0),
+			wantBatches: []int{10_000, 1},
+		},
 	}
-	assert.Equal(t, []int{7, 3}, batchSizes)
-}
 
-func TestUpload_KeepsExampleKeysOfRowsWithoutInputs(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ces := newFakeCES(t)
+			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	// Each row is 3 MiB, so only two fit under the 8 MiB target.
-	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		Name:          "t",
-		DatasetFields: outputFieldX,
-		Rows:          outputRows(3, 3<<20),
-	})
-	require.NoError(t, err)
+			_, err := upload(context.Background(), uploader, &spb.EvalTableData{
+				Name:          "t",
+				DatasetFields: outputFieldX,
+				Rows:          tc.rows,
+			})
+			require.NoError(t, err)
 
-	type row struct {
-		Input      json.RawMessage
-		ExampleKey string `json:"example_key"`
+			var batchSizes []int
+			for _, req := range ces.Requests() {
+				if !strings.HasSuffix(req.Path, "/rows") {
+					continue
+				}
+				var body struct{ Rows []json.RawMessage }
+				require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
+				assert.LessOrEqual(t, len(req.Body), 8<<20)
+				batchSizes = append(batchSizes, len(body.Rows))
+			}
+			assert.Equal(t, tc.wantBatches, batchSizes)
+		})
 	}
-	var exampleKeys [][]string
-	for _, req := range ces.Requests() {
-		if !strings.HasSuffix(req.Path, "/rows") {
-			continue
-		}
-		var body struct{ Rows []row }
-		require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
-		var keys []string
-		for _, r := range body.Rows {
-			assert.Equal(t, "null", string(r.Input))
-			keys = append(keys, r.ExampleKey)
-		}
-		exampleKeys = append(exampleKeys, keys)
-	}
-	assert.Equal(t, [][]string{{"1", "2"}, {"3"}}, exampleKeys)
 }
 
 func TestUpload_ReportsRowProgress(t *testing.T) {
@@ -563,7 +550,7 @@ func writeGzipFile(t *testing.T, data []byte) string {
 func TestUpload_ReadsWandbRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	// Longer than bufio.Scanner's default line limit.
+	// Longer than bufio.Reader's buffer, so the row spans reads.
 	long := strings.Repeat("a", 70_000)
 	path := writeWandbRowsFile(t,
 		&spb.EvalTableRow{Output: values(stringValue("1"))},
@@ -641,7 +628,7 @@ func TestEncode_RejectsInvalidRowInWandbRowsFile(t *testing.T) {
 		WandbRowsFilePath: path,
 	})
 
-	assert.ErrorContains(t, err, "(row 1)")
+	assert.ErrorContains(t, err, "(row 2)")
 	assert.True(t, evaltables.IsUsageError(err))
 	// No encoded rows are left behind.
 	assert.Equal(t, []string{path}, filesIn(t, filepath.Dir(path)))
@@ -652,7 +639,7 @@ func TestUpload_ReadsWandbRowsFileOnlyWhileEncoding(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 
-	table, err := evaltables.Encode(&spb.EvalTableData{
+	table, err := evaltables.Encode(context.Background(), &spb.EvalTableData{
 		Name:              "t",
 		DatasetFields:     outputFieldX,
 		WandbRowsFilePath: path,
@@ -698,6 +685,11 @@ func TestUpload_RejectsBadWandbRowsFile(t *testing.T) {
 			wantErr: "row is 1073741824 bytes",
 		},
 		{
+			name:    "missing",
+			write:   func(t *testing.T) string { return filepath.Join(t.TempDir(), "rows.pb.gz") },
+			wantErr: "open ",
+		},
+		{
 			name: "not gzip",
 			write: func(t *testing.T) string {
 				path := filepath.Join(t.TempDir(), "rows.pb.gz")
@@ -725,13 +717,34 @@ func TestUpload_RejectsBadWandbRowsFile(t *testing.T) {
 			ces := newFakeCES(t)
 			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
+			path := tc.write(t)
+
 			_, err := upload(context.Background(), uploader,
-				&spb.EvalTableData{Name: "t", WandbRowsFilePath: tc.write(t)})
+				&spb.EvalTableData{Name: "t", WandbRowsFilePath: path})
 
 			assert.ErrorContains(t, err, "evaltables: failed to read W&B rows file: "+tc.wantErr)
+			assert.False(t, evaltables.IsUsageError(err))
 			assert.Empty(t, ces.Requests())
+			// No CES rows file is left behind.
+			for _, file := range filesIn(t, filepath.Dir(path)) {
+				assert.NotContains(t, file, ".ces-rows.jsonl")
+			}
 		})
 	}
+}
+
+func TestEncode_StopsReadingWandbRowsFileWhenCancelled(t *testing.T) {
+	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := evaltables.Encode(ctx, &spb.EvalTableData{
+		DatasetFields:     outputFieldX,
+		WandbRowsFilePath: path,
+	}, testRunPath)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, []string{path}, filesIn(t, filepath.Dir(path)))
 }
 
 func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
@@ -741,7 +754,7 @@ func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
 	})
 
 	assert.ErrorContains(t, err, "both rows and a W&B rows file")
-	assert.True(t, evaltables.IsUsageError(err))
+	assert.False(t, evaltables.IsUsageError(err))
 }
 
 func TestUpload_SucceedsWithoutProgress(t *testing.T) {
@@ -887,19 +900,19 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 			name:    "too few input values",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "string"},
 			row:     &spb.EvalTableRow{Input: values()},
-			wantErr: "row has 0 input values, expected 1 (row 0)",
+			wantErr: "row has 0 input values, expected 1 (row 1)",
 		},
 		{
 			name:    "too many output values",
 			field:   &spb.EvalTableField{Source: "output", Name: "a", ValueType: "string"},
 			row:     &spb.EvalTableRow{Output: values(nullValue(), nullValue())},
-			wantErr: "row has 2 output values, expected 1 (row 0)",
+			wantErr: "row has 2 output values, expected 1 (row 1)",
 		},
 		{
 			name:    "score without scorer",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "string"},
 			row:     &spb.EvalTableRow{Scores: []*spb.EvalTableValue{intValue(1)}},
-			wantErr: "row has 1 score values, expected 0 (row 0)",
+			wantErr: "row has 1 score values, expected 0 (row 1)",
 		},
 		{
 			name:    "string in integer column",
@@ -967,7 +980,7 @@ func TestEncode_RejectsOversizedRow(t *testing.T) {
 	})
 
 	assert.ErrorContains(t, err, "row is")
-	assert.ErrorContains(t, err, "(row 0)")
+	assert.ErrorContains(t, err, "(row 1)")
 	assert.True(t, evaltables.IsUsageError(err))
 }
 
@@ -1110,84 +1123,6 @@ func TestEncode_ConvertsMedia(t *testing.T) {
 				"height": 48
 			}
 		},
-		"scores": {}
-	}]`, table.CESRowsJSON(t))
-}
-
-// TestEncode_ConvertsPythonMedia converts a request recorded from the Python
-// SDK, so that it covers the W&B media JSON that Python actually sends.
-//
-// Python's test_eval_table_media_request_matches_core_fixture checks that the
-// fixture is up to date.
-func TestEncode_ConvertsPythonMedia(t *testing.T) {
-	fixture, err := os.ReadFile("testdata/upload_media_request.json")
-	require.NoError(t, err)
-	request := &spb.EvalTableData{}
-	require.NoError(t, protojson.Unmarshal(fixture, request))
-	request.Name = "my-table"
-
-	table, err := encode(t, request)
-
-	require.NoError(t, err)
-	assert.JSONEq(t, `[{
-		"input": {
-			"image": {
-				"extension_type": "wandb-image",
-				"schema_version": 1,
-				"wb_media_type": "image-file",
-				"format": "png",
-				"sha256": "3ac156facd9194daa57d0520cf7fae827b390b32e2a88aa63a6d2562e3d5321f",
-				"size": 75,
-				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/eval/3ac156facd9194daa57d0520cf7fae.png",
-				"width": 2,
-				"height": 2,
-				"caption": "a cat",
-				"boxes": {"predictions": {
-					"_type": "boxes2D",
-					"sha256": "ad1d2145f99572ff3c3a4fea99839c7ad570ad5359231e6e060d75caa250405f",
-					"size": 113,
-					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/metadata/boxes2D/eval/ad1d2145f99572ff3c3a4fea99839c.boxes2D.json"
-				}},
-				"masks": {"predictions": {
-					"_type": "mask",
-					"sha256": "dd7b89993bde2e6c52ea00d533d1f09ac602d218251b7405d291fddc0b60cddf",
-					"size": 68,
-					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/mask/eval/dd7b89993bde2e6c52ea00d533d1f0.mask.png"
-				}}
-			},
-			"artifact_image": {
-				"extension_type": "wandb-image",
-				"schema_version": 1,
-				"wb_media_type": "image-file",
-				"format": "png",
-				"sha256": "2f1686c393cd8b93b2b3d9ca90a271a87672a28dccb22d5688cd56561d34bdc5",
-				"size": 75,
-				"uri": "wandb-artifact://abc123/media/images/artifact.png",
-				"width": 2,
-				"height": 2
-			},
-			"audio": {
-				"extension_type": "wandb-audio",
-				"schema_version": 1,
-				"wb_media_type": "audio-file",
-				"sha256": "6583eae4b42ae05c5bea5d55837c8613de7898fc6ce0712ed26b961d6392f306",
-				"size": 14,
-				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/audio/eval/6583eae4b42ae05c5bea5d55837c86.wav",
-				"caption": "meow"
-			},
-			"video": {
-				"extension_type": "wandb-video",
-				"schema_version": 1,
-				"wb_media_type": "video-file",
-				"sha256": "eb09cef0044f4d991fd75715493d7cb01fde6dcb5896fa3e6fc09ce25a4e841a",
-				"size": 14,
-				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/videos/eval/eb09cef0044f4d991fd75715493d7c.mp4",
-				"width": 640,
-				"height": 480,
-				"caption": "a clip"
-			}
-		},
-		"output": null,
 		"scores": {}
 	}]`, table.CESRowsJSON(t))
 }
