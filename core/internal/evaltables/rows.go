@@ -266,8 +266,18 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
-// appendJSON appends v as JSON without escaping HTML characters, which would
-// only make rows larger.
+// appendJSON appends v as JSON without escaping HTML characters.
+//
+// The encoder still escapes quotes, backslashes and control characters, so
+// any string round-trips exactly and can't end early or add fields to a row.
+// Every string in a row (column names, string values, example keys) goes
+// through here, and JSON values are checked by json.Valid.
+//
+// HTML escaping writes <, > and & as <, > and &, which only
+// matters when JSON text is pasted into an HTML page as is. Readers of these
+// rows parse the JSON and get the same string either way, so escaping would
+// not protect anything that later displays a value. It would only make rows
+// larger.
 func appendJSON(buf []byte, v any) ([]byte, error) {
 	out := bytes.NewBuffer(buf)
 	encoder := json.NewEncoder(out)
