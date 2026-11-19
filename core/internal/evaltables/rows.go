@@ -16,7 +16,7 @@ type rowColumn struct {
 	name string
 
 	// key is the column's name as a JSON object key followed by a colon,
-	// such as `"prompt":` for a column named prompt.
+	// such as `"expected":` for a column named expected.
 	key []byte
 
 	// valueType is the column's CES value type.
@@ -151,7 +151,7 @@ func (e *rowEncoder) appendPart(
 }
 
 // appendValues appends a JSON object mapping each column's name to the
-// value at the same position in values, such as {"prompt":"2+2","count":3}.
+// value at the same position in values, such as {"expected":"cat","weight":0.5}.
 //
 // part names the values in errors.
 func (e *rowEncoder) appendValues(
