@@ -87,10 +87,10 @@ func IsUsageError(err error) bool {
 // EncodedTable is an EvalTable that has been validated and encoded for
 // CES.
 type EncodedTable struct {
-	name     string
-	runPath  runbranch.RunPath
-	columns  ces.EvalTableColumnNewParams
-	rowsJSON [][]byte
+	name    string
+	runPath runbranch.RunPath
+	columns ces.EvalTableColumnNewParams
+	cesRows [][]byte
 }
 
 // Encode validates an EvalTable and encodes its rows.
@@ -117,16 +117,16 @@ func (u *Uploader) Encode(
 	if err != nil {
 		return nil, usageError{err}
 	}
-	rowsJSON, err := encoder.encodeRows(data.GetRows())
+	cesRows, err := encoder.encodeRows(data.GetRows())
 	if err != nil {
 		return nil, usageError{err}
 	}
 
 	return &EncodedTable{
-		name:     data.GetName(),
-		runPath:  runPath,
-		columns:  columns,
-		rowsJSON: rowsJSON,
+		name:    data.GetName(),
+		runPath: runPath,
+		columns: columns,
+		cesRows: cesRows,
 	}, nil
 }
 
@@ -171,9 +171,9 @@ func (u *Uploader) Upload(
 
 	// NewProgress only fails if the operation already has progress.
 	progress, _ := wboperation.Get(ctx).NewProgress()
-	totalRows := len(table.rowsJSON)
+	totalRows := len(table.cesRows)
 	rowsDone := 0
-	for i, batch := range rowBatches(table.rowsJSON) {
+	for i, batch := range rowBatches(table.cesRows) {
 		_, err = evalTables.Rows.Add(
 			ctx,
 			created.EvaluationID,
@@ -359,7 +359,7 @@ type rowBatch struct {
 //
 // Each body has at most maxRowsPerBatch rows and is at most
 // targetRowBatchBytes, unless it has a single larger row.
-func rowBatches(rowsJSON [][]byte) []rowBatch {
+func rowBatches(cesRows [][]byte) []rowBatch {
 	var batches []rowBatch
 	var body bytes.Buffer
 	nrows := 0
@@ -374,7 +374,7 @@ func rowBatches(rowsJSON [][]byte) []rowBatch {
 		nrows = 0
 	}
 
-	for _, row := range rowsJSON {
+	for _, row := range cesRows {
 		if nrows > 0 &&
 			(nrows >= maxRowsPerBatch ||
 				body.Len()+1+len(row)+len(rowBatchSuffix) > targetRowBatchBytes) {
