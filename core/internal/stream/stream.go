@@ -248,7 +248,7 @@ func (s *Stream) maybeSavingToTransactionLog(
 		s.wg.Done()
 	}()
 
-	s.transactionLogReady = writer.exitFlushDone
+	s.transactionLogReady = writer.ExitFlushDone()
 	return flowControl.Chan()
 }
 

@@ -76,6 +76,11 @@ func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
 	return w.out
 }
 
+// ExitFlushDone closes after the exit flush attempt or when the writer stops.
+func (w *Writer) ExitFlushDone() <-chan struct{} {
+	return w.exitFlushDone
+}
+
 // Do saves all input Work and pushes it to the output channel,
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
