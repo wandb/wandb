@@ -742,40 +742,129 @@ def test_infer_git_root_skips_if_disable_git(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "value, expected",
-    [
-        ("json", "json"),
-        ("json,typed", "json,typed"),
-        ("typed,json", "typed,json"),
-        (" JSON , Typed ", "json,typed"),
-        ("typed", "typed"),
-        (" TYPED ", "typed"),
-        ("typed,typed", "typed"),
-        ("json,json", "json"),
-    ],
+    "json_form, typed_form", [(True, False), (False, True), (True, True)]
 )
-def test_history_value_encoding(value, expected):
-    s = Settings(x_history_value_encoding=value)
+def test_history_value_encoding(json_form, typed_form):
+    s = Settings(
+        x_history_value_encoding_json=json_form,
+        x_history_value_encoding_typed=typed_form,
+    )
+    proto = s.to_proto()
+    assert proto.HasField("x_history_value_encoding_json")
+    assert proto.HasField("x_history_value_encoding_typed")
+    assert proto.x_history_value_encoding_json.value is json_form
+    assert proto.x_history_value_encoding_typed.value is typed_form
 
-    assert s.x_history_value_encoding == expected
+
+def test_history_value_encoding_defaults():
+    s = Settings()
+    assert s.x_history_value_encoding_json is True
+    assert s.x_history_value_encoding_typed is False
+    assert (
+        Settings(x_history_value_encoding_typed=True).x_history_value_encoding_json
+        is True
+    )
 
 
-def test_history_value_encoding_default():
-    assert Settings().x_history_value_encoding == "json"
+def test_history_value_encoding_rejects_disabled():
+    with pytest.raises(ValueError, match="at least one"):
+        Settings(
+            x_history_value_encoding_json=False, x_history_value_encoding_typed=False
+        )
 
 
-@pytest.mark.parametrize("value", ["", "cbor", "typed,cbor", "json,"])
-def test_history_value_encoding_unrecognized(
-    value,
-    mock_wandb_log: MockWandbLog,
+@pytest.mark.parametrize("typed_form", [False, "false", "0"])
+def test_history_value_encoding_assignment_rolls_back(typed_form):
+    s = Settings(
+        x_history_value_encoding_json=False, x_history_value_encoding_typed=True
+    )
+    original_fields = s.model_fields_set.copy()
+    with pytest.raises(ValueError, match="at least one"):
+        s.x_history_value_encoding_typed = typed_form
+    assert s.x_history_value_encoding_typed is True
+    assert s.x_history_value_encoding_json is False
+    assert s.model_fields_set == original_fields
+
+
+@pytest.mark.parametrize("initial_typed_only", [False, True])
+@pytest.mark.parametrize("source", ["dict", "env", "settings"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "json_form, typed_form", [(True, False), (False, True), (True, True)]
+)
+def test_history_value_encoding_bulk_updates(
+    source, reverse, json_form, typed_form, initial_typed_only
 ):
-    s = Settings(x_history_value_encoding=value)
+    s = Settings(
+        x_history_value_encoding_json=not initial_typed_only,
+        x_history_value_encoding_typed=initial_typed_only,
+    )
+    pairs = [
+        ("x_history_value_encoding_json", json_form),
+        ("x_history_value_encoding_typed", typed_form),
+    ]
+    if reverse:
+        pairs.reverse()
+    values = dict(pairs)
+    if source == "dict":
+        s.update_from_dict(values)
+    elif source == "env":
+        s.update_from_env_vars(
+            {"WANDB__" + key[2:].upper(): str(value) for key, value in values.items()}
+        )
+    else:
+        s.update_from_settings(Settings(**values))
+    assert s.x_history_value_encoding_json is json_form
+    assert s.x_history_value_encoding_typed is typed_form
 
-    assert s.x_history_value_encoding == "json"
-    mock_wandb_log.assert_warned("Ignoring unsupported x_history_value_encoding")
+
+@pytest.mark.parametrize("source", ["dict", "env"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_history_value_encoding_invalid_bulk_update_rolls_back(source, reverse):
+    s = Settings(x_history_value_encoding_typed=True)
+    original_fields = s.model_fields_set.copy()
+    pairs = [
+        ("x_history_value_encoding_json", False),
+        ("x_history_value_encoding_typed", False),
+    ]
+    if reverse:
+        pairs.reverse()
+    values = dict(pairs)
+    with pytest.raises(ValueError, match="at least one"):
+        if source == "dict":
+            s.update_from_dict(values)
+        else:
+            s.update_from_env_vars(
+                {"WANDB__" + key[2:].upper(): "false" for key in values}
+            )
+    assert s.x_history_value_encoding_json is True
+    assert s.x_history_value_encoding_typed is True
+    assert s.model_fields_set == original_fields
 
 
-def test_history_value_encoding_in_proto():
-    s = Settings(x_history_value_encoding="json,typed")
+@pytest.mark.parametrize(
+    "value, expected", [("true", True), ("false", False), ("1", True), ("0", False)]
+)
+def test_history_value_encoding_environment_boolean(value, expected):
+    s = Settings()
+    s.update_from_env_vars({"WANDB__HISTORY_VALUE_ENCODING_TYPED": value})
+    assert s.x_history_value_encoding_typed is expected
 
-    assert s.to_proto().x_history_value_encoding.value == "json,typed"
+
+def test_history_value_encoding_old_setting_removed():
+    with pytest.raises(ValueError, match="Extra inputs"):
+        Settings(x_history_value_encoding="typed")
+    s = Settings()
+    s.update_from_env_vars({"WANDB__HISTORY_VALUE_ENCODING": "typed"})
+    assert s.x_history_value_encoding_json is True
+    assert s.x_history_value_encoding_typed is False
+
+
+def test_history_value_encoding_json_assignment_rolls_back():
+    s = Settings()
+    original_fields = s.model_fields_set.copy()
+    with pytest.raises(ValueError, match="at least one"):
+        s.x_history_value_encoding_json = False
+    assert s.x_history_value_encoding_json is True
+    assert s.x_history_value_encoding_typed is False
+    assert s.model_fields_set == original_fields

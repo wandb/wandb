@@ -2,10 +2,10 @@
 package settings
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/clients"
@@ -90,36 +90,23 @@ func (s *Settings) IsSharedMode() bool {
 }
 
 // IsHistoryValueEncodingTyped reports whether history records include typed values.
-//
-// Defaults to false if no encoding is specified.
 func (s *Settings) IsHistoryValueEncodingTyped() bool {
-	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
-	for _, form := range forms {
-		if strings.ToLower(strings.TrimSpace(form)) == "typed" {
-			return true
-		}
-	}
-
-	return false
+	return s.Proto.GetXHistoryValueEncodingTyped().GetValue()
 }
 
 // IsHistoryValueEncodingJSON reports whether history records include JSON values.
-//
-// Defaults to true if no encoding is specified.
+// An absent field defaults to true for clients that omit encoding settings.
 func (s *Settings) IsHistoryValueEncodingJSON() bool {
-	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
-	hasJSON := false
-	hasTyped := false
-	for _, form := range forms {
-		trimmed := strings.ToLower(strings.TrimSpace(form))
-		switch trimmed {
-		case "json":
-			hasJSON = true
-		case "typed":
-			hasTyped = true
-		}
+	value := s.Proto.GetXHistoryValueEncodingJson()
+	return value == nil || value.GetValue()
+}
+
+// ValidateHistoryValueEncoding rejects settings that would discard history values.
+func (s *Settings) ValidateHistoryValueEncoding() error {
+	if !s.IsHistoryValueEncodingJSON() && !s.IsHistoryValueEncodingTyped() {
+		return errors.New("at least one history value encoding must be enabled")
 	}
-	return hasJSON || !hasTyped
+	return nil
 }
 
 // The ID of the run.

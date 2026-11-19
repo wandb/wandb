@@ -94,7 +94,8 @@ func TestHandlePartialHistory_EmitHistoryReadCounts(t *testing.T) {
 			stats, proxy := telemetryStats(t)
 			in := make(chan runwork.Work, stream.BufferSize)
 			handler := makeHandlerWithSettings(t, in, "", &spb.Settings{
-				XHistoryValueEncoding: wrapperspb.String("json,typed"),
+				XHistoryValueEncodingJson:  wrapperspb.Bool(true),
+				XHistoryValueEncodingTyped: wrapperspb.Bool(true),
 				// skip summary records so we only get a history record
 				XServerSideDerivedSummary: wrapperspb.Bool(true),
 			}, stats)
