@@ -33,9 +33,15 @@ const (
 	fieldExtTableSize
 )
 
-// hasInvalidCaps determines if the capabilities in h are invalid.
+// hasInvalidCaps determines if the capabilities in h are invalid. As
+// _nc_read_termtype in ncurses does, it refuses a negative count.
 func hasInvalidCaps(h []int) bool {
-	return h[fieldBoolCount] > CapCountBool ||
+	return h[fieldNameSize] < 0 ||
+		h[fieldBoolCount] < 0 ||
+		h[fieldNumCount] < 0 ||
+		h[fieldStringCount] < 0 ||
+		h[fieldTableSize] < 0 ||
+		h[fieldBoolCount] > CapCountBool ||
 		h[fieldNumCount] > CapCountNum ||
 		h[fieldStringCount] > CapCountString
 }
@@ -127,7 +133,7 @@ type decoder struct {
 
 // readBytes reads the next n bytes of buf, incrementing pos by n.
 func (d *decoder) readBytes(n int) ([]byte, error) {
-	if d.n < d.pos+n {
+	if n < 0 || d.n < d.pos+n {
 		return nil, ErrUnexpectedFileEnd
 	}
 	n, d.pos = d.pos, d.pos+n
@@ -245,22 +251,25 @@ func (d *decoder) readStrings(n, sz int) (map[int][]byte, map[int]bool, error) {
 	return strs, strsM, nil
 }
 
-// canonicalizeAscChars reorders chars to be unique, in order.
-//
-// See repair_acsc in ncurses-6.6/progs/dump_entry.c.
+// canonicalizeAscChars orders the pairs in z by their first byte, as
+// repair_acsc in ncurses-6.6/progs/dump_entry.c does. When a first byte
+// repeats, the last pair wins. An unpaired last byte stays at the end.
 func canonicalizeAscChars(z []byte) []byte {
 	var c []byte
 	enc := make(map[byte]byte, len(z)/2)
-	for i := 0; i < len(z); i += 2 {
+	for i := 0; i+1 < len(z); i += 2 {
 		if _, ok := enc[z[i]]; !ok {
-			a, b := z[i], z[i+1]
-			c, enc[a] = append(c, a), b
+			c = append(c, z[i])
 		}
+		enc[z[i]] = z[i+1]
 	}
 	slices.Sort(c)
-	r := make([]byte, 2*len(c))
-	for i := range c {
-		r[i*2], r[i*2+1] = c[i], enc[c[i]]
+	var r []byte
+	for _, a := range c {
+		r = append(r, a, enc[a])
+	}
+	if len(z)%2 == 1 {
+		r = append(r, z[len(z)-1])
 	}
 	return r
 }

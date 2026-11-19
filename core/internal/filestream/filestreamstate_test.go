@@ -8,9 +8,9 @@ import (
 	. "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // pop invokes [FileStreamState.Pop] with a test logger and printer.
@@ -55,9 +55,8 @@ func TestState_IsAtSizeLimit_SummaryUpdates(t *testing.T) {
 		LastRunSummarySize:  11,
 	}
 	request := &FileStreamRequest{}
-	request.SummaryUpdates = runsummary.FromProto(&spb.SummaryRecord{
-		Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: "1"}},
-	})
+	request.SummaryUpdates = runsummary.NoUpdates().
+		Set(pathtree.PathOf("xyz"), 1)
 
 	assert.True(t, state.IsAtSizeLimit(request))
 }
@@ -186,9 +185,8 @@ func TestState_Pop_PartialEvents(t *testing.T) {
 func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
 	request := &FileStreamRequest{}
-	request.SummaryUpdates = runsummary.FromProto(&spb.SummaryRecord{
-		Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: "9"}},
-	})
+	request.SummaryUpdates = runsummary.NoUpdates().
+		Set(pathtree.PathOf("xyz"), 9)
 
 	json, hasMore := pop(t, state, request)
 
@@ -227,11 +225,8 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
 	request := &FileStreamRequest{}
 	request.HistoryLines = []string{"the history"}
-	request.SummaryUpdates = runsummary.FromProto(&spb.SummaryRecord{
-		Update: []*spb.SummaryItem{
-			{Key: "key", ValueJson: `"value"`},
-		},
-	})
+	request.SummaryUpdates = runsummary.NoUpdates().
+		Set(pathtree.PathOf("key"), "value")
 
 	json, hasMore := pop(t, state, request)
 

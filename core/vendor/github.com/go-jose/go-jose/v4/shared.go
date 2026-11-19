@@ -53,11 +53,8 @@ var (
 	// algorithm that is not yet implemented.
 	ErrUnsupportedAlgorithm = errors.New("go-jose/go-jose: unknown/unsupported algorithm")
 
-	// ErrUnsupportedKeyType indicates that the given key type/format is not
-	// supported. This occurs when trying to instantiate an encrypter and passing
-	// it a key of an unrecognized type or with unsupported parameters, such as
-	// an RSA private key with more than two primes.
-	ErrUnsupportedKeyType = errors.New("go-jose/go-jose: unsupported key type/format")
+	// ErrUnsupportedKeyType indicates that the given key is not supported.
+	ErrUnsupportedKeyType = errors.New("go-jose/go-jose: unsupported key type, format, curve, or RSA modulus size")
 
 	// ErrInvalidKeySize indicates that the given key is not the correct size
 	// for the selected algorithm. This can occur, for example, when trying to
@@ -75,9 +72,6 @@ var (
 
 	// ErrMissingX5cHeader indicates that the JWT header is missing x5c headers.
 	ErrMissingX5cHeader = errors.New("go-jose/go-jose: no x5c header present in message")
-
-	// ErrUnsupportedEllipticCurve indicates unsupported or unknown elliptic curve has been found.
-	ErrUnsupportedEllipticCurve = errors.New("go-jose/go-jose: unsupported/unknown elliptic curve")
 
 	// ErrUnsupportedCriticalHeader is returned when a header is marked critical but not supported by go-jose.
 	ErrUnsupportedCriticalHeader = errors.New("go-jose/go-jose: unsupported critical header")
@@ -530,7 +524,7 @@ func curveName(crv elliptic.Curve) (string, error) {
 	case elliptic.P521():
 		return "P-521", nil
 	default:
-		return "", ErrUnsupportedEllipticCurve
+		return "", ErrUnsupportedKeyType
 	}
 }
 
