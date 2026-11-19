@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -262,7 +261,7 @@ func TestUpload(t *testing.T) {
 	requests := ces.Requests()
 	require.Len(t, requests, 4)
 	assert.Equal(t, tablePath, requests[0].Path)
-	assert.Equal(t, "my-table", gjson.Get(requests[0].Body, "name").String())
+	assert.Equal(t, "my-table", bodyField(t, requests[0], "name"))
 	assert.Equal(t, tablePath+"/eval-id/columns", requests[1].Path)
 	assert.JSONEq(t, `{
 		"dataset_fields": [
@@ -365,6 +364,15 @@ func TestEncode_AllValueTypes(t *testing.T) {
 		table.CESRowsJSON(t))
 }
 
+// bodyField returns a string field of a request's JSON body.
+func bodyField(t *testing.T, request cesRequest, field string) string {
+	t.Helper()
+	var body map[string]any
+	require.NoError(t, json.Unmarshal([]byte(request.Body), &body))
+	value, _ := body[field].(string)
+	return value
+}
+
 func TestUpload_NamesTableAndFirstVersionWithUUIDv7s(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
@@ -381,7 +389,7 @@ func TestUpload_NamesTableAndFirstVersionWithUUIDv7s(t *testing.T) {
 	for _, request := range []cesRequest{requests[0], requests[4]} {
 		require.Equal(t, tablePath, request.Path)
 		for _, field := range []string{"evaluation_id", "evaluation_version_id"} {
-			id := gjson.Get(request.Body, field).String()
+			id := bodyField(t, request, field)
 			parsed, err := uuid.Parse(id)
 			require.NoError(t, err, field)
 			assert.Equal(t, uuid.Version(7), parsed.Version(), field)
