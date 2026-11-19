@@ -41,6 +41,7 @@ const (
 
 type Uploader struct {
 	graphqlClient graphql.Client
+	logger        *observability.CoreLogger
 	runHandle     *runhandle.RunHandle
 
 	// evalTables returns the CES client, creating it on first use.
@@ -64,6 +65,7 @@ type UploaderParams struct {
 func NewUploader(params UploaderParams) *Uploader {
 	return &Uploader{
 		graphqlClient: params.GraphqlClient,
+		logger:        params.Logger,
 		runHandle:     params.RunHandle,
 		evalTables: sync.OnceValues(func() (*ces.EvalTableService, error) {
 			return NewEvalTableService(
@@ -169,8 +171,11 @@ func (u *Uploader) Upload(
 		return nil, fmt.Errorf("evaltables: failed to add columns: %v", err)
 	}
 
-	// NewProgress only fails if the operation already has progress.
-	progress, _ := wboperation.Get(ctx).NewProgress()
+	// Without progress, the upload still runs, but reports no progress.
+	progress, err := wboperation.Get(ctx).NewProgress()
+	if err != nil {
+		u.logger.CaptureError("evaltables", fmt.Errorf("evaltables: %v", err))
+	}
 	totalRows := len(table.cesRows)
 	rowsDone := 0
 	for i, batch := range rowBatches(table.cesRows) {
