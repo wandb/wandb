@@ -741,7 +741,7 @@ func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
 	})
 
 	assert.ErrorContains(t, err, "both rows and a W&B rows file")
-	assert.True(t, evaltables.IsUsageError(err))
+	assert.False(t, evaltables.IsUsageError(err))
 }
 
 func TestUpload_SucceedsWithoutProgress(t *testing.T) {

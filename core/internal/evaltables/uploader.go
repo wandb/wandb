@@ -143,7 +143,7 @@ func Encode(
 	runPath runbranch.RunPath,
 ) (*EncodedTable, error) {
 	if len(data.GetRows()) > 0 && data.GetWandbRowsFilePath() != "" {
-		return nil, usageError{errors.New("request has both rows and a W&B rows file")}
+		return nil, errors.New("evaltables: request has both rows and a W&B rows file")
 	}
 
 	columns := ces.EvalTableColumnNewParams{
