@@ -1,6 +1,7 @@
 package filestream
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -80,7 +81,8 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	// Use the last summary size to approximate the next.
 	// It is too expensive to serialize the summary every time and too complex
 	// to track its size incrementally.
-	if !request.SummaryUpdates.IsEmpty() || s.UnsentSummary != "" {
+	switch {
+	case !request.SummaryUpdates.IsEmpty(), s.UnsentSummary != "":
 		approxSize += s.LastRunSummarySize
 		if approxSize >= s.MaxRequestSizeBytes {
 			return true
@@ -89,6 +91,13 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 
 	for line := range request.ConsoleLines.FirstRunValues() {
 		approxSize += len(line)
+		if approxSize >= s.MaxRequestSizeBytes {
+			return true
+		}
+	}
+
+	for _, event := range request.RunEvents {
+		approxSize += len(event)
 		if approxSize >= s.MaxRequestSizeBytes {
 			return true
 		}
@@ -111,6 +120,8 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
+	s.popRunEvents(builder, request)
+
 	s.popSummary(builder, request, logger, printer)
 	s.popConsoleLines(builder, request)
 
@@ -180,6 +191,24 @@ func (s *FileStreamState) popEvents(
 		builder.EventsChunk.Content = append(builder.EventsChunk.Content, line)
 		request.EventsLines = request.EventsLines[1:]
 		s.EventsLineNum++
+	}
+}
+
+func (s *FileStreamState) popRunEvents(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+) {
+	poppedEvents := 0
+	for _, event := range request.RunEvents {
+		if !builder.TryAddSize(len(event)) {
+			builder.HasMore = true
+			break
+		}
+		builder.RunEvents = append(builder.RunEvents, event)
+		poppedEvents++
+	}
+	if poppedEvents > 0 {
+		request.RunEvents = slices.Clone(request.RunEvents[poppedEvents:])
 	}
 }
 
@@ -298,6 +327,7 @@ type requestJSONBuilder struct {
 	SummaryChunk      OffsetAndContent
 	ConsoleLinesChunk OffsetAndContent
 
+	RunEvents  []json.RawMessage
 	Uploaded   []string
 	Preempting bool
 
@@ -320,32 +350,33 @@ func (b *requestJSONBuilder) TryAddSize(n int) bool {
 
 // Build returns the JSON value to upload.
 func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
-	json := &FileStreamRequestJSON{}
-	json.Files = make(map[string]OffsetAndContent)
+	requestJSON := &FileStreamRequestJSON{}
+	requestJSON.Files = make(map[string]OffsetAndContent)
 
 	if len(x.HistoryChunk.Content) > 0 {
-		json.Files[HistoryFileName] = x.HistoryChunk
+		requestJSON.Files[HistoryFileName] = x.HistoryChunk
 	}
 	if len(x.EventsChunk.Content) > 0 {
-		json.Files[EventsFileName] = x.EventsChunk
+		requestJSON.Files[EventsFileName] = x.EventsChunk
 	}
 	if len(x.SummaryChunk.Content) > 0 {
-		json.Files[SummaryFileName] = x.SummaryChunk
+		requestJSON.Files[SummaryFileName] = x.SummaryChunk
 	}
 	if len(x.ConsoleLinesChunk.Content) > 0 {
-		json.Files[OutputFileName] = x.ConsoleLinesChunk
+		requestJSON.Files[OutputFileName] = x.ConsoleLinesChunk
 	}
 
-	json.Uploaded = x.Uploaded
-	json.Preempting = nullify.NilIfZero(x.Preempting)
+	requestJSON.RunEvents = x.RunEvents
+	requestJSON.Uploaded = x.Uploaded
+	requestJSON.Preempting = nullify.NilIfZero(x.Preempting)
 
 	if x.Complete {
 		complete := x.Complete
-		json.Complete = &complete
+		requestJSON.Complete = &complete
 
 		exitCode := x.ExitCode
-		json.ExitCode = &exitCode
+		requestJSON.ExitCode = &exitCode
 	}
 
-	return json
+	return requestJSON
 }

@@ -1,5 +1,7 @@
 import copy
 import platform
+import time
+from uuid import UUID
 
 import numpy as np
 import pytest
@@ -27,6 +29,7 @@ REFERENCE_ATTRIBUTES = set(
         "log",
         "log_artifact",
         "log_code",
+        "log_events",
         "log_model",
         "mark_preempting",
         "name",
@@ -152,6 +155,180 @@ def test_run_publish_history(mock_run, parse_records, record_q):
     assert len(history) == 2
     assert history[0]["this"] == "1"
     assert history[1]["that"] == "2"
+
+
+@pytest.mark.parametrize(
+    "kwargs, field",
+    [
+        ({"type": ""}, "type"),
+        ({"type": "é" * 2048 + "x"}, "type"),
+        ({"title": ""}, "title"),
+        ({"step": -1}, "step"),
+        ({"step": 1.0}, "step"),
+        ({"step": True}, "step"),
+        ({"step_metric": "tokens"}, "step_metric_value"),
+        ({"step_metric_value": 42.0}, "step_metric"),
+        ({"step_metric": b"tokens", "step_metric_value": 0}, "step_metric"),
+        ({"step_metric": "é" * 2048 + "x", "step_metric_value": 0}, "step_metric"),
+        ({"step_metric": "tokens", "step_metric_value": "42"}, "step_metric_value"),
+        ({"step_metric": "tokens", "step_metric_value": 10**400}, "step_metric_value"),
+        (
+            {"step_metric": "tokens", "step_metric_value": float("inf")},
+            "step_metric_value",
+        ),
+        ({"severity": "CRITICAL"}, "severity"),
+        ({"attributes": []}, "attributes"),
+        ({"attributes": ()}, "attributes"),
+        ({"attributes": ["name"]}, "attributes"),
+        ({"attributes": {"": True}}, "attribute"),
+        ({"attributes": {"has-dash": True}}, "attribute"),
+        ({"attributes": {"accent.é": True}}, "attribute"),
+        ({"attributes": {"x" * 129: True}}, "attribute"),
+        ({"attributes": {"x\n": True}}, "attribute"),
+        ({"attributes": {"_custom": True}}, "attribute"),
+        ({"attributes": {f"key{i}": i for i in range(33)}}, "attribute"),
+        ({"title": "é" * 2049}, "title"),
+        ({"attributes": {"text": "é" * 2049}}, "attribute"),
+        ({"attributes": {"obj": []}}, "attribute"),
+        ({"attributes": {"rate": float("nan")}}, "attribute"),
+    ],
+)
+def test_log_events_rejects_invalid_arguments(mock_run, record_q, kwargs, field):
+    run = mock_run()
+
+    with pytest.raises(ValueError, match=field):
+        run.log_events(**({"type": "checkpoint", "title": "Saved"} | kwargs))
+
+    assert record_q.empty()
+
+
+def test_log_events_accepts_maximum_type_and_metric_bytes(mock_run, record_q):
+    run = mock_run()
+    name = "é" * 2048
+
+    run.log_events(type=name, title="Saved", step_metric=name, step_metric_value=42)
+
+    event = record_q.get_nowait().event
+    assert event.type == name
+    assert event.step_metric == name
+    assert event.step_metric_value == 42.0
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "step",
+        "severity",
+        "severity_rank",
+        "severity_original",
+        "event_type",
+        "source_sdk",
+        "step_metric",
+        "step_metric_value",
+        "tenant",
+        "project",
+        "timestamp",
+        "accepted",
+        "run",
+        "source",
+        "id",
+    ],
+)
+def test_log_events_rejects_reserved_attributes(mock_run, key):
+    run = mock_run()
+
+    with pytest.raises(ValueError, match=key):
+        run.log_events(type="checkpoint", title="Saved", attributes={key: True})
+
+
+def test_log_events_publishes_typed_record(mock_run, record_q, monkeypatch):
+    run = mock_run()
+    monkeypatch.setattr(time, "time_ns", lambda: 1_700_000_000_123_456_789)
+
+    run.log_events(
+        type="checkpoint",
+        title="Saved",
+        step=0,
+        step_metric="tokens_seen",
+        step_metric_value=0.0,
+        severity="wArN",
+        attributes={"text": "é" * 2048, "count": 0, "rate": 0.5, "ok": False},
+    )
+
+    record = record_q.get_nowait()
+    record = type(record).FromString(record.SerializeToString())
+    assert record.WhichOneof("record_type") == "event"
+    assert not record.control.local
+    event = record.event
+    assert UUID(event.event_id).version == 4
+    assert event.type == "checkpoint"
+    assert event.title == "Saved"
+    assert event.severity == "WARN"
+    assert event.HasField("step") and event.step == 0
+    assert event.step_metric == "tokens_seen"
+    assert event.HasField("step_metric_value") and event.step_metric_value == 0.0
+    assert event.timestamp_ms == 1_700_000_000_123
+    assert set(event.attributes) == {"text", "count", "rate", "ok"}
+    assert event.attributes["text"].string_value == "é" * 2048
+    assert event.attributes["count"].WhichOneof("value") == "int_value"
+    assert event.attributes["count"].int_value == 0
+    assert event.attributes["rate"].double_value == 0.5
+    assert event.attributes["ok"].WhichOneof("value") == "bool_value"
+    assert not event.attributes["ok"].bool_value
+
+
+def test_log_events_publishes_distinct_ids_and_leaves_implicit_step_unset(
+    mock_run, record_q
+):
+    run = mock_run()
+
+    for _ in range(2):
+        run.log_events(type="checkpoint", title="Saved")
+
+    first = record_q.get_nowait().event
+    second = record_q.get_nowait().event
+    assert first.event_id != second.event_id
+    assert first.severity == "INFO"
+    assert not first.HasField("step")
+    assert not first.HasField("step_metric_value")
+
+
+@pytest.mark.parametrize(
+    "metric", [{}, {"step_metric": "tokens_seen", "step_metric_value": 42.0}]
+)
+def test_log_events_requires_step_in_shared_mode(mock_run, record_q, metric):
+    run = mock_run(settings={"mode": "shared"})
+
+    with pytest.raises(
+        ValueError, match="^step is required when the run uses shared mode$"
+    ):
+        run.log_events(type="checkpoint", title="Saved", **metric)
+
+    assert record_q.empty()
+
+
+@pytest.mark.parametrize("step", [0, 12000])
+def test_log_events_accepts_explicit_step_in_shared_mode(mock_run, record_q, step):
+    run = mock_run(settings={"mode": "shared"})
+
+    run.log_events(type="checkpoint", title="Saved", step=step)
+
+    event = record_q.get_nowait().event
+    assert event.HasField("step")
+    assert event.step == step
+
+
+def test_log_events_rejects_finished_run(mock_run):
+    run = mock_run()
+    run._is_finished = True
+
+    with pytest.raises(wandb.errors.UsageError, match="log_events"):
+        run.log_events(type="checkpoint", title="Saved")
+
+
+def test_log_events_is_noop_on_disabled_run():
+    with wandb.init(mode="disabled") as run:
+        assert run.log_events(type="", title="") is None
 
 
 @pytest.mark.skipif(

@@ -608,7 +608,7 @@ pub struct Deprecated {
 /// sync an older transaction log, it is important to follow proper protobuf
 /// versioning practices: <https://protobuf.dev/best-practices/>
 ///
-/// Next ID: 28
+/// Next ID: 29
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
@@ -622,7 +622,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -678,6 +678,8 @@ pub mod record {
         Environment(super::EnvironmentRecord),
         #[prost(message, tag = "27")]
         OutputLogger(super::OutputLoggerRecord),
+        #[prost(message, tag = "28")]
+        Event(super::EventRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1770,6 +1772,52 @@ pub struct AlertRecord {
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AlertResult {}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EventRecord {
+    #[prost(string, tag = "1")]
+    pub event_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub r#type: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub title: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub severity: ::prost::alloc::string::String,
+    #[prost(int64, optional, tag = "5")]
+    pub step: ::core::option::Option<i64>,
+    #[prost(string, tag = "6")]
+    pub step_metric: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "7")]
+    pub step_metric_value: ::core::option::Option<f64>,
+    #[prost(int64, tag = "8")]
+    pub timestamp_ms: i64,
+    #[prost(map = "string, message", tag = "9")]
+    pub attributes: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        EventAttributeValue,
+    >,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EventAttributeValue {
+    #[prost(oneof = "event_attribute_value::Value", tags = "1, 2, 3, 4")]
+    pub value: ::core::option::Option<event_attribute_value::Value>,
+}
+/// Nested message and enum types in `EventAttributeValue`.
+pub mod event_attribute_value {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(string, tag = "1")]
+        StringValue(::prost::alloc::string::String),
+        #[prost(int64, tag = "2")]
+        IntValue(i64),
+        #[prost(double, tag = "3")]
+        DoubleValue(f64),
+        #[prost(bool, tag = "4")]
+        BoolValue(bool),
+    }
+}
 /// Runtime communication that's not part of a run's transaction log.
 ///
 /// Unlike Records, Requests are not necessary to recreate a run and are not

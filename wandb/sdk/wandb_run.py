@@ -5,6 +5,7 @@ import functools
 import glob
 import json
 import logging
+import math
 import numbers
 import os
 import pathlib
@@ -13,6 +14,7 @@ import sys
 import threading
 import time
 import traceback
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -3671,6 +3673,82 @@ class Run:
 
         if self._interface:
             self._interface.publish_alert(title, text, level_str, wait_duration)
+
+    @_log_to_run
+    @_raise_if_finished
+    @_attach
+    def log_events(
+        self,
+        type: str,
+        title: str,
+        *,
+        step: int | None = None,
+        step_metric: str | None = None,
+        step_metric_value: float | None = None,
+        severity: str = "INFO",
+        attributes: dict[str, str | int | float | bool] | None = None,
+    ) -> None:
+        """Record a structured event for this run (experimental).
+
+        Events can be displayed as overlays on W&B charts.
+
+        Args:
+            type: A nonempty event type, such as `checkpoint`, up to 4096 UTF-8 bytes.
+            title: The event title, up to 4096 UTF-8 bytes.
+            step: The W&B step for the event. Defaults to the current step.
+            step_metric: The name of a custom step metric, up to 4096 UTF-8 bytes.
+            step_metric_value: The finite value of the custom step metric. Pass it
+                together with `step_metric`.
+            severity: One of `DEBUG`, `INFO`, `WARN`, `ERROR`, or `FATAL`.
+                Case insensitive.
+            attributes: Up to 32 string, integer, float, or boolean attributes.
+                Names may contain ASCII letters, digits, underscores, and dots.
+                Names cannot start with an underscore or use reserved keys.
+                String values can be up to 4096 UTF-8 bytes.
+
+        Raises:
+            ValueError: If an event argument is invalid.
+        """
+        timestamp_ms = time.time_ns() // 1_000_000
+        if not isinstance(type, str) or not 1 <= len(type.encode("utf-8")) <= 4096:
+            raise ValueError("type must be a nonempty string of at most 4096 bytes")
+        if not isinstance(title, str) or not 1 <= len(title.encode("utf-8")) <= 4096:
+            raise ValueError("title must be a nonempty string of at most 4096 bytes")
+        match step:
+            case None if self._settings._shared:
+                raise ValueError("step is required when the run uses shared mode")
+        if step is not None and (
+            isinstance(step, bool) or not isinstance(step, int) or step < 0
+        ):
+            raise ValueError("step must be a nonnegative integer")
+        if (step_metric is None) != (step_metric_value is None):
+            raise ValueError(
+                "step_metric and step_metric_value must be provided together"
+            )
+        try:
+            valid_metric_value = step_metric_value is None or math.isfinite(
+                step_metric_value
+            )
+        except (TypeError, OverflowError):
+            valid_metric_value = False
+        if not valid_metric_value:
+            raise ValueError("step_metric_value must be a finite number")
+        severity = severity.upper() if isinstance(severity, str) else ""
+        if severity not in {"DEBUG", "INFO", "WARN", "ERROR", "FATAL"}:
+            raise ValueError("severity must be DEBUG, INFO, WARN, ERROR, or FATAL")
+
+        if self._interface:
+            self._interface.publish_event(
+                event_id=str(uuid.uuid4()),
+                type=type,
+                title=title,
+                step=step,
+                step_metric=step_metric,
+                step_metric_value=step_metric_value,
+                severity=severity,
+                timestamp_ms=timestamp_ms,
+                attributes=attributes,
+            )
 
     def __enter__(self) -> Run:
         return self

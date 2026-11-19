@@ -13,6 +13,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/google/wire"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -264,6 +265,13 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Environment:
 	// The above are no-ops in the handler.
 
+	case *spb.Record_Event:
+		if x.Event != nil && x.Event.Step == nil && !h.settings.IsSharedMode() {
+			if h.partialHistory == nil {
+				h.initializePartialHistory()
+			}
+			x.Event.Step = proto.Int64(h.partialHistoryStep)
+		}
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit, request)
 	case *spb.Record_Header:
@@ -1025,24 +1033,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 // for setting step numbers.
 func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	if h.partialHistory == nil {
-		h.partialHistory = runhistory.New()
-
-		// TODO: Remove this when we don't need steps in the transaction log.
-		//
-		// This sets up the initial step for resumed/forked/rewound runs.
-		// It assumes that no records are sent until the initial RunRecord
-		// gets a response. This is true for now, but will be false when
-		// `wandb.init()` becomes async.
-		upserter, err := h.runHandle.Upserter()
-		if err != nil {
-			h.logger.CaptureError(
-				"stream",
-				fmt.Errorf("handler: got history before run initialized"),
-			)
-			h.partialHistoryStep = 0
-		} else {
-			h.partialHistoryStep = upserter.StartingStep()
-		}
+		h.initializePartialHistory()
 	}
 
 	if request.GetStep() != nil {
@@ -1107,6 +1098,17 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	}
 
 	h.flushPartialHistory(true, h.partialHistoryStep+1)
+}
+
+func (h *Handler) initializePartialHistory() {
+	h.partialHistory = runhistory.New()
+	upserter, err := h.runHandle.Upserter()
+	if err != nil {
+		h.logger.CaptureError("stream", errors.New("handler: got history before run initialized"))
+		h.partialHistoryStep = 0
+		return
+	}
+	h.partialHistoryStep = upserter.StartingStep()
 }
 
 // flushPartialHistory finalizes and resets the accumulated run history.

@@ -180,6 +180,7 @@ SYMBOLS_RUN = {
     "config_static",
     "log",
     "log_artifact",
+    "log_events",
     "link_artifact",
     "log_model",
     "use_model",

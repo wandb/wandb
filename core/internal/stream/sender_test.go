@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
-	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
@@ -55,7 +55,7 @@ func makeSenderWithFileStream(
 	t *testing.T,
 	client graphql.Client,
 	fileStream filestream.FileStream,
-	stats ...*filestreamstats.Stats,
+	configure ...func(*stream.SenderFactory),
 ) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
@@ -120,8 +120,8 @@ func makeSenderWithFileStream(
 		RunHandle:               runHandle,
 		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
 	}
-	if len(stats) > 0 {
-		senderFactory.Stats = stats[0]
+	for _, apply := range configure {
+		apply(&senderFactory)
 	}
 	var sender *stream.Sender
 	if fileStream != nil {
@@ -136,6 +136,80 @@ func makeSenderWithFileStream(
 		Logger:    logger,
 		Logs:      logs,
 	}
+}
+
+func TestSendEventBeforeRunInitialization(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream,
+		func(factory *stream.SenderFactory) { factory.RunHandle = runhandle.New() })
+	event := &spb.EventRecord{EventId: "event"}
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Event{Event: event},
+	}, nil)
+
+	updates := fileStream.GetUpdates()
+	require.Len(t, updates, 1)
+	update, ok := updates[0].(*filestream.RunEventUpdate)
+	require.True(t, ok)
+	assert.Same(t, event, update.Record)
+}
+
+func TestSendEventSharedMode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		step *int64
+	}{
+		{"missing step", nil},
+		{"explicit zero", proto.Int64(0)},
+		{"explicit step", proto.Int64(12000)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fileStream := filestreamtest.NewFakeFileStream()
+			logger, logs := observabilitytest.NewDebugRecordingTestLogger(t)
+			x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream,
+				func(factory *stream.SenderFactory) {
+					factory.Settings.Proto.XShared = wrapperspb.Bool(true)
+					factory.Logger = logger
+				})
+			x.Sender.SendRecord(&spb.Record{
+				RecordType: &spb.Record_Event{Event: &spb.EventRecord{
+					EventId: "shared-event", Step: tc.step,
+				}},
+			}, nil)
+
+			updates := fileStream.GetUpdates()
+			if tc.step == nil {
+				assert.Empty(t, updates)
+				assert.Contains(t, logs.String(), "dropping run event without step in shared mode")
+				assert.Contains(t, logs.String(), `"level":"DEBUG"`)
+			} else {
+				require.Len(t, updates, 1)
+				update, ok := updates[0].(*filestream.RunEventUpdate)
+				require.True(t, ok)
+				assert.Equal(t, tc.step, update.Record.Step)
+			}
+		})
+	}
+}
+
+func TestSendEventAfterExit(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream,
+		func(factory *stream.SenderFactory) { factory.RunHandle = runhandle.New() })
+	request, responses := runworktest.SimpleRequest(t, "exit")
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{}},
+	}, request)
+	select {
+	case <-responses:
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not finish")
+	}
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Event{Event: &spb.EventRecord{EventId: "late"}},
+	}, nil)
+
+	assert.Empty(t, fileStream.GetUpdates())
 }
 
 func TestSendExitBeforeRunInitialization(t *testing.T) {

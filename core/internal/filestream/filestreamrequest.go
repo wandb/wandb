@@ -1,6 +1,7 @@
 package filestream
 
 import (
+	"encoding/json"
 	"maps"
 
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -12,6 +13,9 @@ import (
 // A key property of requests is that a sequence of requests can be
 // compressed into a single request. This is realized via [Merge].
 type FileStreamRequest struct {
+	// RunEvents contains serialized structured run events in recording order.
+	RunEvents []json.RawMessage
+
 	// HistoryLines is a list of lines to append to the run history.
 	//
 	// Each line is a JSON object mapping metric names to values.
@@ -60,6 +64,7 @@ type FileStreamRequest struct {
 // The resulting request has the same effect as if this request was
 // sent first, and the next request was sent after.
 func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
+	r.RunEvents = append(r.RunEvents, next.RunEvents...)
 	r.HistoryLines = append(r.HistoryLines, next.HistoryLines...)
 	r.EventsLines = append(r.EventsLines, next.EventsLines...)
 
@@ -99,6 +104,7 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 // [FileStreamRequest] can be thought of as the "idealized" request;
 // it is what we wish the API looked like.
 type FileStreamRequestJSON struct {
+	RunEvents  []json.RawMessage           `json:"events,omitempty"`
 	Files      map[string]OffsetAndContent `json:"files,omitempty"`
 	Uploaded   []string                    `json:"uploaded,omitempty"`
 	Preempting *bool                       `json:"preempting,omitempty"`
@@ -111,6 +117,7 @@ type FileStreamRequestJSON struct {
 func (r *FileStreamRequestJSON) IsHeartbeat() bool {
 	return r != nil &&
 		len(r.Files) == 0 &&
+		len(r.RunEvents) == 0 &&
 		len(r.Uploaded) == 0 &&
 		r.Preempting == nil &&
 		r.Complete == nil &&

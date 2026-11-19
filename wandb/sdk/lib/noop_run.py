@@ -82,6 +82,7 @@ class NoopRun(wandb_run.Run):
         "link_model",
         "use_artifact",
         "log_code",
+        "log_events",
         "log_model",
         "use_model",
         "mark_preempting",

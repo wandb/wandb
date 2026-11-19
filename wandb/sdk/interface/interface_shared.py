@@ -408,6 +408,9 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
+    def _publish_event(self, event: pb.EventRecord) -> None:
+        self._publish(pb.Record(event=event))
+
     def _deliver_status(
         self,
         status: pb.StatusRequest,

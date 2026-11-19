@@ -203,22 +203,22 @@ func (f *SenderFactory) NewWithFileStream(
 	//
 	// SenderFactory.New runs synchronously in that loop (via handleInformInit),
 	// so querying features here would block the loop on a network round-trip.
-	featureCtx := runWork.BeforeEndCtx()
+	beforeEndCtx := runWork.BeforeEndCtx()
 	structuredConsoleLogs := sync.OnceValue(func() bool {
 		return f.FeatureProvider.Enabled(
-			featureCtx,
+			beforeEndCtx,
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
 		)
 	})
 	useArtifactProjectEntityInfo := sync.OnceValue(func() bool {
 		return f.FeatureProvider.Enabled(
-			featureCtx,
+			beforeEndCtx,
 			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 		)
 	})
 	serverProvidesArtifactDigestAlgorithm := sync.OnceValue(func() bool {
 		return f.FeatureProvider.Enabled(
-			featureCtx,
+			beforeEndCtx,
 			spb.ServerFeature_ARTIFACT_DIGEST_ALGORITHM,
 		)
 	})
@@ -379,6 +379,17 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendExit(x.Exit, request)
 	case *spb.Record_Alert:
 		s.sendAlert(record, x.Alert)
+	case *spb.Record_Event:
+		if s.receivedExit() {
+			return
+		}
+		if x.Event != nil && x.Event.Step == nil && s.settings.IsSharedMode() {
+			s.logger.Debug("sender: dropping run event without step in shared mode")
+			return
+		}
+		if s.fileStream != nil {
+			s.fileStream.StreamUpdate(&fs.RunEventUpdate{Record: x.Event})
+		}
 	case *spb.Record_Metric:
 		s.sendMetric(record, x.Metric)
 	case *spb.Record_Files:
