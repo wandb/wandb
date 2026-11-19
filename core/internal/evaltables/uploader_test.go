@@ -586,6 +586,7 @@ func TestUpload_ReadsWandbRowsFile(t *testing.T) {
 			`{"input":null,"output":{"x":"`+long+`"},"scores":{}}`+
 			`]}`,
 		requests[2].Body)
+	assert.FileExists(t, path)
 }
 
 func TestUpload_CompactsJSONInWandbRowsFile(t *testing.T) {
