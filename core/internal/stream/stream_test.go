@@ -79,7 +79,7 @@ func TestStream_ExitFlushNotifiesMultipleAndLateRequests(t *testing.T) {
 		record, err := reader.Read()
 		require.NoError(t, err)
 		require.EqualValues(t, 42, record.GetExit().GetExitCode())
-		stream.wg.Wait()
+		synctest.Wait()
 	})
 }
 
@@ -96,7 +96,7 @@ func TestStream_ExitFlushWithoutWriter(t *testing.T) {
 
 		response := <-responses
 		require.Equal(t, "No response.", response.GetErrorResponse().GetMessage())
-		stream.wg.Wait()
+		synctest.Wait()
 	})
 }
 
@@ -119,7 +119,7 @@ func TestStream_ExitFlushCancellationWhileWaitingForWriter(t *testing.T) {
 		stream.HandleRecord(exitFlushRecord(), request)
 		synctest.Wait()
 		cancel()
-		stream.wg.Wait()
+		synctest.Wait()
 
 		select {
 		case <-responses:

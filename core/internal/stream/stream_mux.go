@@ -39,12 +39,12 @@ func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 // GetStream gets a stream from the mux.
 func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 	sm.mutex.RLock()
-	stream, ok := sm.mux[streamId]
-	sm.mutex.RUnlock()
-	if !ok {
+	defer sm.mutex.RUnlock()
+	if stream, ok := sm.mux[streamId]; !ok {
 		return nil, fmt.Errorf("stream %s not found", streamId)
+	} else {
+		return stream, nil
 	}
-	return stream, nil
 }
 
 // RemoveStream removes a stream from the mux.
