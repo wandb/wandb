@@ -45,19 +45,9 @@ func fromRunBranchError(runBranchError *runbranch.BranchError) *RunUpdateError {
 }
 
 func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
-	userMessage := api.FormatGQLErrors(gqlError.Response)
-
-	if userMessage == "" {
-		// An empty UserMessage is treated like "no error" by the client.
-		//
-		// This can happen if the backend returns an empty response and
-		// an error status.
-		userMessage = "<no message>"
-	}
-
 	return &RunUpdateError{
 		Cause:       gqlError,
-		UserMessage: userMessage,
+		UserMessage: api.FormatGQLErrors(gqlError), // non-empty
 		Code:        spb.ErrorInfo_COMMUNICATION,
 	}
 }
