@@ -169,11 +169,13 @@ def _add_rows(
         table.wandb_rows_file_path = file.name
         yield
     finally:
-        # Removal is best effort, so that a failure to remove the file,
-        # such as while wandb-core still has it open, can't replace the
-        # upload's result or error.
-        with contextlib.suppress(OSError):
+        # A failure to remove the file, such as while wandb-core still has
+        # it open, is logged rather than raised, so that it can't replace
+        # the upload's result or error.
+        try:
             os.remove(file.name)
+        except OSError as e:
+            _logger.warning("Failed to remove EvalTable rows file %s: %s", file.name, e)
 
 
 def _write_rows(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> None:

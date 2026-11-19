@@ -240,6 +240,38 @@ def test_ces_eval_table_deletes_rows_file_after_failed_upload(
     assert not os.path.exists(request.wandb_rows_file_path)
 
 
+def test_ces_eval_table_logs_failure_to_remove_rows_file(
+    deliver_upload_eval_table,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    logger = MagicMock()
+    monkeypatch.setattr(ces, "_logger", logger)
+    deliver_upload_eval_table.return_value.wait_or.return_value = _upload_error(
+        pb.ErrorInfo.UNKNOWN, "failed"
+    )
+
+    def remove_rows_file(request: pb.UploadEvalTableRequest) -> Any:
+        os.remove(request.table.wandb_rows_file_path)
+        return DEFAULT
+
+    deliver_upload_eval_table.side_effect = remove_rows_file
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        output_columns=["value"],
+        backend="ces",
+    )
+    et.bind_to_run(run, "eval", 7)
+
+    with pytest.raises(CommError, match="failed"):
+        et.to_json(run)
+
+    logger.warning.assert_called_once()
+    assert "Failed to remove EvalTable rows file" in logger.warning.call_args.args[0]
+
+
 def test_ces_eval_table_without_inputs_keys_rows_by_position(
     deliver_upload_eval_table,
     run,
