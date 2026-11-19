@@ -101,9 +101,12 @@ class EvalTable(Table):
             key_column: Name of a column that identifies each row's example.
                 If set, eval comparisons will match rows by this column's values
                 instead of by their inputs or row position. Values must be non-empty
-                strings or integers, and may repeat. The column may also be an input
-                or output column, but not a score column. If it's neither, it isn't
-                logged as an input or output. Only the CES backend supports it.
+                strings of at most 2048 characters, or integers. Values may repeat,
+                such as for several trials of one example: the k-th row with a key
+                matches the k-th row with that key in the other table. The column
+                may also be an input or output column, but not a score column. If
+                it's neither, it isn't logged as an input or output. Only the CES
+                backend supports it.
             backend: Optional storage-backend override. Weave is the default. Pass
                 "ces" to write through the CoreWeave Evaluation Service instead, which
                 is not yet released.
