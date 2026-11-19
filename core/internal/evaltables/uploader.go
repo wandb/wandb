@@ -25,7 +25,6 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -50,7 +49,6 @@ const (
 type Uploader struct {
 	graphqlClient graphql.Client
 	logger        *observability.CoreLogger
-	runHandle     *runhandle.RunHandle
 
 	// evalTables returns the CES client, creating it on first use.
 	evalTables func() (*ces.EvalTableService, error)
@@ -66,7 +64,6 @@ type UploaderParams struct {
 	CredentialProvider api.CredentialProvider
 	GraphqlClient      graphql.Client
 	Logger             *observability.CoreLogger
-	RunHandle          *runhandle.RunHandle
 	Settings           *settings.Settings
 }
 
@@ -74,7 +71,6 @@ func NewUploader(params UploaderParams) *Uploader {
 	return &Uploader{
 		graphqlClient: params.GraphqlClient,
 		logger:        params.Logger,
-		runHandle:     params.RunHandle,
 		evalTables: sync.OnceValues(func() (*ces.EvalTableService, error) {
 			return NewEvalTableService(
 				params.CredentialProvider,
@@ -136,24 +132,19 @@ func (t *EncodedTable) Close() error {
 	return nil
 }
 
-// Encode validates an EvalTable and encodes its rows.
+// Encode validates an EvalTable of the run at runPath and encodes its rows.
 //
 // It encodes every row, so that an invalid table fails before Upload
 // writes anything to CES. The caller must Close the returned table.
 //
 // Errors in the table satisfy IsUsageError.
-func (u *Uploader) Encode(
+func Encode(
 	data *spb.EvalTableData,
+	runPath runbranch.RunPath,
 ) (*EncodedTable, error) {
 	if len(data.GetRows()) > 0 && data.GetWandbRowsFilePath() != "" {
 		return nil, usageError{errors.New("request has both rows and a W&B rows file")}
 	}
-
-	upserter, err := u.runHandle.Upserter()
-	if err != nil {
-		return nil, fmt.Errorf("evaltables: %v", err)
-	}
-	runPath := upserter.RunPath()
 
 	columns := ces.EvalTableColumnNewParams{
 		DatasetFields: ces.F(datasetFieldParams(data.GetDatasetFields())),

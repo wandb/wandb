@@ -27,8 +27,7 @@ import (
 	"github.com/wandb/wandb/core/internal/evaltables"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
-	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runupsertertest"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -131,14 +130,10 @@ func newTestUploaderWithSettings(
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(gqlmock.WithOpName("ProjectInternalID"), projectJSON)
 
-	runHandle := runhandle.New()
-	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
-
 	return evaltables.NewUploader(evaltables.UploaderParams{
 		CredentialProvider: api.NewAPIKeyCredentialProvider("test-api-key"),
 		GraphqlClient:      mockGQL,
 		Logger:             observabilitytest.NewTestLogger(t),
-		RunHandle:          runHandle,
 		Settings:           s,
 	}), mockGQL
 }
@@ -148,7 +143,7 @@ func upload(
 	uploader *evaltables.Uploader,
 	request *spb.EvalTableData,
 ) (*spb.UploadEvalTableResponse, error) {
-	table, err := uploader.Encode(request)
+	table, err := evaltables.Encode(request, testRunPath)
 	if err != nil {
 		return nil, err
 	}
@@ -156,14 +151,18 @@ func upload(
 	return response, errors.Join(err, table.Close())
 }
 
+var testRunPath = runbranch.RunPath{
+	Entity:  "test-entity",
+	Project: "test-project",
+	RunID:   "test-run",
+}
+
 func encode(
 	t *testing.T,
 	request *spb.EvalTableData,
 ) (*evaltables.EncodedTable, error) {
 	t.Helper()
-	uploader, _ := newTestUploaderWithSettings(
-		t, projectFoundJSON, settings.From(&spb.Settings{}))
-	table, err := uploader.Encode(request)
+	table, err := evaltables.Encode(request, testRunPath)
 	if table != nil {
 		t.Cleanup(func() { assert.NoError(t, table.Close()) })
 	}
@@ -653,11 +652,11 @@ func TestUpload_ReadsWandbRowsFileOnlyWhileEncoding(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 
-	table, err := uploader.Encode(&spb.EvalTableData{
+	table, err := evaltables.Encode(&spb.EvalTableData{
 		Name:              "t",
 		DatasetFields:     outputFieldX,
 		WandbRowsFilePath: path,
-	})
+	}, testRunPath)
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(path))
 	_, err = uploader.Upload(context.Background(), table)
