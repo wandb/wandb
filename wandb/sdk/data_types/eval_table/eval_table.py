@@ -104,6 +104,7 @@ class EvalTable(Table):
                 strings of at most 2048 characters, or integers. Values may repeat,
                 such as when an example is evaluated several times: the k-th row
                 with a key matches the k-th row with that key in the other table.
+                How repeated keys match is still being designed and may change.
                 The column may also be an input or output column, but not a score
                 column. If it's neither, it isn't logged as an input or output. Only
                 the CES backend supports it.
