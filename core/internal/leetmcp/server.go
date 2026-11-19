@@ -5,6 +5,7 @@ package leetmcp
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,6 +42,28 @@ var (
 	serverInfo   = map[string]any{"name": "wandb", "version": version.Version}
 )
 
+// The LEET panel: the MCP App that renders the result of leet_view in a
+// client that declared the extension io.modelcontextprotocol/ui.
+const (
+	panelURI      = "ui://leet/panel"
+	panelMIMEType = "text/html;profile=mcp-app"
+)
+
+var panelMeta = map[string]any{"ui": map[string]any{"prefersBorder": true}}
+
+// panelHTML is the panel's HTML, which draws the runs and charts it reads
+// through leet_history calls that the client proxies to this server.
+//
+//go:embed panel.html
+var panelHTML string
+
+// server answers the requests of one client.
+type server struct {
+	// apps is whether the client declared in initialize that it renders
+	// MCP Apps.
+	apps bool
+}
+
 type request struct {
 	ID     json.RawMessage `json:"id"`
 	Method string          `json:"method"`
@@ -54,6 +77,7 @@ type params struct {
 		ClientCapabilities json.RawMessage `json:"io.modelcontextprotocol/clientCapabilities"`
 	} `json:"_meta"`
 	ProtocolVersion string          `json:"protocolVersion"`
+	Capabilities    json.RawMessage `json:"capabilities"`
 	Name            string          `json:"name"`
 	Arguments       json.RawMessage `json:"arguments"`
 	URI             string          `json:"uri"`
@@ -75,10 +99,11 @@ type rpcError struct {
 // Serve answers the requests read from stdin on stdout until stdin ends,
 // noting protocol errors on stderr.
 func Serve(stdin io.Reader, stdout, stderr io.Writer) error {
+	s := &server{}
 	reader := bufio.NewReader(stdin)
 	for {
 		line, err := reader.ReadBytes('\n')
-		if resp := respond(line); resp != nil {
+		if resp := s.respond(line); resp != nil {
 			if resp.Error != nil {
 				fmt.Fprintf(stderr, "wandb mcp: %s\n", resp.Error.Message)
 			}
@@ -97,7 +122,7 @@ func Serve(stdin io.Reader, stdout, stderr io.Writer) error {
 
 // respond returns the response to one message, or nil for a blank line or
 // a notification.
-func respond(line []byte) *response {
+func (s *server) respond(line []byte) *response {
 	line = bytes.TrimSpace(line)
 	if len(line) == 0 {
 		return nil
@@ -121,7 +146,7 @@ func respond(line []byte) *response {
 	}
 	slog.Debug("mcp: request", "method", req.Method, "id", string(req.ID))
 	resp := &response{JSONRPC: "2.0", ID: req.ID}
-	result, rpcErr := handle(&req)
+	result, rpcErr := s.handle(&req)
 	if rpcErr != nil {
 		resp.Error = rpcErr
 	} else {
@@ -137,7 +162,7 @@ func invalid(code int, message string) *response {
 
 // handle answers one request. A request carrying the protocol version of
 // the 2026-07-28 revision in its _meta gets that revision's result fields.
-func handle(req *request) (map[string]any, *rpcError) {
+func (s *server) handle(req *request) (map[string]any, *rpcError) {
 	if req.Method == "" {
 		return nil, &rpcError{Code: errInvalidRequest, Message: "method is required"}
 	}
@@ -147,9 +172,11 @@ func handle(req *request) (map[string]any, *rpcError) {
 	}
 
 	modern := p.Meta.ProtocolVersion != ""
+	apps := s.apps || rendersApps(p.Meta.ClientCapabilities)
 	var result map[string]any
 	switch req.Method {
 	case "initialize":
+		s.apps = rendersApps(p.Capabilities)
 		protocolVersion := legacyVersions[0]
 		if slices.Contains(legacyVersions, p.ProtocolVersion) {
 			protocolVersion = p.ProtocolVersion
@@ -168,24 +195,18 @@ func handle(req *request) (map[string]any, *rpcError) {
 	case "ping":
 		result = map[string]any{}
 	case "tools/list":
-		result = ListTools()
+		result = ListTools(apps)
 	case "tools/call":
 		if result, rpcErr = callTool(p.Name, p.Arguments); rpcErr != nil {
 			return nil, rpcErr
 		}
 	case "resources/list":
-		result = map[string]any{"resources": []any{}}
+		result = map[string]any{"resources": panelResources(apps)}
 	case "resources/templates/list":
 		result = map[string]any{"resourceTemplates": []any{}}
 	case "resources/read":
-		code := errResourceNotFound
-		if modern {
-			code = errInvalidParams
-		}
-		return nil, &rpcError{
-			Code:    code,
-			Message: "Resource not found",
-			Data:    map[string]any{"uri": p.URI},
+		if result, rpcErr = readResource(apps, modern, p.URI); rpcErr != nil {
+			return nil, rpcErr
 		}
 	default:
 		return nil, &rpcError{
@@ -235,6 +256,58 @@ func parseParams(raw json.RawMessage) (params, *rpcError) {
 		}
 	}
 	return p, nil
+}
+
+// panelResources is the list of resources/list: the panel for a client
+// that renders apps, else nothing.
+func panelResources(apps bool) []any {
+	if !apps {
+		return []any{}
+	}
+	return []any{map[string]any{
+		"uri":         panelURI,
+		"name":        "leet_panel",
+		"description": "Charts of the runs that leet_view listed.",
+		"mimeType":    panelMIMEType,
+		"_meta":       panelMeta,
+	}}
+}
+
+// readResource answers resources/read: the panel's HTML for a client that
+// renders apps, else Resource not found with the code of the client's
+// protocol revision.
+func readResource(apps, modern bool, uri string) (map[string]any, *rpcError) {
+	if !apps || uri != panelURI {
+		code := errResourceNotFound
+		if modern {
+			code = errInvalidParams
+		}
+		return nil, &rpcError{
+			Code:    code,
+			Message: "Resource not found",
+			Data:    map[string]any{"uri": uri},
+		}
+	}
+	return map[string]any{"contents": []any{map[string]any{
+		"uri":      panelURI,
+		"mimeType": panelMIMEType,
+		"text":     panelHTML,
+		"_meta":    panelMeta,
+	}}}, nil
+}
+
+// rendersApps is whether a client's capabilities declare the MCP Apps
+// extension for the panel's MIME type.
+func rendersApps(capabilities json.RawMessage) bool {
+	var c struct {
+		Extensions struct {
+			UI struct {
+				MIMETypes []string `json:"mimeTypes"`
+			} `json:"io.modelcontextprotocol/ui"`
+		} `json:"extensions"`
+	}
+	_ = json.Unmarshal(capabilities, &c)
+	return slices.Contains(c.Extensions.UI.MIMETypes, panelMIMEType)
 }
 
 // callTool runs a tool and returns its result: the tool's JSON object as
