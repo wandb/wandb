@@ -35,6 +35,8 @@ type rowColumn struct {
 }
 
 // rowEncoder writes the CES row JSON of an EvalTable's typed rows.
+//
+// It encodes one table's rows, once, as it records their oversized media.
 type rowEncoder struct {
 	media *mediaConverter
 
@@ -111,23 +113,21 @@ func (e *rowEncoder) encodeRows(
 	rows iter.Seq2[*spb.EvalTableRow, error],
 ) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
-		i := 0
 		for row, err := range rows {
 			if err != nil {
 				yield(nil, err)
 				return
 			}
 
-			e.row = i + 1
+			e.row++
 			rowJSON, err := e.encodeRow(row)
 			if err != nil {
-				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, i+1)})
+				yield(nil, usageError{fmt.Errorf("%v (row %d)", err, e.row)})
 				return
 			}
 			if !yield(rowJSON, nil) {
 				return
 			}
-			i++
 		}
 	}
 }

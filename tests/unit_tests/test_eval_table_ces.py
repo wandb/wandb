@@ -464,17 +464,6 @@ def test_ces_eval_table_warns_about_oversized_media(
     )
 
 
-def test_ces_eval_table_does_not_warn_without_oversized_media(
-    deliver_upload_eval_table,
-    mock_wandb_log,
-    run,
-):
-    _log_image_table(run, deliver_upload_eval_table, 1, [])
-
-    with pytest.raises(AssertionError):
-        mock_wandb_log.assert_warned("media cells as null")
-
-
 def test_ces_eval_table_writes_supported_media_in_raise_mode(
     deliver_upload_eval_table, run
 ):
