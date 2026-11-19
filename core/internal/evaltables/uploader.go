@@ -169,6 +169,7 @@ func (u *Uploader) Upload(
 		EvaluationVersionId: version.EvaluationVersionID,
 		DatasetId:           created.DatasetID,
 		DatasetVersionId:    version.DatasetVersionID,
+		OversizedMediaCells: table.oversizedMedia,
 	}, nil
 }
 
