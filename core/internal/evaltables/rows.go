@@ -150,7 +150,10 @@ func (e *rowEncoder) appendPart(
 	return e.appendValues(buf, part, columns, values.GetValues())
 }
 
-// appendValues appends an object of the columns' values.
+// appendValues appends a JSON object mapping each column's name to the
+// value at the same position in values, such as {"prompt":"2+2","count":3}.
+//
+// part names the values in errors.
 func (e *rowEncoder) appendValues(
 	buf []byte,
 	part string,
