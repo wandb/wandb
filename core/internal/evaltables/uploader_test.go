@@ -533,9 +533,9 @@ func TestUpload_ReportsRowProgress(t *testing.T) {
 	assert.Equal(t, []string{"", "7/10 rows", "10/10 rows"}, progress)
 }
 
-// writeRowsFile writes rows to a gzipped file, each preceded by its size as
-// a varint.
-func writeRowsFile(t *testing.T, rows ...*spb.EvalTableRow) string {
+// writeWandbRowsFile writes rows to a W&B rows file: a gzipped file of
+// EvalTableRow messages, each preceded by its size as a varint.
+func writeWandbRowsFile(t *testing.T, rows ...*spb.EvalTableRow) string {
 	t.Helper()
 	var data []byte
 	for _, row := range rows {
@@ -560,20 +560,20 @@ func writeGzipFile(t *testing.T, data []byte) string {
 	return path
 }
 
-func TestUpload_ReadsRowsFile(t *testing.T) {
+func TestUpload_ReadsWandbRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	// Longer than bufio.Scanner's default line limit.
 	long := strings.Repeat("a", 70_000)
-	path := writeRowsFile(t,
+	path := writeWandbRowsFile(t,
 		&spb.EvalTableRow{Output: values(stringValue("1"))},
 		&spb.EvalTableRow{Output: values(stringValue(long))},
 	)
 
 	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		Name:          "t",
-		DatasetFields: outputFieldX,
-		RowsFilePath:  path,
+		Name:              "t",
+		DatasetFields:     outputFieldX,
+		WandbRowsFilePath: path,
 	})
 
 	require.NoError(t, err)
@@ -587,10 +587,10 @@ func TestUpload_ReadsRowsFile(t *testing.T) {
 		requests[2].Body)
 }
 
-func TestUpload_CompactsJSONInRowsFile(t *testing.T) {
+func TestUpload_CompactsJSONInWandbRowsFile(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	path := writeRowsFile(t,
+	path := writeWandbRowsFile(t,
 		&spb.EvalTableRow{Output: values(jsonValue("{\n  \"a\": [1, 2]\n}"))},
 		&spb.EvalTableRow{Output: values(jsonValue(`"line 1\nline 2"`))},
 	)
@@ -600,7 +600,7 @@ func TestUpload_CompactsJSONInRowsFile(t *testing.T) {
 		DatasetFields: []*spb.EvalTableField{
 			{Source: "output", Name: "x", ValueType: "json"},
 		},
-		RowsFilePath: path,
+		WandbRowsFilePath: path,
 	})
 
 	require.NoError(t, err)
@@ -614,30 +614,30 @@ func TestUpload_CompactsJSONInRowsFile(t *testing.T) {
 		requests[2].Body)
 }
 
-func TestUpload_ReportsRowsFileProgress(t *testing.T) {
+func TestUpload_ReportsWandbRowsFileProgress(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	op := wboperation.NewOperations().New("uploading eval table t")
 
 	_, err := upload(op.Context(context.Background()), uploader,
 		&spb.EvalTableData{
-			Name:         "t",
-			RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}, &spb.EvalTableRow{}),
+			Name:              "t",
+			WandbRowsFilePath: writeWandbRowsFile(t, &spb.EvalTableRow{}, &spb.EvalTableRow{}),
 		})
 
 	require.NoError(t, err)
 	assert.Equal(t, "2/2 rows", op.ToProto().GetProgress())
 }
 
-func TestEncode_RejectsInvalidRowInRowsFile(t *testing.T) {
-	path := writeRowsFile(t,
+func TestEncode_RejectsInvalidRowInWandbRowsFile(t *testing.T) {
+	path := writeWandbRowsFile(t,
 		&spb.EvalTableRow{Output: values(stringValue("ok"))},
 		&spb.EvalTableRow{Output: values(numberValue(1))},
 	)
 
 	_, err := encode(t, &spb.EvalTableData{
-		DatasetFields: outputFieldX,
-		RowsFilePath:  path,
+		DatasetFields:     outputFieldX,
+		WandbRowsFilePath: path,
 	})
 
 	assert.ErrorContains(t, err, "(row 1)")
@@ -646,15 +646,15 @@ func TestEncode_RejectsInvalidRowInRowsFile(t *testing.T) {
 	assert.Equal(t, []string{path}, filesIn(t, filepath.Dir(path)))
 }
 
-func TestUpload_ReadsRowsFileOnlyWhileEncoding(t *testing.T) {
+func TestUpload_ReadsWandbRowsFileOnlyWhileEncoding(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	path := writeRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
+	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 
 	table, err := uploader.Encode(&spb.EvalTableData{
-		Name:          "t",
-		DatasetFields: outputFieldX,
-		RowsFilePath:  path,
+		Name:              "t",
+		DatasetFields:     outputFieldX,
+		WandbRowsFilePath: path,
 	})
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(path))
@@ -679,7 +679,7 @@ func filesIn(t *testing.T, dir string) []string {
 	return paths
 }
 
-func TestUpload_RejectsBadRowsFile(t *testing.T) {
+func TestUpload_RejectsBadWandbRowsFile(t *testing.T) {
 	testCases := []struct {
 		name    string
 		write   func(t *testing.T) string
@@ -708,7 +708,7 @@ func TestUpload_RejectsBadRowsFile(t *testing.T) {
 		{
 			name: "gzip checksum mismatch",
 			write: func(t *testing.T) string {
-				path := writeRowsFile(t, &spb.EvalTableRow{})
+				path := writeWandbRowsFile(t, &spb.EvalTableRow{})
 				data, err := os.ReadFile(path)
 				require.NoError(t, err)
 				data[len(data)-8] ^= 0xff // The CRC-32 in the gzip trailer.
@@ -725,21 +725,21 @@ func TestUpload_RejectsBadRowsFile(t *testing.T) {
 			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
 			_, err := upload(context.Background(), uploader,
-				&spb.EvalTableData{Name: "t", RowsFilePath: tc.write(t)})
+				&spb.EvalTableData{Name: "t", WandbRowsFilePath: tc.write(t)})
 
-			assert.ErrorContains(t, err, "evaltables: failed to read rows: "+tc.wantErr)
+			assert.ErrorContains(t, err, "evaltables: failed to read W&B rows file: "+tc.wantErr)
 			assert.Empty(t, ces.Requests())
 		})
 	}
 }
 
-func TestEncode_RejectsBothRowsAndRowsFile(t *testing.T) {
+func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
 	_, err := encode(t, &spb.EvalTableData{
-		Rows:         []*spb.EvalTableRow{{}},
-		RowsFilePath: writeRowsFile(t, &spb.EvalTableRow{}),
+		Rows:              []*spb.EvalTableRow{{}},
+		WandbRowsFilePath: writeWandbRowsFile(t, &spb.EvalTableRow{}),
 	})
 
-	assert.ErrorContains(t, err, "both rows and a rows file")
+	assert.ErrorContains(t, err, "both rows and a W&B rows file")
 	assert.True(t, evaltables.IsUsageError(err))
 }
 

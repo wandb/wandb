@@ -9806,15 +9806,15 @@ type EvalTableData struct {
 	Scorers       []*EvalTableScorer     `protobuf:"bytes,3,rep,name=scorers,proto3" json:"scorers,omitempty"`
 	// The table's rows in order.
 	//
-	// At most one of {rows, rows_file_path} may be set.
+	// At most one of {rows, wandb_rows_file_path} may be set.
 	Rows []*EvalTableRow `protobuf:"bytes,4,rep,name=rows,proto3" json:"rows,omitempty"`
-	// A gzipped file of the table's rows, as EvalTableRow messages, each
-	// preceded by its size as a varint.
+	// A W&B rows file: a gzipped file of the table's rows as EvalTableRow
+	// messages, each preceded by its size as a varint.
 	//
 	// It is used for tables too large to send inline. The client owns the
 	// file and deletes it after the response; wandb-core only reads it, and
 	// may write temporary files in the same directory.
-	RowsFilePath string `protobuf:"bytes,5,opt,name=rows_file_path,json=rowsFilePath,proto3" json:"rows_file_path,omitempty"`
+	WandbRowsFilePath string `protobuf:"bytes,5,opt,name=wandb_rows_file_path,json=wandbRowsFilePath,proto3" json:"wandb_rows_file_path,omitempty"`
 	// Run files that the table's media cells reference, relative to the run's
 	// files directory, for wandb-core to upload. Cells get their CES URIs
 	// from their media JSON, not from this list.
@@ -9881,9 +9881,9 @@ func (x *EvalTableData) GetRows() []*EvalTableRow {
 	return nil
 }
 
-func (x *EvalTableData) GetRowsFilePath() string {
+func (x *EvalTableData) GetWandbRowsFilePath() string {
 	if x != nil {
-		return x.RowsFilePath
+		return x.WandbRowsFilePath
 	}
 	return ""
 }
@@ -13395,13 +13395,13 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\x81\x01\n" +
 	"\x16UploadEvalTableRequest\x123\n" +
 	"\x05table\x18\x01 \x01(\v2\x1d.wandb_internal.EvalTableDataR\x05table\x122\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\xab\x02\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\xb6\x02\n" +
 	"\rEvalTableData\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12E\n" +
 	"\x0edataset_fields\x18\x02 \x03(\v2\x1e.wandb_internal.EvalTableFieldR\rdatasetFields\x129\n" +
 	"\ascorers\x18\x03 \x03(\v2\x1f.wandb_internal.EvalTableScorerR\ascorers\x120\n" +
-	"\x04rows\x18\x04 \x03(\v2\x1c.wandb_internal.EvalTableRowR\x04rows\x12$\n" +
-	"\x0erows_file_path\x18\x05 \x01(\tR\frowsFilePath\x12,\n" +
+	"\x04rows\x18\x04 \x03(\v2\x1c.wandb_internal.EvalTableRowR\x04rows\x12/\n" +
+	"\x14wandb_rows_file_path\x18\x05 \x01(\tR\x11wandbRowsFilePath\x12,\n" +
 	"\x12upload_media_paths\x18\x06 \x03(\tR\x10uploadMediaPaths\"\xdd\x01\n" +
 	"\fEvalTableRow\x128\n" +
 	"\x05input\x18\x01 \x01(\v2\".wandb_internal.EvalTableRowValuesR\x05input\x12:\n" +
