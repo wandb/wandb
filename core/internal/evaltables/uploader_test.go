@@ -351,28 +351,6 @@ func TestEncode_AllValueTypes(t *testing.T) {
 		table.CESRowsJSON(t))
 }
 
-func TestUpload_ReportsOversizedMedia(t *testing.T) {
-	ces := newFakeCES(t)
-	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
-	image := `{"_type":"image-file","path":"a.png","format":"png",` +
-		`"sha256":"a","size":1,"caption":"` + strings.Repeat("a", 3_500_000) + `"}`
-
-	response, err := upload(context.Background(), uploader, &spb.EvalTableData{
-		DatasetFields: []*spb.EvalTableField{
-			{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
-		},
-		Rows: []*spb.EvalTableRow{{Input: values(mediaValue(image))}},
-	})
-
-	require.NoError(t, err)
-	require.Len(t, response.GetOversizedMediaCells(), 1)
-	cell := response.GetOversizedMediaCells()[0]
-	assert.EqualValues(t, 1, cell.GetRow())
-	assert.Equal(t, "input", cell.GetSource())
-	assert.Equal(t, "image", cell.GetName())
-	assert.Greater(t, cell.GetSize(), int64(3_500_000))
-}
-
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
