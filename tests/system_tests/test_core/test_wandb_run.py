@@ -1,15 +1,21 @@
 import math
 import os
 import pickle
+import signal
+import subprocess
 import sys
 import threading
 from pathlib import Path
+from textwrap import dedent
 
 import numpy as np
 import PIL.Image
 import pytest
 import wandb
+from wandb import env
 from wandb.errors import UsageError
+from wandb.sdk.lib.service import service_port_file
+from wandb.util import get_core_path
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
@@ -478,3 +484,69 @@ def test_step__raises_in_shared_mode():
     with wandb.init(mode="shared") as run:
         with pytest.raises(match="Cannot read the W&B step in shared mode"):
             _ = run.step
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Requires POSIX SIGTERM")
+def test_sigterm_shuts_down_core_with_an_unfinished_run(tmp_path, wandb_backend_spy):
+    port_file = tmp_path / "core-port.txt"
+    script = dedent("""\
+        import os
+        import signal
+        import sys
+
+        import wandb
+
+        run = wandb.init(dir=sys.argv[1], mode="offline")
+        run.log({"sigterm_marker": 123})
+        assert run.summary["sigterm_marker"] == 123
+        os.kill(os.getpid(), signal.SIGTERM)
+        """)
+
+    with subprocess.Popen(
+        [
+            get_core_path(),
+            "--detached",
+            "--no-observability",
+            "--port-filename",
+            str(port_file),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    ) as core:
+        try:
+            token = service_port_file.poll_for_token(port_file, core, timeout=20)
+            client = subprocess.run(
+                [sys.executable, "-c", script, str(tmp_path)],
+                env={**os.environ, env.SERVICE: token.env_value},
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            assert client.returncode == -signal.SIGTERM, client.stderr
+
+            core.send_signal(signal.SIGTERM)
+            output, _ = core.communicate(timeout=20)
+        finally:
+            if core.poll() is None:
+                core.kill()
+
+    # verify core handled the signal and finished the run before exiting.
+    assert core.returncode == 128, output
+    (log_path,) = tmp_path.glob("wandb/offline-run-*/run-*.wandb")
+
+    replay = subprocess.run(
+        ["wandb", "beta", "sync", "--live", str(log_path)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert replay.returncode == 0, replay.stderr
+    assert log_path.with_suffix(".wandb.synced").exists(), replay.stderr
+
+    run_id = log_path.stem.removeprefix("run-")
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run_id)
+        assert [row["sigterm_marker"] for row in history] == [123]
+        assert snapshot.completed(run_id=run_id)
+        assert snapshot.exit_code(run_id=run_id) == 1

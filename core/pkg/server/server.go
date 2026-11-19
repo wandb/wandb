@@ -37,7 +37,7 @@ type Server struct {
 	// stopServer cancels serverLifetimeCtx.
 	stopServer context.CancelFunc
 
-	// shutdownOnce records the exit code before cancelling serverLifetimeCtx.
+	// shutdownOnce selects the initial shutdown mode and exit code.
 	shutdownOnce sync.Once
 	exitCode     atomic.Int32
 
@@ -102,8 +102,16 @@ type Server struct {
 
 // Shutdown requests a graceful server shutdown with the given run exit code.
 // It does not wait for connections or streams to finish.
+// The first shutdown request sets the exit code for streams still open.
 func (s *Server) Shutdown(exitCode int32) {
+	s.beginShutdown(exitCode, false)
+}
+
+func (s *Server) beginShutdown(exitCode int32, forceShutdown bool) {
 	s.shutdownOnce.Do(func() {
+		if forceShutdown {
+			s.interruptShutdown()
+		}
 		s.exitCode.Store(exitCode)
 		s.stopServer()
 	})
@@ -111,8 +119,12 @@ func (s *Server) Shutdown(exitCode int32) {
 
 // ForceStop shuts down the server without waiting for in-flight work.
 func (s *Server) ForceStop() {
-	s.forceShutdownOnce.Do(func() { close(s.forceShutdown) })
+	s.interruptShutdown()
 	s.Shutdown(1)
+}
+
+func (s *Server) interruptShutdown() {
+	s.forceShutdownOnce.Do(func() { close(s.forceShutdown) })
 }
 
 type ServerParams struct {
@@ -156,11 +168,11 @@ func (s *Server) exitWhenParentIsGone() {
 		time.Sleep(IntervalCheckParentPidMilliseconds * time.Millisecond)
 	}
 
-	slog.Info("server: parent process exited, terminating service process")
+	slog.Info("server: parent process exited")
 
-	// The user process has exited, so there's no need to sync
-	// uncommitted data, and we can quit immediately.
-	s.ForceStop()
+	// Exit immediately if the parent was lost before shutdown began, but
+	// leave an existing graceful shutdown to finish on its own deadline.
+	s.beginShutdown(1, true)
 }
 
 func closeAll(listenerList []net.Listener) {
@@ -298,7 +310,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	NewConnection(
 		s.serverLifetimeCtx,
-		s.stopServer,
+		func() { s.Shutdown(1) },
 		ConnectionParams{
 			ID:                   id,
 			Conn:                 conn,

@@ -175,3 +175,31 @@ func TestServe_ForceStopInterruptsGracefulShutdown(t *testing.T) {
 		}
 	})
 }
+
+func TestServer_ParentExitDoesNotInterruptGracefulShutdown(t *testing.T) {
+	s := NewServer(ServerParams{ParentPID: -1})
+	s.Shutdown(1)
+
+	s.exitWhenParentIsGone()
+
+	select {
+	case <-s.forceShutdown:
+		t.Fatal("parent exit interrupted graceful shutdown")
+	default:
+	}
+}
+
+func TestServer_MalformedRequestShutsDownWithFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := NewServer(ServerParams{})
+		client := addTestConnection(t, s)
+		defer func() { _ = client.Close() }()
+
+		_, err := client.Write([]byte{'W', 1, 0, 0, 0, 0x80})
+		require.NoError(t, err)
+		synctest.Wait()
+
+		require.ErrorIs(t, s.serverLifetimeCtx.Err(), context.Canceled)
+		require.EqualValues(t, 1, s.exitCode.Load())
+	})
+}
