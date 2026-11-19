@@ -32,8 +32,6 @@ _MAX_EVAL_TABLE_NAME_LENGTH = 256
 _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
-# The number of oversized media cells that the warning about them names.
-_MAX_OVERSIZED_MEDIA_LOCATIONS = 5
 # EvalTableValue.int_value is an int64.
 _MIN_INT64 = -(2**63)
 _MAX_INT64 = 2**63 - 1
@@ -118,26 +116,6 @@ def _ordered(
     return [values.get(name, pb.EvalTableValue()) for name in names]
 
 
-def _warn_oversized_media(
-    cells: Sequence[pb.EvalTableOversizedMediaCell],
-    *,
-    media_cells: int,
-) -> None:
-    """Warn about media cells that wandb-core uploaded as null."""
-    if not cells:
-        return
-    locations = ", ".join(
-        f"row {cell.row}, {cell.source} column {cell.name!r} ({cell.size} bytes)"
-        for cell in cells[:_MAX_OVERSIZED_MEDIA_LOCATIONS]
-    )
-    # wandb-core's limit is 3,500,000 bytes of compact JSON.
-    wandb.termwarn(
-        f"EvalTable uploaded {len(cells)} of {media_cells} media cells as null "
-        "because their CES values reached the 3.5 MB limit. "
-        f"First affected: {locations}."
-    )
-
-
 class CESWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
@@ -174,6 +152,7 @@ class CESWriter:
         bound_run = self._require_bound()
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
+        self._record_media_telemetry(write_payloads.media_cells_examined)
 
         # Build the request in place, since copying a table can be costly.
         request = pb.UploadEvalTableRequest()
@@ -183,15 +162,6 @@ class CESWriter:
         request.table.rows.extend(write_payloads.rows)
         request.table.upload_media_paths.extend(write_payloads.upload_media_paths)
         response = bound_run.run._upload_eval_table(request)
-
-        self._record_media_telemetry(
-            media_cells=write_payloads.media_cells_examined,
-            oversized_media_cells=len(response.oversized_media_cells),
-        )
-        _warn_oversized_media(
-            response.oversized_media_cells,
-            media_cells=write_payloads.media_cells_examined,
-        )
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",
@@ -571,23 +541,12 @@ class CESWriter:
             f"{observed_type!r} values."
         )
 
-    def _record_media_telemetry(
-        self,
-        *,
-        media_cells: int,
-        oversized_media_cells: int,
-    ) -> None:
-        # Track whether cells above 3.5 MB justify extended media metadata support.
+    def _record_media_telemetry(self, media_cells: int) -> None:
+        # Track how often CES EvalTables log media.
         if media_cells == 0:
             return
 
-        recorder = get_telemetry_recorder()
-        recorder.increment_counter(
+        get_telemetry_recorder().increment_counter(
             "eval_table_ces_media_write",
             LowCardinalityAttributes(),
         )
-        if oversized_media_cells:
-            recorder.increment_counter(
-                "eval_table_ces_media_write_with_oversized_cells",
-                LowCardinalityAttributes(),
-            )
