@@ -7,6 +7,7 @@ fake CES in place of the CoreWeave Evaluation Service.
 from __future__ import annotations
 
 import os
+import uuid
 from typing import Any
 
 import pytest
@@ -41,6 +42,22 @@ def fake_ces(wandb_backend_spy, wandb_backend_proxy_server, monkeypatch) -> None
         gql.Matcher(operation="ServerFeaturesQuery"),
         gql.Constant(content={"data": {"serverInfo": {"features": features}}}),
     )
+
+
+class _AnyUUIDv7:
+    """Equals any lowercase UUIDv7 string."""
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, str):
+            return False
+        try:
+            parsed = uuid.UUID(other)
+        except ValueError:
+            return False
+        return parsed.version == 7 and str(parsed) == other
+
+    def __repr__(self) -> str:
+        return "<any UUIDv7>"
 
 
 def _log_eval_table() -> wandb.Run:
@@ -96,7 +113,11 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     ]
 
     create, columns, rows, _ = requests
-    assert create.body == {"name": "eval"}
+    assert create.body == {
+        "name": "eval",
+        "evaluation_id": _AnyUUIDv7(),
+        "evaluation_version_id": _AnyUUIDv7(),
+    }
     assert columns.body == {
         "dataset_fields": [
             {"source": "input", "name": "question", "value_type": "string"},

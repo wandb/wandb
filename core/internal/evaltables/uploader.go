@@ -332,10 +332,17 @@ func (t *tableUpload) create(
 	ctx context.Context,
 	table *EncodedTable,
 ) (*ces.EvalTableNewResponse, error) {
+	ids, err := newTableIDs()
+	if err != nil {
+		return nil, err
+	}
 	created, err := t.evalTables.New(
 		ctx,
 		ces.EvalTableNewParams{ScopeID: ces.F(t.scopeID), Name: ces.F(table.name)},
 		t.keys.option("create"),
+		// cwevals-go doesn't have these fields yet.
+		option.WithJSONSet("evaluation_id", ids.evaluationID),
+		option.WithJSONSet("evaluation_version_id", ids.evaluationVersionID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
@@ -682,6 +689,31 @@ func (b *rowBatchBuilder) take() rowBatch {
 	b.body.Reset()
 	b.nrows = 0
 	return batch
+}
+
+// tableIDs are the IDs that a client names its EvalTable and the table's first
+// version with, so that they don't depend on CES's response.
+type tableIDs struct {
+	evaluationID        string
+	evaluationVersionID string
+}
+
+func newTableIDs() (tableIDs, error) {
+	evaluationID, err := uuid.NewV7()
+	if err != nil {
+		return tableIDs{}, fmt.Errorf("evaltables: failed to generate evaluation ID: %v", err)
+	}
+	evaluationVersionID, err := uuid.NewV7()
+	if err != nil {
+		return tableIDs{}, fmt.Errorf(
+			"evaltables: failed to generate evaluation version ID: %v",
+			err,
+		)
+	}
+	return tableIDs{
+		evaluationID:        evaluationID.String(),
+		evaluationVersionID: evaluationVersionID.String(),
+	}, nil
 }
 
 type idempotencyKeys struct {

@@ -15,8 +15,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -260,7 +262,7 @@ func TestUpload(t *testing.T) {
 	requests := ces.Requests()
 	require.Len(t, requests, 4)
 	assert.Equal(t, tablePath, requests[0].Path)
-	assert.JSONEq(t, `{"name": "my-table"}`, requests[0].Body)
+	assert.Equal(t, "my-table", gjson.Get(requests[0].Body, "name").String())
 	assert.Equal(t, tablePath+"/eval-id/columns", requests[1].Path)
 	assert.JSONEq(t, `{
 		"dataset_fields": [
@@ -361,6 +363,37 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"example_key":"2"}`+
 			`]`,
 		table.CESRowsJSON(t))
+}
+
+func TestUpload_NamesTableAndFirstVersionWithUUIDv7s(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	data := &spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, Rows: outputRows(1, 1)}
+
+	_, err := upload(context.Background(), uploader, data)
+	require.NoError(t, err)
+	_, err = upload(context.Background(), uploader, data)
+	require.NoError(t, err)
+
+	requests := ces.Requests()
+	require.Len(t, requests, 8)
+	var supplied []string
+	for _, request := range []cesRequest{requests[0], requests[4]} {
+		require.Equal(t, tablePath, request.Path)
+		for _, field := range []string{"evaluation_id", "evaluation_version_id"} {
+			id := gjson.Get(request.Body, field).String()
+			parsed, err := uuid.Parse(id)
+			require.NoError(t, err, field)
+			assert.Equal(t, uuid.Version(7), parsed.Version(), field)
+			assert.Equal(t, parsed.String(), id, field)
+			supplied = append(supplied, id)
+		}
+	}
+	distinct := make(map[string]bool)
+	for _, id := range supplied {
+		distinct[id] = true
+	}
+	assert.Len(t, distinct, 4)
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
