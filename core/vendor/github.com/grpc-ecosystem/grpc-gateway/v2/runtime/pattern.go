@@ -26,6 +26,9 @@ func (e MalformedSequenceError) Error() string {
 type op struct {
 	code    utilities.OpCode
 	operand int
+	// multisegment is set on an OpPush that is one segment of a variable
+	// spanning several segments, such as the "*" in {name=shelves/*}.
+	multisegment bool
 }
 
 // Pattern is a template pattern of http request paths defined in
@@ -126,6 +129,15 @@ func NewPatternWithOptions(version int, ops []int, pool []string, verb string, o
 				return Pattern{}, ErrInvalidPattern
 			}
 			stack++
+			// The segments of a variable are the ops pushed right before its
+			// OpConcatN, so these are the ones of a multi-segment variable.
+			if op.operand > 1 {
+				for j := len(typedOps) - op.operand; j < len(typedOps); j++ {
+					if typedOps[j].code == utilities.OpPush {
+						typedOps[j].multisegment = true
+					}
+				}
+			}
 		case utilities.OpCapture:
 			if op.operand < 0 || len(pool) <= op.operand {
 				grpclog.Errorf("variable name index out of bound: %d", op.operand)
@@ -193,8 +205,29 @@ func (p Pattern) matchAndEscape(components []string, verb string, unescapingMode
 	}
 
 	var pos int
-	stack := make([]string, 0, p.stacksize)
-	captured := make([]string, len(p.vars))
+
+	// Scratch space for the match. Neither backing array escapes -- only the individual
+	// strings they hold are copied into the returned bindings -- so fixed-size arrays keep
+	// both off the heap for the patterns generated code registers, where the stack size and
+	// the variable count are single digits.
+	//
+	// This matters beyond one allocation each: ServeHTTP calls matchAndEscape once per
+	// registered pattern until one matches, and both allocations happened before the
+	// non-match return below, so a request paid for them once for every route it did not
+	// match. With a few dozen routes registered that was the largest single source of
+	// allocations in routing.
+	var stackArr, capturedArr [8]string
+	stack := stackArr[:0]
+	if p.stacksize > len(stackArr) {
+		stack = make([]string, 0, p.stacksize)
+	}
+	var captured []string
+	if n := len(p.vars); n <= len(capturedArr) {
+		captured = capturedArr[:n]
+	} else {
+		captured = make([]string, n)
+	}
+
 	l := len(components)
 	for _, op := range p.ops {
 		var err error
@@ -212,7 +245,14 @@ func (p Pattern) matchAndEscape(components []string, verb string, unescapingMode
 					return nil, ErrNotMatch
 				}
 			} else if op.code == utilities.OpPush {
-				if c, err = unescape(c, unescapingMode, false); err != nil {
+				// google.api.http decodes a variable spanning several segments
+				// "except %2F and %2f", so a "*" in it can't add a path separator
+				// to the bound value. Other escapes are decoded as for {var}.
+				mode := unescapingMode
+				if op.multisegment && mode == UnescapingModeAllExceptReserved {
+					mode = UnescapingModeAllExceptSlash
+				}
+				if c, err = unescape(c, mode, op.multisegment); err != nil {
 					return nil, err
 				}
 			}
