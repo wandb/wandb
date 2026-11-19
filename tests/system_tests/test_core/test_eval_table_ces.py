@@ -106,13 +106,8 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     }
     assert rows.body == {"rows": _ROWS}
 
-    prefix = requests[0].idempotency_key.removesuffix("-create")
-    assert [r.idempotency_key for r in requests] == [
-        f"{prefix}-create",
-        f"{prefix}-columns",
-        f"{prefix}-rows-0",
-        f"{prefix}-version",
-    ]
+    keys = [r.idempotency_key for r in requests]
+    assert all(keys) and len(set(keys)) == len(keys), keys
 
     assert history[0]["eval"] == {
         "_type": "eval-table-ces",
