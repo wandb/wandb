@@ -17,7 +17,7 @@ import (
 const mediaSchemaVersion = 1
 
 // maxMediaValueBytes is the size of compact JSON at which a media cell's
-// CES extension value is too large, and the cell is uploaded as null.
+// CES extension value is too large.
 //
 // It matches CES's limit on image list values, and the 3.5 MB ClickHouse
 // single-row insert limit that Weave adopted after larger rows failed in
@@ -95,7 +95,16 @@ func (c *mediaConverter) convertMedia(
 		return nil, err
 	}
 
-	return appendJSON(nil, value)
+	converted, err := appendJSON(nil, value)
+	if err != nil {
+		return nil, err
+	}
+	if len(converted) >= maxMediaValueBytes {
+		return nil, fmt.Errorf(
+			"media value is %d bytes, must be under %d",
+			len(converted), maxMediaValueBytes)
+	}
+	return converted, nil
 }
 
 func (c *mediaConverter) imageValue(
