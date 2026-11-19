@@ -1454,7 +1454,11 @@ func (s *Sender) uploadEvalTable(
 	if err != nil {
 		return nil, err
 	}
-	defer table.Close()
+	defer func() {
+		if err := table.Close(); err != nil {
+			s.logger.CaptureError("stream", fmt.Errorf("sender: uploadEvalTable: %v", err))
+		}
+	}()
 
 	if mediaPaths := msg.GetTable().GetUploadMediaPaths(); len(mediaPaths) > 0 {
 		files := &spb.FilesRecord{}

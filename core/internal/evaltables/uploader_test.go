@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -151,8 +152,8 @@ func upload(
 	if err != nil {
 		return nil, err
 	}
-	defer table.Close()
-	return uploader.Upload(ctx, table)
+	response, err := uploader.Upload(ctx, table)
+	return response, errors.Join(err, table.Close())
 }
 
 func encode(
@@ -164,7 +165,7 @@ func encode(
 		t, projectFoundJSON, settings.From(&spb.Settings{}))
 	table, err := uploader.Encode(request)
 	if table != nil {
-		t.Cleanup(table.Close)
+		t.Cleanup(func() { assert.NoError(t, table.Close()) })
 	}
 	return table, err
 }
@@ -659,9 +660,9 @@ func TestUpload_ReadsWandbRowsFileOnlyWhileEncoding(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(path))
 	_, err = uploader.Upload(context.Background(), table)
-	table.Close()
 
 	require.NoError(t, err)
+	require.NoError(t, table.Close())
 	assert.Equal(t,
 		`{"rows":[{"input":null,"output":{"x":"1"},"scores":{}}]}`,
 		ces.Requests()[2].Body)
@@ -741,6 +742,24 @@ func TestEncode_RejectsBothRowsAndWandbRowsFile(t *testing.T) {
 
 	assert.ErrorContains(t, err, "both rows and a W&B rows file")
 	assert.True(t, evaltables.IsUsageError(err))
+}
+
+func TestUpload_SucceedsWithoutProgress(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	op := wboperation.NewOperations().New("uploading eval table t")
+	_, err := op.NewProgress()
+	require.NoError(t, err)
+
+	_, err = upload(op.Context(context.Background()), uploader,
+		&spb.EvalTableData{
+			Name:          "t",
+			DatasetFields: outputFieldX,
+			Rows:          outputRows(1, 1),
+		})
+
+	require.NoError(t, err)
+	assert.Len(t, ces.Requests(), 4)
 }
 
 func TestUpload_NoCESURL(t *testing.T) {
