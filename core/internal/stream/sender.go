@@ -696,6 +696,9 @@ func (s *Sender) finishRunSync(
 	// Wait for artifacts operations to complete here to detect
 	// code artifacts, then upload the code (aka "job") artifact, if any.
 	s.artifactWG.Wait()
+
+	// Finish EvalTable uploads, which queue their media files for upload,
+	// before uploading the remaining run files.
 	s.evalTableWG.Wait()
 
 	s.mu.Lock()
@@ -1430,10 +1433,13 @@ func (s *Sender) sendRequestUploadEvalTable(
 				},
 			}
 		case err != nil:
-			s.logger.CaptureError(
-				"stream",
-				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
-			)
+			// Don't report uploads stopped by the client or the run ending.
+			if ctx.Err() == nil {
+				s.logger.CaptureError(
+					"stream",
+					fmt.Errorf("sender: failed to upload EvalTable: %v", err),
+				)
+			}
 			response = &spb.UploadEvalTableResponse{
 				Error: &spb.ErrorInfo{Message: err.Error()},
 			}

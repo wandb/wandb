@@ -695,8 +695,9 @@ type idempotencyKeys struct {
 // Uploads can't key on where the table is logged: in shared mode, writers
 // to the same run can log the same key at the same step.
 //
-// CES replays a request with the same key and body, and rejects one with
-// the same key but a different body.
+// CES replays a create, row append, or version request with the same key,
+// and rejects one with the same key but a different body. Repeating an
+// identical column declaration is a no-op.
 func newIdempotencyKeys() idempotencyKeys {
 	return idempotencyKeys{
 		prefix: fmt.Sprintf(

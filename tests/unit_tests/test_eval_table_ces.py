@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from google.protobuf.message import Message
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import Error, UnsupportedError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces
@@ -587,7 +587,7 @@ def test_ces_error_uses_original_integer_column(deliver_upload_eval_table, run):
     [
         (pb.ErrorInfo.USAGE, UsageError, "^failed$"),
         (pb.ErrorInfo.UNSUPPORTED, UnsupportedError, "^failed$"),
-        (pb.ErrorInfo.UNKNOWN, CommError, "^Failed to upload EvalTable: failed$"),
+        (pb.ErrorInfo.UNKNOWN, Error, "^failed$"),
     ],
 )
 def test_ces_eval_table_upload_error_allows_retry(
@@ -607,9 +607,10 @@ def test_ces_eval_table_upload_error_allows_retry(
     )
     et.bind_to_run(run, "eval", 7)
 
-    with pytest.raises(error_type, match=message):
+    with pytest.raises(error_type, match=message) as exc_info:
         et.to_json(run)
 
+    assert type(exc_info.value) is error_type
     assert et.to_json(run)["evaluation_version_id"] == "evaluation-version-1"
 
 

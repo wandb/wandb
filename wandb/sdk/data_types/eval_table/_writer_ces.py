@@ -28,7 +28,7 @@ _logger = logging.getLogger(__name__)
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
-# Allow ten count-limited batches while failing fast on runaway tables.
+# Fails fast on runaway tables.
 _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
@@ -167,17 +167,14 @@ class CESWriter:
                 f"First affected: {locations}.",
             )
 
-        response = bound_run.run._upload_eval_table(
-            pb.UploadEvalTableRequest(
-                table=pb.EvalTableData(
-                    name=name,
-                    dataset_fields=write_payloads.dataset_fields,
-                    scorers=write_payloads.scorers,
-                    rows=write_payloads.rows,
-                    upload_media_paths=write_payloads.upload_media_paths,
-                ),
-            ),
-        )
+        # Build the request in place, since copying a table can be costly.
+        request = pb.UploadEvalTableRequest()
+        request.table.name = name
+        request.table.dataset_fields.extend(write_payloads.dataset_fields)
+        request.table.scorers.extend(write_payloads.scorers)
+        request.table.rows.extend(write_payloads.rows)
+        request.table.upload_media_paths.extend(write_payloads.upload_media_paths)
+        response = bound_run.run._upload_eval_table(request)
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",
