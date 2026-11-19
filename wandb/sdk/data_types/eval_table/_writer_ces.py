@@ -32,7 +32,7 @@ _logger = logging.getLogger(__name__)
 # Tables with more serialized row bytes than this send their rows to
 # wandb-core in a file. wandb-core streams the file, but holds inline rows in
 # memory several times over until the upload ends.
-_ROWS_FILE_THRESHOLD_BYTES = 64 << 20
+_ROWS_FILE_THRESHOLD_BYTES = 64 << 20  # 64 MiB
 # Each byte of a varint holds 7 bits of the value, low bits first, and sets
 # its high bit if more bytes follow.
 _VARINT_PAYLOAD_BITS = 7
