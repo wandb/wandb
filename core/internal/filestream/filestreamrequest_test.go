@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestHistory_MergeAppends(t *testing.T) {
@@ -31,9 +31,8 @@ func TestEvents_MergeAppends(t *testing.T) {
 
 func TestSummary_MergeNil_NoChange(t *testing.T) {
 	req1 := &FileStreamRequest{
-		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
-			Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: `1`}},
-		}),
+		SummaryUpdates: runsummary.NoUpdates().
+			Set(pathtree.PathOf("xyz"), 1),
 	}
 	req2 := &FileStreamRequest{}
 
@@ -45,9 +44,8 @@ func TestSummary_MergeNil_NoChange(t *testing.T) {
 func TestSummary_MergeNilAndNonNil_UsesLatest(t *testing.T) {
 	req1 := &FileStreamRequest{}
 	req2 := &FileStreamRequest{
-		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
-			Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: `3`}},
-		}),
+		SummaryUpdates: runsummary.NoUpdates().
+			Set(pathtree.PathOf("xyz"), 3),
 	}
 
 	req1.Merge(req2)
@@ -57,25 +55,20 @@ func TestSummary_MergeNilAndNonNil_UsesLatest(t *testing.T) {
 
 func TestSummary_Merge_CombinesUpdates(t *testing.T) {
 	req1 := &FileStreamRequest{
-		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
-			Update: []*spb.SummaryItem{{Key: "abc", ValueJson: `1`}},
-		}),
+		SummaryUpdates: runsummary.NoUpdates().
+			Set(pathtree.PathOf("abc"), 1),
 	}
 	req2 := &FileStreamRequest{
-		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
-			Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: `2`}},
-		}),
+		SummaryUpdates: runsummary.NoUpdates().
+			Set(pathtree.PathOf("xyz"), 2),
 	}
 
 	req1.Merge(req2)
 
 	assert.Equal(t,
-		runsummary.FromProto(&spb.SummaryRecord{
-			Update: []*spb.SummaryItem{
-				{Key: "abc", ValueJson: `1`},
-				{Key: "xyz", ValueJson: `2`},
-			},
-		}),
+		runsummary.NoUpdates().
+			Set(pathtree.PathOf("abc"), 1).
+			Set(pathtree.PathOf("xyz"), 2),
 		req1.SummaryUpdates)
 }
 
