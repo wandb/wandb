@@ -13,159 +13,86 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
+func newTestSystemMonitor(
+	t *testing.T,
+	resourceManager *monitor.SymonResourceManager,
+	wbSettings *settings.Settings,
+) *monitor.SystemMonitor {
 	t.Helper()
+
 	factory := &monitor.SystemMonitorFactory{
 		Logger:               observabilitytest.NewTestLogger(t),
-		Settings:             settings.From(&spb.Settings{XDisableStats: wrapperspb.Bool(true)}),
-		SymonResourceManager: monitor.NewSymonResourceManager(false),
+		Settings:             wbSettings,
+		SymonResourceManager: resourceManager,
 	}
+
 	return factory.New(runworktest.New())
 }
 
-func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
-	sm := newTestSystemMonitor(t)
+func TestSystemMonitor(t *testing.T) {
+	resourceManager := monitor.NewSymonResourceManager(false)
 
-	assert.Equal(t, monitor.StateStopped, sm.GetState())
+	t.Run("Start subscribes", func(t *testing.T) {
+		sm := newTestSystemMonitor(t, resourceManager, settings.New())
+		defer sm.Finish()
 
-	sm.Start(nil)
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
+		sm.Start()
 
-	sm.Pause()
-	assert.Equal(t, monitor.StatePaused, sm.GetState())
+		assert.True(t, sm.TestOnlyIsSubscribed())
+	})
 
-	sm.Resume()
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
+	t.Run("Pause unsubscribes", func(t *testing.T) {
+		sm := newTestSystemMonitor(t, resourceManager, settings.New())
+		defer sm.Finish()
 
-	sm.Finish()
-	assert.Equal(t, monitor.StateStopped, sm.GetState())
-}
+		sm.Start()
+		sm.Pause()
 
-func TestSystemMonitor_RepeatedCalls(t *testing.T) {
-	sm := newTestSystemMonitor(t)
+		assert.False(t, sm.TestOnlyIsSubscribed())
+	})
 
-	// Multiple starts
-	sm.Start(nil)
-	sm.Start(nil)
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
+	t.Run("Paused Start does not subscribe", func(t *testing.T) {
+		sm := newTestSystemMonitor(t, resourceManager, settings.New())
+		defer sm.Finish()
 
-	// Multiple pauses
-	sm.Pause()
-	sm.Pause()
-	assert.Equal(t, monitor.StatePaused, sm.GetState())
+		sm.Pause()
+		sm.Start()
 
-	// Multiple resumes
-	sm.Resume()
-	sm.Resume()
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
+		assert.False(t, sm.TestOnlyIsSubscribed())
+	})
 
-	// Multiple finishes
-	sm.Finish()
-	sm.Finish()
-	assert.Equal(t, monitor.StateStopped, sm.GetState())
-}
+	t.Run("Resume resubscribes", func(t *testing.T) {
+		sm := newTestSystemMonitor(t, resourceManager, settings.New())
+		defer sm.Finish()
 
-func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
-	sm := newTestSystemMonitor(t)
+		sm.Pause()
+		sm.Start()
+		sm.Resume()
 
-	// Resume when stopped
-	sm.Resume()
-	assert.Equal(
-		t,
-		monitor.StateStopped,
-		sm.GetState(),
-		"Resume should not change state when stopped",
-	)
+		assert.True(t, sm.TestOnlyIsSubscribed())
+	})
 
-	// Pause when stopped
-	sm.Pause()
-	assert.Equal(
-		t,
-		monitor.StateStopped,
-		sm.GetState(),
-		"Pause should not change state when stopped",
-	)
+	t.Run("does not subscribe if x_disable_stats", func(t *testing.T) {
+		sm := newTestSystemMonitor(t, resourceManager, settings.From(
+			&spb.Settings{XDisableStats: wrapperspb.Bool(true)},
+		))
+		defer sm.Finish()
 
-	// Start and then unexpected transitions
-	sm.Start(nil)
-	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Start should change state to running")
+		sm.Start()
+		sm.Resume()
 
-	sm.Start(nil) // Start when already running
-	assert.Equal(
-		t,
-		monitor.StateRunning,
-		sm.GetState(),
-		"Start should not change state when already running",
-	)
+		assert.False(t, sm.TestOnlyIsSubscribed())
+	})
 
-	sm.Resume() // Resume when running
-	assert.Equal(
-		t,
-		monitor.StateRunning,
-		sm.GetState(),
-		"Resume should not change state when running",
-	)
+	t.Run("does not subscribe if x_disable_machine_info", func(t *testing.T) {
+		sm := newTestSystemMonitor(t, resourceManager, settings.From(
+			&spb.Settings{XDisableMachineInfo: wrapperspb.Bool(true)},
+		))
+		defer sm.Finish()
 
-	// Pause and then unexpected transitions
-	sm.Pause()
-	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Pause should change state to paused")
+		sm.Start()
+		sm.Resume()
 
-	sm.Pause() // Pause when already paused
-	assert.Equal(
-		t,
-		monitor.StatePaused,
-		sm.GetState(),
-		"Pause should not change state when already paused",
-	)
-
-	sm.Start(nil) // Start when paused
-	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Start should not change state when paused")
-
-	// Finish from any state
-	sm.Finish()
-	assert.Equal(
-		t,
-		monitor.StateStopped,
-		sm.GetState(),
-		"Finish should change state to stopped from paused",
-	)
-
-	sm.Start(nil)
-	sm.Finish()
-	assert.Equal(
-		t,
-		monitor.StateStopped,
-		sm.GetState(),
-		"Finish should change state to stopped from running",
-	)
-}
-
-func TestSystemMonitor_FullCycle(t *testing.T) {
-	sm := newTestSystemMonitor(t)
-
-	// Full cycle of operations
-	sm.Start(nil)
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
-
-	sm.Pause()
-	assert.Equal(t, monitor.StatePaused, sm.GetState())
-
-	sm.Resume()
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
-
-	sm.Pause()
-	assert.Equal(t, monitor.StatePaused, sm.GetState())
-
-	sm.Resume()
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
-
-	sm.Finish()
-	assert.Equal(t, monitor.StateStopped, sm.GetState())
-
-	// Start again after finishing
-	sm.Start(nil)
-	assert.Equal(t, monitor.StateRunning, sm.GetState())
-
-	sm.Finish()
-	assert.Equal(t, monitor.StateStopped, sm.GetState())
+		assert.False(t, sm.TestOnlyIsSubscribed())
+	})
 }

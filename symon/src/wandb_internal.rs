@@ -804,11 +804,6 @@ pub struct BranchPoint {
 /// the backend returns when creating a new online run), and some fields may be
 /// updated (like `entity` and `project`, which are determined through a query
 /// if not given).
-///
-/// After creating a run, the values in RunUpdateResult must be propagated to
-/// the RunStartRequest. This is a legacy pattern that wandb-core uses to
-/// communicate with itself. The updated run record may be returned to another
-/// process that "attaches" to the run via the AttachResponse.
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
@@ -1027,6 +1022,13 @@ pub struct HistoryRecord {
     pub item: ::prost::alloc::vec::Vec<HistoryItem>,
     #[prost(message, optional, tag = "2")]
     pub step: ::core::option::Option<HistoryStep>,
+    /// The time the step was logged relative to the start of this run segment.
+    ///
+    /// In other words, this is relative to the start of the .wandb file (if one
+    /// exists). In a resumed run, this is different from the "runtime", which is
+    /// the time from the start of the run.
+    #[prost(int64, optional, tag = "3")]
+    pub relative_time_ms: ::core::option::Option<i64>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1777,13 +1779,13 @@ pub struct AlertResult {}
 /// step with a PartialHistoryRequest, which produces artificial Records
 /// when a step is committed).
 ///
-/// Next ID: 85
+/// Next ID: 86
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 85, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1814,8 +1816,6 @@ pub mod request {
         PartialHistory(super::PartialHistoryRequest),
         #[prost(message, tag = "84")]
         HistoryStep(super::HistoryStepRequest),
-        #[prost(message, tag = "11")]
-        RunStart(super::RunStartRequest),
         #[prost(message, tag = "12")]
         CheckVersion(super::CheckVersionRequest),
         #[prost(message, tag = "13")]
@@ -1860,6 +1860,8 @@ pub mod request {
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
+        #[prost(message, tag = "85")]
+        WaitForRunExitFlush(super::WaitForRunExitFlushRequest),
         /// Requests information about tasks the service is performing.
         #[prost(message, tag = "82")]
         Operations(super::OperationStatsRequest),
@@ -1872,13 +1874,13 @@ pub mod request {
 }
 /// Response: all non persistent responses to Requests
 ///
-/// Next ID: 75
+/// Next ID: 77
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 75, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 76, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1903,8 +1905,6 @@ pub mod response {
         SampledHistoryResponse(super::SampledHistoryResponse),
         #[prost(message, tag = "75")]
         HistoryStepResponse(super::HistoryStepResponse),
-        #[prost(message, tag = "28")]
-        RunStartResponse(super::RunStartResponse),
         #[prost(message, tag = "29")]
         CheckVersionResponse(super::CheckVersionResponse),
         #[prost(message, tag = "30")]
@@ -1933,6 +1933,8 @@ pub mod response {
         LinkArtifactResponse(super::LinkArtifactResponse),
         #[prost(message, tag = "70")]
         SyncResponse(super::SyncResponse),
+        #[prost(message, tag = "76")]
+        WaitForRunExitFlushResponse(super::WaitForRunExitFlushResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
@@ -2611,18 +2613,18 @@ pub struct RunStatusResponse {
     #[prost(message, optional, tag = "3")]
     pub sync_time: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// RunStartRequest: start the run
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RunStartRequest {
-    #[prost(message, optional, tag = "1")]
-    pub run: ::core::option::Option<RunRecord>,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
+/// Waits until the transaction log has been flushed after the run's exit record.
+///
+/// After this message is record has been received by a client
+/// it signals that the transaction log file's contents are finalized and can be read by other programs,
+/// for example to create a backup.
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RunStartResponse {}
+pub struct WaitForRunExitFlushRequest {}
+/// Indicates the transaction log was successfully flushed.
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct WaitForRunExitFlushResponse {}
 /// CheckVersion:
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

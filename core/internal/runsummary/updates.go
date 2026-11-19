@@ -13,13 +13,13 @@ import (
 
 // Updates is a collection of updates to a run's summary.
 //
-// A nil value acts like no updates but cannot be mutated with Merge.
+// A nil value acts like no updates but cannot be mutated with Merge/Set/Remove.
 type Updates struct {
 	// update contains values to add to or change in the summary.
 	//
-	// Leaves in the tree are JSON-encoded values (supporting +-Infinity
+	// Leaves in the tree are JSON-encodable values (supporting +-Infinity
 	// and NaN).
-	update *pathtree.PathTree[string]
+	update *pathtree.PathTree[any]
 
 	// remove contains paths to remove from the summary.
 	//
@@ -37,18 +37,30 @@ func (u *Updates) IsEmpty() bool {
 // NoUpdates returns a mutable Updates instance that makes no changes.
 func NoUpdates() *Updates {
 	return &Updates{
-		update: pathtree.New[string](),
+		update: pathtree.New[any](),
 		remove: pathtree.New[struct{}](),
 	}
 }
 
 // FromProto makes Updates from a SummaryRecord.
-func FromProto(record *spb.SummaryRecord) *Updates {
+//
+// Always returns a mutable, non-nil `Updates` instance, even on error.
+// A partial success is possible if some values' JSON strings cannot be
+// unmarshaled.
+func FromProto(record *spb.SummaryRecord) (*Updates, error) {
+	var errs []error
 	u := NoUpdates()
 
 	for _, item := range record.GetUpdate() {
 		path := keyPath(item)
-		u.update.Set(path, item.GetValueJson())
+
+		value, err := simplejsonext.UnmarshalString(item.GetValueJson())
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %v", toDottedPath(path), err))
+			continue
+		}
+
+		u.update.Set(path, value)
 	}
 
 	for _, item := range record.GetRemove() {
@@ -57,17 +69,38 @@ func FromProto(record *spb.SummaryRecord) *Updates {
 		u.update.Remove(path)
 	}
 
+	return u, errors.Join(errs...)
+}
+
+// Ignore makes this instance neither remove nor update a path.
+//
+// Returns self for a fluent API.
+func (u *Updates) Ignore(path pathtree.TreePath) *Updates {
+	if u == nil {
+		return nil
+	}
+
+	u.update.Remove(path)
+	u.remove.Remove(path)
 	return u
 }
 
-// IgnoreStep discards changes to _step.
-func (u *Updates) IgnoreStep() {
-	if u == nil {
-		return
-	}
-	step := pathtree.PathOf("_step")
-	u.update.Remove(step)
-	u.remove.Remove(step)
+// Set makes this instance update the given summary path to the given value.
+//
+// Returns self for a fluent API.
+func (u *Updates) Set(path pathtree.TreePath, value any) *Updates {
+	u.remove.Remove(path)
+	u.update.Set(path, value)
+	return u
+}
+
+// Remove makes this instance remove the given path from a run summary.
+//
+// Returns self for a fluent API.
+func (u *Updates) Remove(path pathtree.TreePath) *Updates {
+	u.remove.Set(path, struct{}{})
+	u.update.Remove(path)
+	return u
 }
 
 // Merge merges the given Updates into this Updates instance,
@@ -79,9 +112,9 @@ func (u *Updates) Merge(newUpdates *Updates) {
 	}
 
 	newUpdates.update.ForEachLeaf(
-		func(path pathtree.TreePath, valueJSON string) bool {
+		func(path pathtree.TreePath, value any) bool {
 			u.remove.Remove(path)
-			u.update.Set(path, valueJSON)
+			u.update.Set(path, value)
 			return true
 		})
 
@@ -94,27 +127,14 @@ func (u *Updates) Merge(newUpdates *Updates) {
 }
 
 // Apply modifies the summary with these updates.
-//
-// A partial success is possible if some values' JSON strings cannot be
-// unmarshaled.
-func (u *Updates) Apply(rs *RunSummary) error {
+func (u *Updates) Apply(rs *RunSummary) {
 	if u == nil {
-		return nil
+		return
 	}
 
-	var errs []error
-
 	u.update.ForEachLeaf(
-		func(path pathtree.TreePath, valueJSON string) bool {
-			value, err := simplejsonext.UnmarshalString(valueJSON)
-
-			if err != nil {
-				errs = append(errs,
-					fmt.Errorf("error in path %s: %v", toDottedPath(path), err))
-			} else {
-				rs.Set(path, value)
-			}
-
+		func(path pathtree.TreePath, value any) bool {
+			rs.Set(path, value)
 			return true
 		})
 
@@ -123,14 +143,6 @@ func (u *Updates) Apply(rs *RunSummary) error {
 			rs.Remove(path)
 			return true
 		})
-
-	if len(errs) > 0 {
-		return fmt.Errorf(
-			"runsummary: failed to update some keys: %v",
-			errors.Join(errs...))
-	}
-
-	return nil
 }
 
 // toDottedPath escapes dots in the path components and concatenates them

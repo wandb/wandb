@@ -31,10 +31,18 @@ type RunHandle interface {
 	// nil.
 	Init(upserter *RunUpserter) error
 
+	// FailInit is called when initialization fails.
+	FailInit()
+
 	// Upserter returns the run set by a previous call to SetRunUpserter.
 	//
 	// It is called from the Sender goroutine.
 	Upserter() (*RunUpserter, error)
+
+	// StartStopwatch begins tracking elapsed time.
+	//
+	// Does nothing if the stopwatch is already started.
+	StartStopwatch()
 }
 
 // RunUpdateWork implements Work to initialize or update a run.
@@ -62,6 +70,10 @@ func (w *RunUpdateWork) Accept(
 	_ *runwork.Request,
 	_ func(*spb.Record, *runwork.Request),
 ) bool {
+	// Measure the `_runtime` metric from the moment that the first RunRecord
+	// is received, before the Handler processes any history records.
+	w.RunHandle.StartStopwatch()
+
 	return true
 }
 
@@ -104,6 +116,8 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 	})
 
 	if err != nil {
+		w.RunHandle.FailInit()
+
 		w.Logger.Error("runupserter: failed to init run", "error", err)
 		respondRunUpdate(request, runInitErrorResult(err))
 		return
