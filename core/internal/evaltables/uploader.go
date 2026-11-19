@@ -171,9 +171,9 @@ func (u *Uploader) Upload(
 
 	// NewProgress only fails if the operation already has progress.
 	progress, _ := wboperation.Get(ctx).NewProgress()
-	totalRows := len(table.rowsJSON)
+	totalRows := len(table.cesRows)
 	rowsDone := 0
-	for i, batch := range rowBatches(table.rowsJSON) {
+	for i, batch := range rowBatches(table.cesRows) {
 		_, err = evalTables.Rows.Add(
 			ctx,
 			created.EvaluationID,
@@ -359,7 +359,7 @@ type rowBatch struct {
 //
 // Each body has at most maxRowsPerBatch rows and is at most
 // targetRowBatchBytes, unless it has a single larger row.
-func rowBatches(rowsJSON [][]byte) []rowBatch {
+func rowBatches(cesRows [][]byte) []rowBatch {
 	var batches []rowBatch
 	var body bytes.Buffer
 	nrows := 0
@@ -374,7 +374,7 @@ func rowBatches(rowsJSON [][]byte) []rowBatch {
 		nrows = 0
 	}
 
-	for _, row := range rowsJSON {
+	for _, row := range cesRows {
 		if nrows > 0 &&
 			(nrows >= maxRowsPerBatch ||
 				body.Len()+1+len(row)+len(rowBatchSuffix) > targetRowBatchBytes) {
