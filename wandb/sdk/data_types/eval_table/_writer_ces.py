@@ -35,6 +35,7 @@ _ROWS_FILE_THRESHOLD_BYTES = 64 << 20
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
+_MAX_EXAMPLE_KEY_LENGTH = 2048
 # Allow ten count-limited batches while failing fast on runaway tables.
 _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
@@ -92,9 +93,10 @@ def _encode_rows(
 ) -> list[pb.EvalTableRow]:
     """Encode rows of typed cells, keyed by column name, in their columns' order.
 
-    CES derives the example key of a row with inputs from a hash of its whole
-    input, so comparisons match rows with equal inputs. Rows without inputs are
-    keyed by position instead.
+    Rows from a table with a key column use its value as their example key.
+    Otherwise, CES derives the example key of a row with inputs from a hash of
+    its whole input, so comparisons match rows with equal inputs. Rows without
+    inputs are keyed by position instead.
     """
     input_names = [field.name for field in dataset_fields if field.source == "input"]
     output_names = [field.name for field in dataset_fields if field.source == "output"]
@@ -112,7 +114,13 @@ def _encode_rows(
                 else pb.EvalTableRowValues(values=_ordered(row.output, output_names))
             ),
             scores=_ordered(row.scores, scorer_names),
-            example_key="" if row.inputs else str(row_index + 1),
+            example_key=(
+                row.example_key
+                if row.example_key is not None
+                else ""
+                if row.inputs
+                else str(row_index + 1)
+            ),
         )
         for row_index, row in enumerate(rows)
     ]
@@ -311,6 +319,15 @@ class CESWriter:
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
+            if (
+                row.example_key is not None
+                and len(row.example_key) > _MAX_EXAMPLE_KEY_LENGTH
+            ):
+                raise UsageError(
+                    "CES EvalTable example keys must have at most "
+                    f"{_MAX_EXAMPLE_KEY_LENGTH} characters; row {row_index + 1} "
+                    f"has {len(row.example_key)}."
+                )
             inputs, input_media = self._normalize_row_input_or_output_values(
                 row.inputs,
                 source="input",
@@ -343,7 +360,12 @@ class CESWriter:
                 order=scorer_order,
             )
             normalized_rows.append(
-                WriteRow(inputs=inputs, output=output, scores=scores)
+                WriteRow(
+                    inputs=inputs,
+                    output=output,
+                    scores=scores,
+                    example_key=row.example_key,
+                )
             )
 
         missing_fields = [
