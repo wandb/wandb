@@ -166,7 +166,7 @@ def _add_rows(
     try:
         with file:
             _write_rows(file, rows)
-        table.rows_file_path = file.name
+        table.wandb_rows_file_path = file.name
         yield
     finally:
         # Removal is best effort, so that a failure to remove the file,

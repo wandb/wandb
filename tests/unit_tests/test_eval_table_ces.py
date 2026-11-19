@@ -190,7 +190,7 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
     file_rows = []
 
     def read_rows_file(request: pb.UploadEvalTableRequest) -> Any:
-        file_rows.extend(_read_rows_file(request.table.rows_file_path))
+        file_rows.extend(_read_rows_file(request.table.wandb_rows_file_path))
         return DEFAULT
 
     deliver_upload_eval_table.side_effect = read_rows_file
@@ -199,10 +199,10 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
 
     [request] = _sent(deliver_upload_eval_table)
     assert not request.rows
-    assert os.path.dirname(request.rows_file_path) == os.path.join(
+    assert os.path.dirname(request.wandb_rows_file_path) == os.path.join(
         run.settings.sync_dir, "tmp", "eval-tables"
     )
-    assert not os.path.exists(request.rows_file_path)
+    assert not os.path.exists(request.wandb_rows_file_path)
     request.rows.extend(file_rows)
     assert _rows(request) == [
         {
@@ -236,8 +236,8 @@ def test_ces_eval_table_deletes_rows_file_after_failed_upload(
         et.to_json(run)
 
     [request] = _sent(deliver_upload_eval_table)
-    assert request.rows_file_path
-    assert not os.path.exists(request.rows_file_path)
+    assert request.wandb_rows_file_path
+    assert not os.path.exists(request.wandb_rows_file_path)
 
 
 def test_ces_eval_table_without_inputs_keys_rows_by_position(
