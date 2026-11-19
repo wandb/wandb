@@ -10,7 +10,7 @@ type Stopwatch struct {
 	accumulated time.Duration // elapsed time at the last Stop()
 }
 
-// Start resumes the stopwatch.
+// Start resumes the stopwatch if it was paused.
 func (s *Stopwatch) Start() {
 	if !s.lastStart.IsZero() {
 		return

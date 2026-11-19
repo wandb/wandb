@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,6 +39,8 @@ import (
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+var stepMetric = pathtree.PathOf("_step")
 
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
@@ -485,6 +486,8 @@ func (s *Sender) startFileStreamAfterRunInit() {
 	}
 
 	s.fileStreamStart.Go(func() {
+		defer s.logger.Reraise("stream")
+
 		select {
 		case <-s.receivedExitCh:
 			return
@@ -495,7 +498,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 		if err != nil {
 			s.logger.CaptureError(
 				"stream",
-				fmt.Errorf("sender: sendRequestRunStart: %v", err),
+				fmt.Errorf("sender: startFileStreamAfterRunInit: %v", err),
 			)
 			return
 		}
@@ -945,18 +948,19 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		Row:   history,
 		Cells: len(record.GetItem()),
 	})
-	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
+
+	if !s.settings.IsSharedMode() &&
+		!s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
 }
 
 func (s *Sender) updateSummaryStep(step int64) {
-	s.runSummary.Set(pathtree.PathOf("_step"), step)
-	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
-		Key:       "_step",
-		ValueJson: strconv.FormatInt(step, 10),
-	}}})
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	s.runSummary.Set(stepMetric, step)
+
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
+		Updates: runsummary.NoUpdates().Set(stepMetric, step),
+	})
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
@@ -965,21 +969,21 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 		return
 	}
 
-	updates := runsummary.FromProto(summary)
+	if s.fileStream == nil {
+		return
+	}
 
-	// Summary should always use the step from history records.
-	updates.IgnoreStep()
-
-	if err := updates.Apply(s.runSummary); err != nil {
+	updates, err := runsummary.FromProto(summary)
+	updates.Ignore(stepMetric) // Always use the step from history records.
+	if err != nil {
 		s.logger.CaptureError(
 			"stream",
 			fmt.Errorf("sender: error updating summary: %v", err),
 		)
+		// Continue, partial success is possible.
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
-	}
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 
 func (s *Sender) uploadSummaryFile() {
