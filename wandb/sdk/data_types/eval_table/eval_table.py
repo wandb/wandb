@@ -379,46 +379,60 @@ class EvalTable(Table):
         # by position instead.
         inject_row_index = self._backend == "weave" and not self._input_columns
 
-        rows: list[WriteRow] = []
-        for row_idx, row in enumerate(self.data, start=1):
-            values = dict(zip(str_columns, row, strict=True))
-            inputs: dict[ColumnKey, Any] = (
-                {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
-                if inject_row_index
-                else {columns_by_name[col]: values[col] for col in self._input_columns}
+        rows = [
+            self._write_row(
+                dict(zip(str_columns, row, strict=True)),
+                row_idx=row_idx,
+                columns_by_name=columns_by_name,
+                output_cols=output_cols,
+                inject_row_index=inject_row_index,
             )
-
-            # Always use a dict so backends see a stable column-keyed shape;
-            # single-output is no exception.
-            if output_cols:
-                output: dict[ColumnKey, Any] | None = {
-                    columns_by_name[col]: values[col] for col in output_cols
-                }
-            else:
-                output = None
-
-            scores = {columns_by_name[col]: values[col] for col in self._score_columns}
-            example_key = (
-                None
-                if self._key_column is None
-                else _example_key(
-                    values[self._key_column], column=self._key_column, row=row_idx
-                )
-            )
-            rows.append(
-                WriteRow(
-                    inputs=inputs,
-                    output=output,
-                    scores=scores,
-                    example_key=example_key,
-                )
-            )
+            for row_idx, row in enumerate(self.data, start=1)
+        ]
 
         return self._writer.write(
             name=self._run_log_key,
             rows=rows,
             ncols=len(self.columns),
             log_mode=self.log_mode,
+        )
+
+    def _write_row(
+        self,
+        values: dict[str, Any],
+        *,
+        row_idx: int,
+        columns_by_name: dict[str, ColumnKey],
+        output_cols: list[str],
+        inject_row_index: bool,
+    ) -> WriteRow:
+        """Split one row's values, keyed by string column name, by role."""
+        inputs: dict[ColumnKey, Any] = (
+            {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
+            if inject_row_index
+            else {columns_by_name[col]: values[col] for col in self._input_columns}
+        )
+
+        # Always use a dict so backends see a stable column-keyed shape;
+        # single-output is no exception.
+        output: dict[ColumnKey, Any] | None = (
+            {columns_by_name[col]: values[col] for col in output_cols}
+            if output_cols
+            else None
+        )
+
+        example_key = (
+            None
+            if self._key_column is None
+            else _example_key(
+                values[self._key_column], column=self._key_column, row=row_idx
+            )
+        )
+        return WriteRow(
+            inputs=inputs,
+            output=output,
+            scores={columns_by_name[col]: values[col] for col in self._score_columns},
+            example_key=example_key,
         )
 
 

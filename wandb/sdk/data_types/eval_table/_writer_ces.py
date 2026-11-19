@@ -206,6 +206,15 @@ def _encode_varint(value: int) -> bytes:
     return bytes(encoded)
 
 
+def _validate_example_key_length(example_key: str | None, *, row_number: int) -> None:
+    if example_key is not None and len(example_key) > _MAX_EXAMPLE_KEY_LENGTH:
+        raise UsageError(
+            "CES EvalTable example keys must have at most "
+            f"{_MAX_EXAMPLE_KEY_LENGTH} characters; row {row_number} "
+            f"has {len(example_key)}."
+        )
+
+
 def _warn_oversized_media(
     cells: Sequence[pb.EvalTableOversizedMediaCell],
     *,
@@ -341,16 +350,8 @@ class CESWriter:
         upload_media_paths: dict[str, None] = {}
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
-        for row_index, row in enumerate(rows):
-            if (
-                row.example_key is not None
-                and len(row.example_key) > _MAX_EXAMPLE_KEY_LENGTH
-            ):
-                raise UsageError(
-                    "CES EvalTable example keys must have at most "
-                    f"{_MAX_EXAMPLE_KEY_LENGTH} characters; row {row_index + 1} "
-                    f"has {len(row.example_key)}."
-                )
+        for row_number, row in enumerate(rows, start=1):
+            _validate_example_key_length(row.example_key, row_number=row_number)
             inputs, input_media = self._normalize_row_input_or_output_values(
                 row.inputs,
                 source="input",
