@@ -34,8 +34,6 @@ type rowEncoder struct {
 	scores  []rowColumn
 }
 
-// newRowEncoder returns an encoder for the table's rows.
-//
 // The table's columns must have passed validateColumns.
 func newRowEncoder(
 	data *spb.EvalTableData,
@@ -85,7 +83,6 @@ func newRowColumn(name, valueType, mediaType string) (rowColumn, error) {
 	}, nil
 }
 
-// encodeRows returns the CES row JSON of rows.
 func (e *rowEncoder) encodeRows(rows []*spb.EvalTableRow) ([][]byte, error) {
 	encoded := make([][]byte, len(rows))
 	for i, row := range rows {
@@ -242,7 +239,6 @@ func (c rowColumn) fits(value *spb.EvalTableValue) bool {
 	}
 }
 
-// valueKind describes a value's type for errors.
 func valueKind(value *spb.EvalTableValue) string {
 	switch value.GetValue().(type) {
 	case *spb.EvalTableValue_BoolValue:
@@ -262,7 +258,6 @@ func valueKind(value *spb.EvalTableValue) string {
 	}
 }
 
-// columnKind describes a column's type for errors.
 func columnKind(column rowColumn) string {
 	if column.mediaType != "" {
 		return column.mediaType + " column"
@@ -270,7 +265,6 @@ func columnKind(column rowColumn) string {
 	return fmt.Sprintf("%q column", column.valueType)
 }
 
-// appendJSON appends v encoded as JSON.
 func appendJSON(buf []byte, v any) ([]byte, error) {
 	encoded, err := json.Marshal(v)
 	if err != nil {
