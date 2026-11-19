@@ -44,3 +44,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
+
+### Security
+
+- Updated the `wandb/launch-agent` image base to a `chainguard-base` build with a patched Brotli (1.2.1) to address CVE-2026-111497, and bumped the Go build toolchain to 1.27.4
