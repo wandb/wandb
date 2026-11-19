@@ -282,11 +282,11 @@ func (s *Stream) handleWaitForRunExitFlush(request *runwork.Request) {
 }
 
 func (s *Stream) notifyAfterExit(request *runwork.Request) {
+	cleanup := context.AfterFunc(s.runWork.BeforeEndCtx(), request.WillNotRespond)
+	defer cleanup()
+
 	select {
 	case <-request.Context().Done():
-		return
-	case <-s.runWork.BeforeEndCtx().Done():
-		request.WillNotRespond()
 		return
 	case <-s.started:
 	}
@@ -298,9 +298,6 @@ func (s *Stream) notifyAfterExit(request *runwork.Request) {
 
 	select {
 	case <-request.Context().Done():
-		return
-	case <-s.runWork.BeforeEndCtx().Done():
-		request.WillNotRespond()
 		return
 	case <-s.transactionLogReady:
 	}

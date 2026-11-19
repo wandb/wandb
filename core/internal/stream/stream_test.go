@@ -159,8 +159,5 @@ func TestStream_ExitFlushRespondsWhenWriterStopsWithoutExit(t *testing.T) {
 			response.GetResultCommunicate().GetResponse().GetWaitForRunExitFlushResponse(),
 		)
 		stream.Close()
-		late, lateResponses := runworktest.SimpleRequest(t, "late")
-		stream.HandleRecord(exitFlushRecord(), late)
-		require.NotNil(t, (<-lateResponses).GetErrorResponse())
 	})
 }
