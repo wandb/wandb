@@ -1395,22 +1395,10 @@ message UploadEvalTableResponse {
   // in offline mode.
   ErrorInfo error = 5;
 
-  // Media cells that wandb-core uploaded as null, because their CES
-  // extension value was too large.
-  repeated EvalTableOversizedMediaCell oversized_media_cells = 6;
-}
-
-message EvalTableOversizedMediaCell {
-  // The cell's row, counting from 1.
-  int64 row = 1;
-
-  // The cell's dataset field.
-  // One of: cwevals.EvalTableColumnNewParamsDatasetFieldsSource
-  string source = 2;
-  string name = 3;
-
-  // The size of the cell's CES extension value, in bytes of compact JSON.
-  int64 size = 4;
+  // A warning for the user about media cells that wandb-core uploaded as
+  // null because their CES extension value was too large, or empty if
+  // there were none.
+  string oversized_media_warning = 6;
 }
 
 /*
