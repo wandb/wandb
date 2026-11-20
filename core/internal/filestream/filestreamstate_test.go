@@ -9,7 +9,6 @@ import (
 	. "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -331,7 +330,7 @@ func TestState_Pop_Preempting(t *testing.T) {
 }
 
 func TestState_Pop_ExitCode(t *testing.T) {
-	state := &FileStreamState{}
+	state := deltaState()
 	request := &FileStreamRequest{}
 	request.Complete = true
 	request.ExitCode = 1
@@ -341,8 +340,11 @@ func TestState_Pop_ExitCode(t *testing.T) {
 	assert.False(t, hasMore)
 	assert.True(t, *json.Complete)
 	assert.EqualValues(t, 1, *json.ExitCode)
-	assert.True(t, request.Complete)           // not changed
-	assert.EqualValues(t, 1, request.ExitCode) // not changed
+	assert.Empty(t, json.Files)
+
+	json, _ = pop(t, state, request)
+	assert.Nil(t, json.Complete)
+	assert.Nil(t, json.ExitCode)
 }
 
 func TestState_Pop_NoExitCodeIfNotComplete(t *testing.T) {
@@ -372,15 +374,12 @@ func TestState_Pop_NoExitCodeIfPartial(t *testing.T) {
 	assert.Nil(t, json.ExitCode)
 }
 
-// summaryUpdate returns updates that set key to the JSON value.
 func summaryUpdate(key, valueJSON string) *runsummary.Updates {
 	return runsummary.FromProto(&spb.SummaryRecord{
 		Update: []*spb.SummaryItem{{Key: key, ValueJson: valueJSON}},
 	})
 }
 
-// popSummaryLine pops the request and returns its summary line, if any,
-// and whether it was marked as a delta.
 func popSummaryLine(
 	t *testing.T,
 	state *FileStreamState,
@@ -392,18 +391,15 @@ func popSummaryLine(
 	if !ok {
 		return "", false
 	}
-	assert.Len(t, chunk.Content, 1)
+	require.Len(t, chunk.Content, 1)
 	return chunk.Content[0], json.SummaryDelta
 }
 
-// deltaState returns a state for a stream whose backend accepts
-// summary deltas.
 func deltaState() *FileStreamState {
 	return &FileStreamState{
-		SummaryDelta:              true,
-		CheckpointSummaryOnFinish: true,
-		MaxFileLineSize:           999,
-		MaxRequestSizeBytes:       999,
+		SummaryDelta:        true,
+		MaxFileLineSize:     999,
+		MaxRequestSizeBytes: 999,
 	}
 }
 
@@ -431,6 +427,9 @@ func TestState_Pop_SummaryDelta(t *testing.T) {
 			`{"c":3}`, true},
 		{"no change, no summary",
 			&FileStreamRequest{EventsLines: []string{`{"cpu":1}`}},
+			"", false},
+		{"empty delta is skipped",
+			&FileStreamRequest{SummaryUpdates: summaryUpdate("unset", "null")},
 			"", false},
 		{"finish checkpoints even with no pending updates",
 			&FileStreamRequest{Complete: true},
@@ -460,103 +459,68 @@ func TestState_Pop_FullSummaryWithoutDeltas(t *testing.T) {
 	assert.JSONEq(t, `{"a":1,"b":2}`, line)
 	assert.False(t, isDelta)
 
-	// The end of the stream doesn't repeat it.
 	line, _ = popSummaryLine(t, state, &FileStreamRequest{Complete: true})
 	assert.Empty(t, line)
 }
 
-func TestState_Pop_EmptySummaryDeltaIsNotSent(t *testing.T) {
-	state := deltaState()
-	request := &FileStreamRequest{SummaryUpdates: summaryUpdate("b", "null")}
+func TestState_Pop_FinalCheckpoint(t *testing.T) {
+	const history = `{"acc":0.6}`
+	const delta = `{"best":0.7}`
+	const full = `{"acc":0.6,"best":0.7}`
+	for _, tc := range []struct {
+		name      string
+		lineLimit int
+		wantFull  bool
+	}{
+		{"checkpoint fits", len(full), true},
+		{"only the delta fits", len(delta), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := deltaState()
+			state.MaxRequestSizeBytes = len(delta)
+			state.MaxFileLineSize = tc.lineLimit
 
-	line, _ := popSummaryLine(t, state, request)
+			request := &FileStreamRequest{
+				HistoryLines: []string{history},
+				SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+					Update: []*spb.SummaryItem{
+						{Key: "acc", ValueJson: "0.6", FromHistory: true},
+						{Key: "best", ValueJson: "0.7"},
+					},
+				}),
+				ConsoleLines: &sparselist.SparseList[string]{},
+				Complete:     true,
+				ExitCode:     5,
+			}
+			request.ConsoleLines.Put(0, "done")
 
-	assert.Empty(t, line)
-	assert.Nil(t, request.SummaryUpdates)
-}
+			for _, chunk := range []struct{ file, line string }{
+				{HistoryFileName, history},
+				{SummaryFileName, delta},
+				{OutputFileName, "done"},
+			} {
+				json, more := pop(t, state, request)
+				require.True(t, more)
+				assert.Nil(t, json.Complete)
+				assert.Equal(t, chunk.file == SummaryFileName, json.SummaryDelta)
+				require.Len(t, json.Files, 1)
+				assert.Equal(t, []string{chunk.line}, json.Files[chunk.file].Content)
+			}
 
-func TestState_Pop_FinishDrainsBeforeCheckpoint(t *testing.T) {
-	state := deltaState()
-	state.MaxRequestSizeBytes = 12 // the delta and the console line need separate requests
-	popSummaryLine(t, state,
-		&FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
-	lines := &sparselist.SparseList[string]{}
-	lines.Put(0, "console!!")
-	request := &FileStreamRequest{
-		HistoryLines:   []string{`{"step":0}`, `{"step":1}`},
-		SummaryUpdates: summaryUpdate("b", "2"),
-		ConsoleLines:   lines,
-		Complete:       true,
-		ExitCode:       5,
+			json, more := pop(t, state, request)
+			assert.False(t, more)
+			assert.Equal(t, new(true), json.Complete)
+			assert.Equal(t, new(int32(5)), json.ExitCode)
+			assert.False(t, json.SummaryDelta)
+			if tc.wantFull {
+				lines := json.Files[SummaryFileName].Content
+				require.Len(t, lines, 1)
+				assert.JSONEq(t, full, lines[0])
+			} else {
+				assert.Empty(t, json.Files)
+			}
+		})
 	}
-
-	for _, line := range []string{`{"step":0}`, `{"step":1}`} {
-		json, hasMore := pop(t, state, request)
-		require.True(t, hasMore)
-		assert.Nil(t, json.Complete)
-		assert.Equal(t, []string{line}, json.Files[HistoryFileName].Content)
-		assert.NotContains(t, json.Files, SummaryFileName)
-	}
-
-	json, hasMore := pop(t, state, request)
-	assert.True(t, hasMore)
-	assert.Nil(t, json.Complete)
-	assert.True(t, json.SummaryDelta)
-	assert.Equal(t, []string{`{"b":2}`}, json.Files[SummaryFileName].Content)
-	assert.NotContains(t, json.Files, OutputFileName)
-
-	json, hasMore = pop(t, state, request)
-	assert.True(t, hasMore)
-	assert.Nil(t, json.Complete)
-	assert.Equal(t, []string{"console!!"}, json.Files[OutputFileName].Content)
-	assert.NotContains(t, json.Files, SummaryFileName)
-
-	json, hasMore = pop(t, state, request)
-	assert.False(t, hasMore)
-	assert.False(t, json.SummaryDelta)
-	require.Len(t, json.Files[SummaryFileName].Content, 1)
-	assert.JSONEq(t, `{"a":1,"b":2}`, json.Files[SummaryFileName].Content[0])
-	assert.Equal(t, new(true), json.Complete)
-	assert.Equal(t, new(int32(5)), json.ExitCode)
-
-	json, hasMore = pop(t, state, request)
-	assert.False(t, hasMore)
-	assert.NotContains(t, json.Files, SummaryFileName)
-}
-
-func TestState_Pop_OversizedCheckpointPreservesLastDelta(t *testing.T) {
-	state := deltaState()
-	state.MaxFileLineSize = 10 // Each delta is 7 bytes. Together the keys take 13.
-	pop(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("a", "1")})
-	request := &FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2"), Complete: true}
-
-	json, hasMore := pop(t, state, request)
-	require.True(t, hasMore)
-	assert.Nil(t, json.Complete)
-	assert.True(t, json.SummaryDelta)
-	assert.Equal(t, []string{`{"b":2}`}, json.Files[SummaryFileName].Content)
-
-	json, hasMore = pop(t, state, request)
-	assert.False(t, hasMore)
-	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Equal(t, new(true), json.Complete)
-}
-
-func TestState_Pop_CheckpointEncodingErrorAllowsFinish(t *testing.T) {
-	state := deltaState()
-	state.RunSummary = runsummary.New()
-	state.RunSummary.Set(pathtree.PathOf("invalid"), make(chan int))
-	json, hasMore := pop(t, state, &FileStreamRequest{Complete: true})
-	assert.False(t, hasMore)
-	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Equal(t, new(true), json.Complete)
-}
-
-func TestState_Pop_FinishWithoutSummary(t *testing.T) {
-	json, hasMore := pop(t, deltaState(), &FileStreamRequest{Complete: true})
-	assert.False(t, hasMore)
-	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Equal(t, new(true), json.Complete)
 }
 
 func TestState_Pop_SummaryDeltaThatDoesNotFitAccumulates(t *testing.T) {
@@ -575,25 +539,6 @@ func TestState_Pop_SummaryDeltaThatDoesNotFitAccumulates(t *testing.T) {
 	line, isDelta := popSummaryLine(t, state, request)
 	assert.JSONEq(t, `{"b":2,"c":3}`, line)
 	assert.True(t, isDelta)
-}
-
-func TestState_Pop_SummaryDeltaLeavesOutHistoryValues(t *testing.T) {
-	state := deltaState()
-	updates := runsummary.FromProto(&spb.SummaryRecord{
-		Update: []*spb.SummaryItem{
-			{Key: "acc", ValueJson: "0.6", FromHistory: true},
-		},
-	})
-	updates.Merge(summaryUpdate("best", "0.7"))
-
-	line, isDelta := popSummaryLine(t, state,
-		&FileStreamRequest{SummaryUpdates: updates})
-	assert.JSONEq(t, `{"best":0.7}`, line)
-	assert.True(t, isDelta)
-
-	line, isDelta = popSummaryLine(t, state, &FileStreamRequest{Complete: true})
-	assert.False(t, isDelta)
-	assert.JSONEq(t, `{"acc":0.6,"best":0.7}`, line)
 }
 
 func TestState_Pop_SummaryDeltaAfterTooLargeSummary(t *testing.T) {

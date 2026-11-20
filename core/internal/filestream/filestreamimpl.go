@@ -60,7 +60,6 @@ func (fs *fileStream) startProcessingUpdates(
 	return requests
 }
 
-// initialState returns the state for a new stream to the given project.
 func (fs *fileStream) initialState(
 	entity string,
 	project string,
@@ -77,7 +76,6 @@ func (fs *fileStream) initialState(
 		),
 		SummaryDelta: fs.acceptsSummaryDelta(entity, project),
 	}
-	state.CheckpointSummaryOnFinish = state.SummaryDelta && !fs.settings.IsSharedMode()
 
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
@@ -89,8 +87,6 @@ func (fs *fileStream) initialState(
 	return state
 }
 
-// acceptsSummaryDelta asks the backend whether the project accepts summary
-// deltas. It returns false if it can't get an answer in time.
 func (fs *fileStream) acceptsSummaryDelta(entity, project string) bool {
 	if fs.graphqlClient == nil {
 		return false

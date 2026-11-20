@@ -47,10 +47,6 @@ type FileStreamState struct {
 	// SummaryDelta is whether the backend accepts summary deltas.
 	SummaryDelta bool
 
-	// CheckpointSummaryOnFinish is set for single-writer delta streams and
-	// cleared after the final full summary is attempted.
-	CheckpointSummaryOnFinish bool
-
 	// ConsoleLineOffset is an offset to add to all console updates.
 	//
 	// This is used when resuming a run, in which case we want the new
@@ -180,10 +176,6 @@ func (s *FileStreamState) popEvents(
 	}
 }
 
-// popSummary adds the summary to the request if it changed.
-//
-// In delta mode, it sends only the changes that aren't values from history.
-// A change that removes a key requires the full summary.
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
@@ -198,11 +190,8 @@ func (s *FileStreamState) popSummary(
 		s.RunSummary = runsummary.New()
 	}
 
-	// Updates stay in the request until the summary is sent, so they may be
-	// applied more than once, which changes nothing.
-	err := request.SummaryUpdates.Apply(s.RunSummary)
-	if err != nil {
-		// A partial success is possible, so we log and continue.
+	// Updates retained across a split can safely be applied again.
+	if err := request.SummaryUpdates.Apply(s.RunSummary); err != nil {
 		logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: error applying summary updates: %v", err),
@@ -328,14 +317,13 @@ func (s *FileStreamState) popFinish(
 	if !request.Complete || builder.HasMore {
 		return
 	}
-	if s.CheckpointSummaryOnFinish && s.RunSummary != nil {
+	if s.SummaryDelta && s.RunSummary != nil {
 		// Send the remaining data first. A checkpoint that exceeds the line
 		// limit must not displace a smaller pending delta.
 		if builder.ApproxSizeBytes > 0 {
 			builder.HasMore = true
 			return
 		}
-		s.CheckpointSummaryOnFinish = false
 		if line := s.summaryLine(nil, logger, printer); line != nil {
 			builder.SummaryChunk.Offset = s.SummaryLineNum
 			builder.SummaryChunk.Content = []string{string(line)}
@@ -343,6 +331,7 @@ func (s *FileStreamState) popFinish(
 	}
 	builder.Complete = true
 	builder.ExitCode = request.ExitCode
+	request.Complete = false
 }
 
 // requestJSONBuilder builds a [FileStreamRequestJSON].

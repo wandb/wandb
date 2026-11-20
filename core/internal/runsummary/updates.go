@@ -24,12 +24,8 @@ type Updates struct {
 	remove *pathtree.PathTree[struct{}]
 }
 
-// updatedValue is a new value for a path in the summary.
 type updatedValue struct {
-	// json is the JSON-encoded value (supporting +-Infinity and NaN).
-	json string
-
-	// fromHistory is whether it's the key's latest value from run.log().
+	json        string // Extended JSON supports NaN and infinities.
 	fromHistory bool
 }
 
