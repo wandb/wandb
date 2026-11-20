@@ -50,7 +50,7 @@ func ToExtendedJSON(item *spb.HistoryItem) ([]byte, error) {
 
 func decodeJSON(s string) (value, error) {
 	trimmed := strings.Trim(s, " \t\r\n")
-	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+	if trimmed != "" && (trimmed[0] == '{' || trimmed[0] == '[') {
 		return value{kind: filestreamv1.MetricsBatch_KIND_JSON, s: s}, nil
 	}
 	parsed, err := simplejsonext.UnmarshalString(trimmed)

@@ -34,7 +34,8 @@ func TestRoundTrip(t *testing.T) {
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
 			source := f.item
-			if text, ok := source.Value.(*spb.HistoryItem_Text); ok && !utf8.ValidString(text.Text) {
+			text, isText := source.Value.(*spb.HistoryItem_Text)
+			if isText && !utf8.ValidString(text.Text) {
 				// Protobuf string fields reject invalid UTF-8 on the log wire.
 				encoded, err := historycodec.ToExtendedJSON(source)
 				require.NoError(t, err)
