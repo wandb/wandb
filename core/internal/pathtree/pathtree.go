@@ -1,6 +1,8 @@
 package pathtree
 
 import (
+	"slices"
+
 	"github.com/wandb/simplejsonext"
 )
 
@@ -232,6 +234,27 @@ func (pt *PathTree[T]) HasNode(path TreePath) bool {
 // The callback returns true to continue and false to stop iteration early.
 func (pt *PathTree[T]) ForEachLeaf(fn func(path TreePath, value T) bool) {
 	_ = forEachLeaf(pt.tree, nil, fn)
+}
+
+// ForEachTopLevel visits top-level labels in lexical order until fn
+// returns false. Leaves are passed as-is; subtrees are copied to nested
+// maps. Leaf values inside those maps are not cloned.
+func (pt *PathTree[T]) ForEachTopLevel(fn func(key string, value any) bool) {
+	keys := make([]string, 0, len(pt.tree))
+	for key := range pt.tree {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		node := pt.tree[key]
+		var value any = node.Leaf
+		if !node.IsLeaf() {
+			value = toNestedMaps(node.Subtree)
+		}
+		if !fn(key, value) {
+			return
+		}
+	}
 }
 
 func forEachLeaf[T any](

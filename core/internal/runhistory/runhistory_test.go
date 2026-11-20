@@ -15,6 +15,165 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+func TestWireCells(t *testing.T) {
+	cases := []struct {
+		name    string
+		records []*spb.HistoryItem
+		keys    []string
+		values  map[string]any
+		stop    bool
+	}{
+		{
+			name: "typed scalars",
+			records: []*spb.HistoryItem{
+				{Key: "text", Value: &spb.HistoryItem_Text{Text: "a\xff"}},
+				{Key: "null", Value: &spb.HistoryItem_None{}},
+				{Key: "int", Value: &spb.HistoryItem_Integer{Integer: 9007199254740993}},
+				{Key: "float", Value: &spb.HistoryItem_Number{Number: 1.0}},
+				{Key: "bool", Value: &spb.HistoryItem_Boolean{Boolean: false}},
+			},
+			keys: []string{"bool", "float", "int", "null", "text"},
+			values: map[string]any{
+				"bool": false, "float": 1.0, "int": int64(9007199254740993),
+				"null": nil, "text": "a\xff",
+			},
+		},
+		{
+			name: "legacy scalars and whole arrays",
+			records: []*spb.HistoryItem{
+				{Key: "text", ValueJson: `"s"`},
+				{Key: "null", ValueJson: "null"},
+				{Key: "int", ValueJson: "1"},
+				{Key: "float", ValueJson: "1.0"},
+				{Key: "bool", ValueJson: "true"},
+				{Key: "array", ValueJson: `[1,{"x":2},null]`},
+			},
+			keys: []string{"array", "bool", "float", "int", "null", "text"},
+			values: map[string]any{
+				"array": []any{int64(1), map[string]any{"x": int64(2)}, nil},
+				"bool":  true, "float": 1.0, "int": int64(1), "null": nil, "text": "s",
+			},
+		},
+		{
+			name: "mixed nested keys and literal dotted key",
+			records: []*spb.HistoryItem{
+				{NestedKey: []string{"a", "b"}, Value: &spb.HistoryItem_Integer{Integer: 1}},
+				{NestedKey: []string{"a", "c"}, ValueJson: "2"},
+				{Key: "a.b", Value: &spb.HistoryItem_Text{Text: "literal"}},
+			},
+			keys: []string{"a", "a.b"},
+			values: map[string]any{
+				"a": map[string]any{"b": int64(1), "c": int64(2)}, "a.b": "literal",
+			},
+		},
+		{
+			name: "legacy object subtree",
+			records: []*spb.HistoryItem{
+				{Key: "a", ValueJson: `{"b":1}`},
+			},
+			keys:   []string{"a"},
+			values: map[string]any{"a": map[string]any{"b": int64(1)}},
+		},
+		{
+			name: "typed media subtree and array",
+			records: []*spb.HistoryItem{
+				{Key: "image", Value: &spb.HistoryItem_Json{
+					Json: `{"_type":"image-file","path":"media/image.png","width":32}`}},
+				{Key: "array", Value: &spb.HistoryItem_Json{Json: "[1,2]"}},
+			},
+			keys: []string{"array", "image"},
+			values: map[string]any{
+				"array": []any{int64(1), int64(2)},
+				"image": map[string]any{
+					"_type": "image-file", "path": "media/image.png", "width": int64(32),
+				},
+			},
+		},
+		{
+			name: "only top-level step excluded",
+			records: []*spb.HistoryItem{
+				{Key: "_step", Value: &spb.HistoryItem_Integer{Integer: 10}},
+				{NestedKey: []string{"a", "_step"}, ValueJson: "2"},
+			},
+			keys:   []string{"a"},
+			values: map[string]any{"a": map[string]any{"_step": int64(2)}},
+		},
+		{
+			name: "top-level step subtree excluded",
+			records: []*spb.HistoryItem{
+				{NestedKey: []string{"_step", "child"}, ValueJson: "1"},
+			},
+			values: map[string]any{},
+		},
+		{
+			name: "empty label unchanged",
+			records: []*spb.HistoryItem{
+				{NestedKey: []string{""}, Value: &spb.HistoryItem_Integer{Integer: 1}},
+			},
+			keys:   []string{""},
+			values: map[string]any{"": int64(1)},
+		},
+		{
+			name: "early stop after skipped step",
+			records: []*spb.HistoryItem{
+				{Key: "z", ValueJson: "1"},
+				{Key: "a", ValueJson: "2"},
+				{Key: "_step", ValueJson: "3"},
+			},
+			keys:   []string{"a"},
+			values: map[string]any{"a": int64(2)},
+			stop:   true,
+		},
+		{name: "empty", values: map[string]any{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rh := runhistory.New()
+			for _, record := range c.records {
+				require.NoError(t, rh.SetFromRecord(record))
+			}
+			var keys []string
+			values := make(map[string]any)
+			rh.WireCells(func(key string, value any) bool {
+				keys = append(keys, key)
+				values[key] = value
+				return !c.stop
+			})
+			assert.Equal(t, c.keys, keys)
+			assert.Equal(t, c.values, values)
+		})
+	}
+}
+
+func TestWireCellsMapIsolation(t *testing.T) {
+	rh := runhistory.New()
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
+		Key: "a", ValueJson: `{"b":{"c":1},"d":2}`,
+	}))
+	before, err := rh.ToExtendedJSON()
+	require.NoError(t, err)
+	rh.WireCells(func(_ string, value any) bool {
+		m := value.(map[string]any)
+		m["b"].(map[string]any)["c"] = int64(99)
+		delete(m, "d")
+		m["new"] = true
+		return true
+	})
+	after, err := rh.ToExtendedJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t, string(before), string(after))
+}
+
+func TestWireCellsLeafOnlyAllocations(t *testing.T) {
+	rh := runhistory.New()
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{Key: "b", ValueJson: "1"}))
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{Key: "a", ValueJson: "2"}))
+	allocations := testing.AllocsPerRun(100, func() {
+		rh.WireCells(func(_ string, _ any) bool { return true })
+	})
+	assert.LessOrEqual(t, allocations, 1.0)
+}
+
 func TestSetFromRecord_NestedKey(t *testing.T) {
 	rh := runhistory.New()
 

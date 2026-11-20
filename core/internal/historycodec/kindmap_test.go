@@ -11,7 +11,6 @@ import (
 
 	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/historycodec"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -386,8 +385,8 @@ func TestKind(t *testing.T) {
 	}
 }
 
-// fixtureValue rebuilds one top-level value from the production decoder's
-// leaves without serializing floats through RunHistory's JSONL encoder.
+// fixtureValue gets a top-level wire cell from the production decoder
+// without serializing floats through RunHistory's JSONL encoder.
 func fixtureValue(t *testing.T, f fixture) (any, bool) {
 	t.Helper()
 	item := proto.Clone(f.item).(*spb.HistoryItem)
@@ -400,34 +399,17 @@ func fixtureValue(t *testing.T, f fixture) (any, bool) {
 	}
 
 	root := make(map[string]any)
-	collect := func(path pathtree.TreePath, v any) bool {
+	rh.WireCells(func(key string, v any) bool {
 		kind, err := historycodec.Kind(v)
 		require.NoError(t, err)
 		require.NotEqual(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
 		_, err = historycodec.Normalize(v)
 		require.NoError(t, err)
-		setPath(root, path.Labels(), v)
+		root[key] = v
 		return true
-	}
-	rh.ForEach(
-		func(p pathtree.TreePath, v float64) bool { return collect(p, v) },
-		func(p pathtree.TreePath, v int64) bool { return collect(p, v) },
-		collect,
-	)
+	})
 	require.Len(t, root, 1)
 	return root["metric"], true
-}
-
-func setPath(root map[string]any, path []string, v any) {
-	for _, key := range path[:len(path)-1] {
-		child, ok := root[key].(map[string]any)
-		if !ok {
-			child = make(map[string]any)
-			root[key] = child
-		}
-		root = child
-	}
-	root[path[len(path)-1]] = v
 }
 
 func TestUnsupportedValues(t *testing.T) {
