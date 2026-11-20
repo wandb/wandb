@@ -96,6 +96,10 @@ type FrenchFriesChart struct {
 	rendered string
 
 	coloredCells []string
+
+	// rowOffset is the first series rendered as a row when more series exist
+	// than fit; ScrollRows moves it and visibleSeriesNames clamps it.
+	rowOffset int
 }
 
 type FrenchFriesChartParams struct {
@@ -122,18 +126,22 @@ func NewFrenchFriesChart(params *FrenchFriesChartParams) *FrenchFriesChart {
 func (c *FrenchFriesChart) Title() string { return c.def.Title() }
 
 func (c *FrenchFriesChart) TitleDetail() string {
-	series := c.sortedSeriesNames()
-	total := len(series)
+	total := len(c.sortedSeriesNames())
 	if total <= 1 {
 		return ""
 	}
 
-	layout := c.layout()
-	if layout.maxVisibleRows <= 0 || total <= layout.maxVisibleRows {
+	maxRows := c.maxVisibleRows()
+	if maxRows <= 0 || total <= maxRows {
 		return fmt.Sprintf("[%d]", total)
 	}
 
-	return summarizeFrenchFriesSeries(c.visibleSeriesNames(layout.maxVisibleRows), total)
+	visible := c.visibleSeriesNames(maxRows)
+	window := compactSystemMetricSeriesLabel(visible[0])
+	if last := compactSystemMetricSeriesLabel(visible[len(visible)-1]); last != window {
+		window += "-" + last
+	}
+	return fmt.Sprintf("[%s/%d]", window, total)
 }
 
 func (c *FrenchFriesChart) View() string {
@@ -206,6 +214,23 @@ func (c *FrenchFriesChart) GraphStartY() int {
 }
 
 func (c *FrenchFriesChart) HandleZoom(string, int) {}
+
+// ScrollRows moves the visible row window by delta series and reports
+// whether it moved.
+func (c *FrenchFriesChart) ScrollRows(delta int) bool {
+	maxRows := c.maxVisibleRows()
+	maxOffset := len(c.sortedSeriesNames()) - maxRows
+	if maxRows <= 0 || maxOffset <= 0 {
+		return false
+	}
+	offset := max(0, min(maxOffset, min(c.rowOffset, maxOffset)+delta))
+	if offset == c.rowOffset {
+		return false
+	}
+	c.rowOffset = offset
+	c.dirty = true
+	return true
+}
 
 func (c *FrenchFriesChart) ToggleYScale() bool { return false }
 func (c *FrenchFriesChart) IsLogY() bool       { return false }
@@ -561,12 +586,10 @@ func (c *FrenchFriesChart) layout() frenchFriesLayout {
 		return layout
 	}
 
-	timeAxisRows := 0
 	if c.height >= 2 {
-		timeAxisRows = 1
 		layout.timeAxisY = c.height - 1
 	}
-	layout.plotHeight = max(c.height-timeAxisRows, 0)
+	layout.plotHeight = c.maxVisibleRows()
 	layout.maxVisibleRows = layout.plotHeight
 	visibleSeries := c.visibleSeriesNames(layout.maxVisibleRows)
 	layout.bands = make([]frenchFriesRowBand, 0, len(visibleSeries))
@@ -770,6 +793,17 @@ func (c *FrenchFriesChart) sortedSeriesNames() []string {
 	return c.orderedSeries
 }
 
+// maxVisibleRows is the number of series rows the plot area can show: the
+// chart height less the time axis row.
+func (c *FrenchFriesChart) maxVisibleRows() int {
+	if c.height >= 2 {
+		return c.height - 1
+	}
+	return max(c.height, 0)
+}
+
+// visibleSeriesNames returns the maxRows series starting at the row offset,
+// clamped so the window stays within the series list.
 func (c *FrenchFriesChart) visibleSeriesNames(maxRows int) []string {
 	names := c.sortedSeriesNames()
 	if maxRows <= 0 || len(names) == 0 {
@@ -778,36 +812,8 @@ func (c *FrenchFriesChart) visibleSeriesNames(maxRows int) []string {
 	if len(names) <= maxRows {
 		return names
 	}
-	if maxRows == 1 {
-		return names[:1]
-	}
-
-	visible := make([]string, 0, maxRows)
-	visible = append(visible, names[:maxRows-1]...)
-	visible = append(visible, names[len(names)-1])
-	return visible
-}
-
-func summarizeFrenchFriesSeries(names []string, total int) string {
-	if total <= len(names) {
-		return fmt.Sprintf("[%d]", total)
-	}
-
-	labels := make([]string, 0, 4)
-	if len(names) <= 3 {
-		for _, name := range names {
-			labels = append(labels, compactSystemMetricSeriesLabel(name))
-		}
-	} else {
-		labels = append(labels,
-			compactSystemMetricSeriesLabel(names[0]),
-			compactSystemMetricSeriesLabel(names[1]),
-			"...",
-			compactSystemMetricSeriesLabel(names[len(names)-1]),
-		)
-	}
-
-	return fmt.Sprintf("[%s/%d]", strings.Join(labels, ","), total)
+	offset := max(0, min(c.rowOffset, len(names)-maxRows))
+	return names[offset : offset+maxRows]
 }
 
 func compactSystemMetricSeriesLabel(name string) string {
