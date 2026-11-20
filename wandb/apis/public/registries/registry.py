@@ -33,25 +33,6 @@ if TYPE_CHECKING:
     from .registries_search import _VersionOrder
 
 
-class RegistrySaveError(ValueError):
-    """Raised when `Registry.save()` saves only some of the staged changes.
-
-    `Registry.save()` sends the rename first and the other changes second, so
-    this error means the rename was saved and the other changes were not.
-
-    Attributes:
-        committed: Names of the registry attributes that were saved.
-        failed: Names of the registry attributes that were not saved.
-    """
-
-    def __init__(
-        self, message: str, *, committed: list[str], failed: list[str]
-    ) -> None:
-        super().__init__(message)
-        self.committed = committed
-        self.failed = failed
-
-
 class Registry:
     """A single registry in the Registry."""
 
@@ -421,12 +402,11 @@ class Registry:
         after the rename succeeds, so a rejected rename saves nothing.
 
         Raises:
-            RegistrySaveError: If the rename was saved but the other changes
-                were not. `committed` and `failed` on the error name the
-                attributes that were and were not saved. The registry object
-                then reflects the registry on the server: it has the new name
-                and the other attributes as they were before `save()`.
-            ValueError: If the registry could not be saved.
+            ValueError: If the registry could not be saved, including if the
+                rename succeeded but saving the other changed attributes failed
+                (in which case the registry object reflects the server state:
+                the new name and the other attributes as they were before
+                `save()`).
             WandbApiFailedError: If the server rejected the rename, for
                 example because the name is taken. Nothing was saved, and
                 the staged changes are kept so `save()` can be retried.
@@ -492,13 +472,11 @@ class Registry:
         except Exception as e:
             # `_save_rename()` already set the local state to the server's:
             # the new name and the other attributes as they were before.
-            raise RegistrySaveError(
+            raise ValueError(
                 f"Renamed registry {old_name!r}"
                 f" to {self.name!r} in organization {self.organization!r},"
                 f" but failed to save {', '.join(map(repr, pending))}."
-                " Set them again and call `save()` to retry.",
-                committed=["name"],
-                failed=pending,
+                " Set them again and call `save()` to retry."
             ) from e
 
     def _is_saved(self) -> bool:

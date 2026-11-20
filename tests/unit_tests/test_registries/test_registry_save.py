@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from pytest import fixture, raises
 from wandb._strutils import b64encode_ascii
-from wandb.apis.public.registries.registry import Registry, RegistrySaveError
+from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._generated import (
     RENAME_REGISTRY_GQL,
     UPSERT_REGISTRY_GQL,
@@ -204,21 +204,21 @@ def test_save_upsert_failure_after_rename_raises_partial_save_error(
     registry.allow_all_artifact_types = False
     registry.artifact_types.append("model")
 
-    with raises(RegistrySaveError) as exc_info:
+    with raises(ValueError) as exc_info:
         registry.save()
 
     error = exc_info.value
-    assert isinstance(error, ValueError)
     assert error.__cause__ is upsert_error
-    assert error.committed == ["name"]
-    assert error.failed == [
+    msg = str(error)
+    assert "'old-name'" in msg
+    assert "'new-name'" in msg
+    for attr in (
         "description",
         "visibility",
         "allow_all_artifact_types",
         "artifact_types",
-    ]
-    assert "'old-name'" in str(error)
-    assert "'new-name'" in str(error)
+    ):
+        assert repr(attr) in msg
     assert server.calls == ["rename", "upsert"]
 
     # The local state matches the server: renamed, other attributes unchanged.
@@ -260,10 +260,8 @@ def test_save_upsert_failure_without_rename_raises_value_error(
     server.upsert_error = WandbApiFailedError("upsert failed")
     registry.description = "new description"
 
-    with raises(ValueError, match="Failed to save registry") as exc_info:
+    with raises(ValueError, match="Failed to save registry"):
         registry.save()
-
-    assert not isinstance(exc_info.value, RegistrySaveError)
 
 
 def test_save_rename_and_other_changes(registry: Registry, server: FakeRegistryServer):
