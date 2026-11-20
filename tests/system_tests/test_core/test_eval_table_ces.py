@@ -118,7 +118,6 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     create, columns, rows, _ = requests
     assert create.body == {
         "name": "eval",
-        "evaluation_id": _AnyUUIDv7(),
         "evaluation_version_id": _AnyUUIDv7(),
     }
     assert columns.body == {
@@ -142,7 +141,6 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
         "ncols": 5,
         "nrows": 2,
         "log_mode": "IMMUTABLE",
-        "evaluation_id": "eval-id",
         "evaluation_version_id": "eval-version-id",
         "dataset_id": "dataset-id",
         "dataset_version_id": "dataset-version-id",
