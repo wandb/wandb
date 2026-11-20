@@ -21,9 +21,11 @@ func pop(
 	state *FileStreamState,
 	request *FileStreamRequest,
 ) (*FileStreamRequestJSON, bool) {
-	state.Logger = observabilitytest.NewTestLogger(t)
-	state.Printer = observability.NewPrinter(0)
-	return state.Pop(request)
+	return state.Pop(
+		request,
+		observabilitytest.NewTestLogger(t),
+		observability.NewPrinter(0),
+	)
 }
 
 func TestState_IsAtSizeLimit_NotAtLimit(t *testing.T) {
@@ -193,7 +195,7 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
 	logger, logs := observabilitytest.NewRecordingTestLogger(t)
-	state.Logger = logger
+	printer := observability.NewPrinter(0)
 	request := &FileStreamRequest{}
 	request.HistoryLines = []string{"the history"}
 	request.SummaryUpdates = runsummary.FromProto(&spb.SummaryRecord{
@@ -203,7 +205,7 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 		},
 	})
 
-	json, hasMore := state.Pop(request)
+	json, hasMore := state.Pop(request, logger, printer)
 
 	assert.True(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
@@ -213,18 +215,28 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 
 	// History-only arrivals leave the already encoded summary valid.
 	request.Merge(&FileStreamRequest{HistoryLines: []string{"more history"}})
-	json, hasMore = state.Pop(request)
+	json, hasMore = state.Pop(request, logger, printer)
 	assert.True(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
 
-	json, hasMore = state.Pop(request)
+	// A new summary invalidates the encoded line and retries the pending values.
+	request.Merge(&FileStreamRequest{
+		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{
+				{Key: "added", ValueJson: "2"},
+				{Key: "broken", ValueJson: "invalid"},
+			},
+		}),
+	})
+	json, hasMore = state.Pop(request, logger, printer)
 
 	assert.False(t, hasMore)
-	assert.Equal(t,
-		[]string{`{"key":"value"}`},
-		json.Files[SummaryFileName].Content)
+	lines := json.Files[SummaryFileName].Content
+	require.Len(t, lines, 1)
+	assert.JSONEq(t, `{"key":"value","added":2}`, lines[0])
 	assert.Nil(t, request.SummaryUpdates)
 	assert.Equal(t, 1, strings.Count(logs.String(), "error in path bad"))
+	assert.Equal(t, 1, strings.Count(logs.String(), "error in path broken"))
 }
 
 func TestState_Pop_SummaryLineTooLong(t *testing.T) {
@@ -233,8 +245,7 @@ func TestState_Pop_SummaryLineTooLong(t *testing.T) {
 	logger, logs := observabilitytest.NewRecordingTestLogger(t)
 	printer := observability.NewPrinter(100)
 
-	state.Logger, state.Printer = logger, printer
-	json, hasMore := state.Pop(request)
+	json, hasMore := state.Pop(request, logger, printer)
 
 	assert.False(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
@@ -494,10 +505,9 @@ func TestState_Pop_FinalCheckpoint(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logger, logs := observabilitytest.NewRecordingTestLogger(t)
+			printer := observability.NewPrinter(10)
 			state := &FileStreamState{
 				SummaryDelta:        true,
-				Logger:              logger,
-				Printer:             observability.NewPrinter(10),
 				MaxRequestSizeBytes: tc.requestLimit,
 				MaxFileLineSize:     tc.lineLimit,
 			}
@@ -517,7 +527,7 @@ func TestState_Pop_FinalCheckpoint(t *testing.T) {
 
 			for i, files := range tc.chunks {
 				final := i == len(tc.chunks)-1
-				json, more := state.Pop(request)
+				json, more := state.Pop(request, logger, printer)
 				require.Equal(t, !final, more)
 				require.Len(t, json.Files, len(files))
 				for file, wantLine := range files {
@@ -537,12 +547,28 @@ func TestState_Pop_FinalCheckpoint(t *testing.T) {
 					assert.Nil(t, json.Complete)
 				}
 			}
-			assert.Empty(t, state.Printer.Read())
+			assert.Empty(t, printer.Read())
 			if tc.lineLimit < len(full) {
 				assert.Contains(t, logs.String(), "run summary line too long")
 			}
 		})
 	}
+}
+
+func TestState_Pop_FinalRemovalServesAsCheckpoint(t *testing.T) {
+	state := deltaState()
+	pop(t, state, &FileStreamRequest{SummaryUpdates: summaryUpdate("loss", "1")})
+	request := &FileStreamRequest{
+		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+			Remove: []*spb.SummaryItem{{Key: "loss"}},
+		}),
+		Complete: true,
+	}
+	json, more := pop(t, state, request)
+	assert.False(t, more)
+	assert.Equal(t, new(true), json.Complete)
+	assert.False(t, json.SummaryDelta)
+	assert.Equal(t, []string{`{}`}, json.Files[SummaryFileName].Content)
 }
 
 func TestState_Pop_SummaryDeltaThatDoesNotFitAccumulates(t *testing.T) {

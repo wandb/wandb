@@ -15,9 +15,6 @@ import (
 // FileStreamState turns a [FileStreamRequest] into sequence
 // of [FileStreamRequestJSON].
 type FileStreamState struct {
-	Logger  *observability.CoreLogger
-	Printer *observability.Printer
-
 	// MaxRequestSizeBytes is an approximate maximum FileStream request size
 	// in bytes.
 	MaxRequestSizeBytes int
@@ -103,21 +100,23 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 // The second return value is true if there remains unsent data in the request.
 func (s *FileStreamState) Pop(
 	request *FileStreamRequest,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
 ) (*FileStreamRequestJSON, bool) {
 	builder := &requestJSONBuilder{}
 	builder.MaxSizeBytes = s.MaxRequestSizeBytes
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	if !request.SummaryUpdates.IsEmpty() {
-		s.popSummary(builder, request)
+	if request.SummaryUpdates != nil {
+		s.popSummary(builder, request, false, logger, printer)
 	}
 	s.popConsoleLines(builder, request)
 
 	s.popUploadedFiles(builder, request)
 	s.popPreempting(builder, request)
 
-	s.popFinish(builder, request)
+	s.popFinish(builder, request, logger, printer)
 
 	return builder.Build(), builder.HasMore
 }
@@ -183,12 +182,15 @@ func (s *FileStreamState) popEvents(
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
+	checkpoint bool,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
 ) {
 	updates := request.SummaryUpdates
-	isDelta := s.SummaryDelta && !updates.IsEmpty() && !updates.HasRemovals()
+	isDelta := s.SummaryDelta && !checkpoint && !updates.HasRemovals()
 	line := request.deferredSummary
 	if line == nil {
-		line = s.summaryLine(updates, isDelta)
+		line = s.summaryLine(updates, isDelta, checkpoint, logger, printer)
 	}
 	if line != nil {
 		if !builder.TryAddSize(len(line)) {
@@ -204,8 +206,15 @@ func (s *FileStreamState) popSummary(
 	request.SummaryUpdates = nil
 }
 
-// With no updates, summaryLine encodes the final checkpoint.
-func (s *FileStreamState) summaryLine(updates *runsummary.Updates, isDelta bool) []byte {
+func (s *FileStreamState) summaryLine(
+	updates *runsummary.Updates,
+	isDelta, checkpoint bool,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
+) []byte {
+	if !checkpoint && updates.IsEmpty() {
+		return nil
+	}
 	if s.RunSummary == nil {
 		s.RunSummary = runsummary.New()
 	}
@@ -214,7 +223,7 @@ func (s *FileStreamState) summaryLine(updates *runsummary.Updates, isDelta bool)
 		delta = pathtree.New[any]()
 	}
 	if err := updates.ApplyWithDelta(s.RunSummary, delta); err != nil {
-		s.Logger.CaptureError(
+		logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: error applying summary updates: %v", err),
 		)
@@ -231,7 +240,7 @@ func (s *FileStreamState) summaryLine(updates *runsummary.Updates, isDelta bool)
 		summaryJSON, err = s.RunSummary.Serialize()
 	}
 	if err != nil {
-		s.Logger.CaptureError(
+		logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: failed to serialize summary: %v", err),
 		)
@@ -241,14 +250,14 @@ func (s *FileStreamState) summaryLine(updates *runsummary.Updates, isDelta bool)
 	s.LastRunSummarySize = len(summaryJSON)
 
 	if len(summaryJSON) > s.MaxFileLineSize {
-		s.Logger.Warn(
+		logger.Warn(
 			"filestream: run summary line too long, skipping",
 			"len", len(summaryJSON),
 			"max", s.MaxFileLineSize,
-			"checkpoint", updates.IsEmpty(),
+			"checkpoint", checkpoint,
 		)
-		if !updates.IsEmpty() {
-			s.Printer.
+		if !checkpoint {
+			printer.
 				AtMostEvery(time.Minute).
 				Warnf(
 					"Skipped uploading summary data that exceeded"+
@@ -308,17 +317,20 @@ func (s *FileStreamState) popPreempting(
 func (s *FileStreamState) popFinish(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
 ) {
 	if !request.Complete || builder.HasMore {
 		return
 	}
-	if s.SummaryDelta && s.RunSummary != nil {
-		// A request has one summary line. Send a pending delta before its checkpoint.
-		if len(builder.SummaryChunk.Content) > 0 {
-			builder.HasMore = true
-			return
-		}
-		s.popSummary(builder, request)
+	// The final request has one summary line. A full line from a removal
+	// already serves as the checkpoint. A delta needs to go out first.
+	if builder.SummaryDelta {
+		builder.HasMore = true
+		return
+	}
+	if s.SummaryDelta && s.RunSummary != nil && len(builder.SummaryChunk.Content) == 0 {
+		s.popSummary(builder, request, true, logger, printer)
 		if builder.HasMore {
 			return
 		}

@@ -66,8 +66,6 @@ func (fs *fileStream) fetchInitialState(
 	initialOffsets FileStreamOffsetMap,
 ) *FileStreamState {
 	state := &FileStreamState{
-		Logger:  fs.logger,
-		Printer: fs.printer,
 		MaxRequestSizeBytes: max(
 			int(fs.settings.GetFileStreamMaxBytes()),
 			defaultMaxRequestSizeBytes,
@@ -137,6 +135,8 @@ func (fs *fileStream) startTransmitting(
 	state *FileStreamState,
 ) <-chan map[string]any {
 	transmissions := CollectLoop{
+		Logger:            fs.logger,
+		Printer:           fs.printer,
 		TransmitRateLimit: fs.transmitRateLimit,
 	}.Start(state, requests)
 
