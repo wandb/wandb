@@ -132,7 +132,7 @@ func appendFloat(dst []byte, f float64) []byte {
 	}
 	start := len(dst)
 	dst = strconv.AppendFloat(dst, f, 'g', -1, 64)
-	if bytes.IndexAny(dst[start:], ".eE") < 0 {
+	if !bytes.ContainsAny(dst[start:], ".eE") {
 		dst = append(dst, ".0"...)
 	}
 	return dst
