@@ -245,7 +245,7 @@ def test_summary_file(wandb_backend_spy: WandbBackendSpy):
         assert summary["z"] == 3
 
         assert summary == json_util.loads(
-            pathlib.Path(run.dir, "wandb-summary.jsonl").read_text(),
+            pathlib.Path(run.dir, "wandb-summary.json").read_text(),
         )
 
 
