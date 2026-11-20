@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 )
 
@@ -107,18 +108,16 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
+	// Sending a buffered history row later could overwrite an explicit summary value.
+	if len(request.HistoryLines) == 0 && !request.SummaryUpdates.IsEmpty() {
+		s.popSummary(builder, request, false, logger, printer)
+	}
 	s.popConsoleLines(builder, request)
-
-	// Last of the files, so that popSummary knows whether any data remains.
-	s.popSummary(builder, request, logger, printer)
 
 	s.popUploadedFiles(builder, request)
 	s.popPreempting(builder, request)
 
-	if !builder.HasMore && request.Complete {
-		builder.Complete = true
-		builder.ExitCode = request.ExitCode
-	}
+	s.popFinish(builder, request, logger, printer)
 
 	return builder.Build(), builder.HasMore
 }
@@ -181,65 +180,69 @@ func (s *FileStreamState) popEvents(
 	}
 }
 
-// popSummary adds the summary to the request if it changed.
-//
-// In delta mode, it sends only the changes that aren't values from history.
-// A change that removes a key and the end of the stream send the full summary.
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
+	checkpoint bool,
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) {
-	final := s.SummaryDelta && request.Complete && !builder.HasMore
-	if request.SummaryUpdates.IsEmpty() && (!final || s.RunSummary == nil) {
-		return
+	updates := request.SummaryUpdates
+	isDelta := s.SummaryDelta && !checkpoint && !updates.HasRemovals()
+	line := request.deferredSummary
+	if line == nil {
+		line = s.summaryLine(updates, isDelta, checkpoint, logger, printer)
 	}
-
-	// History sent after a summary overrides the summary's values for the
-	// keys it logs, so the summary waits for the history logged before it.
-	if len(request.HistoryLines) > 0 {
-		builder.HasMore = true
-		return
+	if line != nil {
+		if !builder.TryAddSize(len(line)) {
+			request.deferredSummary = line
+			builder.HasMore = true
+			return
+		}
+		builder.SummaryChunk.Offset = s.SummaryLineNum
+		builder.SummaryChunk.Content = []string{string(line)}
+		builder.SummaryDelta = isDelta
 	}
+	request.deferredSummary = nil
+	request.SummaryUpdates = nil
+}
 
+func (s *FileStreamState) summaryLine(
+	updates *runsummary.Updates,
+	isDelta, checkpoint bool,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
+) []byte {
 	if s.RunSummary == nil {
 		s.RunSummary = runsummary.New()
 	}
-
-	// Updates stay in the request until the summary is sent, so they may be
-	// applied more than once, which changes nothing.
-	err := request.SummaryUpdates.Apply(s.RunSummary)
-	if err != nil {
-		// A partial success is possible, so we log and continue.
+	var delta *pathtree.PathTree[any]
+	if isDelta {
+		delta = pathtree.New[any]()
+	}
+	if err := updates.ApplyWithDelta(s.RunSummary, delta); err != nil {
 		logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: error applying summary updates: %v", err),
 		)
 	}
 
-	isDelta := s.SummaryDelta && !final &&
-		!request.SummaryUpdates.HasRemovals()
-
 	var summaryJSON []byte
-	if isDelta {
-		summaryJSON, err = request.SummaryUpdates.SerializeWithoutHistory()
+	var err error
+	if delta != nil {
+		if delta.IsEmpty() {
+			return nil
+		}
+		summaryJSON, err = delta.ToExtendedJSON()
 	} else {
 		summaryJSON, err = s.RunSummary.Serialize()
 	}
-
 	if err != nil {
 		logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: failed to serialize summary: %v", err),
 		)
-		request.SummaryUpdates = nil
-		return
-	}
-
-	if isDelta && string(summaryJSON) == "{}" {
-		request.SummaryUpdates = nil
-		return
+		return nil
 	}
 
 	s.LastRunSummarySize = len(summaryJSON)
@@ -249,29 +252,22 @@ func (s *FileStreamState) popSummary(
 			"filestream: run summary line too long, skipping",
 			"len", len(summaryJSON),
 			"max", s.MaxFileLineSize,
+			"checkpoint", checkpoint,
 		)
-		printer.
-			AtMostEvery(time.Minute).
-			Warnf(
-				"Skipped uploading summary data that exceeded"+
-					" size limit (%d > %d bytes).",
-				len(summaryJSON),
-				s.MaxFileLineSize,
-			)
-
-		request.SummaryUpdates = nil
-		return
+		if !checkpoint {
+			printer.
+				AtMostEvery(time.Minute).
+				Warnf(
+					"Skipped uploading summary data that exceeded"+
+						" size limit (%d > %d bytes).",
+					len(summaryJSON),
+					s.MaxFileLineSize,
+				)
+		}
+		return nil
 	}
 
-	if !builder.TryAddSize(len(summaryJSON)) {
-		builder.HasMore = true
-		return
-	}
-
-	builder.SummaryChunk.Offset = s.SummaryLineNum
-	builder.SummaryChunk.Content = []string{string(summaryJSON)}
-	builder.SummaryDelta = isDelta
-	request.SummaryUpdates = nil
+	return summaryJSON
 }
 
 func (s *FileStreamState) popConsoleLines(
@@ -314,6 +310,31 @@ func (s *FileStreamState) popPreempting(
 ) {
 	builder.Preempting = request.Preempting
 	request.Preempting = false
+}
+
+func (s *FileStreamState) popFinish(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
+) {
+	if !request.Complete || builder.HasMore {
+		return
+	}
+	// The final request has one summary line. A full line from a removal
+	// already serves as the checkpoint. A delta needs to go out first.
+	if builder.SummaryDelta {
+		builder.HasMore = true
+		return
+	}
+	if s.SummaryDelta && s.RunSummary != nil && len(builder.SummaryChunk.Content) == 0 {
+		s.popSummary(builder, request, true, logger, printer)
+		if builder.HasMore {
+			return
+		}
+	}
+	builder.Complete = true
+	builder.ExitCode = request.ExitCode
 }
 
 // requestJSONBuilder builds a [FileStreamRequestJSON].
@@ -360,7 +381,7 @@ func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 	}
 	if len(x.SummaryChunk.Content) > 0 {
 		json.Files[SummaryFileName] = x.SummaryChunk
-		json.SummaryDelta = nullify.NilIfZero(x.SummaryDelta)
+		json.SummaryDelta = x.SummaryDelta
 	}
 	if len(x.ConsoleLinesChunk.Content) > 0 {
 		json.Files[OutputFileName] = x.ConsoleLinesChunk

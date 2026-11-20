@@ -25,6 +25,10 @@ type FileStreamRequest struct {
 	// SummaryUpdates contains changes to the run's summary.
 	SummaryUpdates *runsummary.Updates
 
+	// deferredSummary holds an encoded summary that did not fit the last chunk.
+	// Merge invalidates it when new summary updates arrive.
+	deferredSummary []byte
+
 	// ConsoleLines is updates to make to the run's output logs.
 	//
 	// Unlike history and system metrics, we often update past lines in
@@ -63,10 +67,13 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 	r.HistoryLines = append(r.HistoryLines, next.HistoryLines...)
 	r.EventsLines = append(r.EventsLines, next.EventsLines...)
 
-	if r.SummaryUpdates == nil {
-		r.SummaryUpdates = next.SummaryUpdates
-	} else {
-		r.SummaryUpdates.Merge(next.SummaryUpdates)
+	if !next.SummaryUpdates.IsEmpty() {
+		r.deferredSummary = nil
+		if r.SummaryUpdates == nil {
+			r.SummaryUpdates = next.SummaryUpdates
+		} else {
+			r.SummaryUpdates.Merge(next.SummaryUpdates)
+		}
 	}
 
 	if r.ConsoleLines == nil {
@@ -102,7 +109,7 @@ type FileStreamRequestJSON struct {
 	Files        map[string]OffsetAndContent `json:"files,omitempty"`
 	Uploaded     []string                    `json:"uploaded,omitempty"`
 	Preempting   *bool                       `json:"preempting,omitempty"`
-	SummaryDelta *bool                       `json:"summary_delta,omitempty"`
+	SummaryDelta bool                        `json:"summary_delta,omitempty"`
 
 	Complete *bool  `json:"complete,omitempty"`
 	ExitCode *int32 `json:"exitcode,omitempty"`

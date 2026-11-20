@@ -24,12 +24,8 @@ type Updates struct {
 	remove *pathtree.PathTree[struct{}]
 }
 
-// updatedValue is a new value for a path in the summary.
 type updatedValue struct {
-	// json is the JSON-encoded value (supporting +-Infinity and NaN).
-	json string
-
-	// fromHistory is whether it's the key's latest value from run.log().
+	json        string // Extended JSON supports NaN and infinities.
 	fromHistory bool
 }
 
@@ -45,25 +41,6 @@ func (u *Updates) IsEmpty() bool {
 // Returns false given nil.
 func (u *Updates) HasRemovals() bool {
 	return u != nil && !u.remove.IsEmpty()
-}
-
-// SerializeWithoutHistory returns the values set by the updates, except
-// values from run.log(), in the format of [RunSummary.Serialize].
-func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
-	rs := New()
-	if u != nil {
-		u.update.ForEachLeaf(func(path pathtree.TreePath, v updatedValue) bool {
-			if v.fromHistory {
-				return true
-			}
-
-			if value, err := simplejsonext.UnmarshalString(v.json); err == nil {
-				rs.Set(path, value)
-			}
-			return true
-		})
-	}
-	return rs.Serialize()
 }
 
 // NoUpdates returns a mutable Updates instance that makes no changes.
@@ -133,6 +110,12 @@ func (u *Updates) Merge(newUpdates *Updates) {
 // A partial success is possible if some values' JSON strings cannot be
 // unmarshaled.
 func (u *Updates) Apply(rs *RunSummary) error {
+	return u.ApplyWithDelta(rs, nil)
+}
+
+// ApplyWithDelta also copies explicit values into delta when supplied.
+// Both wire formats omit null values, so a delta cannot clear a key this way.
+func (u *Updates) ApplyWithDelta(rs *RunSummary, delta *pathtree.PathTree[any]) error {
 	if u == nil {
 		return nil
 	}
@@ -148,6 +131,9 @@ func (u *Updates) Apply(rs *RunSummary) error {
 					fmt.Errorf("error in path %s: %v", toDottedPath(path), err))
 			} else {
 				rs.Set(path, value)
+				if delta != nil && !v.fromHistory && value != nil {
+					delta.Set(path, value)
+				}
 			}
 
 			return true

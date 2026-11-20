@@ -30,8 +30,6 @@ const (
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultTransmitInterval  = 15 * time.Second
 
-	// summaryDeltaQueryTimeout bounds asking the backend whether it accepts
-	// summary deltas when a stream starts.
 	summaryDeltaQueryTimeout = 10 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
@@ -125,7 +123,6 @@ type fileStream struct {
 	// featureProvider indicates which features the server supports.
 	featureProvider *featurechecker.FeatureProvider
 
-	// graphqlClient makes GraphQL requests. It may be nil.
 	graphqlClient graphql.Client
 
 	// The client for making API requests.
@@ -162,16 +159,12 @@ var FileStreamProviders = wire.NewSet(
 type FileStreamFactory struct {
 	BaseURL         api.WBBaseURL
 	FeatureProvider *featurechecker.FeatureProvider
-
-	// GraphqlClient is used to ask whether the run's project accepts
-	// summary deltas. If nil, full summaries are sent.
-	GraphqlClient graphql.Client
-
-	Logger     *observability.CoreLogger
-	Operations *wboperation.WandbOperations
-	Printer    *observability.Printer
-	Settings   *settings.Settings
-	Stats      *filestreamstats.Stats
+	GraphqlClient   graphql.Client
+	Logger          *observability.CoreLogger
+	Operations      *wboperation.WandbOperations
+	Printer         *observability.Printer
+	Settings        *settings.Settings
+	Stats           *filestreamstats.Stats
 }
 
 // New returns a new FileStream.
@@ -236,7 +229,7 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	state := fs.initialState(entity, project, offsetMap)
+	state := fs.fetchInitialState(entity, project, offsetMap)
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
 	feedbackChan := fs.startTransmitting(transmitChan, state)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)

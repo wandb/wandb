@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -212,9 +213,9 @@ func TestSendHistoryAppliesSteps(t *testing.T) {
 	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
 
 	// _step comes from the history row, so a summary delta leaves it out.
-	delta, err := request.SummaryUpdates.SerializeWithoutHistory()
-	require.NoError(t, err)
-	assert.JSONEq(t, `{}`, string(delta))
+	delta := pathtree.New[any]()
+	require.NoError(t, request.SummaryUpdates.ApplyWithDelta(runsummary.New(), delta))
+	assert.True(t, delta.IsEmpty())
 }
 
 func sendHistoryItems(x testFixtures, items ...*spb.HistoryItem) {

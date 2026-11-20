@@ -192,22 +192,26 @@ func TestUpdates_IsEmpty(t *testing.T) {
 	}
 }
 
-func TestUpdates_SerializeWithoutHistory(t *testing.T) {
+func TestUpdates_ApplyWithDelta(t *testing.T) {
 	updates := runsummary.FromProto(&spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"_wandb", "runtime"}, ValueJson: `12`},
 			{Key: "loss", ValueJson: `{"min":0.2}`},
 			{Key: "acc", ValueJson: `0.8`, FromHistory: true},
+			{Key: "bad", ValueJson: "invalid"},
+			{Key: "unset", ValueJson: "null"},
 		},
 		Remove: []*spb.SummaryItem{{Key: "gone"}},
 	})
 
-	json, err := updates.SerializeWithoutHistory()
-
-	assert.NoError(t, err)
-	assert.JSONEq(t,
-		`{"_wandb":{"runtime":12},"loss":{"min":0.2}}`,
-		string(json))
+	delta := pathtree.New[any]()
+	err := updates.ApplyWithDelta(runsummary.New(), delta)
+	assert.ErrorContains(t, err, "bad")
+	assert.Equal(t, map[string]any{
+		"_wandb": map[string]any{"runtime": int64(12)},
+		"loss":   map[string]any{"min": 0.2},
+	}, delta.CloneTree())
+	assert.ErrorContains(t, updates.Apply(runsummary.New()), "bad")
 }
 
 func TestUpdates_Merge_LatestWriteDecidesFromHistory(t *testing.T) {
@@ -231,7 +235,9 @@ func TestUpdates_Merge_LatestWriteDecidesFromHistory(t *testing.T) {
 			updates.Merge(runsummary.FromProto(
 				&spb.SummaryRecord{Update: []*spb.SummaryItem{tc.second}}))
 
-			json, err := updates.SerializeWithoutHistory()
+			delta := pathtree.New[any]()
+			assert.NoError(t, updates.ApplyWithDelta(runsummary.New(), delta))
+			json, err := delta.ToExtendedJSON()
 
 			assert.NoError(t, err)
 			assert.JSONEq(t, tc.want, string(json))
