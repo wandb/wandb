@@ -4,19 +4,53 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import time
 from collections.abc import Generator
-from typing import NoReturn
+from typing import NoReturn, TypeVar
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface import interface
 from wandb.sdk.lib import asyncio_compat
+from wandb.sdk.mailbox import MailboxHandle, wait_with_progress
 
 from . import printer as p
 
 _INDENT = "  "
 _MAX_LINES_TO_PRINT = 6
 _MAX_OPS_TO_PRINT = 5
+
+_T = TypeVar("_T")
+
+
+def wait_printing_progress(
+    handle: MailboxHandle[_T],
+    *,
+    printer: p.Printer,
+    interface: interface.InterfaceBase,
+    default_text: str,
+    timeout: float | None,
+) -> _T:
+    """Wait for a handle while displaying the service process's progress.
+
+    Args:
+        handle: The handle to wait for.
+        printer: The printer to display progress with.
+        interface: The interface to poll for operation stats.
+        default_text: The text to show if no information is available.
+        timeout: A number of seconds after which to raise a TimeoutError,
+            or None if this should never timeout.
+    """
+    with progress_printer(printer, default_text) as printer_:
+        return wait_with_progress(
+            handle,
+            timeout=timeout,
+            display_progress=functools.partial(
+                loop_printing_operation_stats,
+                printer_,
+                interface,
+            ),
+        )
 
 
 async def loop_printing_operation_stats(

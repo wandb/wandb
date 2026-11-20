@@ -11,6 +11,7 @@ const (
 	wbWSegSpace
 	wbHebrewLetter
 	wbALetter
+	wbALetterExtendedPictographic
 	wbWB7
 	wbWB7c
 	wbNumeric
@@ -19,13 +20,13 @@ const (
 	wbExtendNumLet
 	wbOddRI
 	wbEvenRI
-	wbZWJBit = 16 // This bit is set for any states followed by at least one zero-width joiner (see WB4 and WB3c).
+	wbZWJBit = 1 << 4 // This bit is set for any states followed by at least one zero-width joiner (see WB4 and WB3c).
 )
 
 // wbTransitions implements the word break parser's state transitions. It's
 // anologous to [grTransitions], see comments there for details.
 //
-// Unicode version 15.0.0.
+// Unicode version 18.0.0.
 func wbTransitions(state, prop int) (newState int, wordBreak bool, rule int) {
 	switch uint64(state) | uint64(prop)<<32 {
 	// WB3b.
@@ -57,20 +58,34 @@ func wbTransitions(state, prop int) (newState int, wordBreak bool, rule int) {
 	// WB5.
 	case wbAny | prALetter<<32:
 		return wbALetter, true, 9990
+	case wbAny | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, true, 9990
 	case wbAny | prHebrewLetter<<32:
 		return wbHebrewLetter, true, 9990
 	case wbALetter | prALetter<<32:
 		return wbALetter, false, 50
+	case wbALetter | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, false, 50
 	case wbALetter | prHebrewLetter<<32:
+		return wbHebrewLetter, false, 50
+	case wbALetterExtendedPictographic | prALetter<<32:
+		return wbALetter, false, 50
+	case wbALetterExtendedPictographic | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, false, 50
+	case wbALetterExtendedPictographic | prHebrewLetter<<32:
 		return wbHebrewLetter, false, 50
 	case wbHebrewLetter | prALetter<<32:
 		return wbALetter, false, 50
+	case wbHebrewLetter | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, false, 50
 	case wbHebrewLetter | prHebrewLetter<<32:
 		return wbHebrewLetter, false, 50
 
 	// WB7. Transitions to wbWB7 handled by transitionWordBreakState().
 	case wbWB7 | prALetter<<32:
 		return wbALetter, false, 70
+	case wbWB7 | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, false, 70
 	case wbWB7 | prHebrewLetter<<32:
 		return wbHebrewLetter, false, 70
 
@@ -91,12 +106,16 @@ func wbTransitions(state, prop int) (newState int, wordBreak bool, rule int) {
 	// WB9.
 	case wbALetter | prNumeric<<32:
 		return wbNumeric, false, 90
+	case wbALetterExtendedPictographic | prNumeric<<32:
+		return wbNumeric, false, 90
 	case wbHebrewLetter | prNumeric<<32:
 		return wbNumeric, false, 90
 
 	// WB10.
 	case wbNumeric | prALetter<<32:
 		return wbALetter, false, 100
+	case wbNumeric | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, false, 100
 	case wbNumeric | prHebrewLetter<<32:
 		return wbHebrewLetter, false, 100
 
@@ -115,6 +134,8 @@ func wbTransitions(state, prop int) (newState int, wordBreak bool, rule int) {
 		return wbExtendNumLet, true, 9990
 	case wbALetter | prExtendNumLet<<32:
 		return wbExtendNumLet, false, 131
+	case wbALetterExtendedPictographic | prExtendNumLet<<32:
+		return wbExtendNumLet, false, 131
 	case wbHebrewLetter | prExtendNumLet<<32:
 		return wbExtendNumLet, false, 131
 	case wbNumeric | prExtendNumLet<<32:
@@ -127,6 +148,8 @@ func wbTransitions(state, prop int) (newState int, wordBreak bool, rule int) {
 	// WB13b.
 	case wbExtendNumLet | prALetter<<32:
 		return wbALetter, false, 132
+	case wbExtendNumLet | prALetterExtendedPictographic<<32:
+		return wbALetterExtendedPictographic, false, 132
 	case wbExtendNumLet | prHebrewLetter<<32:
 		return wbHebrewLetter, false, 132
 	case wbExtendNumLet | prNumeric<<32:
@@ -170,7 +193,7 @@ func transitionWordBreakState(state int, r rune, b []byte, str string) (newState
 			return wbAny, false
 		}
 		return state, false
-	} else if nextProperty == prExtendedPictographic && state >= 0 && state&wbZWJBit != 0 {
+	} else if (nextProperty == prExtendedPictographic || nextProperty == prALetterExtendedPictographic) && state >= 0 && state&wbZWJBit != 0 {
 		// WB3c.
 		return wbAny, false
 	}
@@ -213,7 +236,7 @@ func transitionWordBreakState(state int, r rune, b []byte, str string) (newState
 	// be determined (because the text ends or the rune is faulty).
 	farProperty := -1
 	if rule > 60 &&
-		(state == wbALetter || state == wbHebrewLetter || state == wbNumeric) &&
+		(state == wbALetter || state == wbALetterExtendedPictographic || state == wbHebrewLetter || state == wbNumeric) &&
 		(nextProperty == prMidLetter || nextProperty == prMidNumLet || nextProperty == prSingleQuote || // WB6.
 			nextProperty == prDoubleQuote || // WB7b.
 			nextProperty == prMidNum) { // WB12.
@@ -243,9 +266,9 @@ func transitionWordBreakState(state int, r rune, b []byte, str string) (newState
 
 	// WB6.
 	if rule > 60 &&
-		(state == wbALetter || state == wbHebrewLetter) &&
+		(state == wbALetter || state == wbALetterExtendedPictographic || state == wbHebrewLetter) &&
 		(nextProperty == prMidLetter || nextProperty == prMidNumLet || nextProperty == prSingleQuote) &&
-		(farProperty == prALetter || farProperty == prHebrewLetter) {
+		(farProperty == prALetter || farProperty == prALetterExtendedPictographic || farProperty == prHebrewLetter) {
 		return wbWB7, false
 	}
 

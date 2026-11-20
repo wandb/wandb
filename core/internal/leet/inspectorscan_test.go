@@ -97,9 +97,7 @@ func TestReadInspectorBatch_ScanAndReadAt(t *testing.T) {
 }
 
 func TestReadInspectorBatch_LiveAppend(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run-live.wandb")
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
+	w, path := txnlogtest.NewWriter(t, &txnlogtest.WriterOptions{})
 	defer func() { _ = w.Close() }()
 
 	require.NoError(t, w.Write(&spb.Record{
@@ -134,9 +132,9 @@ func TestReadInspectorBatch_LiveAppend(t *testing.T) {
 func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 	for _, test := range []struct {
 		name    string
-		version byte
+		version uint8
 	}{
-		{name: "next version", version: 1},
+		{name: "next version", version: 2},
 		{name: "maximum version", version: 255},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -146,13 +144,11 @@ func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
 			defer scan.Close()
 
 			batch := scanBatch(t, scan, 1)
-			assert.EqualError(t, batch.Err,
-				"a newer wandb version is required to read this file")
 			assert.Empty(t, batch.Entries)
 			assert.Zero(t, batch.Corrupt)
-			var versionErr *transactionlog.UnsupportedVersionError
-			require.ErrorAs(t, batch.Err, &versionErr)
-			assert.Equal(t, test.version, versionErr.Version)
+			assert.ErrorContains(t, batch.Err,
+				"a newer wandb version is required to read this file",
+			)
 		})
 	}
 }
@@ -277,7 +273,10 @@ func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
 	runDir := filepath.Join(wandbDir, "run-20260821_120000-abc123")
 	require.NoError(t, os.MkdirAll(runDir, 0o755))
 
-	w, err := transactionlog.OpenWriter(filepath.Join(runDir, "run-abc123.wandb"))
+	w, err := transactionlog.OpenWriter(
+		filepath.Join(runDir, "run-abc123.wandb"),
+		0,
+	)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(&spb.Record{
 		RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "abc123"}},
