@@ -19,7 +19,7 @@ var EastAsianAmbiguousWidth = 1
 //   - Regional Indicator: Width of 2
 //   - Extended Pictographic: Width of 2, unless Emoji Presentation is "No".
 func runeWidth(r rune, graphemeProperty int) int {
-	switch graphemeProperty {
+	switch graphemeProperty &^ prInCBMask {
 	case prControl, prCR, prLF, prExtend, prZWJ:
 		return 0
 	case prRegionalIndicator:
