@@ -108,7 +108,7 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	if request.SummaryUpdates != nil {
+	if !request.SummaryUpdates.IsEmpty() {
 		s.popSummary(builder, request, false, logger, printer)
 	}
 	s.popConsoleLines(builder, request)
@@ -212,9 +212,6 @@ func (s *FileStreamState) summaryLine(
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) []byte {
-	if !checkpoint && updates.IsEmpty() {
-		return nil
-	}
 	if s.RunSummary == nil {
 		s.RunSummary = runsummary.New()
 	}

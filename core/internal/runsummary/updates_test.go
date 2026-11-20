@@ -211,6 +211,7 @@ func TestUpdates_ApplyWithDelta(t *testing.T) {
 		"_wandb": map[string]any{"runtime": int64(12)},
 		"loss":   map[string]any{"min": 0.2},
 	}, delta.CloneTree())
+	assert.ErrorContains(t, updates.Apply(runsummary.New()), "bad")
 }
 
 func TestUpdates_Merge_LatestWriteDecidesFromHistory(t *testing.T) {

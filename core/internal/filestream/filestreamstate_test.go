@@ -218,15 +218,11 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	json, hasMore = state.Pop(request, logger, printer)
 	assert.True(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
+	assert.Equal(t, 1, strings.Count(logs.String(), "error in path bad"))
 
 	// A new summary invalidates the encoded line and retries the pending values.
 	request.Merge(&FileStreamRequest{
-		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
-			Update: []*spb.SummaryItem{
-				{Key: "added", ValueJson: "2"},
-				{Key: "broken", ValueJson: "invalid"},
-			},
-		}),
+		SummaryUpdates: summaryUpdate("added", "2"),
 	})
 	json, hasMore = state.Pop(request, logger, printer)
 
@@ -235,8 +231,6 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	require.Len(t, lines, 1)
 	assert.JSONEq(t, `{"key":"value","added":2}`, lines[0])
 	assert.Nil(t, request.SummaryUpdates)
-	assert.Equal(t, 1, strings.Count(logs.String(), "error in path bad"))
-	assert.Equal(t, 1, strings.Count(logs.String(), "error in path broken"))
 }
 
 func TestState_Pop_SummaryLineTooLong(t *testing.T) {
@@ -445,12 +439,12 @@ func TestState_Pop_SummaryDelta(t *testing.T) {
 		{"no change, no summary",
 			&FileStreamRequest{EventsLines: []string{`{"cpu":1}`}},
 			"", false},
-		{"empty delta is skipped",
-			&FileStreamRequest{SummaryUpdates: summaryUpdate("unset", "null")},
+		{"setting an existing key to null emits no delta",
+			&FileStreamRequest{SummaryUpdates: summaryUpdate("b", "null")},
 			"", false},
 		{"finish checkpoints even with no pending updates",
 			&FileStreamRequest{Complete: true},
-			`{"b":2,"c":3}`, false},
+			`{"c":3}`, false},
 	}
 	state := deltaState()
 

@@ -110,17 +110,12 @@ func (u *Updates) Merge(newUpdates *Updates) {
 // A partial success is possible if some values' JSON strings cannot be
 // unmarshaled.
 func (u *Updates) Apply(rs *RunSummary) error {
-	return u.apply(rs, nil, false)
+	return u.ApplyWithDelta(rs, nil)
 }
 
-// ApplyWithDelta also copies explicit, non-null values into delta when supplied.
-// It discards malformed values after reporting them so later merges can retry
-// the valid updates. Removals still require a full summary.
+// ApplyWithDelta also copies explicit values into delta when supplied.
+// Both wire formats omit null values, so a delta cannot clear a key this way.
 func (u *Updates) ApplyWithDelta(rs *RunSummary, delta *pathtree.PathTree[any]) error {
-	return u.apply(rs, delta, true)
-}
-
-func (u *Updates) apply(rs *RunSummary, delta *pathtree.PathTree[any], discardInvalid bool) error {
 	if u == nil {
 		return nil
 	}
@@ -134,9 +129,6 @@ func (u *Updates) apply(rs *RunSummary, delta *pathtree.PathTree[any], discardIn
 			if err != nil {
 				errs = append(errs,
 					fmt.Errorf("error in path %s: %v", toDottedPath(path), err))
-				if discardInvalid {
-					u.update.Remove(path)
-				}
 			} else {
 				rs.Set(path, value)
 				if delta != nil && !v.fromHistory && value != nil {

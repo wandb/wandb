@@ -26,6 +26,7 @@ type FileStreamRequest struct {
 	SummaryUpdates *runsummary.Updates
 
 	// deferredSummary holds an encoded summary that did not fit the last chunk.
+	// Merge invalidates it when new summary updates arrive.
 	deferredSummary []byte
 
 	// ConsoleLines is updates to make to the run's output logs.
