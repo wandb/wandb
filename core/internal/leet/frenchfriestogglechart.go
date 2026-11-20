@@ -92,6 +92,10 @@ func (c *frenchFriesToggleChart) HandleZoom(direction string, mouseX int) {
 	c.activeChart().DrawIfNeeded()
 }
 
+func (c *frenchFriesToggleChart) ScrollRows(delta int) bool {
+	return c.heatmapMode && c.frenchFries.ScrollRows(delta)
+}
+
 func (c *frenchFriesToggleChart) ToggleYScale() bool {
 	if c.heatmapMode {
 		return false

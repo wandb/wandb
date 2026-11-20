@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +22,34 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-var valuesKeyRegexp = regexp.MustCompile(`^(.*)\[(.*)\]$`)
+// splitMapKey splits a query parameter name of the form "field[key]" into the part before the
+// bracket and the key inside it, reporting whether the name has that shape at all.
+//
+// This replaces a FindStringSubmatch against `^(.*)\[(.*)\]$`, which ran for every query
+// parameter and cost two allocations each -- the submatch slice and the backtracker's state --
+// to answer a question that is two index operations. The returned strings are slices of the
+// caller's key, so nothing is copied; the caller rebuilds "[key]" as key[len(prefix):] rather
+// than concatenating it back together.
+//
+// The regexp is matched exactly, including two details worth spelling out:
+//
+//   - The first group is greedy, so the bracket that counts is the last one before the final
+//     "]". "a[b]c]" splits into "a" and "b]c", which is what LastIndexByte over everything but
+//     the final byte finds.
+//   - Go's regexp does not let "." match a newline and anchors ^ and $ at the ends of the text,
+//     so a key containing a newline could never match the pattern no matter where the brackets
+//     sat. The explicit newline check keeps that, rather than quietly starting to treat
+//     "a\n[b]" as a map key.
+func splitMapKey(key string) (prefix, inner string, ok bool) {
+	if len(key) < 2 || key[len(key)-1] != ']' || strings.IndexByte(key, '\n') >= 0 {
+		return "", "", false
+	}
+	open := strings.LastIndexByte(key[:len(key)-1], '[')
+	if open < 0 {
+		return "", "", false
+	}
+	return key[:open], key[open+1 : len(key)-1], true
+}
 
 var currentQueryParser QueryParameterParser = &DefaultQueryParser{}
 
@@ -55,9 +81,9 @@ func (*DefaultQueryParser) Parse(msg proto.Message, values url.Values, filter *u
 	seen := make(map[string]struct{}, len(values))
 	for key, values := range values {
 		fieldKey, mapKey := key, ""
-		if match := valuesKeyRegexp.FindStringSubmatch(key); len(match) == 3 {
-			fieldKey, mapKey = match[1], "["+match[2]+"]"
-			values = append([]string{match[2]}, values...)
+		if prefix, inner, ok := splitMapKey(key); ok {
+			fieldKey, mapKey = prefix, key[len(prefix):]
+			values = append([]string{inner}, values...)
 		}
 
 		msgValue := msg.ProtoReflect()
@@ -187,11 +213,15 @@ func populateFieldValueFromPath(msgValue protoreflect.Message, fieldPath []strin
 		msgValue = msgValue.Mutable(fieldDescriptor).Message()
 	}
 
-	// A key using the map syntax (field[key]=value) must name a map field.
+	// A key using the map syntax (field[key]=value) must name a map field,
+	// or a repeated field of key/value messages laid out like map entries.
 	// Otherwise the bracket content would be bound as if it were a regular
 	// value: appended as a phantom element of a repeated field, or counted
 	// as a second value for a singular one.
 	if hasMapKey && !fieldDescriptor.IsMap() {
+		if isKeyValueList(fieldDescriptor) {
+			return populateKeyValueListField(fieldDescriptor, msgValue.Mutable(fieldDescriptor).List(), values)
+		}
 		return fmt.Errorf("field %q is not a map", fieldDescriptor.FullName().Name())
 	}
 
@@ -247,6 +277,48 @@ func populateMapField(fieldDescriptor protoreflect.FieldDescriptor, mp protorefl
 	}
 
 	mp.Set(key.MapKey(), value)
+
+	return nil
+}
+
+// isKeyValueList reports whether fieldDescriptor is a repeated message field
+// whose message has exactly a singular "key" and a singular "value" field.
+// Such a field is shaped like a map entry list, but can hold more than one
+// value for a key.
+func isKeyValueList(fieldDescriptor protoreflect.FieldDescriptor) bool {
+	if !fieldDescriptor.IsList() || fieldDescriptor.Message() == nil {
+		return false
+	}
+	fields := fieldDescriptor.Message().Fields()
+	if fields.Len() != 2 {
+		return false
+	}
+	key, value := fields.ByName("key"), fields.ByName("value")
+	return key != nil && key.Cardinality() != protoreflect.Repeated &&
+		value != nil && value.Cardinality() != protoreflect.Repeated
+}
+
+// populateKeyValueListField appends one key/value message to list for each of
+// values[1:], all with the key values[0].
+func populateKeyValueListField(fieldDescriptor protoreflect.FieldDescriptor, list protoreflect.List, values []string) error {
+	fields := fieldDescriptor.Message().Fields()
+	keyField, valueField := fields.ByName("key"), fields.ByName("value")
+
+	key, err := parseField(keyField, values[0])
+	if err != nil {
+		return fmt.Errorf("parsing map key %q: %w", fieldDescriptor.FullName().Name(), err)
+	}
+
+	for _, value := range values[1:] {
+		v, err := parseField(valueField, value)
+		if err != nil {
+			return fmt.Errorf("parsing map value %q: %w", fieldDescriptor.FullName().Name(), err)
+		}
+		entry := list.NewElement()
+		entry.Message().Set(keyField, key)
+		entry.Message().Set(valueField, v)
+		list.Append(entry)
+	}
 
 	return nil
 }

@@ -98,6 +98,10 @@ func init() {
 // blob.DefaultMux.
 const Scheme = "file"
 
+var (
+	ifNotExistLock sync.Mutex
+)
+
 // URLOpener opens file bucket URLs like "file:///foo/bar/baz".
 //
 // The URL's host is ignored unless it is ".", which is used to signal a
@@ -777,7 +781,6 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 			File:       f,
 			path:       path,
 			ifNotExist: opts.IfNotExist,
-			mu:         &sync.Mutex{},
 		}
 		return w, nil
 	}
@@ -802,7 +805,6 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		contentMD5: opts.ContentMD5,
 		md5hash:    md5.New(),
 		ifNotExist: opts.IfNotExist,
-		mu:         &sync.Mutex{},
 	}
 	return w, nil
 }
@@ -818,7 +820,6 @@ type writerWithSidecar struct {
 	// not for verification.
 	md5hash    hash.Hash
 	ifNotExist bool
-	mu         *sync.Mutex
 }
 
 func (w *writerWithSidecar) Write(p []byte) (n int, err error) {
@@ -851,8 +852,10 @@ func (w *writerWithSidecar) Close() error {
 	}
 
 	if w.ifNotExist {
-		w.mu.Lock()
-		defer w.mu.Unlock()
+		// Note that the lock is held until the function returns, by which time
+		// the atributes file has been written and the Rename has happened.
+		ifNotExistLock.Lock()
+		defer ifNotExistLock.Unlock()
 		_, err = os.Stat(w.path)
 		if err == nil {
 			return gcerr.New(gcerrors.FailedPrecondition, fmt.Errorf("blob %q already exists", w.path), 1, "fileblob: IfNotExist precondition failed")
@@ -881,7 +884,6 @@ type writer struct {
 	ctx        context.Context
 	path       string
 	ifNotExist bool
-	mu         *sync.Mutex
 }
 
 func (w *writer) Upload(r io.Reader) error {
@@ -905,8 +907,10 @@ func (w *writer) Close() error {
 	}
 
 	if w.ifNotExist {
-		w.mu.Lock()
-		defer w.mu.Unlock()
+		// Note that the lock is held until the function returns, by which time
+		// the Rename has happened.
+		ifNotExistLock.Lock()
+		defer ifNotExistLock.Unlock()
 		_, err = os.Stat(w.path)
 		if err == nil {
 			return gcerr.New(gcerrors.FailedPrecondition, fmt.Errorf("blob %q already exists", w.path), 1, "fileblob: IfNotExist precondition failed")
