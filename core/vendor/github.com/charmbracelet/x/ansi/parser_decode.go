@@ -196,7 +196,7 @@ func decodeSequence[T string | []byte](m Method, b T, state State, p *Parser) (s
 			fallthrough
 		case ParamsState:
 			if c >= '0' && c <= '9' {
-				if p != nil {
+				if p != nil && p.paramsLen < len(p.params) {
 					if p.params[p.paramsLen] == parser.MissingParam {
 						p.params[p.paramsLen] = 0
 					}
@@ -208,13 +208,13 @@ func decodeSequence[T string | []byte](m Method, b T, state State, p *Parser) (s
 			}
 
 			if c == ':' {
-				if p != nil {
+				if p != nil && p.paramsLen < len(p.params) {
 					p.params[p.paramsLen] |= parser.HasMoreFlag
 				}
 			}
 
 			if c == ';' || c == ':' {
-				if p != nil {
+				if p != nil && p.paramsLen < len(p.params) {
 					p.paramsLen++
 					if p.paramsLen < len(p.params) {
 						p.params[p.paramsLen] = parser.MissingParam
@@ -236,7 +236,7 @@ func decodeSequence[T string | []byte](m Method, b T, state State, p *Parser) (s
 
 			if p != nil {
 				// Increment the last parameter
-				if p.paramsLen > 0 && p.paramsLen < len(p.params)-1 ||
+				if p.paramsLen > 0 && p.paramsLen < len(p.params) ||
 					p.paramsLen == 0 && len(p.params) > 0 && p.params[0] != parser.MissingParam {
 					p.paramsLen++
 				}

@@ -37,9 +37,13 @@ type Server struct {
 	// stopServer cancels serverLifetimeCtx.
 	stopServer context.CancelFunc
 
-	// forceShutdown reports whether Serve should return without waiting for
-	// in-flight connections to finish.
-	forceShutdown bool
+	// shutdownOnce selects the initial shutdown mode and exit code.
+	shutdownOnce sync.Once
+	exitCode     atomic.Int32
+
+	// forceShutdown interrupts graceful shutdown without waiting for work.
+	forceShutdown     chan struct{}
+	forceShutdownOnce sync.Once
 
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
@@ -96,10 +100,31 @@ type Server struct {
 	logLevel slog.Level
 }
 
+// Shutdown requests a graceful server shutdown with the given run exit code.
+// It does not wait for connections or streams to finish.
+// The first shutdown request sets the exit code for streams still open.
+func (s *Server) Shutdown(exitCode int32) {
+	s.beginShutdown(exitCode, false)
+}
+
+func (s *Server) beginShutdown(exitCode int32, forceShutdown bool) {
+	s.shutdownOnce.Do(func() {
+		if forceShutdown {
+			s.interruptShutdown()
+		}
+		s.exitCode.Store(exitCode)
+		s.stopServer()
+	})
+}
+
 // ForceStop shuts down the server without waiting for in-flight work.
 func (s *Server) ForceStop() {
-	s.forceShutdown = true
-	s.stopServer()
+	s.interruptShutdown()
+	s.Shutdown(1)
+}
+
+func (s *Server) interruptShutdown() {
+	s.forceShutdownOnce.Do(func() { close(s.forceShutdown) })
 }
 
 type ServerParams struct {
@@ -119,6 +144,7 @@ func NewServer(params ServerParams) *Server {
 	return &Server{
 		serverLifetimeCtx:    serverLifetimeCtx,
 		stopServer:           stopServer,
+		forceShutdown:        make(chan struct{}),
 		streamMux:            stream.NewStreamMux(),
 		runSyncManager:       runsync.NewRunSyncManager(),
 		sweepSchedBroker:     scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
@@ -142,11 +168,11 @@ func (s *Server) exitWhenParentIsGone() {
 		time.Sleep(IntervalCheckParentPidMilliseconds * time.Millisecond)
 	}
 
-	slog.Info("server: parent process exited, terminating service process")
+	slog.Info("server: parent process exited")
 
-	// The user process has exited, so there's no need to sync
-	// uncommitted data, and we can quit immediately.
-	s.ForceStop()
+	// Exit immediately if the parent was lost before shutdown began, but
+	// leave an existing graceful shutdown to finish on its own deadline.
+	s.beginShutdown(1, true)
 }
 
 func closeAll(listenerList []net.Listener) {
@@ -201,24 +227,24 @@ func (s *Server) Serve(portFile string) error {
 	// Stop accepting new connections.
 	closeListeners()
 
-	if s.forceShutdown {
-		slog.Info("server: forced shutdown")
-		return nil
-	}
-
-	<-s.waitForConnectionsToFinish()
-	slog.Info("server: all connections closed")
-	return nil
-}
-
-func (s *Server) waitForConnectionsToFinish() chan struct{} {
 	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		s.connectionsWG.Wait()
-		close(done)
+		select {
+		case <-s.forceShutdown:
+			return
+		default:
+		}
+		slog.Info("server: all connections closed")
+		s.streamMux.FinishAndCloseAllStreams(s.exitCode.Load())
 	}()
-
-	return done
+	select {
+	case <-s.forceShutdown:
+		slog.Info("server: forced shutdown")
+	case <-done:
+	}
+	return nil
 }
 
 // acceptConnections accepts incoming connections on the listener.
@@ -259,7 +285,7 @@ func (s *Server) acceptConnections(listener net.Listener) {
 		// Give up and shut down on any unexpected error.
 		if err != nil {
 			slog.Error("server: unknown error accepting connection", "error", err)
-			s.stopServer()
+			s.Shutdown(1)
 			return
 		}
 
@@ -284,7 +310,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	NewConnection(
 		s.serverLifetimeCtx,
-		s.stopServer,
+		func() { s.Shutdown(1) },
 		ConnectionParams{
 			ID:                   id,
 			Conn:                 conn,
@@ -337,9 +363,7 @@ func (s *Server) startIdleTimer() {
 		s.idleTimerMu.Unlock()
 
 		slog.Info("server: idle timeout reached, shutting down", "idle-timeout", s.idleTimeout)
-		s.stopServer()
-		// Gracefully finish and close all streams.
-		s.streamMux.FinishAndCloseAllStreams(0)
+		s.Shutdown(0)
 	})
 }
 
