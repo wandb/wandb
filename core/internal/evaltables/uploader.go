@@ -296,11 +296,14 @@ func (u *Uploader) Upload(
 		keys:       newIdempotencyKeys(),
 	}
 
+	progress := u.newProgress(ctx)
+	progress.SetUnitsOfTotal(0, table.nrows, "rows")
+
 	created, err := upload.create(ctx, table)
 	if err != nil {
 		return nil, err
 	}
-	if err := upload.addRows(ctx, table, u.newProgress(ctx)); err != nil {
+	if err := upload.addRows(ctx, table, progress); err != nil {
 		return nil, err
 	}
 	version, err := upload.cutVersion(ctx)
