@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import urllib.parse
+import uuid
 
 import numpy as np
 import pytest
@@ -44,6 +45,22 @@ def fake_ces(wandb_backend_spy, wandb_backend_proxy_server, monkeypatch) -> None
         gql.Matcher(operation="ServerFeaturesQuery"),
         gql.Constant(content={"data": {"serverInfo": {"features": features}}}),
     )
+
+
+class _AnyUUIDv7:
+    """Equals any lowercase UUIDv7 string."""
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, str):
+            return False
+        try:
+            parsed = uuid.UUID(other)
+        except ValueError:
+            return False
+        return parsed.version == 7 and str(parsed) == other
+
+    def __repr__(self) -> str:
+        return "<any UUIDv7>"
 
 
 def _log_eval_table() -> wandb.Run:
@@ -99,7 +116,10 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     ]
 
     create, columns, rows, _ = requests
-    assert create.body == {"name": "eval"}
+    assert create.body == {
+        "name": "eval",
+        "evaluation_version_id": _AnyUUIDv7(),
+    }
     assert columns.body == {
         "dataset_fields": [
             {"source": "input", "name": "question", "value_type": "string"},
@@ -121,7 +141,6 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
         "ncols": 5,
         "nrows": 2,
         "log_mode": "IMMUTABLE",
-        "evaluation_id": "eval-id",
         "evaluation_version_id": "eval-version-id",
         "dataset_id": "dataset-id",
         "dataset_version_id": "dataset-version-id",

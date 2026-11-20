@@ -335,10 +335,16 @@ func (t *tableUpload) create(
 	ctx context.Context,
 	table *EncodedTable,
 ) (*ces.EvalTableNewResponse, error) {
+	versionID, err := newEvaluationVersionID()
+	if err != nil {
+		return nil, err
+	}
 	created, err := t.evalTables.New(
 		ctx,
 		ces.EvalTableNewParams{ScopeID: ces.F(t.scopeID), Name: ces.F(table.name)},
 		t.keys.option("create"),
+		// cwevals-go doesn't have this field yet.
+		option.WithJSONSet("evaluation_version_id", versionID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
@@ -693,6 +699,16 @@ func (b *rowBatchBuilder) take() rowBatch {
 	b.body.Reset()
 	b.nrows = 0
 	return batch
+}
+
+// newEvaluationVersionID returns an ID for an EvalTable's first version, so
+// that the ID a marker references doesn't depend on CES's response.
+func newEvaluationVersionID() (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("evaltables: failed to generate evaluation version ID: %v", err)
+	}
+	return id.String(), nil
 }
 
 type idempotencyKeys struct {

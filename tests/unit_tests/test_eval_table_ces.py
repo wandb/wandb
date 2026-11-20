@@ -165,7 +165,6 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "ncols": 5,
         "nrows": 2,
         "log_mode": "IMMUTABLE",
-        "evaluation_id": "evaluation-1",
         "evaluation_version_id": "evaluation-version-1",
         "dataset_id": "dataset-1",
         "dataset_version_id": "dataset-version-1",

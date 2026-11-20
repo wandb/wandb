@@ -276,7 +276,6 @@ class CESWriter:
                 "ncols": ncols,
                 "nrows": len(rows),
                 "log_mode": log_mode,
-                "evaluation_id": response.evaluation_id,
                 "evaluation_version_id": response.evaluation_version_id,
                 "dataset_id": response.dataset_id,
                 "dataset_version_id": response.dataset_version_id,
