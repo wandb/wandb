@@ -1410,20 +1410,13 @@ class Run:
         """
         assert self._interface
 
-        handle = self._interface.deliver_upload_eval_table(request)
-        with progress.progress_printer(
-            self._printer,
+        result = progress.wait_printing_progress(
+            self._interface.deliver_upload_eval_table(request),
+            printer=self._printer,
+            interface=self._interface,
             default_text="Uploading EvalTable...",
-        ) as progress_printer:
-            result = wait_with_progress(
-                handle,
-                timeout=None,
-                display_progress=functools.partial(
-                    progress.loop_printing_operation_stats,
-                    progress_printer,
-                    self._interface,
-                ),
-            )
+            timeout=None,
+        )
         response = result.response.upload_eval_table_response
         if error := ProtobufErrorHandler.to_exception(response.error):
             raise error
