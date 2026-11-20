@@ -282,11 +282,10 @@ func TestNormalizeCopyOnWrite(t *testing.T) {
 	assert.NotEqual(t, reflect.ValueOf(input).Pointer(), reflect.ValueOf(result).Pointer())
 	assert.NotEqual(t, reflect.ValueOf(array).Pointer(), reflect.ValueOf(repairedArray).Pointer())
 	assert.NotEqual(t, reflect.ValueOf(leaf).Pointer(), reflect.ValueOf(repairedLeaf).Pointer())
-	assert.Equal(t,
-		reflect.ValueOf(unchanged).Pointer(), reflect.ValueOf(result["unchanged"]).Pointer())
-	assert.Equal(t, reflect.ValueOf(unchanged).Pointer(), reflect.ValueOf(repairedArray[1]).Pointer())
-	assert.Equal(t,
-		reflect.ValueOf(unchanged).Pointer(), reflect.ValueOf(repairedLeaf["untouched"]).Pointer())
+	unchangedPointer := reflect.ValueOf(unchanged).Pointer()
+	assert.Equal(t, unchangedPointer, reflect.ValueOf(result["unchanged"]).Pointer())
+	assert.Equal(t, unchangedPointer, reflect.ValueOf(repairedArray[1]).Pointer())
+	assert.Equal(t, unchangedPointer, reflect.ValueOf(repairedLeaf["untouched"]).Pointer())
 }
 
 func TestNormalizeKeyCollisions(t *testing.T) {
