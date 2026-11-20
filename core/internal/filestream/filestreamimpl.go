@@ -77,6 +77,7 @@ func (fs *fileStream) initialState(
 		),
 		SummaryDelta: fs.acceptsSummaryDelta(entity, project),
 	}
+	state.CheckpointSummaryOnFinish = state.SummaryDelta && !fs.settings.IsSharedMode()
 
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]

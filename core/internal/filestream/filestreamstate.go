@@ -47,6 +47,10 @@ type FileStreamState struct {
 	// SummaryDelta is whether the backend accepts summary deltas.
 	SummaryDelta bool
 
+	// CheckpointSummaryOnFinish is set for single-writer delta streams and
+	// cleared after the final full summary is attempted.
+	CheckpointSummaryOnFinish bool
+
 	// ConsoleLineOffset is an offset to add to all console updates.
 	//
 	// This is used when resuming a run, in which case we want the new
@@ -113,10 +117,7 @@ func (s *FileStreamState) Pop(
 	s.popUploadedFiles(builder, request)
 	s.popPreempting(builder, request)
 
-	if !builder.HasMore && request.Complete {
-		builder.Complete = true
-		builder.ExitCode = request.ExitCode
-	}
+	s.popFinish(builder, request, logger, printer)
 
 	return builder.Build(), builder.HasMore
 }
@@ -208,11 +209,35 @@ func (s *FileStreamState) popSummary(
 		)
 	}
 
-	isDelta := s.SummaryDelta && !request.SummaryUpdates.HasRemovals()
+	var delta *runsummary.Updates
+	if s.SummaryDelta && !request.SummaryUpdates.HasRemovals() {
+		delta = request.SummaryUpdates
+	}
 
+	line := s.summaryLine(delta, logger, printer)
+	if line != nil {
+		if !builder.TryAddSize(len(line)) {
+			builder.HasMore = true
+			return
+		}
+		builder.SummaryChunk.Offset = s.SummaryLineNum
+		builder.SummaryChunk.Content = []string{string(line)}
+		builder.SummaryDelta = delta != nil
+	}
+	request.SummaryUpdates = nil
+}
+
+// summaryLine encodes the delta, or the full run summary when delta is nil.
+// It returns nil when the line should be skipped.
+func (s *FileStreamState) summaryLine(
+	delta *runsummary.Updates,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
+) []byte {
 	var summaryJSON []byte
-	if isDelta {
-		summaryJSON, err = request.SummaryUpdates.SerializeWithoutHistory()
+	var err error
+	if delta != nil {
+		summaryJSON, err = delta.SerializeWithoutHistory()
 	} else {
 		summaryJSON, err = s.RunSummary.Serialize()
 	}
@@ -222,13 +247,11 @@ func (s *FileStreamState) popSummary(
 			"filestream",
 			fmt.Errorf("filestream: failed to serialize summary: %v", err),
 		)
-		request.SummaryUpdates = nil
-		return
+		return nil
 	}
 
-	if isDelta && string(summaryJSON) == "{}" {
-		request.SummaryUpdates = nil
-		return
+	if delta != nil && string(summaryJSON) == "{}" {
+		return nil
 	}
 
 	s.LastRunSummarySize = len(summaryJSON)
@@ -248,19 +271,10 @@ func (s *FileStreamState) popSummary(
 				s.MaxFileLineSize,
 			)
 
-		request.SummaryUpdates = nil
-		return
+		return nil
 	}
 
-	if !builder.TryAddSize(len(summaryJSON)) {
-		builder.HasMore = true
-		return
-	}
-
-	builder.SummaryChunk.Offset = s.SummaryLineNum
-	builder.SummaryChunk.Content = []string{string(summaryJSON)}
-	builder.SummaryDelta = isDelta
-	request.SummaryUpdates = nil
+	return summaryJSON
 }
 
 func (s *FileStreamState) popConsoleLines(
@@ -303,6 +317,32 @@ func (s *FileStreamState) popPreempting(
 ) {
 	builder.Preempting = request.Preempting
 	request.Preempting = false
+}
+
+func (s *FileStreamState) popFinish(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+	logger *observability.CoreLogger,
+	printer *observability.Printer,
+) {
+	if !request.Complete || builder.HasMore {
+		return
+	}
+	if s.CheckpointSummaryOnFinish && s.RunSummary != nil {
+		// Send the remaining data first. A checkpoint that exceeds the line
+		// limit must not displace a smaller pending delta.
+		if builder.ApproxSizeBytes > 0 {
+			builder.HasMore = true
+			return
+		}
+		s.CheckpointSummaryOnFinish = false
+		if line := s.summaryLine(nil, logger, printer); line != nil {
+			builder.SummaryChunk.Offset = s.SummaryLineNum
+			builder.SummaryChunk.Content = []string{string(line)}
+		}
+	}
+	builder.Complete = true
+	builder.ExitCode = request.ExitCode
 }
 
 // requestJSONBuilder builds a [FileStreamRequestJSON].

@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -52,27 +56,30 @@ func TestStopState_FeedbackTable(t *testing.T) {
 
 func TestInitialState_SummaryDelta(t *testing.T) {
 	const query = "ProjectAcceptsSummaryDelta"
+	accepted := func(c *gqlmock.MockClient) {
+		c.StubMatchOnce(gqlmock.WithOpName(query),
+			`{"project": {"acceptsSummaryDelta": true}}`)
+	}
 	tests := []struct {
 		name    string
 		feature bool
+		shared  bool
 		stub    func(*gqlmock.MockClient)
 		want    bool
 	}{
-		{"accepted", true, func(c *gqlmock.MockClient) {
-			c.StubMatchOnce(gqlmock.WithOpName(query),
-				`{"project": {"acceptsSummaryDelta": true}}`)
-		}, true},
-		{"not accepted", true, func(c *gqlmock.MockClient) {
+		{"accepted", true, false, accepted, true},
+		{"accepted in shared mode", true, true, accepted, true},
+		{"not accepted", true, false, func(c *gqlmock.MockClient) {
 			c.StubMatchOnce(gqlmock.WithOpName(query),
 				`{"project": {"acceptsSummaryDelta": false}}`)
 		}, false},
-		{"no project", true, func(c *gqlmock.MockClient) {
+		{"no project", true, false, func(c *gqlmock.MockClient) {
 			c.StubMatchOnce(gqlmock.WithOpName(query), `{"project": null}`)
 		}, false},
-		{"query fails", true, func(c *gqlmock.MockClient) {
+		{"query fails", true, false, func(c *gqlmock.MockClient) {
 			c.StubMatchWithError(gqlmock.WithOpName(query), errors.New("down"))
 		}, false},
-		{"server without the feature is not asked", false, nil, false},
+		{"server without the feature is not asked", false, false, nil, false},
 	}
 
 	for _, tc := range tests {
@@ -83,7 +90,7 @@ func TestInitialState_SummaryDelta(t *testing.T) {
 			}
 			fs := &fileStream{
 				beforeRunEndCtx: t.Context(),
-				settings:        settings.New(),
+				settings:        settings.From(&spb.Settings{XShared: wrapperspb.Bool(tc.shared)}),
 				logger:          observabilitytest.NewTestLogger(t),
 				graphqlClient:   client,
 				featureProvider: featurechecker.NewPreloaded(
@@ -95,6 +102,13 @@ func TestInitialState_SummaryDelta(t *testing.T) {
 			state := fs.initialState("entity", "project", nil)
 
 			assert.Equal(t, tc.want, state.SummaryDelta)
+			state.RunSummary = runsummary.New()
+			state.RunSummary.Set(pathtree.PathOf("metric"), 1)
+			finish, more := state.Pop(&FileStreamRequest{Complete: true}, fs.logger, observability.NewPrinter(0))
+			assert.False(t, more)
+			assert.Equal(t, new(true), finish.Complete)
+			_, hasCheckpoint := finish.Files[SummaryFileName]
+			assert.Equal(t, tc.want && !tc.shared, hasCheckpoint)
 			assert.True(t, client.AllStubsUsed())
 			if !tc.feature {
 				assert.Empty(t, client.AllRequests())
