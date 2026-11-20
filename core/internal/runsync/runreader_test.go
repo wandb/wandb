@@ -293,8 +293,7 @@ func Test_LaterRunRecordsDontWaitForResponse(t *testing.T) {
 }
 
 func Test_FileNotFoundError(t *testing.T) {
-	x := setup(t)
-	require.NoError(t, os.Remove(x.TransactionLog))
+	x := setupForFile(t, filepath.Join(t.TempDir(), "no-such-file.wandb"))
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
 
@@ -361,7 +360,7 @@ func Test_CorruptFileError(t *testing.T) {
 }
 
 func Test_UnsupportedVersionError(t *testing.T) {
-	x := setupForFile(t, txnlogtest.WandbFileUnsupportedVersion(t, 2))
+	x := setupForFile(t, txnlogtest.WandbFileUnsupportedVersion(t, 255))
 	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 

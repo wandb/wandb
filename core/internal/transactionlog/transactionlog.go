@@ -2,7 +2,7 @@
 package transactionlog
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/wandb/wandb/core/internal/settings"
 )
@@ -27,11 +27,15 @@ func VersionForSettings(s *settings.Settings) uint8 {
 }
 
 // ensureSupportedVersion returns an error for an unsupported version.
+//
+// The error does not have the conventional prefix ("transactionlog:") and one
+// should not be added because that would add noise. The message is shown to
+// the user when using `wandb sync`.
 func ensureSupportedVersion(version uint8) error {
 	switch {
 	case version <= 1:
 		return nil
 	default:
-		return fmt.Errorf("a newer wandb version is required to read this file")
+		return errors.New("a newer wandb version is required to read this file")
 	}
 }

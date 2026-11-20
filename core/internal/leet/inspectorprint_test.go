@@ -157,7 +157,7 @@ func TestDumpRecords_JSONHistoryEncodings(t *testing.T) {
 				}
 				history.Item = append(history.Item, item)
 			}
-			var version uint8 = 0
+			var version uint8
 			if encoding == "typed" {
 				version = 1
 			}
