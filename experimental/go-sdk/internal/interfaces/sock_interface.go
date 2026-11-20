@@ -91,40 +91,6 @@ func (s *SockInterface) DeliverRunRecord(
 	return handle, nil
 }
 
-func (s *SockInterface) DeliverRunStartRequest(settings *settings.Settings) (*mailbox.MailboxHandle, error) {
-	record := spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_RunStart{
-					RunStart: &spb.RunStartRequest{
-						Run: &spb.RunRecord{
-							RunId: settings.RunID,
-						},
-					},
-				},
-			},
-		},
-		Control: &spb.Control{
-			Local: true,
-		},
-		XInfo: &spb.XRecordInfo{
-			StreamId: s.StreamId,
-		},
-	}
-
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordCommunicate{
-			RecordCommunicate: &record,
-		},
-	}
-
-	handle := s.Conn.Mailbox.Deliver(&record)
-	if err := s.Conn.Send(&serverRecord); err != nil {
-		return nil, err
-	}
-	return handle, nil
-}
-
 func (s *SockInterface) PublishPartialHistory(data map[string]interface{}) error {
 	history := spb.PartialHistoryRequest{}
 	for key, value := range data {
