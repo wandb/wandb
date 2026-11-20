@@ -7,6 +7,7 @@ import pytest
 import wandb
 from hypothesis import settings
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk import wandb_run
 from wandb.sdk.interface.interface import InterfaceBase
 
 settings.register_profile(
@@ -33,6 +34,8 @@ def deliver_upload_eval_table(monkeypatch) -> unittest.mock.MagicMock:
     """The mocked `InterfaceBase.deliver_upload_eval_table`.
 
     By default, every upload succeeds with fixed evaluation and dataset IDs.
+    Set the result with the returned handle's `wait_or`, which also stands in
+    for `wait_with_progress`.
     """
     deliver = unittest.mock.MagicMock()
     deliver.return_value.wait_or.return_value = pb.Result(
@@ -46,6 +49,11 @@ def deliver_upload_eval_table(monkeypatch) -> unittest.mock.MagicMock:
         )
     )
     monkeypatch.setattr(InterfaceBase, "deliver_upload_eval_table", deliver)
+    monkeypatch.setattr(
+        wandb_run,
+        "wait_with_progress",
+        lambda handle, *, timeout, display_progress: handle.wait_or(timeout=timeout),
+    )
     return deliver
 
 

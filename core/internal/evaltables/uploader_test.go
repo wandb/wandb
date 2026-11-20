@@ -513,10 +513,10 @@ func TestUpload_ReportsRowProgress(t *testing.T) {
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	op := wboperation.NewOperations().New("uploading eval table t")
 	var progress []string
+	var paths []string
 	ces.onRequest = func(path string) {
-		if strings.HasSuffix(path, "/rows") || strings.HasSuffix(path, "/versions") {
-			progress = append(progress, op.ToProto().GetProgress())
-		}
+		paths = append(paths, path[strings.LastIndex(path, "/")+1:])
+		progress = append(progress, op.ToProto().GetProgress())
 	}
 
 	// Each row is 1 MiB, so the rows are sent in batches of 7 and 3.
@@ -528,7 +528,11 @@ func TestUpload_ReportsRowProgress(t *testing.T) {
 		})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"", "7/10 rows", "10/10 rows"}, progress)
+	assert.Equal(t,
+		[]string{"eval-tables", "columns", "rows", "rows", "versions"}, paths)
+	assert.Equal(t,
+		[]string{"0/10 rows", "0/10 rows", "0/10 rows", "7/10 rows", "10/10 rows"},
+		progress)
 }
 
 // writeWandbRowsFile writes rows to a W&B rows file: a gzipped file of
