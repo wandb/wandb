@@ -58,6 +58,7 @@ from wandb.sdk.lib.hashutil import (
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_fast_id, generate_id
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.mailbox import MailboxHandle
 from wandb.util import (
     alias_is_version_index,
@@ -70,10 +71,11 @@ from wandb.util import (
 from ._factories import make_storage_policy
 from ._generated.enums import ArtifactDigestAlgorithm
 from ._gqlutils import (
+    OrgInfo,
+    _resolve_org_info,
     link_artifact_gql_options,
     omit_artifact_fields,
     org_info_from_entity,
-    resolve_org_entity_name,
 )
 from ._validators import (
     ensure_logged,
@@ -114,7 +116,7 @@ if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
     from wandb.apis.public.service_api import ServiceApi
 
-    from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from ._generated import ArtifactFragment, ArtifactMembershipFragment, LinkArtifact
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
 
@@ -124,6 +126,52 @@ logger = logging.getLogger(__name__)
 _MB: Final[int] = 1024 * 1024
 _FILE_EXECUTOR_WORKERS = 32
 _MP_EXECUTOR_WORKERS = 32
+
+# GraphQL error code the server returns when linking to a registry that doesn't exist.
+_REGISTRY_NOT_FOUND_CODE: Final[str] = "REGISTRY_NOT_FOUND"
+
+
+def _execute_link_artifact(
+    service_api: ServiceApi,
+    gql_vars: dict[str, Any],
+    *,
+    omit_fields: set[str],
+    omit_variables: set[str],
+    project: str,
+    org_info: OrgInfo | None,
+) -> LinkArtifact:
+    from ._generated import LINK_ARTIFACT_GQL, LinkArtifact
+
+    try:
+        return service_api.execute_graphql(
+            LINK_ARTIFACT_GQL,
+            variables=gql_vars,
+            omit_variables=omit_variables or None,
+            omit_fields=omit_fields,
+            parse=LinkArtifact.model_validate_json,
+        )
+    except WandbApiFailedError as e:
+        code = e.response.graphql_error_code if e.response else ""
+        if org_info and code == _REGISTRY_NOT_FOUND_CODE:
+            message = _registry_not_found_message(
+                project, org_info, service_api.app_url
+            )
+            raise CommError(message, e) from e
+        raise
+
+
+def _registry_not_found_message(project: str, org_info: OrgInfo, app_url: str) -> str:
+    from ._validators import remove_registry_prefix
+
+    name = remove_registry_prefix(project)
+    org_name = org_info.org_name
+    registry_url = urljoin(app_url, f"orgs/{org_name}/registry")
+    return (
+        f"Registry {name!r} not found in organization {org_name!r}. "
+        f"To create it, use wandb.Api().create_registry(name={name!r}, "
+        f'visibility="organization", organization={org_name!r}) '
+        f"or visit {registry_url}"
+    )
 
 
 class Artifact:
@@ -2526,7 +2574,7 @@ class Artifact:
         """
         from wandb import Api
 
-        from ._generated import LINK_ARTIFACT_GQL, LinkArtifact, LinkArtifactInput
+        from ._generated import LinkArtifactInput
         from ._validators import (
             ArtifactPath,
             FullArtifactPath,
@@ -2568,10 +2616,10 @@ class Artifact:
                 or env.get_organization(global_settings.organization)
                 or None
             )
-            target.prefix = resolve_org_entity_name(
-                service_api, self.source_entity, org
-            )
+            org_info = _resolve_org_info(service_api, self.source_entity, org)
+            target.prefix = org_info.entity_name
         else:
+            org_info = None
             target = target.with_defaults(prefix=self.source_entity)
 
         # Explicitly convert to FullArtifactPath to ensure all fields are present
@@ -2595,12 +2643,13 @@ class Artifact:
         # avoiding the need to re-fetch the linked artifact at the end.
         omit_fields, omit_variables = link_artifact_gql_options(service_api, gql_vars)
 
-        data = service_api.execute_graphql(
-            LINK_ARTIFACT_GQL,
-            variables=gql_vars,
-            omit_variables=omit_variables or None,
+        data = _execute_link_artifact(
+            service_api,
+            gql_vars,
             omit_fields=omit_fields,
-            parse=LinkArtifact.model_validate_json,
+            omit_variables=omit_variables,
+            project=target.project,
+            org_info=org_info,
         )
 
         # Newer server versions can return artifactMembership directly in the response

@@ -678,9 +678,12 @@ type ApiErrorResponse struct {
 	// HTTP status code from the upstream W&B backend, if the failure originated
 	// from an HTTP response. 0 if the failure had no HTTP status (transport
 	// error, GraphQL `errors` without an associated HTTP error, etc.).
-	HttpStatus    int32 `protobuf:"varint,3,opt,name=http_status,json=httpStatus,proto3" json:"http_status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HttpStatus int32 `protobuf:"varint,3,opt,name=http_status,json=httpStatus,proto3" json:"http_status,omitempty"`
+	// The `extensions.code` of the first GraphQL error that has one, e.g.
+	// "REGISTRY_NOT_FOUND". Empty if the server sent no code.
+	GraphqlErrorCode string `protobuf:"bytes,4,opt,name=graphql_error_code,json=graphqlErrorCode,proto3" json:"graphql_error_code,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ApiErrorResponse) Reset() {
@@ -732,6 +735,13 @@ func (x *ApiErrorResponse) GetHttpStatus() int32 {
 		return x.HttpStatus
 	}
 	return 0
+}
+
+func (x *ApiErrorResponse) GetGraphqlErrorCode() string {
+	if x != nil {
+		return x.GraphqlErrorCode
+	}
+	return ""
 }
 
 // Remove the API instance identified by an ID.
@@ -4260,13 +4270,14 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\x1eread_run_console_logs_response\x18\f \x01(\v2*.wandb_internal.ReadRunConsoleLogsResponseH\x00R\x1areadRunConsoleLogsResponse\x12P\n" +
 	"\x12api_error_response\x18\x02 \x01(\v2 .wandb_internal.ApiErrorResponseH\x00R\x10apiErrorResponseB\n" +
 	"\n" +
-	"\bresponse\"\x9b\x01\n" +
+	"\bresponse\"\xc9\x01\n" +
 	"\x10ApiErrorResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12=\n" +
 	"\n" +
 	"error_type\x18\x02 \x01(\x0e2\x19.wandb_internal.ErrorTypeH\x00R\terrorType\x88\x01\x01\x12\x1f\n" +
 	"\vhttp_status\x18\x03 \x01(\x05R\n" +
-	"httpStatusB\r\n" +
+	"httpStatus\x12,\n" +
+	"\x12graphql_error_code\x18\x04 \x01(\tR\x10graphqlErrorCodeB\r\n" +
 	"\v_error_type\"0\n" +
 	"\x17ServerApiCleanupRequest\x12\x15\n" +
 	"\x06api_id\x18\x01 \x01(\tR\x05apiId\"\x95\x01\n" +

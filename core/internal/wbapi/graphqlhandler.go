@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/wandb/wandb/core/internal/api"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -62,7 +63,9 @@ func (h *GraphQLHandler) HandleRequest(
 	}, response)
 	if err != nil {
 		message, status := graphqlErrorInfo(err)
-		return apiErrorResponse(message, status)
+		resp := apiErrorResponse(message, status)
+		resp.GetApiErrorResponse().GraphqlErrorCode = graphqlErrorCode(err)
+		return resp
 	}
 
 	dataJSON := "null"
@@ -104,4 +107,22 @@ func graphqlErrorInfo(err error) (string, int32) {
 	}
 
 	return api.FormatGQLErrors(httpError), int32(httpError.StatusCode)
+}
+
+// graphqlErrorCode returns the `extensions.code` of the first GraphQL error
+// that has a string code, or "" if there is none.
+func graphqlErrorCode(err error) string {
+	var errs gqlerror.List
+	if httpError, ok := errors.AsType[*graphql.HTTPError](err); ok {
+		errs = httpError.Response.Errors
+	} else if list, ok := errors.AsType[gqlerror.List](err); ok {
+		errs = list
+	}
+
+	for _, gqlErr := range errs {
+		if code, ok := gqlErr.Extensions["code"].(string); ok && code != "" {
+			return code
+		}
+	}
+	return ""
 }
