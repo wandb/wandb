@@ -67,7 +67,7 @@ func TestInspector_HeaderErrorStopsScanning(t *testing.T) {
 	}{
 		{
 			name:    "unsupported version",
-			header:  []byte(":W&B\xE1\xBE\x01"),
+			header:  []byte(":W&B\xE1\xBE\x02"),
 			message: "a newer wandb version is required to read this file",
 		},
 		{
