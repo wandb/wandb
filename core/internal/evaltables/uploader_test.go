@@ -1,17 +1,147 @@
 package evaltables_test
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"math"
+	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/evaltables"
+	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+const tablePath = "/evaluations/v1/namespaces/wandb/scopes/project-internal-id/eval-tables"
+
+type cesRequest struct {
+	Path           string
+	IdempotencyKey string
+	Body           string
+}
+
+// fakeCES is a CES server that records requests and returns fixed IDs.
+type fakeCES struct {
+	*apitest.RecordingServer
+
+	// onRequest, if set, is called with each request's path before
+	// responding.
+	onRequest func(path string)
+
+	// errorStatus, if set, returns an HTTP status to fail a request with,
+	// or 0 to respond normally.
+	errorStatus func(path string) int
+}
+
+func newFakeCES(t *testing.T) *fakeCES {
+	t.Helper()
+	ces := &fakeCES{}
+
+	ces.RecordingServer = apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if ces.onRequest != nil {
+				ces.onRequest(r.URL.Path)
+			}
+			if ces.errorStatus != nil {
+				if status := ces.errorStatus(r.URL.Path); status != 0 {
+					w.WriteHeader(status)
+					return
+				}
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.URL.Path == tablePath:
+				_, _ = w.Write([]byte(`{
+					"evaluation_id": "eval-id",
+					"dataset_id": "dataset-id"
+				}`))
+			case strings.HasSuffix(r.URL.Path, "/versions"):
+				_, _ = w.Write([]byte(`{
+					"evaluation_version_id": "eval-version-id",
+					"dataset_version_id": "dataset-version-id"
+				}`))
+			default:
+				_, _ = w.Write([]byte(`{}`))
+			}
+		}))
+	t.Cleanup(ces.Close)
+
+	return ces
+}
+
+func (c *fakeCES) Requests() []cesRequest {
+	var requests []cesRequest
+	for _, r := range c.RecordingServer.Requests() {
+		requests = append(requests, cesRequest{
+			Path:           r.URL.Path,
+			IdempotencyKey: r.Header.Get("Idempotency-Key"),
+			Body:           string(r.Body),
+		})
+	}
+	return requests
+}
+
+const projectFoundJSON = `{"project": {"internalId": "project-internal-id"}}`
+
+// newTestUploader returns an Uploader for a run in test-entity/test-project
+// that uploads to ces.
+//
+// projectJSON is the response to the project's internal ID lookup.
+func newTestUploader(
+	t *testing.T,
+	ces *fakeCES,
+	projectJSON string,
+) (*evaltables.Uploader, *gqlmock.MockClient) {
+	t.Helper()
+	return newTestUploaderWithSettings(t, projectJSON, settings.From(&spb.Settings{
+		XCesBaseUrl: wrapperspb.String(ces.URL + "/evaluations"),
+	}))
+}
+
+func newTestUploaderWithSettings(
+	t *testing.T,
+	projectJSON string,
+	s *settings.Settings,
+) (*evaltables.Uploader, *gqlmock.MockClient) {
+	t.Helper()
+
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(gqlmock.WithOpName("ProjectInternalID"), projectJSON)
+
+	return evaltables.NewUploader(evaltables.UploaderParams{
+		CredentialProvider: api.NewAPIKeyCredentialProvider("test-api-key"),
+		GraphqlClient:      mockGQL,
+		Logger:             observabilitytest.NewTestLogger(t),
+		Settings:           s,
+	}), mockGQL
+}
+
+func upload(
+	ctx context.Context,
+	uploader *evaltables.Uploader,
+	request *spb.EvalTableData,
+) (*spb.UploadEvalTableResponse, error) {
+	table, err := evaltables.Encode(request, testRunPath)
+	if err != nil {
+		return nil, err
+	}
+	return uploader.Upload(ctx, table)
+}
 
 var testRunPath = runbranch.RunPath{
 	Entity:  "test-entity",
@@ -62,8 +192,77 @@ func values(v ...*spb.EvalTableValue) *spb.EvalTableRowValues {
 	return &spb.EvalTableRowValues{Values: v}
 }
 
+// outputRows returns n rows whose only value is a string output "x" of
+// the given length, keyed by position.
+func outputRows(n, length int) []*spb.EvalTableRow {
+	rows := make([]*spb.EvalTableRow, n)
+	for i := range rows {
+		rows[i] = &spb.EvalTableRow{
+			Output:     values(stringValue(strings.Repeat("a", length))),
+			ExampleKey: fmt.Sprint(i + 1),
+		}
+	}
+	return rows
+}
+
 var outputFieldX = []*spb.EvalTableField{
 	{Source: "output", Name: "x", ValueType: "string"},
+}
+
+func TestUpload(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, mockGQL := newTestUploader(t, ces, projectFoundJSON)
+
+	response, err := upload(context.Background(), uploader, &spb.EvalTableData{
+		Name: "my-table",
+		DatasetFields: []*spb.EvalTableField{
+			{Source: "input", Name: "prompt", ValueType: "string"},
+			{Source: "output", Name: "answer", ValueType: "string"},
+		},
+		Scorers: []*spb.EvalTableScorer{{Name: "accuracy", ValueType: "number"}},
+		Rows: []*spb.EvalTableRow{
+			{
+				Input:  values(stringValue("a")),
+				Output: values(stringValue("x")),
+				Scores: []*spb.EvalTableValue{numberValue(1)},
+			},
+			{
+				Input:  values(stringValue("b")),
+				Output: values(stringValue("y")),
+				Scores: []*spb.EvalTableValue{numberValue(0)},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, &spb.UploadEvalTableResponse{
+		EvaluationId:        "eval-id",
+		EvaluationVersionId: "eval-version-id",
+		DatasetId:           "dataset-id",
+		DatasetVersionId:    "dataset-version-id",
+	}, response)
+	gqlmock.AssertVariables(t, mockGQL.AllRequests()[0],
+		gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
+		gqlmock.GQLVar("projectName", gomock.Eq("test-project")))
+
+	requests := ces.Requests()
+	require.Len(t, requests, 4)
+	assert.Equal(t, tablePath, requests[0].Path)
+	assert.JSONEq(t, `{"name": "my-table"}`, requests[0].Body)
+	assert.Equal(t, tablePath+"/eval-id/columns", requests[1].Path)
+	assert.JSONEq(t, `{
+		"dataset_fields": [
+			{"source": "input", "name": "prompt", "value_type": "string"},
+			{"source": "output", "name": "answer", "value_type": "string"}
+		],
+		"scorers": [{"name": "accuracy", "value_type": "number"}]
+	}`, requests[1].Body)
+	assert.Equal(t, tablePath+"/eval-id/rows", requests[2].Path)
+	assert.JSONEq(t, `{"rows": [
+		{"input": {"prompt": "a"}, "output": {"answer": "x"}, "scores": {"accuracy": 1}},
+		{"input": {"prompt": "b"}, "output": {"answer": "y"}, "scores": {"accuracy": 0}}
+	]}`, requests[2].Body)
+	assert.Equal(t, tablePath+"/eval-id/versions", requests[3].Path)
 }
 
 func TestEncode_AllValueTypes(t *testing.T) {
@@ -150,6 +349,203 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"example_key":"2"}`+
 			`]`,
 		table.CESRowsJSON(t))
+}
+
+func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	request := &spb.EvalTableData{
+		Name: "my-table",
+		Rows: []*spb.EvalTableRow{{}},
+	}
+
+	_, err := upload(context.Background(), uploader, request)
+	require.NoError(t, err)
+	_, err = upload(context.Background(), uploader, request)
+	require.NoError(t, err)
+
+	requests := ces.Requests()
+	require.Len(t, requests, 8)
+	keys := make(map[string]bool)
+	for _, req := range requests {
+		require.NotEmpty(t, req.IdempotencyKey, req.Path)
+		keys[req.IdempotencyKey] = true
+	}
+	// Each request needs its own key, since CES rejects a reused key with a
+	// different body. Uploading the same table again, such as from another
+	// writer in shared mode, must not reuse the first upload's keys.
+	assert.Len(t, keys, len(requests))
+}
+
+func TestUpload_RetriesReuseIdempotencyKey(t *testing.T) {
+	// The retry waits api.DefaultRetryWaitMin.
+	t.Parallel()
+	ces := newFakeCES(t)
+	var failed atomic.Bool
+	ces.errorStatus = func(path string) int {
+		// Fail only the first rows request, with a status that makes the CES HTTP
+		// client retry.
+		if strings.HasSuffix(path, "/rows") && failed.CompareAndSwap(false, true) {
+			return http.StatusServiceUnavailable
+		}
+		return 0
+	}
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+	_, err := upload(context.Background(), uploader, &spb.EvalTableData{
+		Name: "my-table",
+		Rows: []*spb.EvalTableRow{{}},
+	})
+	require.NoError(t, err)
+
+	var rowsRequests []cesRequest
+	for _, req := range ces.Requests() {
+		if strings.HasSuffix(req.Path, "/rows") {
+			rowsRequests = append(rowsRequests, req)
+		}
+	}
+	// The failed attempt and its retry. The retry must reuse the key so
+	// that CES replays it instead of adding the rows again.
+	require.Len(t, rowsRequests, 2)
+	assert.Equal(t,
+		rowsRequests[0].IdempotencyKey,
+		rowsRequests[1].IdempotencyKey)
+}
+
+func TestUpload_StopsRetryingWhenCancelled(t *testing.T) {
+	ces := newFakeCES(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel during a rows request that fails with a retryable status.
+	ces.onRequest = func(path string) {
+		if strings.HasSuffix(path, "/rows") {
+			cancel()
+		}
+	}
+	ces.errorStatus = func(path string) int {
+		if strings.HasSuffix(path, "/rows") {
+			return http.StatusServiceUnavailable
+		}
+		return 0
+	}
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+	_, err := upload(ctx, uploader, &spb.EvalTableData{
+		Name: "my-table",
+		Rows: []*spb.EvalTableRow{{}},
+	})
+
+	assert.ErrorContains(t, err, "context canceled")
+	// Create, columns, and one rows attempt.
+	assert.Len(t, ces.Requests(), 3)
+}
+
+func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
+	testCases := []struct {
+		name        string
+		rows        []*spb.EvalTableRow
+		wantBatches []int
+	}{
+		{
+			// At most 7 rows of 1 MiB fit under the 8 MiB target with the
+			// surrounding JSON.
+			name:        "by size",
+			rows:        outputRows(10, 1<<20),
+			wantBatches: []int{7, 3},
+		},
+		{
+			name:        "by row count",
+			rows:        outputRows(10_001, 0),
+			wantBatches: []int{10_000, 1},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ces := newFakeCES(t)
+			uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+
+			_, err := upload(context.Background(), uploader, &spb.EvalTableData{
+				Name:          "t",
+				DatasetFields: outputFieldX,
+				Rows:          tc.rows,
+			})
+			require.NoError(t, err)
+
+			var batchSizes []int
+			for _, req := range ces.Requests() {
+				if !strings.HasSuffix(req.Path, "/rows") {
+					continue
+				}
+				var body struct{ Rows []json.RawMessage }
+				require.NoError(t, json.Unmarshal([]byte(req.Body), &body))
+				assert.LessOrEqual(t, len(req.Body), 8<<20)
+				batchSizes = append(batchSizes, len(body.Rows))
+			}
+			assert.Equal(t, tc.wantBatches, batchSizes)
+		})
+	}
+}
+
+func TestUpload_ReportsRowProgress(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	op := wboperation.NewOperations().New("uploading eval table t")
+	var progress []string
+	ces.onRequest = func(path string) {
+		if strings.HasSuffix(path, "/rows") || strings.HasSuffix(path, "/versions") {
+			progress = append(progress, op.ToProto().GetProgress())
+		}
+	}
+
+	// Each row is 1 MiB, so the rows are sent in batches of 7 and 3.
+	_, err := upload(op.Context(context.Background()), uploader,
+		&spb.EvalTableData{
+			Name:          "t",
+			DatasetFields: outputFieldX,
+			Rows:          outputRows(10, 1<<20),
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"", "7/10 rows", "10/10 rows"}, progress)
+}
+
+func TestUpload_SucceedsWithoutProgress(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	op := wboperation.NewOperations().New("uploading eval table t")
+	_, err := op.NewProgress()
+	require.NoError(t, err)
+
+	_, err = upload(op.Context(context.Background()), uploader,
+		&spb.EvalTableData{
+			Name:          "t",
+			DatasetFields: outputFieldX,
+			Rows:          outputRows(1, 1),
+		})
+
+	require.NoError(t, err)
+	assert.Len(t, ces.Requests(), 4)
+}
+
+func TestUpload_NoCESURL(t *testing.T) {
+	uploader, _ := newTestUploaderWithSettings(t, projectFoundJSON, settings.New())
+
+	_, err := upload(context.Background(), uploader,
+		&spb.EvalTableData{Name: "t"})
+
+	assert.ErrorContains(t, err, "no CES URL in settings")
+	assert.False(t, evaltables.IsUsageError(err))
+}
+
+func TestUpload_ProjectNotFound(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, `{"project": null}`)
+
+	_, err := upload(context.Background(), uploader,
+		&spb.EvalTableData{Name: "t"})
+
+	assert.ErrorContains(t, err, "project test-entity/test-project not found")
+	assert.Empty(t, ces.Requests())
 }
 
 func TestEncode_RejectsUnknownColumnTypes(t *testing.T) {
