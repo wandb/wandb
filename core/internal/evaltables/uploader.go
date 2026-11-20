@@ -38,7 +38,13 @@ const (
 	// is split, so we leave headroom below CES's 16 MiB request limit.
 	targetRowBatchBytes = 8 << 20
 
-	maxRowsPerBatch = 10_000
+	// Row append requests carry about 1/rowBatchesPerTable of the table,
+	// so that the upload reports progress in steps, but at least
+	// minRowsPerBatch rows to limit CES commits. maxRowsPerBatch is CES's
+	// limit.
+	rowBatchesPerTable = 10
+	minRowsPerBatch    = 1_000
+	maxRowsPerBatch    = 10_000
 
 	rowBatchPrefix = `{"rows":[`
 	rowBatchSuffix = `]}`
@@ -368,7 +374,7 @@ func (t *tableUpload) addRows(
 ) error {
 	rowsDone := 0
 	batchIndex := 0
-	for batch, err := range rowBatches(table.rows()) {
+	for batch, err := range rowBatches(table.rows(), rowsPerBatch(table.nrows)) {
 		if err != nil {
 			return err
 		}
@@ -638,14 +644,24 @@ type rowBatch struct {
 	rows int
 }
 
+// rowsPerBatch is the most rows to send per row append request of a table
+// with nrows rows.
+func rowsPerBatch(nrows int) int {
+	perBatch := (nrows + rowBatchesPerTable - 1) / rowBatchesPerTable
+	return min(max(perBatch, minRowsPerBatch), maxRowsPerBatch)
+}
+
 // rowBatches groups JSON-encoded rows into row append request bodies.
 //
-// Each body has at most maxRowsPerBatch rows and is at most
-// targetRowBatchBytes, unless it has a single larger row.
+// Each body has at most maxRows rows and is at most targetRowBatchBytes,
+// unless it has a single larger row.
 // It stops after the first error from rows.
-func rowBatches(rows iter.Seq2[[]byte, error]) iter.Seq2[rowBatch, error] {
+func rowBatches(
+	rows iter.Seq2[[]byte, error],
+	maxRows int,
+) iter.Seq2[rowBatch, error] {
 	return func(yield func(rowBatch, error) bool) {
-		var batch rowBatchBuilder
+		batch := rowBatchBuilder{maxRows: maxRows}
 
 		for row, err := range rows {
 			if err != nil {
@@ -666,14 +682,15 @@ func rowBatches(rows iter.Seq2[[]byte, error]) iter.Seq2[rowBatch, error] {
 }
 
 type rowBatchBuilder struct {
-	body  bytes.Buffer
-	nrows int
+	body    bytes.Buffer
+	nrows   int
+	maxRows int
 }
 
 // Any row fits in an empty batch.
 func (b *rowBatchBuilder) fits(row []byte) bool {
 	return b.nrows == 0 ||
-		(b.nrows < maxRowsPerBatch &&
+		(b.nrows < b.maxRows &&
 			b.body.Len()+1+len(row)+len(rowBatchSuffix) <= targetRowBatchBytes)
 }
 
