@@ -364,6 +364,11 @@ func (s *Sender) SendRecord(record *spb.Record, request *runwork.Request) {
 	s.sendRecord(record, request)
 }
 
+// TestOnlyGetSummary returns the Sender's accumulated run summary.
+func (s *Sender) TestOnlyGetSummary() *runsummary.RunSummary {
+	return s.runSummary
+}
+
 // sendRecord sends a record
 //
 //gocyclo:ignore
@@ -939,15 +944,13 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	if s.fileStream == nil {
-		return
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.HistoryUpdate{
+			Row: history,
+			// Record the cell count as a denominator for other cost metrics.
+			Cells: len(record.GetItem()),
+		})
 	}
-
-	// Record the cell count as a denominator for other cost metrics.
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{
-		Row:   history,
-		Cells: len(record.GetItem()),
-	})
 
 	if !s.settings.IsSharedMode() &&
 		!s.settings.IsEnableServerSideDerivedSummary() {
@@ -959,16 +962,14 @@ func (s *Sender) updateSummaryStep(step int64) {
 	updates := runsummary.NoUpdates().Set(stepMetric, step)
 
 	updates.Apply(s.runSummary)
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	if s.receivedExit() {
 		s.logCalledAfterExit("sendSummary")
-		return
-	}
-
-	if s.fileStream == nil {
 		return
 	}
 
@@ -983,7 +984,9 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	updates.Ignore(stepMetric) // Always use the step from history records.
 
 	updates.Apply(s.runSummary)
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
 }
 
 func (s *Sender) uploadSummaryFile() {
