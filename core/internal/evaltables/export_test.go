@@ -19,5 +19,10 @@ func (t *EncodedTable) ColumnsJSON(tb testing.TB) string {
 // CESRowsJSON returns the table's CES rows as a JSON array.
 func (t *EncodedTable) CESRowsJSON(tb testing.TB) string {
 	tb.Helper()
-	return "[" + string(bytes.Join(t.cesRows, []byte(","))) + "]"
+	var rows [][]byte
+	for row, err := range t.rows() {
+		require.NoError(tb, err)
+		rows = append(rows, row)
+	}
+	return "[" + string(bytes.Join(rows, []byte(","))) + "]"
 }

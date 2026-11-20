@@ -1,14 +1,22 @@
 package evaltables
 
 import (
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"iter"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	ces "github.com/wandb/cwevals-go"
 	"github.com/wandb/cwevals-go/option"
@@ -88,16 +96,58 @@ type EncodedTable struct {
 	name    string
 	runPath runbranch.RunPath
 	columns ces.EvalTableColumnNewParams
+	nrows   int
+
+	// cesRows is the CES JSON of the table's inline rows.
 	cesRows [][]byte
+
+	// cesRowsPath is the CES rows file: a temporary file of the CES JSON of
+	// the table's W&B rows file, if it has one, so that Upload neither holds
+	// those rows' JSON in memory nor encodes them again.
+	cesRowsPath string
+}
+
+func (t *EncodedTable) rows() iter.Seq2[[]byte, error] {
+	if t.cesRowsPath != "" {
+		return cesRowsFromFile(t.cesRowsPath)
+	}
+
+	return func(yield func([]byte, error) bool) {
+		for _, row := range t.cesRows {
+			if !yield(row, nil) {
+				return
+			}
+		}
+	}
+}
+
+// Close removes the table's CES rows file, if it has one.
+func (t *EncodedTable) Close() error {
+	if t.cesRowsPath == "" {
+		return nil
+	}
+	if err := os.Remove(t.cesRowsPath); err != nil {
+		return fmt.Errorf("evaltables: failed to remove CES rows file: %v", err)
+	}
+	return nil
 }
 
 // Encode validates an EvalTable of the run at runPath and encodes its rows.
 //
-// Errors in the table satisfy IsUsageError.
+// It encodes every row, so that an invalid table fails before Upload
+// writes anything to CES. The caller must Close the returned table.
+//
+// Errors in the table satisfy IsUsageError. Cancelling ctx stops reading a
+// W&B rows file.
 func Encode(
+	ctx context.Context,
 	data *spb.EvalTableData,
 	runPath runbranch.RunPath,
 ) (*EncodedTable, error) {
+	if len(data.GetRows()) > 0 && data.GetWandbRowsFilePath() != "" {
+		return nil, errors.New("evaltables: request has both rows and a W&B rows file")
+	}
+
 	columns := ces.EvalTableColumnNewParams{
 		DatasetFields: ces.F(datasetFieldParams(data.GetDatasetFields())),
 		Scorers:       ces.F(scorerParams(data.GetScorers())),
@@ -110,17 +160,112 @@ func Encode(
 	if err != nil {
 		return nil, usageError{err}
 	}
-	cesRows, err := encoder.encodeRows(data.GetRows())
-	if err != nil {
-		return nil, usageError{err}
-	}
 
-	return &EncodedTable{
+	table := &EncodedTable{
 		name:    data.GetName(),
 		runPath: runPath,
 		columns: columns,
-		cesRows: cesRows,
-	}, nil
+	}
+
+	if path := data.GetWandbRowsFilePath(); path != "" {
+		if err := table.writeCESRowsFile(ctx, encoder, path); err != nil {
+			return nil, err
+		}
+		return table, nil
+	}
+
+	for rowJSON, err := range encoder.encodeRows(inlineRows(data)) {
+		if err != nil {
+			return nil, err
+		}
+		table.nrows++
+		table.cesRows = append(table.cesRows, rowJSON)
+	}
+	return table, nil
+}
+
+// writeCESRowsFile encodes the rows in a W&B rows file into a CES rows file
+// next to it, one row's CES JSON per line.
+//
+// CES row JSON is compact, so it never contains a newline.
+func (t *EncodedTable) writeCESRowsFile(
+	ctx context.Context,
+	encoder *rowEncoder,
+	wandbRowsPath string,
+) (err error) {
+	file, err := os.CreateTemp(
+		filepath.Dir(wandbRowsPath), "wandb-eval-table-*.ces-rows.jsonl")
+	if err != nil {
+		return fmt.Errorf("evaltables: failed to create CES rows file: %v", err)
+	}
+	t.cesRowsPath = file.Name()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("evaltables: failed to write CES rows file: %v", closeErr)
+		}
+		if err != nil {
+			err = errors.Join(err, t.Close())
+		}
+	}()
+
+	writer := bufio.NewWriter(file)
+	for rowJSON, err := range encoder.encodeRows(wandbRowsFromFile(ctx, wandbRowsPath)) {
+		if err != nil {
+			return err
+		}
+		t.nrows++
+		if _, err := writer.Write(rowJSON); err != nil {
+			return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)
+		}
+		if err := writer.WriteByte('\n'); err != nil {
+			return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)
+		}
+	}
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("evaltables: failed to write CES rows file: %v", err)
+	}
+	return nil
+}
+
+// cesRowsFromFile returns the rows in a CES rows file.
+func cesRowsFromFile(path string) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		file, err := os.Open(path)
+		if err != nil {
+			yield(nil, fmt.Errorf("evaltables: failed to read CES rows file: %v", err))
+			return
+		}
+		defer func() { _ = file.Close() }()
+
+		reader := bufio.NewReader(file)
+		for {
+			row, err := readCESRow(reader)
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(nil, fmt.Errorf("evaltables: failed to read CES rows file: %v", err))
+				return
+			}
+			if !yield(row, nil) {
+				return
+			}
+		}
+	}
+}
+
+// readCESRow reads one row from a CES rows file.
+//
+// It returns io.EOF only at the end of the file, between rows.
+func readCESRow(reader *bufio.Reader) ([]byte, error) {
+	line, err := reader.ReadBytes('\n')
+	switch {
+	case errors.Is(err, io.EOF) && len(line) > 0:
+		return nil, io.ErrUnexpectedEOF
+	case err != nil:
+		return nil, err
+	}
+	return line[:len(line)-1], nil
 }
 
 // Upload creates an EvalTable in CES, adds its columns and rows,
@@ -221,24 +366,28 @@ func (t *tableUpload) addRows(
 	table *EncodedTable,
 	progress *wboperation.WandbProgress,
 ) error {
-	totalRows := len(table.cesRows)
 	rowsDone := 0
-	for i, batch := range rowBatches(table.cesRows) {
-		_, err := t.evalTables.Rows.Add(
+	batchIndex := 0
+	for batch, err := range rowBatches(table.rows()) {
+		if err != nil {
+			return err
+		}
+
+		if _, err := t.evalTables.Rows.Add(
 			ctx,
 			t.evaluationID,
 			ces.EvalTableRowAddParams{ScopeID: ces.F(t.scopeID)},
-			t.keys.option(fmt.Sprintf("rows-%d", i)),
+			t.keys.option(fmt.Sprintf("rows-%d", batchIndex)),
 			// The rows are already JSON, so send them without decoding them
 			// into the CES SDK's types.
 			option.WithRequestBody("application/json", batch.body),
-		)
-		if err != nil {
+		); err != nil {
 			return fmt.Errorf("evaltables: failed to add rows: %v", err)
 		}
+		batchIndex++
 
 		rowsDone += batch.rows
-		progress.SetUnitsOfTotal(rowsDone, totalRows, "rows")
+		progress.SetUnitsOfTotal(rowsDone, table.nrows, "rows")
 	}
 	return nil
 }
@@ -337,6 +486,91 @@ func scorerParams(scorers []*spb.EvalTableScorer) []ces.EvalTableColumnNewParams
 	return params
 }
 
+func inlineRows(
+	data *spb.EvalTableData,
+) iter.Seq2[*spb.EvalTableRow, error] {
+	return func(yield func(*spb.EvalTableRow, error) bool) {
+		for _, row := range data.GetRows() {
+			if !yield(row, nil) {
+				return
+			}
+		}
+	}
+}
+
+// maxWandbRowBytes limits the size of a row in a W&B rows file.
+//
+// A row's proto encoding can be larger than its CES JSON, such as for many
+// small numbers, so this allows rows well above CES's request limit and
+// leaves the exact check to rowEncoder.
+const maxWandbRowBytes = 4 * maxRequestBodyBytes
+
+// wandbRowsFromFile returns the rows in a W&B rows file: a gzipped file of
+// EvalTableRow messages, each preceded by its size as a varint.
+func wandbRowsFromFile(
+	ctx context.Context,
+	path string,
+) iter.Seq2[*spb.EvalTableRow, error] {
+	return func(yield func(*spb.EvalTableRow, error) bool) {
+		file, err := os.Open(path)
+		if err != nil {
+			yield(nil, fmt.Errorf("evaltables: failed to read W&B rows file: %v", err))
+			return
+		}
+		defer func() { _ = file.Close() }()
+
+		gzReader, err := gzip.NewReader(file)
+		if err != nil {
+			yield(nil, fmt.Errorf("evaltables: failed to read W&B rows file: %v", err))
+			return
+		}
+		defer func() { _ = gzReader.Close() }()
+
+		reader := bufio.NewReader(gzReader)
+		for {
+			if err := ctx.Err(); err != nil {
+				yield(nil, err)
+				return
+			}
+
+			row, err := readWandbRow(reader)
+			switch {
+			case errors.Is(err, io.EOF):
+				return
+			case err != nil:
+				yield(nil, fmt.Errorf("evaltables: failed to read W&B rows file: %v", err))
+				return
+			case !yield(row, nil):
+				return
+			}
+		}
+	}
+}
+
+// readWandbRow reads a varint-delimited EvalTableRow, or returns io.EOF at the
+// end of the file.
+func readWandbRow(reader *bufio.Reader) (*spb.EvalTableRow, error) {
+	size, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil, err
+	}
+	if size > maxWandbRowBytes {
+		return nil, fmt.Errorf(
+			"row is %d bytes, must be at most %d", size, maxWandbRowBytes)
+	}
+
+	message := make([]byte, size)
+	if _, err := io.ReadFull(reader, message); err != nil {
+		return nil, fmt.Errorf("truncated row: %v", err)
+	}
+
+	row := &spb.EvalTableRow{}
+	if err := proto.Unmarshal(message, row); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
 // validateColumns checks that the table's columns have known types and
 // unique names, and that their CES request fits CES's size limit, so that
 // an invalid table fails before any CES request.
@@ -408,42 +642,57 @@ type rowBatch struct {
 //
 // Each body has at most maxRowsPerBatch rows and is at most
 // targetRowBatchBytes, unless it has a single larger row.
-func rowBatches(cesRows [][]byte) []rowBatch {
-	var batches []rowBatch
-	var body bytes.Buffer
-	nrows := 0
+// It stops after the first error from rows.
+func rowBatches(rows iter.Seq2[[]byte, error]) iter.Seq2[rowBatch, error] {
+	return func(yield func(rowBatch, error) bool) {
+		var batch rowBatchBuilder
 
-	flush := func() {
-		body.WriteString(rowBatchSuffix)
-		batches = append(batches, rowBatch{
-			body: bytes.Clone(body.Bytes()),
-			rows: nrows,
-		})
-		body.Reset()
-		nrows = 0
-	}
+		for row, err := range rows {
+			if err != nil {
+				yield(rowBatch{}, err)
+				return
+			}
 
-	for _, row := range cesRows {
-		if nrows > 0 &&
-			(nrows >= maxRowsPerBatch ||
-				body.Len()+1+len(row)+len(rowBatchSuffix) > targetRowBatchBytes) {
-			flush()
+			if !batch.fits(row) && !yield(batch.take(), nil) {
+				return
+			}
+			batch.add(row)
 		}
 
-		if nrows == 0 {
-			body.WriteString(rowBatchPrefix)
-		} else {
-			body.WriteByte(',')
+		if batch.nrows > 0 {
+			yield(batch.take(), nil)
 		}
-		body.Write(row)
-		nrows++
 	}
+}
 
-	if nrows > 0 {
-		flush()
+type rowBatchBuilder struct {
+	body  bytes.Buffer
+	nrows int
+}
+
+// Any row fits in an empty batch.
+func (b *rowBatchBuilder) fits(row []byte) bool {
+	return b.nrows == 0 ||
+		(b.nrows < maxRowsPerBatch &&
+			b.body.Len()+1+len(row)+len(rowBatchSuffix) <= targetRowBatchBytes)
+}
+
+func (b *rowBatchBuilder) add(row []byte) {
+	if b.nrows == 0 {
+		b.body.WriteString(rowBatchPrefix)
+	} else {
+		b.body.WriteByte(',')
 	}
+	b.body.Write(row)
+	b.nrows++
+}
 
-	return batches
+func (b *rowBatchBuilder) take() rowBatch {
+	b.body.WriteString(rowBatchSuffix)
+	batch := rowBatch{body: bytes.Clone(b.body.Bytes()), rows: b.nrows}
+	b.body.Reset()
+	b.nrows = 0
+	return batch
 }
 
 type idempotencyKeys struct {
