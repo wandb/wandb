@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import contextlib
+import gzip
 import logging
 import math
-from collections.abc import Mapping, Sequence
+import os
+import pathlib
+import tempfile
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import IO, TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
@@ -24,6 +29,15 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+# Tables with more serialized row bytes than this send their rows to
+# wandb-core in a file. wandb-core streams the file, but holds inline rows in
+# memory several times over until the upload ends.
+_ROWS_FILE_THRESHOLD_BYTES = 64 << 20  # 64 MiB
+# Each byte of a varint holds 7 bits of the value, low bits first, and sets
+# its high bit if more bytes follow.
+_VARINT_PAYLOAD_BITS = 7
+_VARINT_PAYLOAD_MASK = 0x7F
+_VARINT_CONTINUATION_BIT = 0x80
 # Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
@@ -116,6 +130,72 @@ def _ordered(
     return [values.get(name, pb.EvalTableValue()) for name in names]
 
 
+@contextlib.contextmanager
+def _set_rows_or_wandb_rows_file(
+    table_data: pb.EvalTableData,
+    rows: Sequence[pb.EvalTableRow],
+    *,
+    staging_dir: pathlib.Path,
+) -> Iterator[None]:
+    """Set the table data's `rows`, or its `wandb_rows_file_path` for large tables.
+
+    The W&B rows file is in `staging_dir` and is deleted when the context exits.
+    wandb-core only reads it, and responds after the upload finishes.
+    """
+    total_bytes = 0
+    for row in rows:
+        total_bytes += row.ByteSize()
+        if total_bytes > _ROWS_FILE_THRESHOLD_BYTES:
+            break
+    else:
+        table_data.rows.extend(rows)
+        yield
+        return
+
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    file = tempfile.NamedTemporaryFile(
+        dir=staging_dir,
+        prefix="wandb-eval-table-",
+        suffix=".rows.pb.gz",
+        delete=False,
+    )
+    try:
+        with file:
+            _write_wandb_rows_file(file, rows)
+        table_data.wandb_rows_file_path = file.name
+        yield
+    finally:
+        # A failure to remove the file, such as while wandb-core still has
+        # it open, is logged rather than raised, so that it can't replace
+        # the upload's result or error.
+        try:
+            os.remove(file.name)
+        except OSError as e:
+            _logger.warning("Failed to remove W&B rows file %s: %s", file.name, e)
+
+
+def _write_wandb_rows_file(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> None:
+    """Write rows gzipped, each preceded by its size as a varint.
+
+    This is protobuf's length-delimited encoding.
+    """
+    with gzip.open(file, mode="wb", compresslevel=1) as rows_file:
+        for row in rows:
+            message = row.SerializeToString()
+            rows_file.write(_encode_varint(len(message)))
+            rows_file.write(message)
+
+
+def _encode_varint(value: int) -> bytes:
+    """Encode a non-negative integer as a protobuf varint."""
+    encoded = bytearray()
+    while value > _VARINT_PAYLOAD_MASK:
+        encoded.append((value & _VARINT_PAYLOAD_MASK) | _VARINT_CONTINUATION_BIT)
+        value >>= _VARINT_PAYLOAD_BITS
+    encoded.append(value)
+    return bytes(encoded)
+
+
 class CESWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
@@ -159,9 +239,12 @@ class CESWriter:
         request.table.name = name
         request.table.dataset_fields.extend(write_payloads.dataset_fields)
         request.table.scorers.extend(write_payloads.scorers)
-        request.table.rows.extend(write_payloads.rows)
         request.table.upload_media_paths.extend(write_payloads.upload_media_paths)
-        response = bound_run.run._upload_eval_table(request)
+        staging_dir = pathlib.Path(bound_run.run.sync_dir) / "tmp" / "eval-tables"
+        with _set_rows_or_wandb_rows_file(
+            request.table, write_payloads.rows, staging_dir=staging_dir
+        ):
+            response = bound_run.run._upload_eval_table(request)
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",

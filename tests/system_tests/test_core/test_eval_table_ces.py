@@ -6,6 +6,7 @@ fake CES in place of the CoreWeave Evaluation Service.
 
 from __future__ import annotations
 
+import os
 import urllib.parse
 
 import numpy as np
@@ -14,6 +15,7 @@ import wandb
 from PIL import Image as PILImage
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.data_types.eval_table import _writer_ces
 
 _ROWS = [
     {
@@ -127,6 +129,17 @@ def test_logs_ces_eval_table(wandb_backend_spy):
     run = _log_eval_table()
 
     _assert_logged_to_ces(wandb_backend_spy, run)
+
+
+def test_logs_ces_eval_table_from_rows_file(wandb_backend_spy, monkeypatch, mocker):
+    monkeypatch.setattr(_writer_ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+    write_wandb_rows_file = mocker.spy(_writer_ces, "_write_wandb_rows_file")
+
+    run = _log_eval_table()
+
+    write_wandb_rows_file.assert_called_once()
+    _assert_logged_to_ces(wandb_backend_spy, run)
+    assert os.listdir(os.path.join(run.settings.sync_dir, "tmp", "eval-tables")) == []
 
 
 def test_logs_ces_eval_table_with_media(wandb_backend_spy, tmp_path):
