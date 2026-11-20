@@ -18,6 +18,18 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
 
+      # The scans before and after the update list every known vulnerability
+      # in the Go version and the modules in go.mod, called or not, which is
+      # what dependency scanners report against the wandb package. The ones
+      # the update fixes go into CHANGELOG.unreleased.md. `go list -m all`,
+      # which the scan uses, does not work with a vendor directory, hence
+      # -mod=mod.
+      - name: Scan for known vulnerabilities before the update
+        working-directory: core
+        env:
+          GOFLAGS: -mod=mod
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -scan module -json > /tmp/vulns-before.json
+
       - name: Update Go and Go dependencies
         working-directory: core
         env:
@@ -28,7 +40,18 @@ jobs:
           go mod tidy
           go mod vendor
 
+      - name: Scan for known vulnerabilities after the update
+        working-directory: core
+        env:
+          GOTOOLCHAIN: auto
+          GOFLAGS: -mod=mod
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -scan module -json > /tmp/vulns-after.json
+
+      - name: Note the fixed vulnerabilities in the changelog
+        run: python3 tools/govulncheck_changelog.py /tmp/vulns-before.json /tmp/vulns-after.json --pr-url "https://github.com/${{ github.repository }}/pull/PR_NUMBER"
+
       - name: Create pull request
+        id: pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           branch: update-go-deps
@@ -37,10 +60,22 @@ jobs:
           body: >
             Updates `core/go.mod` to the latest Go release and to the latest
             minor or patch release of every dependency, then runs
-            `go mod tidy` and `go mod vendor`.
+            `go mod tidy` and `go mod vendor`. Known vulnerabilities fixed by
+            the update are listed in `CHANGELOG.unreleased.md`.
 
             Please approve and merge if tests pass. If tests fail due to
             a dependency update, consider improving the tests or implementation.
             If CI fails because of a bug in a dependency, add an `exclude`
             directive for the broken version to `core/go.mod` and rerun the
             action. Consider filing a bug for the dependency.
+
+      # The changelog entry is written before the pull request number is known.
+      - name: Link the changelog entry to the pull request
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        run: |
+          git fetch origin update-go-deps
+          git checkout -f -B update-go-deps FETCH_HEAD
+          sed -i "s#/pull/PR_NUMBER)#/pull/${{ steps.pr.outputs.pull-request-number }})#" CHANGELOG.unreleased.md
+          git diff --quiet && exit 0
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -am "chore: link the changelog entry to the pull request"
+          git push origin HEAD:update-go-deps
