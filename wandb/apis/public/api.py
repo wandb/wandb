@@ -115,6 +115,8 @@ class Api:
         overrides: dict[str, Any] | None = None,
         timeout: int | None = None,
         api_key: str | None = None,
+        *,
+        _verify_credentials: bool = True,
     ) -> None:
         """Initialize the API.
 
@@ -185,7 +187,7 @@ class Api:
             timeout=self._timeout,
         )
 
-        if isinstance(self._auth, wbauth.AuthApiKey):
+        if _verify_credentials and isinstance(self._auth, wbauth.AuthApiKey):
             wandb_login._verify_login(self._auth, service_api=self._service_api)
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:

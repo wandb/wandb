@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb.apis import public
-from wandb.sdk import wandb_run
+from wandb.sdk import wandb_login, wandb_run
 
 REFERENCE_ATTRIBUTES = set(
     [
@@ -326,8 +326,19 @@ def test_public_api_uses_api_key(mock_run, mocker):
             "project": "",
         },
         api_key=api_key,
+        _verify_credentials=False,
     )
     assert api is mock_api_instance
+
+
+def test_public_api_skips_credential_check(mock_run, mocker):
+    mock_verify_login = mocker.patch.object(wandb_login, "_verify_login")
+    run = mock_run(settings=wandb.Settings(api_key="1234" * 10))
+
+    api = run._public_api()
+
+    assert isinstance(api, public.Api)
+    mock_verify_login.assert_not_called()
 
 
 def test_public_api_is_cached(mock_run, mocker):
