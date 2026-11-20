@@ -956,11 +956,10 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 }
 
 func (s *Sender) updateSummaryStep(step int64) {
-	s.runSummary.Set(stepMetric, step)
+	updates := runsummary.NoUpdates().Set(stepMetric, step)
 
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
-		Updates: runsummary.NoUpdates().Set(stepMetric, step),
-	})
+	updates.Apply(s.runSummary)
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
@@ -974,15 +973,16 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	}
 
 	updates, err := runsummary.FromProto(summary)
-	updates.Ignore(stepMetric) // Always use the step from history records.
 	if err != nil {
 		s.logger.CaptureError(
 			"stream",
-			fmt.Errorf("sender: error updating summary: %v", err),
+			fmt.Errorf("sender: error parsing summary: %v", err),
 		)
 		// Continue, partial success is possible.
 	}
+	updates.Ignore(stepMetric) // Always use the step from history records.
 
+	updates.Apply(s.runSummary)
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 
