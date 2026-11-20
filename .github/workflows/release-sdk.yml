@@ -30,7 +30,7 @@ env:
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04-2-cores
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -426,7 +426,7 @@ jobs:
   create-dev-branch:
     name: Create dev branch and PR
     needs: pypi-publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     if: ${{ inputs.mode == 'release' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -473,7 +473,7 @@ jobs:
   publish-release-notes:
     name: Publish Release Notes
     needs: pypi-publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     if: ${{ inputs.mode == 'release' }}
     steps:
       - name: Checkout
@@ -529,7 +529,7 @@ jobs:
   notify-core:
     if: ${{ inputs.mode != 'test-release' }}
     name: notify wandb/core of release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     timeout-minutes: 10
     needs: [pypi-publish]
 
