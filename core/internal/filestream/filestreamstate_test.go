@@ -192,15 +192,23 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 	assert.Equal(t, 7, state.SummaryLineNum) // never updated; see docs
 }
 
-func TestState_Pop_SummaryWaitsForHistory(t *testing.T) {
+func TestState_Pop_SummaryWithBufferedHistory(t *testing.T) {
 	const firstRow = `{"acc":0.4}`
 	const lastRow = `{"step":1,"acc":0.5}`
 	const summary = `{"acc":9}`
 
-	for name, delta := range map[string]bool{"full": false, "delta": true} {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		delta         bool
+		firstSummary  []string
+		secondSummary []string
+	}{
+		{"full summary fits beside first row", false, []string{summary}, nil},
+		{"delta waits for last row", true, nil, []string{summary}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			state := &FileStreamState{
-				SummaryDelta:        delta,
+				SummaryDelta:        tc.delta,
 				MaxRequestSizeBytes: len(lastRow) + len(summary),
 				MaxFileLineSize:     len(summary),
 			}
@@ -212,13 +220,14 @@ func TestState_Pop_SummaryWaitsForHistory(t *testing.T) {
 			chunk, more := pop(t, state, request)
 			require.True(t, more)
 			assert.Equal(t, []string{firstRow}, chunk.Files[HistoryFileName].Content)
-			assert.NotContains(t, chunk.Files, SummaryFileName)
+			assert.Equal(t, tc.firstSummary, chunk.Files[SummaryFileName].Content)
+			assert.False(t, chunk.SummaryDelta)
 
 			chunk, more = pop(t, state, request)
 			require.False(t, more)
 			assert.Equal(t, []string{lastRow}, chunk.Files[HistoryFileName].Content)
-			assert.Equal(t, []string{summary}, chunk.Files[SummaryFileName].Content)
-			assert.Equal(t, delta, chunk.SummaryDelta)
+			assert.Equal(t, tc.secondSummary, chunk.Files[SummaryFileName].Content)
+			assert.Equal(t, tc.delta, chunk.SummaryDelta)
 		})
 	}
 }

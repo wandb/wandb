@@ -108,8 +108,7 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	// Sending a buffered history row later could overwrite an explicit summary value.
-	if len(request.HistoryLines) == 0 && !request.SummaryUpdates.IsEmpty() {
+	if !request.SummaryUpdates.IsEmpty() {
 		s.popSummary(builder, request, false, logger, printer)
 	}
 	s.popConsoleLines(builder, request)
@@ -187,6 +186,12 @@ func (s *FileStreamState) popSummary(
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) {
+	// In delta mode, send buffered history first so a later row can't
+	// overwrite an explicit summary value.
+	if s.SummaryDelta && len(request.HistoryLines) > 0 {
+		return
+	}
+
 	updates := request.SummaryUpdates
 	isDelta := s.SummaryDelta && !checkpoint && !updates.HasRemovals()
 	line := request.deferredSummary
