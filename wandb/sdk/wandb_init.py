@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import functools
 import json
 import logging
 import os
@@ -45,7 +44,6 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .lib import filesystem, module, paths, printer, telemetry
 from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
-from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
@@ -941,24 +939,18 @@ class _WandbInit:
             f"communicating run to backend with {timeout} second timeout",
         )
 
-        with progress.progress_printer(
-            run_printer,
+        result = progress.wait_printing_progress(
+            interface.deliver_run(run),
+            printer=run_printer,
+            interface=interface,
             default_text="Waiting for wandb.init()...",
-        ) as progress_printer:
-            result = wait_with_progress(
-                interface.deliver_run(run),
-                # We expect the service process to respect the init timeout
-                # setting and promptly return a `run_result.error` on timeout.
-                #
-                # If the grace period expires, we treat that like an SDK bug
-                # and don't give special treatment to the exception.
-                timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
-                display_progress=functools.partial(
-                    progress.loop_printing_operation_stats,
-                    progress_printer,
-                    interface,
-                ),
-            )
+            # We expect the service process to respect the init timeout
+            # setting and promptly return a `run_result.error` on timeout.
+            #
+            # If the grace period expires, we treat that like an SDK bug
+            # and don't give special treatment to the exception.
+            timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
+        )
 
         assert result.run_result
 

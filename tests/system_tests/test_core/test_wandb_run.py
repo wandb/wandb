@@ -14,6 +14,7 @@ import pytest
 import wandb
 from wandb import env
 from wandb.errors import UsageError
+from wandb.sdk.lib import progress
 from wandb.sdk.lib.service import service_port_file
 from wandb.util import get_core_path
 
@@ -423,15 +424,15 @@ def test_backup_sync_dir_callback(tmp_path, monkeypatch):
     ) as run:
         run.log({"backup_callback_marker": 123})
         sync_dir = Path(run.sync_dir)
-        wait_with_progress = wandb.sdk.wandb_run.wait_with_progress
+        wait_printing_progress = progress.wait_printing_progress
 
         def wait_after_backup(*args, **kwargs):
             assert callback_finished.wait(timeout=5)
-            return wait_with_progress(*args, **kwargs)
+            return wait_printing_progress(*args, **kwargs)
 
         monkeypatch.setattr(
-            wandb.sdk.wandb_run,
-            "wait_with_progress",
+            progress,
+            "wait_printing_progress",
             wait_after_backup,
         )
 
