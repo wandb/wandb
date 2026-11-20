@@ -129,7 +129,6 @@ def _assert_logged_to_ces(
     create, columns, rows, _ = requests
     assert create.body == {
         "name": "eval",
-        "evaluation_id": _AnyUUIDv7(),
         "evaluation_version_id": _AnyUUIDv7(),
     }
     assert columns.body == {
@@ -155,13 +154,11 @@ def _assert_logged_to_ces(
         "log_mode": "IMMUTABLE",
     }
     if offline:
-        marker["evaluation_id"] = create.body["evaluation_id"]
         marker["evaluation_version_id"] = create.body["evaluation_version_id"]
         assert create.idempotency_key == (
-            f"wandb-eval-table-v3-{create.body['evaluation_id']}-create"
+            f"wandb-eval-table-v3-{create.body['evaluation_version_id']}-create"
         )
     else:
-        marker["evaluation_id"] = "eval-id"
         marker["evaluation_version_id"] = "eval-version-id"
         marker["dataset_id"] = "dataset-id"
         marker["dataset_version_id"] = "dataset-version-id"

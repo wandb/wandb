@@ -1489,7 +1489,7 @@ func (s *Sender) sendEvalTable(msg *spb.EvalTableRecord) {
 			s.logger.CaptureError(
 				"stream",
 				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
-				"evaluationID", msg.GetEvaluationId(),
+				"evaluationVersionID", msg.GetEvaluationVersionId(),
 			)
 		}
 	}()

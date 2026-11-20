@@ -1140,9 +1140,9 @@ func TestHandleUploadEvalTable_OfflineRecordsTable(t *testing.T) {
 	assert.True(t, proto.Equal(table, forwarded.GetTable()))
 	response := (<-outputs).GetResultCommunicate().GetResponse().GetUploadEvalTableResponse()
 	assert.Nil(t, response.GetError())
-	assert.NotEmpty(t, response.GetEvaluationId())
-	assert.Equal(t, forwarded.GetEvaluationId(), response.GetEvaluationId())
+	assert.NotEmpty(t, response.GetEvaluationVersionId())
 	assert.Equal(t, forwarded.GetEvaluationVersionId(), response.GetEvaluationVersionId())
+	assert.Empty(t, response.GetEvaluationId())
 	assert.Empty(t, response.GetDatasetId())
 	assert.Empty(t, response.GetDatasetVersionId())
 }
@@ -1164,7 +1164,7 @@ func TestHandleUploadEvalTable_OfflineRejectsInvalidTable(t *testing.T) {
 			Message: `field "a" has unknown source "metadata"`,
 		},
 		response.GetError())
-	assert.Empty(t, response.GetEvaluationId())
+	assert.Empty(t, response.GetEvaluationVersionId())
 	select {
 	case work := <-handler.OutChan():
 		t.Fatalf("handler forwarded %v", work)

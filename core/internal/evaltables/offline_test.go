@@ -24,15 +24,13 @@ func assertUUIDv7(t *testing.T, id string) {
 	assert.Equal(t, parsed.String(), id)
 }
 
-func TestNewRecord_NamesTableAndFirstVersion(t *testing.T) {
+func TestNewRecord_NamesFirstVersion(t *testing.T) {
 	data := &spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, Rows: outputRows(2, 1)}
 
 	record, err := evaltables.NewRecord(t.Context(), data, testRunPath, t.TempDir())
 
 	require.NoError(t, err)
-	assertUUIDv7(t, record.GetEvaluationId())
 	assertUUIDv7(t, record.GetEvaluationVersionId())
-	assert.NotEqual(t, record.GetEvaluationId(), record.GetEvaluationVersionId())
 	assert.True(t, proto.Equal(data, record.GetTable()))
 	assert.Empty(t, record.GetWandbRowsFile())
 }
@@ -46,7 +44,7 @@ func TestNewRecord_CopiesWandbRowsFileIntoSyncDir(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t,
-		filepath.Join("eval-tables", record.GetEvaluationId()+".wandb-rows.gz"),
+		filepath.Join("eval-tables", record.GetEvaluationVersionId()+".wandb-rows.gz"),
 		record.GetWandbRowsFile())
 	assert.Empty(t, record.GetTable().GetWandbRowsFilePath())
 	assert.Equal(t, path, data.GetWandbRowsFilePath(), "NewRecord changed its input")
@@ -71,7 +69,7 @@ func TestNewRecord_RejectsInvalidTable(t *testing.T) {
 	assert.Empty(t, filesIn(t, syncDir))
 }
 
-func TestEncodeRecord_UploadsWithTheRecordsIDsAndRows(t *testing.T) {
+func TestEncodeRecord_UploadsWithTheRecordsVersionIDAndRows(t *testing.T) {
 	syncDir := t.TempDir()
 	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 	record, err := evaltables.NewRecord(
@@ -94,20 +92,19 @@ func TestEncodeRecord_UploadsWithTheRecordsIDsAndRows(t *testing.T) {
 
 	requests := ces.Requests()
 	require.Len(t, requests, 4)
-	assert.Equal(t, record.GetEvaluationId(), bodyField(t, requests[0], "evaluation_id"))
 	assert.Equal(t,
 		record.GetEvaluationVersionId(),
 		bodyField(t, requests[0], "evaluation_version_id"))
 	assert.Equal(t,
 		`{"rows":[{"input":null,"output":{"x":"1"},"scores":{}}]}`,
 		requests[2].Body)
-	// Keys derive from the evaluation ID, so that syncing the run again
+	// Keys derive from the version ID, so that syncing the run again
 	// replays the first sync's requests.
 	for _, request := range requests {
 		assert.True(t,
 			strings.HasPrefix(
 				request.IdempotencyKey,
-				"wandb-eval-table-v3-"+record.GetEvaluationId()+"-"),
+				"wandb-eval-table-v3-"+record.GetEvaluationVersionId()+"-"),
 			request.IdempotencyKey)
 	}
 	assert.Equal(t,
@@ -118,7 +115,6 @@ func TestEncodeRecord_UploadsWithTheRecordsIDsAndRows(t *testing.T) {
 func TestEncodeRecord_RejectsRowsFileOutsideSyncDir(t *testing.T) {
 	record := &spb.EvalTableRecord{
 		Table:               &spb.EvalTableData{Name: "t"},
-		EvaluationId:        uuid.Must(uuid.NewV7()).String(),
 		EvaluationVersionId: uuid.Must(uuid.NewV7()).String(),
 		WandbRowsFile:       filepath.Join("..", "rows.gz"),
 	}
@@ -128,10 +124,10 @@ func TestEncodeRecord_RejectsRowsFileOutsideSyncDir(t *testing.T) {
 	assert.ErrorContains(t, err, "outside the sync directory")
 }
 
-func TestEncodeRecord_RejectsRecordWithoutIDs(t *testing.T) {
+func TestEncodeRecord_RejectsRecordWithoutVersionID(t *testing.T) {
 	record := &spb.EvalTableRecord{Table: &spb.EvalTableData{Name: "t"}}
 
 	_, err := evaltables.EncodeRecord(t.Context(), record, testRunPath, t.TempDir())
 
-	assert.ErrorContains(t, err, "no evaluation ID")
+	assert.ErrorContains(t, err, "no evaluation version ID")
 }

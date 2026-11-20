@@ -165,7 +165,6 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "ncols": 5,
         "nrows": 2,
         "log_mode": "IMMUTABLE",
-        "evaluation_id": "evaluation-1",
         "evaluation_version_id": "evaluation-version-1",
         "dataset_id": "dataset-1",
         "dataset_version_id": "dataset-version-1",
@@ -186,7 +185,6 @@ def test_ces_eval_table_in_offline_run_omits_dataset_ids(
     deliver_upload_eval_table.return_value.wait_or.return_value = pb.Result(
         response=pb.Response(
             upload_eval_table_response=pb.UploadEvalTableResponse(
-                evaluation_id="evaluation-1",
                 evaluation_version_id="evaluation-version-1",
             )
         )
@@ -210,7 +208,6 @@ def test_ces_eval_table_in_offline_run_omits_dataset_ids(
         "ncols": 2,
         "nrows": 1,
         "log_mode": "IMMUTABLE",
-        "evaluation_id": "evaluation-1",
         "evaluation_version_id": "evaluation-version-1",
     }
 

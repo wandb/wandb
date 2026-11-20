@@ -372,7 +372,7 @@ func bodyField(t *testing.T, request cesRequest, field string) string {
 	return value
 }
 
-func TestUpload_NamesTableAndFirstVersionWithUUIDv7s(t *testing.T) {
+func TestUpload_NamesFirstVersionWithUUIDv7(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 	data := &spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, Rows: outputRows(1, 1)}
@@ -387,20 +387,15 @@ func TestUpload_NamesTableAndFirstVersionWithUUIDv7s(t *testing.T) {
 	var supplied []string
 	for _, request := range []cesRequest{requests[0], requests[4]} {
 		require.Equal(t, tablePath, request.Path)
-		for _, field := range []string{"evaluation_id", "evaluation_version_id"} {
-			id := bodyField(t, request, field)
-			parsed, err := uuid.Parse(id)
-			require.NoError(t, err, field)
-			assert.Equal(t, uuid.Version(7), parsed.Version(), field)
-			assert.Equal(t, parsed.String(), id, field)
-			supplied = append(supplied, id)
-		}
+		assert.NotContains(t, request.Body, "evaluation_id")
+		id := bodyField(t, request, "evaluation_version_id")
+		parsed, err := uuid.Parse(id)
+		require.NoError(t, err)
+		assert.Equal(t, uuid.Version(7), parsed.Version())
+		assert.Equal(t, parsed.String(), id)
+		supplied = append(supplied, id)
 	}
-	distinct := make(map[string]bool)
-	for _, id := range supplied {
-		distinct[id] = true
-	}
-	assert.Len(t, distinct, 4)
+	assert.NotEqual(t, supplied[0], supplied[1])
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {

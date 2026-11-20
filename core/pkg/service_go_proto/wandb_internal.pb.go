@@ -10312,10 +10312,10 @@ func (x *EvalTableScorer) GetValueType() string {
 
 type UploadEvalTableResponse struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
-	EvaluationId        string                 `protobuf:"bytes,1,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
 	EvaluationVersionId string                 `protobuf:"bytes,2,opt,name=evaluation_version_id,json=evaluationVersionId,proto3" json:"evaluation_version_id,omitempty"`
 	// Unset in offline mode, where the table isn't uploaded until
 	// `wandb sync`.
+	EvaluationId     string `protobuf:"bytes,1,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
 	DatasetId        string `protobuf:"bytes,3,opt,name=dataset_id,json=datasetId,proto3" json:"dataset_id,omitempty"`
 	DatasetVersionId string `protobuf:"bytes,4,opt,name=dataset_version_id,json=datasetVersionId,proto3" json:"dataset_version_id,omitempty"`
 	// Set if the upload failed, in which case the IDs are unset.
@@ -10356,16 +10356,16 @@ func (*UploadEvalTableResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{134}
 }
 
-func (x *UploadEvalTableResponse) GetEvaluationId() string {
+func (x *UploadEvalTableResponse) GetEvaluationVersionId() string {
 	if x != nil {
-		return x.EvaluationId
+		return x.EvaluationVersionId
 	}
 	return ""
 }
 
-func (x *UploadEvalTableResponse) GetEvaluationVersionId() string {
+func (x *UploadEvalTableResponse) GetEvaluationId() string {
 	if x != nil {
-		return x.EvaluationVersionId
+		return x.EvaluationId
 	}
 	return ""
 }
@@ -10397,13 +10397,12 @@ type EvalTableRecord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The table, without a wandb_rows_file_path.
 	Table *EvalTableData `protobuf:"bytes,1,opt,name=table,proto3" json:"table,omitempty"`
-	// The IDs to name the table and its first version with in CES, which
-	// the run's history already references.
-	EvaluationId        string `protobuf:"bytes,2,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
-	EvaluationVersionId string `protobuf:"bytes,3,opt,name=evaluation_version_id,json=evaluationVersionId,proto3" json:"evaluation_version_id,omitempty"`
+	// The ID to name the table's first version with in CES, which the run's
+	// history already references.
+	EvaluationVersionId string `protobuf:"bytes,2,opt,name=evaluation_version_id,json=evaluationVersionId,proto3" json:"evaluation_version_id,omitempty"`
 	// The table's W&B rows file relative to the run's sync directory, if it
 	// has one.
-	WandbRowsFile string       `protobuf:"bytes,4,opt,name=wandb_rows_file,json=wandbRowsFile,proto3" json:"wandb_rows_file,omitempty"`
+	WandbRowsFile string       `protobuf:"bytes,3,opt,name=wandb_rows_file,json=wandbRowsFile,proto3" json:"wandb_rows_file,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -10444,13 +10443,6 @@ func (x *EvalTableRecord) GetTable() *EvalTableData {
 		return x.Table
 	}
 	return nil
-}
-
-func (x *EvalTableRecord) GetEvaluationId() string {
-	if x != nil {
-		return x.EvaluationId
-	}
-	return ""
 }
 
 func (x *EvalTableRecord) GetEvaluationVersionId() string {
@@ -13530,18 +13522,17 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
 	"value_type\x18\x02 \x01(\tR\tvalueType\"\xf0\x01\n" +
-	"\x17UploadEvalTableResponse\x12#\n" +
-	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x122\n" +
-	"\x15evaluation_version_id\x18\x02 \x01(\tR\x13evaluationVersionId\x12\x1d\n" +
+	"\x17UploadEvalTableResponse\x122\n" +
+	"\x15evaluation_version_id\x18\x02 \x01(\tR\x13evaluationVersionId\x12#\n" +
+	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x12\x1d\n" +
 	"\n" +
 	"dataset_id\x18\x03 \x01(\tR\tdatasetId\x12,\n" +
 	"\x12dataset_version_id\x18\x04 \x01(\tR\x10datasetVersionId\x12/\n" +
-	"\x05error\x18\x05 \x01(\v2\x19.wandb_internal.ErrorInfoR\x05error\"\xfa\x01\n" +
+	"\x05error\x18\x05 \x01(\v2\x19.wandb_internal.ErrorInfoR\x05error\"\xd5\x01\n" +
 	"\x0fEvalTableRecord\x123\n" +
-	"\x05table\x18\x01 \x01(\v2\x1d.wandb_internal.EvalTableDataR\x05table\x12#\n" +
-	"\revaluation_id\x18\x02 \x01(\tR\fevaluationId\x122\n" +
-	"\x15evaluation_version_id\x18\x03 \x01(\tR\x13evaluationVersionId\x12&\n" +
-	"\x0fwandb_rows_file\x18\x04 \x01(\tR\rwandbRowsFile\x121\n" +
+	"\x05table\x18\x01 \x01(\v2\x1d.wandb_internal.EvalTableDataR\x05table\x122\n" +
+	"\x15evaluation_version_id\x18\x02 \x01(\tR\x13evaluationVersionId\x12&\n" +
+	"\x0fwandb_rows_file\x18\x03 \x01(\tR\rwandbRowsFile\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x8d\x02\n" +
 	"\x17DownloadArtifactRequest\x12\x1f\n" +
 	"\vartifact_id\x18\x01 \x01(\tR\n" +

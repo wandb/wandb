@@ -95,9 +95,11 @@ func IsUsageError(err error) bool {
 type EncodedTable struct {
 	name    string
 	runPath runbranch.RunPath
-	ids     tableIDs
 	columns ces.EvalTableColumnNewParams
 	nrows   int
+
+	// evaluationVersionID is the ID that the table's first version gets.
+	evaluationVersionID string
 
 	// cesRows is the CES JSON of the table's inline rows.
 	cesRows [][]byte
@@ -163,16 +165,16 @@ func Encode(
 		return nil, usageError{err}
 	}
 
-	ids, err := newTableIDs()
+	evaluationVersionID, err := newEvaluationVersionID()
 	if err != nil {
 		return nil, err
 	}
 
 	table := &EncodedTable{
-		name:    data.GetName(),
-		runPath: runPath,
-		ids:     ids,
-		columns: columns,
+		name:                data.GetName(),
+		runPath:             runPath,
+		columns:             columns,
+		evaluationVersionID: evaluationVersionID,
 	}
 
 	if path := data.GetWandbRowsFilePath(); path != "" {
@@ -295,7 +297,7 @@ func (u *Uploader) Upload(
 	upload := &tableUpload{
 		evalTables: evalTables,
 		scopeID:    scopeID,
-		keys:       newIdempotencyKeys(table.ids.evaluationID),
+		keys:       newIdempotencyKeys(table.evaluationVersionID),
 	}
 
 	created, err := upload.create(ctx, table)
@@ -347,9 +349,8 @@ func (t *tableUpload) create(
 		ctx,
 		ces.EvalTableNewParams{ScopeID: ces.F(t.scopeID), Name: ces.F(table.name)},
 		t.keys.option("create"),
-		// cwevals-go doesn't have these fields yet.
-		option.WithJSONSet("evaluation_id", table.ids.evaluationID),
-		option.WithJSONSet("evaluation_version_id", table.ids.evaluationVersionID),
+		// cwevals-go doesn't have this field yet.
+		option.WithJSONSet("evaluation_version_id", table.evaluationVersionID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
@@ -706,29 +707,14 @@ func (b *rowBatchBuilder) take() rowBatch {
 	return batch
 }
 
-// tableIDs are the IDs that a client names its EvalTable and the table's first
-// version with, so that they don't depend on CES's response.
-type tableIDs struct {
-	evaluationID        string
-	evaluationVersionID string
-}
-
-func newTableIDs() (tableIDs, error) {
-	evaluationID, err := uuid.NewV7()
+// newEvaluationVersionID returns an ID for an EvalTable's first version, so
+// that the ID a marker references doesn't depend on CES's response.
+func newEvaluationVersionID() (string, error) {
+	id, err := uuid.NewV7()
 	if err != nil {
-		return tableIDs{}, fmt.Errorf("evaltables: failed to generate evaluation ID: %v", err)
+		return "", fmt.Errorf("evaltables: failed to generate evaluation version ID: %v", err)
 	}
-	evaluationVersionID, err := uuid.NewV7()
-	if err != nil {
-		return tableIDs{}, fmt.Errorf(
-			"evaltables: failed to generate evaluation version ID: %v",
-			err,
-		)
-	}
-	return tableIDs{
-		evaluationID:        evaluationID.String(),
-		evaluationVersionID: evaluationVersionID.String(),
-	}, nil
+	return id.String(), nil
 }
 
 type idempotencyKeys struct {
@@ -736,9 +722,9 @@ type idempotencyKeys struct {
 }
 
 // newIdempotencyKeys derives CES idempotency keys for uploading the
-// EvalTable named evaluationID.
+// EvalTable whose first version is named evaluationVersionID.
 //
-// Keying on the table's random ID makes retries within the upload, and a
+// Keying on the version's random ID makes retries within the upload, and a
 // repeated `wandb sync` of an offline run, reuse the CES resources already
 // created, while separate tables never collide. Uploads can't key on where
 // the table is logged: in shared mode, writers to the same run can log the
@@ -747,12 +733,12 @@ type idempotencyKeys struct {
 // CES replays a create, row append, or version request with the same key,
 // and rejects one with the same key but a different body. Repeating an
 // identical column declaration is a no-op.
-func newIdempotencyKeys(evaluationID string) idempotencyKeys {
+func newIdempotencyKeys(evaluationVersionID string) idempotencyKeys {
 	return idempotencyKeys{
 		prefix: fmt.Sprintf(
 			"wandb-eval-table-%s-%s",
 			idempotencyKeyVersion,
-			evaluationID,
+			evaluationVersionID,
 		),
 	}
 }

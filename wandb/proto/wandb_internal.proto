@@ -1398,11 +1398,11 @@ message EvalTableScorer {
 }
 
 message UploadEvalTableResponse {
-  string evaluation_id = 1;
   string evaluation_version_id = 2;
 
   // Unset in offline mode, where the table isn't uploaded until
   // `wandb sync`.
+  string evaluation_id = 1;
   string dataset_id = 3;
   string dataset_version_id = 4;
 
@@ -1420,14 +1420,13 @@ message EvalTableRecord {
   // The table, without a wandb_rows_file_path.
   EvalTableData table = 1;
 
-  // The IDs to name the table and its first version with in CES, which
-  // the run's history already references.
-  string evaluation_id = 2;
-  string evaluation_version_id = 3;
+  // The ID to name the table's first version with in CES, which the run's
+  // history already references.
+  string evaluation_version_id = 2;
 
   // The table's W&B rows file relative to the run's sync directory, if it
   // has one.
-  string wandb_rows_file = 4;
+  string wandb_rows_file = 3;
 
   _RecordInfo _info = 200;
 }

@@ -1613,32 +1613,30 @@ class EvalTableScorer(_message.Message):
     def __init__(self, name: _Optional[str] = ..., value_type: _Optional[str] = ...) -> None: ...
 
 class UploadEvalTableResponse(_message.Message):
-    __slots__ = ("evaluation_id", "evaluation_version_id", "dataset_id", "dataset_version_id", "error")
-    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("evaluation_version_id", "evaluation_id", "dataset_id", "dataset_version_id", "error")
     EVALUATION_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
     DATASET_ID_FIELD_NUMBER: _ClassVar[int]
     DATASET_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
-    evaluation_id: str
     evaluation_version_id: str
+    evaluation_id: str
     dataset_id: str
     dataset_version_id: str
     error: ErrorInfo
-    def __init__(self, evaluation_id: _Optional[str] = ..., evaluation_version_id: _Optional[str] = ..., dataset_id: _Optional[str] = ..., dataset_version_id: _Optional[str] = ..., error: _Optional[_Union[ErrorInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, evaluation_version_id: _Optional[str] = ..., evaluation_id: _Optional[str] = ..., dataset_id: _Optional[str] = ..., dataset_version_id: _Optional[str] = ..., error: _Optional[_Union[ErrorInfo, _Mapping]] = ...) -> None: ...
 
 class EvalTableRecord(_message.Message):
-    __slots__ = ("table", "evaluation_id", "evaluation_version_id", "wandb_rows_file", "_info")
+    __slots__ = ("table", "evaluation_version_id", "wandb_rows_file", "_info")
     TABLE_FIELD_NUMBER: _ClassVar[int]
-    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
     EVALUATION_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
     WANDB_ROWS_FILE_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     table: EvalTableData
-    evaluation_id: str
     evaluation_version_id: str
     wandb_rows_file: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, table: _Optional[_Union[EvalTableData, _Mapping]] = ..., evaluation_id: _Optional[str] = ..., evaluation_version_id: _Optional[str] = ..., wandb_rows_file: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, table: _Optional[_Union[EvalTableData, _Mapping]] = ..., evaluation_version_id: _Optional[str] = ..., wandb_rows_file: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class DownloadArtifactRequest(_message.Message):
     __slots__ = ("artifact_id", "download_root", "allow_missing_references", "skip_cache", "path_prefix", "_info")

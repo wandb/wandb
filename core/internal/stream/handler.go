@@ -548,7 +548,6 @@ func (h *Handler) handleRequestUploadEvalTable(
 			&spb.Record{RecordType: &spb.Record_EvalTable{EvalTable: evalTable}},
 			nil,
 		)
-		response.EvaluationId = evalTable.GetEvaluationId()
 		response.EvaluationVersionId = evalTable.GetEvaluationVersionId()
 	}
 

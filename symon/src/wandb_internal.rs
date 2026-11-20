@@ -2816,12 +2816,12 @@ pub struct EvalTableScorer {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UploadEvalTableResponse {
-    #[prost(string, tag = "1")]
-    pub evaluation_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub evaluation_version_id: ::prost::alloc::string::String,
     /// Unset in offline mode, where the table isn't uploaded until
     /// `wandb sync`.
+    #[prost(string, tag = "1")]
+    pub evaluation_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub dataset_id: ::prost::alloc::string::String,
     #[prost(string, tag = "4")]
@@ -2840,15 +2840,13 @@ pub struct EvalTableRecord {
     /// The table, without a wandb_rows_file_path.
     #[prost(message, optional, tag = "1")]
     pub table: ::core::option::Option<EvalTableData>,
-    /// The IDs to name the table and its first version with in CES, which
-    /// the run's history already references.
+    /// The ID to name the table's first version with in CES, which the run's
+    /// history already references.
     #[prost(string, tag = "2")]
-    pub evaluation_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
     pub evaluation_version_id: ::prost::alloc::string::String,
     /// The table's W&B rows file relative to the run's sync directory, if it
     /// has one.
-    #[prost(string, tag = "4")]
+    #[prost(string, tag = "3")]
     pub wandb_rows_file: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,

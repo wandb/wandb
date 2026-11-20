@@ -42,15 +42,14 @@ func NewRecord(
 
 	record := &spb.EvalTableRecord{
 		Table:               proto.CloneOf(data),
-		EvaluationId:        table.ids.evaluationID,
-		EvaluationVersionId: table.ids.evaluationVersionID,
+		EvaluationVersionId: table.evaluationVersionID,
 	}
 
 	if path := data.GetWandbRowsFilePath(); path != "" {
 		record.Table.WandbRowsFilePath = ""
 		record.WandbRowsFile = filepath.Join(
 			recordRowsDir,
-			table.ids.evaluationID+".wandb-rows.gz",
+			table.evaluationVersionID+".wandb-rows.gz",
 		)
 
 		dst := filepath.Join(syncDir, record.WandbRowsFile)
@@ -63,7 +62,7 @@ func NewRecord(
 }
 
 // EncodeRecord validates and encodes an EvalTable from an offline run's
-// record, keeping the IDs that the run's history references.
+// record, keeping the version ID that the run's history references.
 //
 // The caller must Close the returned table.
 func EncodeRecord(
@@ -85,17 +84,14 @@ func EncodeRecord(
 		data.WandbRowsFilePath = filepath.Join(syncDir, file)
 	}
 
-	if record.GetEvaluationId() == "" || record.GetEvaluationVersionId() == "" {
-		return nil, errors.New("evaltables: record has no evaluation ID or evaluation version ID")
+	if record.GetEvaluationVersionId() == "" {
+		return nil, errors.New("evaltables: record has no evaluation version ID")
 	}
 
 	table, err := Encode(ctx, data, runPath)
 	if err != nil {
 		return nil, err
 	}
-	table.ids = tableIDs{
-		evaluationID:        record.GetEvaluationId(),
-		evaluationVersionID: record.GetEvaluationVersionId(),
-	}
+	table.evaluationVersionID = record.GetEvaluationVersionId()
 	return table, nil
 }
