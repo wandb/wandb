@@ -431,12 +431,18 @@ func recordToMdpbKindType(a metricdata.Aggregation) (googlemetricpb.MetricDescri
 
 // recordToMpb converts data from records to Metric proto type for Cloud Monitoring.
 func (me *metricExporter) recordToMpb(metrics metricdata.Metrics, attributes attribute.Set, library instrumentation.Scope, extraLabels *attribute.Set) *googlemetricpb.Metric {
-	me.mdLock.RLock()
-	defer me.mdLock.RUnlock()
+	var metricType string
 	k := keyOf(metrics, library)
-	md, ok := me.mdCache[k]
-	if !ok {
-		md = me.recordToMdpb(metrics, extraLabels)
+	me.mdLock.RLock()
+	if md, ok := me.mdCache[k]; ok {
+		metricType = md.Type
+	}
+	me.mdLock.RUnlock()
+
+	if metricType == "" {
+		// Avoid calling recordToMdpb (which scans all datapoints in metrics.Data
+		// to build LabelDescriptors) when we only need the metric type string.
+		metricType = me.descToMetricType(metrics)
 	}
 
 	labels := make(map[string]string)
@@ -451,7 +457,7 @@ func (me *metricExporter) recordToMpb(metrics metricdata.Metrics, attributes att
 	addAttributes(&attributes)
 
 	return &googlemetricpb.Metric{
-		Type:   md.Type,
+		Type:   metricType,
 		Labels: labels,
 	}
 }

@@ -134,7 +134,7 @@ func toUnified(fromName, toName string, content string, edits []Edit, contextLin
 			//direct extension
 		case h != nil && start <= last+gap:
 			//within range of previous lines, add the joiners
-			addEqualLines(h, lines, last, start)
+			toLine += addEqualLines(h, lines, last, start)
 		default:
 			//need to start a new hunk
 			if h != nil {
@@ -300,7 +300,7 @@ func ApplyUnified(udiffs, bef string) (string, error) {
 		case ' ':
 			return "", fmt.Errorf("unexpected line %q", l)
 		default:
-			return "", fmt.Errorf("impossible unified %q", udiffs)
+			return "", fmt.Errorf("invalid unified diff: <<%s>>", udiffs)
 		}
 	}
 	// copy any remaining lines

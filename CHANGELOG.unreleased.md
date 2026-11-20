@@ -22,6 +22,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
 - System metrics and hardware metadata are collected on Google TPU 8t and TPU 8i hosts (@dmitryduev in https://github.com/wandb/wandb/pull/13340)
 - The automations API supports sandbox events: `OnSandboxState` fires when a W&B sandbox in a project or team is created, completes or fails, filtered with `SandboxEvent.state` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13281)
+- `backup_sync_dir_fn` setting to run a function when during `run.finish` this can be used to save run sync data when a run is complete or gets cancelled (@jacobromero in https://github.com/wandb/wandb/pull/13371)
+- `wandb leet`: `shift+↑` and `shift+↓` scroll the rows of a heatmap system chart that has more series than fit, so every CPU core or GPU can be inspected (@dmitryduev in https://github.com/wandb/wandb/pull/13189)
 
 ### Changed
 
@@ -30,6 +32,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- `wandb-core` now attempts to finish active runs for up to 30 seconds after receiving SIGTERM before exiting (@jacobromero in https://github.com/wandb/wandb/pull/13374)
 - `Artifact.link()` and `Run.link_artifact()` warn when the target collection name contains `:` (for example `my-coll:prod`) and point to the `aliases` argument for adding aliases (@mrobers1982 in https://github.com/wandb/wandb/pull/13321)
 - `Api.automations()` lists push notification automations (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13282)
 - Installing `wandb` from source on Android (Termux) now builds for Android instead of failing on a glibc Linux Rust target (@dmitryduev in https://github.com/wandb/wandb/pull/13289)
@@ -42,3 +45,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
 - `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
 - `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
+- A script that seeds Python's `random` module got a different sequence of random numbers from run to run after `wandb.init()`, which made seeded training runs non-reproducible since 0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/13407 and https://github.com/wandb/wandb/pull/13408)
+
+### Security
+
+- Updated the `wandb/launch-agent` image base to a `chainguard-base` build with a patched Brotli (1.2.1) to address CVE-2026-111497, and bumped the Go build toolchain to 1.27.4
