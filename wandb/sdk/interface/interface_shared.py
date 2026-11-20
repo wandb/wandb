@@ -151,7 +151,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         poll_exit: pb.PollExitRequest | None = None,
         partial_history: pb.PartialHistoryRequest | None = None,
         sampled_history: pb.SampledHistoryRequest | None = None,
-        run_start: pb.RunStartRequest | None = None,
         check_version: pb.CheckVersionRequest | None = None,
         log_artifact: pb.LogArtifactRequest | None = None,
         download_artifact: pb.DownloadArtifactRequest | None = None,
@@ -190,8 +189,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.partial_history.CopyFrom(partial_history)
         elif sampled_history:
             request.sampled_history.CopyFrom(sampled_history)
-        elif run_start:
-            request.run_start.CopyFrom(run_start)
         elif check_version:
             request.check_version.CopyFrom(check_version)
         elif log_artifact:
@@ -403,12 +400,14 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec = self._make_request(link_artifact=link_artifact)
         return self._deliver(rec)
 
+    @override
     def _deliver_upload_eval_table(
         self,
         upload_eval_table: pb.UploadEvalTableRequest,
     ) -> MailboxHandle[pb.Result]:
-        request = pb.Request(upload_eval_table=upload_eval_table)
-        record = self._make_record(request=request)
+        # Copy the table into the record only once, since it can be large.
+        record = pb.Record()
+        record.request.upload_eval_table.CopyFrom(upload_eval_table)
         record.control.local = True
         return self._deliver(record)
 
@@ -445,13 +444,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         sync_finish: pb.SyncFinishRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(sync_finish=sync_finish)
-        return self._deliver(record)
-
-    def _deliver_run_start(
-        self,
-        run_start: pb.RunStartRequest,
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(run_start=run_start)
         return self._deliver(record)
 
     def _deliver_get_summary(

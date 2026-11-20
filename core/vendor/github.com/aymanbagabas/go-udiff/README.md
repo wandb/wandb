@@ -3,8 +3,7 @@
 <p>
 <a href="https://github.com/aymanbagabas/go-udiff/releases"><img src="https://img.shields.io/github/release/aymanbagabas/go-udiff.svg" alt="Latest Release"></a>
 <a href="https://pkg.go.dev/github.com/aymanbagabas/go-udiff?tab=doc"><img src="https://godoc.org/github.com/golang/gddo?status.svg" alt="Go Docs"></a>
-<a href="https://github.com/aymanbagabas/go-udiff/actions"><img src="https://github.com/aymanbagabas/go-udiff/workflows/build/badge.svg" alt="Build Status"></a>
-<a href="https://goreportcard.com/report/github.com/aymanbagabas/go-udiff"><img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/aymanbagabas/go-udiff"></a>
+<a href="https://github.com/aymanbagabas/go-udiff/actions/workflows/build.yml"><img src="https://github.com/aymanbagabas/go-udiff/actions/workflows/build.yml/badge.svg?branch=master" alt="Build Status"></a>
 </p>
 
 Micro diff (µDiff) is a Go library that implements the

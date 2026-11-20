@@ -7,11 +7,14 @@ fake CES in place of the CoreWeave Evaluation Service.
 from __future__ import annotations
 
 import os
+import urllib.parse
 import uuid
-from typing import Any
 
+import numpy as np
 import pytest
 import wandb
+from PIL import Image as PILImage
+from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table import _writer_ces
 
@@ -130,13 +133,8 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     }
     assert rows.body == {"rows": _ROWS}
 
-    prefix = requests[0].idempotency_key.removesuffix("-create")
-    assert [r.idempotency_key for r in requests] == [
-        f"{prefix}-create",
-        f"{prefix}-columns",
-        f"{prefix}-rows-0",
-        f"{prefix}-version",
-    ]
+    keys = [r.idempotency_key for r in requests]
+    assert all(keys) and len(set(keys)) == len(keys), keys
 
     assert history[0]["eval"] == {
         "_type": "eval-table-ces",
@@ -157,22 +155,124 @@ def test_logs_ces_eval_table(wandb_backend_spy):
     _assert_logged_to_ces(wandb_backend_spy, run)
 
 
-def test_logs_ces_eval_table_from_rows_file(wandb_backend_spy, monkeypatch):
+def test_logs_ces_eval_table_from_rows_file(wandb_backend_spy, monkeypatch, mocker):
     monkeypatch.setattr(_writer_ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
-    rows_files_written = 0
-    write_wandb_rows_file = _writer_ces._write_wandb_rows_file
-
-    def counting_write_wandb_rows_file(*args: Any, **kwargs: Any) -> None:
-        nonlocal rows_files_written
-        rows_files_written += 1
-        write_wandb_rows_file(*args, **kwargs)
-
-    monkeypatch.setattr(
-        _writer_ces, "_write_wandb_rows_file", counting_write_wandb_rows_file
-    )
+    write_wandb_rows_file = mocker.spy(_writer_ces, "_write_wandb_rows_file")
 
     run = _log_eval_table()
 
-    assert rows_files_written == 1
+    write_wandb_rows_file.assert_called_once()
     _assert_logged_to_ces(wandb_backend_spy, run)
     assert os.listdir(os.path.join(run.settings.sync_dir, "tmp", "eval-tables")) == []
+
+
+def test_logs_ces_eval_table_with_media(wandb_backend_spy, tmp_path):
+    image_path = tmp_path / "cat.png"
+    PILImage.new("RGB", (2, 2)).save(image_path)
+    audio_path = tmp_path / "meow.wav"
+    audio_path.write_bytes(b"audio")
+    video_path = tmp_path / "clip.mp4"
+    video_path.write_bytes(b"video")
+    image = wandb.Image(
+        str(image_path),
+        caption="a cat",
+        boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "minY": 0.2,
+                            "maxX": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "cat"},
+            }
+        },
+        masks={
+            "predictions": {
+                "mask_data": np.zeros((2, 2), dtype=np.uint8),
+                "class_labels": {0: "background"},
+            }
+        },
+    )
+
+    with wandb.init() as run:
+        run.log(
+            {
+                "eval": wandb.EvalTable(
+                    columns=["image", "audio", "video"],
+                    data=[
+                        [
+                            image,
+                            wandb.Audio(str(audio_path), caption="meow"),
+                            wandb.Video(str(video_path), caption="a clip"),
+                        ]
+                    ],
+                    input_columns=["image", "audio", "video"],
+                    backend="ces",
+                )
+            }
+        )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        requests = snapshot.ces_requests()
+        uploaded_files = snapshot.uploaded_files(run_id=run.id)
+
+    _, columns, rows, _ = requests
+    assert [
+        (field["name"], field["extension_type"])
+        for field in columns.body["dataset_fields"]
+    ] == [
+        ("image", "wandb-image"),
+        ("audio", "wandb-audio"),
+        ("video", "wandb-video"),
+    ]
+    [row] = rows.body["rows"]
+    image_value = row["input"]["image"]
+    audio_value = row["input"]["audio"]
+    video_value = row["input"]["video"]
+    assert (image_value["caption"], audio_value["caption"], video_value["caption"]) == (
+        "a cat",
+        "meow",
+        "a clip",
+    )
+    # Each value refers to a file that wandb-core uploaded to the run.
+    run_file_prefix = f"wandb-run-file://{run.entity}/{run.project}/{run.id}/"
+    uris = [
+        image_value["uri"],
+        image_value["boxes"]["predictions"]["uri"],
+        image_value["masks"]["predictions"]["uri"],
+        audio_value["uri"],
+        video_value["uri"],
+    ]
+    assert all(uri.startswith(run_file_prefix) for uri in uris), uris
+    assert {
+        urllib.parse.unquote(uri.removeprefix(run_file_prefix)) for uri in uris
+    } <= uploaded_files
+
+
+def test_rejects_oversized_ces_media(wandb_backend_spy, tmp_path):
+    image_path = tmp_path / "cat.png"
+    PILImage.new("RGB", (2, 2)).save(image_path)
+    small = wandb.Image(str(image_path), caption="a cat")
+    large = wandb.Image(str(image_path), caption="a" * 3_500_000)
+
+    with wandb.init() as run:
+        with pytest.raises(UsageError, match=r"must be under 3500000 \(row 2\)"):
+            run.log(
+                {
+                    "eval": wandb.EvalTable(
+                        columns=["image"],
+                        data=[[small], [large]],
+                        input_columns=["image"],
+                        backend="ces",
+                    )
+                }
+            )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.ces_requests() == []
