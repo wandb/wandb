@@ -56,7 +56,9 @@ func IsASCIIAlphanumeric(r rune) bool {
 func HexEscape(s string, shouldEscape func(s []rune, i int) bool) string {
 	// Do a first pass to see which runes (if any) need escaping.
 	runes := []rune(s)
-	var toEscape []int
+	escapeAt := make([]bool, len(runes))
+	var pending []int
+	n := 0
 	for i := range runes {
 		// In addition to whatever the caller wants escaped, always escape
 		// the start of any substring that HexUnescape would itself parse as
@@ -71,32 +73,75 @@ func HexEscape(s string, shouldEscape func(s []rune, i int) bool) string {
 		// escaped string as a storage key or path, since it lets one
 		// caller-chosen key collide with another's.
 		if shouldEscape(runes, i) || isEscapeSequence(runes, i) {
-			toEscape = append(toEscape, i)
+			escapeAt[i] = true
+			pending = append(pending, i)
+			n++
 		}
 	}
-	if len(toEscape) == 0 {
+	// Escaping a rune emits "__0x<hex>__", which starts with "__". If the
+	// input right before an escaped rune ends with "__0x<hex>" or
+	// "__0x<hex>_" (not an escape sequence on its own, since the input does
+	// not continue with "__"), the emitted "__" completes it into one, and
+	// HexUnescape parses the output as a different string: "__0x2f/" would
+	// escape to "__0x2f__0x2f__", which is also what "/0x2f__" escapes to.
+	// Escape the leading "_" of any such dangling prefix. That emits another
+	// "__", so check the newly escaped position the same way.
+	for len(pending) > 0 {
+		i := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		if j, ok := danglingEscapePrefix(runes, i); ok && !escapeAt[j] {
+			escapeAt[j] = true
+			pending = append(pending, j)
+			n++
+		}
+	}
+	if n == 0 {
 		return s
 	}
 	// Each escaped rune turns into at most 14 runes ("__0x7fffffff__"),
 	// so allocate an extra 13 for each. We'll reslice at the end
 	// if we didn't end up using them.
-	escaped := make([]rune, len(runes)+13*len(toEscape))
-	n := 0 // current index into toEscape
+	escaped := make([]rune, len(runes)+13*n)
 	j := 0 // current index into escaped
 	for i, r := range runes {
-		if n < len(toEscape) && i == toEscape[n] {
+		if escapeAt[i] {
 			// We were asked to escape this rune.
 			for _, x := range fmt.Sprintf("__%#x__", r) {
 				escaped[j] = x
 				j++
 			}
-			n++
 		} else {
 			escaped[j] = r
 			j++
 		}
 	}
 	return string(escaped[0:j])
+}
+
+// danglingEscapePrefix reports whether r[:end] ends with "__0x<hex>" or
+// "__0x<hex>_": the start of an escape sequence that only lacks the
+// trailing "__" (or its second "_"). When the rune at r[end] is escaped,
+// the "__" that begins its escape sequence supplies what is missing, so
+// HexUnescape would read the output as an escape sequence that was never
+// in the input. It returns the index of the leading "_" of that prefix.
+func danglingEscapePrefix(r []rune, end int) (int, bool) {
+	// The input may already supply the first "_" of the trailing "__".
+	if end > 0 && r[end-1] == '_' {
+		end--
+	}
+	// HexUnescape reads hex digits up to the next "_", so walk back over
+	// the run of non-"_" runes: it must be "0x<hex>", preceded by "__".
+	start := end
+	for start > 0 && r[start-1] != '_' {
+		start--
+	}
+	if start < 2 || end-start < 2 || r[start] != '0' || r[start+1] != 'x' || r[start-2] != '_' {
+		return 0, false
+	}
+	if _, err := strconv.ParseInt(string(r[start+2:end]), 16, 32); err != nil {
+		return 0, false
+	}
+	return start - 2, true
 }
 
 // isEscapeSequence reports whether the rune sequence starting at r[i] would

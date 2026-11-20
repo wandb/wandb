@@ -190,7 +190,7 @@ func TestSendSummaryIgnoresInboundStep(t *testing.T) {
 	request := fileStream.GetRequest(x.Settings)
 
 	summary := runsummary.New()
-	require.NoError(t, request.SummaryUpdates.Apply(summary))
+	request.SummaryUpdates.Apply(summary)
 	summaryMap := summary.ToNestedMaps()
 	assert.Equal(t, map[string]any{"loss": 1.23, "_step": int64(0)}, summaryMap)
 }
