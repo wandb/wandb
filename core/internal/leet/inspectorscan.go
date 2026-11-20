@@ -202,6 +202,8 @@ func recordSummary(record *spb.Record) string {
 		return sanitizeRecordSummary(t.Artifact.GetName())
 	case *spb.Record_UseArtifact:
 		return sanitizeRecordSummary(t.UseArtifact.GetName())
+	case *spb.Record_EvalTable:
+		return sanitizeRecordSummary(t.EvalTable.GetTable().GetName())
 	case *spb.Record_Alert:
 		return sanitizeRecordSummary(t.Alert.GetTitle())
 	case *spb.Record_Exit:

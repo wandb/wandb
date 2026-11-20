@@ -233,7 +233,8 @@ class CESWriter:
 
     def bind_to_run(self, run: LocalRun, key: str) -> None:
         """Bind the run and the history key the table is logged at."""
-        if not run.entity or not run.project:
+        # An offline run's entity is resolved by `wandb sync`.
+        if not run.offline and (not run.entity or not run.project):
             raise UsageError("CES EvalTable logging requires a W&B entity and project.")
         self._bound = _BoundRun(run=run, eval_table_key=key)
 
@@ -268,18 +269,23 @@ class CESWriter:
             response.evaluation_version_id,
         )
 
+        history_value: dict[str, Any] = {
+            # Frontend dispatches on `_type` and validates the schema version.
+            "_type": "eval-table-ces",
+            "schema_version": 1,
+            "ncols": ncols,
+            "nrows": len(rows),
+            "log_mode": log_mode,
+            "evaluation_version_id": response.evaluation_version_id,
+        }
+        # Offline runs don't have dataset IDs until `wandb sync`.
+        if response.dataset_id:
+            history_value["dataset_id"] = response.dataset_id
+        if response.dataset_version_id:
+            history_value["dataset_version_id"] = response.dataset_version_id
+
         return WriteResult(
-            history_value={
-                # Frontend dispatches on `_type` and validates the schema version.
-                "_type": "eval-table-ces",
-                "schema_version": 1,
-                "ncols": ncols,
-                "nrows": len(rows),
-                "log_mode": log_mode,
-                "evaluation_version_id": response.evaluation_version_id,
-                "dataset_id": response.dataset_id,
-                "dataset_version_id": response.dataset_version_id,
-            },
+            history_value=history_value,
             logged_id=response.evaluation_version_id,
         )
 

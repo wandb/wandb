@@ -1409,8 +1409,7 @@ class Run:
 
         Raises:
             UsageError: If wandb-core rejects the table as invalid.
-            UnsupportedError: If the run can't log EvalTables, such as in
-                offline mode.
+            UnsupportedError: If the run can't log EvalTables.
             Error: If the upload fails.
         """
         assert self._interface

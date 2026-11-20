@@ -98,6 +98,9 @@ type EncodedTable struct {
 	columns ces.EvalTableColumnNewParams
 	nrows   int
 
+	// evaluationVersionID is the ID that the table's first version gets.
+	evaluationVersionID string
+
 	// cesRows is the CES JSON of the table's inline rows.
 	cesRows [][]byte
 
@@ -132,7 +135,8 @@ func (t *EncodedTable) Close() error {
 	return nil
 }
 
-// Encode validates an EvalTable of the run at runPath and encodes its rows.
+// Encode validates an EvalTable of the run at runPath, encodes its rows,
+// and names the table and its first version.
 //
 // It encodes every row, so that an invalid table fails before Upload
 // writes anything to CES. The caller must Close the returned table.
@@ -161,10 +165,16 @@ func Encode(
 		return nil, usageError{err}
 	}
 
+	evaluationVersionID, err := newEvaluationVersionID()
+	if err != nil {
+		return nil, err
+	}
+
 	table := &EncodedTable{
-		name:    data.GetName(),
-		runPath: runPath,
-		columns: columns,
+		name:                data.GetName(),
+		runPath:             runPath,
+		columns:             columns,
+		evaluationVersionID: evaluationVersionID,
 	}
 
 	if path := data.GetWandbRowsFilePath(); path != "" {
@@ -287,7 +297,7 @@ func (u *Uploader) Upload(
 	upload := &tableUpload{
 		evalTables: evalTables,
 		scopeID:    scopeID,
-		keys:       newIdempotencyKeys(),
+		keys:       newIdempotencyKeys(table.evaluationVersionID),
 	}
 
 	created, err := upload.create(ctx, table)
@@ -335,16 +345,12 @@ func (t *tableUpload) create(
 	ctx context.Context,
 	table *EncodedTable,
 ) (*ces.EvalTableNewResponse, error) {
-	versionID, err := newEvaluationVersionID()
-	if err != nil {
-		return nil, err
-	}
 	created, err := t.evalTables.New(
 		ctx,
 		ces.EvalTableNewParams{ScopeID: ces.F(t.scopeID), Name: ces.F(table.name)},
 		t.keys.option("create"),
 		// cwevals-go doesn't have this field yet.
-		option.WithJSONSet("evaluation_version_id", versionID),
+		option.WithJSONSet("evaluation_version_id", table.evaluationVersionID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
@@ -715,22 +721,24 @@ type idempotencyKeys struct {
 	prefix string
 }
 
-// newIdempotencyKeys derives CES idempotency keys for one EvalTable upload.
+// newIdempotencyKeys derives CES idempotency keys for uploading the
+// EvalTable whose first version is named evaluationVersionID.
 //
-// The keys share a random ID, so that retries within the upload reuse the
-// CES resources it already created, and separate uploads never collide.
-// Uploads can't key on where the table is logged: in shared mode, writers
-// to the same run can log the same key at the same step.
+// Keying on the version's random ID makes retries within the upload, and a
+// repeated `wandb sync` of an offline run, reuse the CES resources already
+// created, while separate tables never collide. Uploads can't key on where
+// the table is logged: in shared mode, writers to the same run can log the
+// same key at the same step.
 //
 // CES replays a create, row append, or version request with the same key,
 // and rejects one with the same key but a different body. Repeating an
 // identical column declaration is a no-op.
-func newIdempotencyKeys() idempotencyKeys {
+func newIdempotencyKeys(evaluationVersionID string) idempotencyKeys {
 	return idempotencyKeys{
 		prefix: fmt.Sprintf(
 			"wandb-eval-table-%s-%s",
 			idempotencyKeyVersion,
-			uuid.Must(uuid.NewV7()),
+			evaluationVersionID,
 		),
 	}
 }

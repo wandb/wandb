@@ -31,7 +31,7 @@ option go_package = "core/pkg/service_go_proto";
 // sync an older transaction log, it is important to follow proper protobuf
 // versioning practices: https://protobuf.dev/best-practices/
 //
-// Next ID: 28
+// Next ID: 29
 message Record {
   int64 num = 1;
   oneof record_type {
@@ -60,6 +60,7 @@ message Record {
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
     OutputLoggerRecord output_logger = 27;
+    EvalTableRecord eval_table = 28;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -1397,16 +1398,37 @@ message EvalTableScorer {
 }
 
 message UploadEvalTableResponse {
-  string evaluation_id = 1;
   string evaluation_version_id = 2;
+
+  // Unset in offline mode, where the table isn't uploaded until
+  // `wandb sync`.
+  string evaluation_id = 1;
   string dataset_id = 3;
   string dataset_version_id = 4;
 
   // Set if the upload failed, in which case the IDs are unset.
   //
-  // The code is USAGE if the request's table is invalid, and UNSUPPORTED
-  // in offline mode.
+  // The code is USAGE if the request's table is invalid.
   ErrorInfo error = 5;
+}
+
+/*
+ * EvalTableRecord: an EvalTable logged by an offline run, which
+ * `wandb sync` uploads to CES.
+ */
+message EvalTableRecord {
+  // The table, without a wandb_rows_file_path.
+  EvalTableData table = 1;
+
+  // The ID to name the table's first version with in CES, which the run's
+  // history already references.
+  string evaluation_version_id = 2;
+
+  // The table's W&B rows file relative to the run's sync directory, if it
+  // has one.
+  string wandb_rows_file = 3;
+
+  _RecordInfo _info = 200;
 }
 
 /*

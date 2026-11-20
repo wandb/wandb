@@ -17,3 +17,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `EvalTable(backend="ces")` takes `key_column`, which names a column that identifies each row's example, so that eval comparisons match rows by its values instead of by their inputs or position (@kelu-wandb in https://github.com/wandb/wandb/pull/13382)
+- Offline runs can log `EvalTable(backend="ces")`, and `wandb sync` uploads the tables (@kelu-wandb in https://github.com/wandb/wandb/pull/13405)

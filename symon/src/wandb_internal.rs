@@ -608,7 +608,7 @@ pub struct Deprecated {
 /// sync an older transaction log, it is important to follow proper protobuf
 /// versioning practices: <https://protobuf.dev/best-practices/>
 ///
-/// Next ID: 28
+/// Next ID: 29
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
@@ -622,7 +622,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -678,6 +678,8 @@ pub mod record {
         Environment(super::EnvironmentRecord),
         #[prost(message, tag = "27")]
         OutputLogger(super::OutputLoggerRecord),
+        #[prost(message, tag = "28")]
+        EvalTable(super::EvalTableRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -2814,20 +2816,40 @@ pub struct EvalTableScorer {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UploadEvalTableResponse {
-    #[prost(string, tag = "1")]
-    pub evaluation_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub evaluation_version_id: ::prost::alloc::string::String,
+    /// Unset in offline mode, where the table isn't uploaded until
+    /// `wandb sync`.
+    #[prost(string, tag = "1")]
+    pub evaluation_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub dataset_id: ::prost::alloc::string::String,
     #[prost(string, tag = "4")]
     pub dataset_version_id: ::prost::alloc::string::String,
     /// Set if the upload failed, in which case the IDs are unset.
     ///
-    /// The code is USAGE if the request's table is invalid, and UNSUPPORTED
-    /// in offline mode.
+    /// The code is USAGE if the request's table is invalid.
     #[prost(message, optional, tag = "5")]
     pub error: ::core::option::Option<ErrorInfo>,
+}
+/// EvalTableRecord: an EvalTable logged by an offline run, which
+/// `wandb sync` uploads to CES.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EvalTableRecord {
+    /// The table, without a wandb_rows_file_path.
+    #[prost(message, optional, tag = "1")]
+    pub table: ::core::option::Option<EvalTableData>,
+    /// The ID to name the table's first version with in CES, which the run's
+    /// history already references.
+    #[prost(string, tag = "2")]
+    pub evaluation_version_id: ::prost::alloc::string::String,
+    /// The table's W&B rows file relative to the run's sync directory, if it
+    /// has one.
+    #[prost(string, tag = "3")]
+    pub wandb_rows_file: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
 }
 /// DownloadArtifact:
 #[allow(clippy::all)]

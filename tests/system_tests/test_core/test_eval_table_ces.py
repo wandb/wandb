@@ -13,7 +13,9 @@ import uuid
 import numpy as np
 import pytest
 import wandb
+from click.testing import CliRunner
 from PIL import Image as PILImage
+from wandb.cli import cli
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table import _writer_ces
@@ -63,8 +65,8 @@ class _AnyUUIDv7:
         return "<any UUIDv7>"
 
 
-def _log_eval_table() -> wandb.Run:
-    with wandb.init() as run:
+def _log_eval_table(mode: str = "online") -> wandb.Run:
+    with wandb.init(mode=mode) as run:
         run.log(
             {
                 "eval": wandb.EvalTable(
@@ -98,8 +100,17 @@ def _project_internal_id(run: wandb.Run) -> str:
     return response["project"]["internalId"]
 
 
-def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
-    """Assert CES received the table, and the run's history has its marker."""
+def _assert_logged_to_ces(
+    wandb_backend_spy,
+    run: wandb.Run,
+    *,
+    offline: bool = False,
+) -> None:
+    """Assert CES received the table, and the run's history has its marker.
+
+    An offline run's marker has the IDs that the client named the table and
+    its first version with, and no dataset IDs.
+    """
     with wandb_backend_spy.freeze() as snapshot:
         requests = snapshot.ces_requests()
         history = snapshot.history(run_id=run.id)
@@ -135,16 +146,23 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     keys = [r.idempotency_key for r in requests]
     assert all(keys) and len(set(keys)) == len(keys), keys
 
-    assert history[0]["eval"] == {
+    marker = {
         "_type": "eval-table-ces",
         "schema_version": 1,
         "ncols": 5,
         "nrows": 2,
         "log_mode": "IMMUTABLE",
-        "evaluation_version_id": "eval-version-id",
-        "dataset_id": "dataset-id",
-        "dataset_version_id": "dataset-version-id",
     }
+    if offline:
+        marker["evaluation_version_id"] = create.body["evaluation_version_id"]
+        assert create.idempotency_key == (
+            f"wandb-eval-table-v3-{create.body['evaluation_version_id']}-create"
+        )
+    else:
+        marker["evaluation_version_id"] = "eval-version-id"
+        marker["dataset_id"] = "dataset-id"
+        marker["dataset_version_id"] = "dataset-version-id"
+    assert history[0]["eval"] == marker
 
 
 def test_logs_ces_eval_table(wandb_backend_spy):
@@ -162,6 +180,32 @@ def test_logs_ces_eval_table_from_rows_file(wandb_backend_spy, monkeypatch, mock
     write_wandb_rows_file.assert_called_once()
     _assert_logged_to_ces(wandb_backend_spy, run)
     assert os.listdir(os.path.join(run.settings.sync_dir, "tmp", "eval-tables")) == []
+
+
+@pytest.mark.parametrize("rows_file", [False, True], ids=["inline", "rows_file"])
+def test_syncs_ces_eval_table_from_offline_run(
+    wandb_backend_spy,
+    runner: CliRunner,
+    monkeypatch,
+    rows_file: bool,
+):
+    if rows_file:
+        monkeypatch.setattr(_writer_ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+
+    run = _log_eval_table(mode="offline")
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.ces_requests() == []
+
+    result = runner.invoke(cli.sync, [run.settings.sync_dir])
+
+    assert result.exit_code == 0, result.output
+    _assert_logged_to_ces(wandb_backend_spy, run, offline=True)
+    if rows_file:
+        staging_dir = os.path.join(run.settings.sync_dir, "tmp", "eval-tables")
+        assert os.listdir(staging_dir) == []
+        # `wandb sync` can upload the table again from the copy it keeps.
+        record_dir = os.path.join(run.settings.sync_dir, "eval-tables")
+        assert len(os.listdir(record_dir)) == 1
 
 
 def test_logs_ces_eval_table_with_media(wandb_backend_spy, tmp_path):

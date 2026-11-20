@@ -216,14 +216,15 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore -->
         """
-        # TODO: Remove when we add support for offline mode
-        if run.offline:
+        # TODO: Remove when the Weave backend supports offline mode
+        if self._backend != "ces" and run.offline:
             raise UsageError(
-                "EvalTable does not support offline mode yet. "
-                "Use wandb.init(mode='online') or unset WANDB_MODE."
+                "EvalTable does not support offline mode yet with the Weave "
+                "backend. Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
-        if self._backend == "ces":
+        # An offline run's CES tables are uploaded by `wandb sync`.
+        if self._backend == "ces" and not run.offline:
             from wandb.apis.public.service_api import ServiceApi
 
             service_api = ServiceApi(run._settings)
