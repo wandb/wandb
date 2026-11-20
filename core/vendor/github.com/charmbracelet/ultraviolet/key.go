@@ -434,9 +434,10 @@ func (k Key) Keystroke() string {
 		sb.WriteString(kt)
 	} else {
 		code := k.Code
-		if k.BaseCode != 0 {
-			// If a [Key.BaseCode] is present, use it to represent a key using the standard
-			// PC-101 key layout.
+		if k.BaseCode != 0 && (code > unicode.MaxASCII || !unicode.IsPrint(code)) {
+			// Prefer the layout's own key so remapped ASCII layouts (Dvorak,
+			// Colemak) bind by label. Fall back to the PC-101 [Key.BaseCode]
+			// only for non-ASCII layouts (e.g. Cyrillic) so ctrl+c still works.
 			code = k.BaseCode
 		}
 

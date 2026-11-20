@@ -1,10 +1,10 @@
 package evaltables
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	ces "github.com/wandb/cwevals-go"
@@ -16,12 +16,20 @@ import (
 // that mediaConverter produces.
 const mediaSchemaVersion = 1
 
+const clickhouseSingleRowInsertBytesLimit = 3_500_000 // 3.5 MB
+
+const (
+	imageMediaType = "image-file"
+	audioMediaType = "audio-file"
+	videoMediaType = "video-file"
+)
+
 // mediaExtensionTypes maps the W&B media types that EvalTables support to
 // the CES extension types of their values.
 var mediaExtensionTypes = map[string]ces.EvalTableColumnNewParamsDatasetFieldsExtensionType{
-	"image-file": ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbImage,
-	"audio-file": ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbAudio,
-	"video-file": ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbVideo,
+	imageMediaType: ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbImage,
+	audioMediaType: ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbAudio,
+	videoMediaType: ces.EvalTableColumnNewParamsDatasetFieldsExtensionTypeWandbVideo,
 }
 
 // mediaConverter converts W&B media JSON to CES extension values.
@@ -69,18 +77,27 @@ func (c *mediaConverter) convertMedia(
 
 	var value any
 	switch mediaType {
-	case "image-file":
+	case imageMediaType:
 		value, err = c.imageValue(media, uri)
-	case "audio-file":
+	case audioMediaType:
 		value = audioValue(media, uri)
-	case "video-file":
+	case videoMediaType:
 		value = videoValue(media, uri)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	return marshalJSON(value)
+	converted, err := appendJSON(nil, value)
+	if err != nil {
+		return nil, err
+	}
+	if len(converted) >= clickhouseSingleRowInsertBytesLimit {
+		return nil, fmt.Errorf(
+			"media value is %d bytes, must be under %d",
+			len(converted), clickhouseSingleRowInsertBytesLimit)
+	}
+	return converted, nil
 }
 
 func (c *mediaConverter) imageValue(
@@ -197,36 +214,9 @@ func (c *mediaConverter) uri(file wandbMediaFile) (string, error) {
 		}
 	}
 	for i, component := range components {
-		components[i] = escapeURIComponent(component)
+		// PathEscape escapes "/", so a component can't add a path segment.
+		components[i] = url.PathEscape(component)
 	}
 
 	return "wandb-run-file://" + strings.Join(components, "/"), nil
-}
-
-// escapeURIComponent percent-encodes every byte of s except RFC 3986's
-// unreserved characters, so that s can't contain a "/".
-func escapeURIComponent(s string) string {
-	var b strings.Builder
-	for i := range len(s) {
-		switch ch := s[i]; {
-		case 'A' <= ch && ch <= 'Z', 'a' <= ch && ch <= 'z', '0' <= ch && ch <= '9',
-			ch == '-', ch == '.', ch == '_', ch == '~':
-			b.WriteByte(ch)
-		default:
-			fmt.Fprintf(&b, "%%%02X", ch)
-		}
-	}
-	return b.String()
-}
-
-// marshalJSON encodes v without escaping HTML characters, which would only
-// make rows larger.
-func marshalJSON(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(v); err != nil {
-		return nil, err
-	}
-	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }

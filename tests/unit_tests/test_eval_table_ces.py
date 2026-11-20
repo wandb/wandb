@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import wandb
 from google.protobuf.message import Message
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import Error, UnsupportedError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces
@@ -90,9 +90,9 @@ def _read_rows_file(path: str) -> list[pb.EvalTableRow]:
         while True:
             byte = data[position]
             position += 1
-            size |= (byte & 0x7F) << shift
-            shift += 7
-            if byte < 0x80:
+            size |= (byte & ces._VARINT_PAYLOAD_MASK) << shift
+            shift += ces._VARINT_PAYLOAD_BITS
+            if not byte & ces._VARINT_CONTINUATION_BIT:
                 break
         rows.append(pb.EvalTableRow.FromString(data[position : position + size]))
         position += size
@@ -258,6 +258,62 @@ def test_ces_eval_table_sends_large_tables_in_a_rows_file(
     ]
 
 
+def test_ces_eval_table_sends_rows_in_a_file_only_over_the_threshold(
+    deliver_upload_eval_table,
+    run,
+    monkeypatch,
+):
+    def log(key: str) -> pb.EvalTableData:
+        run.log(
+            {
+                key: wandb.EvalTable(
+                    columns=["value"],
+                    data=[["a"], ["b"]],
+                    output_columns=["value"],
+                    backend="ces",
+                )
+            }
+        )
+        return _sent(deliver_upload_eval_table)[-1]
+
+    rows_bytes = sum(row.ByteSize() for row in log("inline").rows)
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", rows_bytes)
+    at_threshold = log("at_threshold")
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", rows_bytes - 1)
+    over_threshold = log("over_threshold")
+
+    assert len(at_threshold.rows) == 2
+    assert not at_threshold.wandb_rows_file_path
+    assert not over_threshold.rows
+    assert over_threshold.wandb_rows_file_path
+
+
+def test_ces_eval_table_deletes_rows_file_if_writing_it_fails(
+    deliver_upload_eval_table,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces, "_ROWS_FILE_THRESHOLD_BYTES", 0)
+
+    def fail_to_write(*args: Any, **kwargs: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(ces, "_write_wandb_rows_file", fail_to_write)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        output_columns=["value"],
+        backend="ces",
+    )
+    et.bind_to_run(run, "eval", 7)
+
+    with pytest.raises(OSError, match="disk full"):
+        et.to_json(run)
+
+    deliver_upload_eval_table.assert_not_called()
+    assert os.listdir(os.path.join(run.settings.sync_dir, "tmp", "eval-tables")) == []
+
+
 def test_ces_eval_table_deletes_rows_file_after_failed_upload(
     deliver_upload_eval_table,
     run,
@@ -275,7 +331,7 @@ def test_ces_eval_table_deletes_rows_file_after_failed_upload(
     )
     et.bind_to_run(run, "eval", 7)
 
-    with pytest.raises(CommError):
+    with pytest.raises(Error):
         et.to_json(run)
 
     [request] = _sent(deliver_upload_eval_table)
@@ -308,7 +364,7 @@ def test_ces_eval_table_logs_failure_to_remove_rows_file(
     )
     et.bind_to_run(run, "eval", 7)
 
-    with pytest.raises(CommError, match="failed"):
+    with pytest.raises(Error, match="failed"):
         et.to_json(run)
 
     logger.warning.assert_called_once()
@@ -550,41 +606,28 @@ def test_ces_eval_table_writes_supported_media(
     assert request.dataset_fields[0].wandb_media_type == "image-file"
 
 
-@pytest.mark.parametrize(
-    ("oversized_media_cells", "expected_metrics"),
-    [
-        (0, ["eval_table_ces_media_write"]),
-        (
-            1,
-            [
-                "eval_table_ces_media_write",
-                "eval_table_ces_media_write_with_oversized_cells",
-            ],
-        ),
-    ],
-)
-def test_ces_eval_table_media_telemetry_counts_affected_writes(
+def test_ces_eval_table_records_media_telemetry(
     monkeypatch,
-    oversized_media_cells,
-    expected_metrics,
+    deliver_upload_eval_table,
+    run,
 ):
+    from PIL import Image as PILImage
+
     recorder = MagicMock()
     monkeypatch.setattr(ces, "get_telemetry_recorder", lambda: recorder)
-    prepared = ces._CESWritePayloads(
-        dataset_fields=[],
-        scorers=[],
-        rows=[],
-        upload_media_paths=[],
-        media_cells_examined=1,
-        oversized_media_cells=oversized_media_cells,
-        oversized_locations=(),
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+
+    run.log(
+        {
+            "media_eval": wandb.EvalTable(
+                columns=["image"], data=[[image]], backend="ces"
+            )
+        }
     )
 
-    ces.CESWriter()._record_media_telemetry(prepared)
-
-    assert [
-        call.args[0] for call in recorder.increment_counter.call_args_list
-    ] == expected_metrics
+    assert [call.args[0] for call in recorder.increment_counter.call_args_list] == [
+        "eval_table_ces_media_write"
+    ]
     recorder.log.assert_not_called()
 
 
@@ -708,7 +751,6 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
     deliver_upload_eval_table,
     run,
 ):
-    np = pytest.importorskip("numpy")
     et = wandb.EvalTable(
         columns=["python_int", "numpy_int", "numeric"],
         data=[[1, np.int64(2), np.int64(3)], [4, np.int32(5), np.float64(6.5)]],
@@ -916,7 +958,7 @@ def test_ces_error_uses_original_integer_column(deliver_upload_eval_table, run):
     [
         (pb.ErrorInfo.USAGE, UsageError, "^failed$"),
         (pb.ErrorInfo.UNSUPPORTED, UnsupportedError, "^failed$"),
-        (pb.ErrorInfo.UNKNOWN, CommError, "^Failed to upload EvalTable: failed$"),
+        (pb.ErrorInfo.UNKNOWN, Error, "^failed$"),
     ],
 )
 def test_ces_eval_table_upload_error_allows_retry(
@@ -936,9 +978,10 @@ def test_ces_eval_table_upload_error_allows_retry(
     )
     et.bind_to_run(run, "eval", 7)
 
-    with pytest.raises(error_type, match=message):
+    with pytest.raises(error_type, match=message) as exc_info:
         et.to_json(run)
 
+    assert type(exc_info.value) is error_type
     assert et.to_json(run)["evaluation_version_id"] == "evaluation-version-1"
 
 

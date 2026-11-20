@@ -1,6 +1,7 @@
 package evaltables
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -26,11 +27,12 @@ const recordRowsDir = "eval-tables"
 //
 // Errors in the table satisfy IsUsageError.
 func NewRecord(
+	ctx context.Context,
 	data *spb.EvalTableData,
 	runPath runbranch.RunPath,
 	syncDir string,
 ) (*spb.EvalTableRecord, error) {
-	table, err := Encode(data, runPath)
+	table, err := Encode(ctx, data, runPath)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +67,7 @@ func NewRecord(
 //
 // The caller must Close the returned table.
 func EncodeRecord(
+	ctx context.Context,
 	record *spb.EvalTableRecord,
 	runPath runbranch.RunPath,
 	syncDir string,
@@ -86,7 +89,7 @@ func EncodeRecord(
 		return nil, errors.New("evaltables: record has no evaluation ID or evaluation version ID")
 	}
 
-	table, err := Encode(data, runPath)
+	table, err := Encode(ctx, data, runPath)
 	if err != nil {
 		return nil, err
 	}

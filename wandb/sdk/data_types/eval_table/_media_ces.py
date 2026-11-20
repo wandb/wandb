@@ -37,9 +37,6 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run
 
 
-# Stays under the 3.5 MiB ClickHouse single-row insert limit that Weave adopted
-# after larger rows failed in production (wandb/weave#2353, wandb/weave#5448).
-CES_MAX_CELL_BYTES = 3_500_000
 MediaType = Literal["image-file", "audio-file", "video-file"]
 _MediaFieldSource = Literal["inputs", "outputs"]
 _DIGEST_PATH_LENGTH = 30
@@ -48,20 +45,18 @@ _MediaT = TypeVar("_MediaT", bound=Media)
 
 @dataclass(frozen=True)
 class PreparedMediaCell:
-    """Encoded W&B media JSON and its size metadata for one media cell.
+    """Encoded W&B media JSON for one media cell.
 
-    `media_json` is the compact JSON sent to wandb-core, or `None` when its UTF-8
-    encoding reaches `CES_MAX_CELL_BYTES`.
+    `media_json` is the compact JSON sent to wandb-core, which uploads the cell
+    as null if its CES extension value is too large.
 
     `run_files` lists the run files that the media references, relative to the
     run's files directory, whether or not this call placed them there. The caller
     must have wandb-core upload them.
     """
 
-    media_json: str | None
+    media_json: str
     media_type: MediaType
-    encoded_size: int
-    oversized: bool
     run_files: tuple[str, ...]
 
 
@@ -239,13 +234,9 @@ def _prepared_media_cell(
         ensure_ascii=False,
         separators=(",", ":"),
     )
-    encoded_size = len(encoded.encode())
-    oversized = encoded_size >= CES_MAX_CELL_BYTES
     return PreparedMediaCell(
-        media_json=None if oversized else encoded,
+        media_json=encoded,
         media_type=media_type,
-        encoded_size=encoded_size,
-        oversized=oversized,
         run_files=run_files,
     )
 

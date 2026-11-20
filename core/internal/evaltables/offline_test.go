@@ -27,7 +27,7 @@ func assertUUIDv7(t *testing.T, id string) {
 func TestNewRecord_NamesTableAndFirstVersion(t *testing.T) {
 	data := &spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, Rows: outputRows(2, 1)}
 
-	record, err := evaltables.NewRecord(data, testRunPath, t.TempDir())
+	record, err := evaltables.NewRecord(t.Context(), data, testRunPath, t.TempDir())
 
 	require.NoError(t, err)
 	assertUUIDv7(t, record.GetEvaluationId())
@@ -42,7 +42,7 @@ func TestNewRecord_CopiesWandbRowsFileIntoSyncDir(t *testing.T) {
 	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 	data := &spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, WandbRowsFilePath: path}
 
-	record, err := evaltables.NewRecord(data, testRunPath, syncDir)
+	record, err := evaltables.NewRecord(t.Context(), data, testRunPath, syncDir)
 
 	require.NoError(t, err)
 	assert.Equal(t,
@@ -65,7 +65,7 @@ func TestNewRecord_RejectsInvalidTable(t *testing.T) {
 		DatasetFields: []*spb.EvalTableField{{Source: "metadata", Name: "a", ValueType: "string"}},
 	}
 
-	_, err := evaltables.NewRecord(data, testRunPath, syncDir)
+	_, err := evaltables.NewRecord(t.Context(), data, testRunPath, syncDir)
 
 	assert.True(t, evaltables.IsUsageError(err), err)
 	assert.Empty(t, filesIn(t, syncDir))
@@ -75,6 +75,7 @@ func TestEncodeRecord_UploadsWithTheRecordsIDsAndRows(t *testing.T) {
 	syncDir := t.TempDir()
 	path := writeWandbRowsFile(t, &spb.EvalTableRow{Output: values(stringValue("1"))})
 	record, err := evaltables.NewRecord(
+		t.Context(),
 		&spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, WandbRowsFilePath: path},
 		testRunPath,
 		syncDir,
@@ -85,7 +86,7 @@ func TestEncodeRecord_UploadsWithTheRecordsIDsAndRows(t *testing.T) {
 	ces := newFakeCES(t)
 	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
 
-	table, err := evaltables.EncodeRecord(record, testRunPath, syncDir)
+	table, err := evaltables.EncodeRecord(t.Context(), record, testRunPath, syncDir)
 	require.NoError(t, err)
 	_, err = uploader.Upload(context.Background(), table)
 	require.NoError(t, err)
@@ -122,7 +123,7 @@ func TestEncodeRecord_RejectsRowsFileOutsideSyncDir(t *testing.T) {
 		WandbRowsFile:       filepath.Join("..", "rows.gz"),
 	}
 
-	_, err := evaltables.EncodeRecord(record, testRunPath, t.TempDir())
+	_, err := evaltables.EncodeRecord(t.Context(), record, testRunPath, t.TempDir())
 
 	assert.ErrorContains(t, err, "outside the sync directory")
 }
@@ -130,7 +131,7 @@ func TestEncodeRecord_RejectsRowsFileOutsideSyncDir(t *testing.T) {
 func TestEncodeRecord_RejectsRecordWithoutIDs(t *testing.T) {
 	record := &spb.EvalTableRecord{Table: &spb.EvalTableData{Name: "t"}}
 
-	_, err := evaltables.EncodeRecord(record, testRunPath, t.TempDir())
+	_, err := evaltables.EncodeRecord(t.Context(), record, testRunPath, t.TempDir())
 
 	assert.ErrorContains(t, err, "no evaluation ID")
 }

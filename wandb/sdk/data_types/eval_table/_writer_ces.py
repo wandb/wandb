@@ -5,6 +5,7 @@ import gzip
 import logging
 import math
 import os
+import pathlib
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -31,17 +32,21 @@ _logger = logging.getLogger(__name__)
 # Tables with more serialized row bytes than this send their rows to
 # wandb-core in a file. wandb-core streams the file, but holds inline rows in
 # memory several times over until the upload ends.
-_ROWS_FILE_THRESHOLD_BYTES = 64 << 20
+_ROWS_FILE_THRESHOLD_BYTES = 64 << 20  # 64 MiB
+# Each byte of a varint holds 7 bits of the value, low bits first, and sets
+# its high bit if more bytes follow.
+_VARINT_PAYLOAD_BITS = 7
+_VARINT_PAYLOAD_MASK = 0x7F
+_VARINT_CONTINUATION_BIT = 0x80
 # Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
 _MAX_EXAMPLE_KEY_LENGTH = 2048
-# Allow ten count-limited batches while failing fast on runaway tables.
+# Fails fast on runaway tables.
 _MAX_ROWS_PER_TABLE = 10_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
-_MAX_OVERSIZED_MEDIA_LOCATIONS = 5
 # EvalTableValue.int_value is an int64.
 _MIN_INT64 = -(2**63)
 _MAX_INT64 = 2**63 - 1
@@ -82,8 +87,6 @@ class _CESWritePayloads:
     rows: list[pb.EvalTableRow]
     upload_media_paths: list[str]
     media_cells_examined: int
-    oversized_media_cells: int
-    oversized_locations: tuple[str, ...]
 
 
 def _encode_rows(
@@ -140,7 +143,7 @@ def _set_rows_or_wandb_rows_file(
     table_data: pb.EvalTableData,
     rows: Sequence[pb.EvalTableRow],
     *,
-    staging_dir: str,
+    staging_dir: pathlib.Path,
 ) -> Iterator[None]:
     """Set the table data's `rows`, or its `wandb_rows_file_path` for large tables.
 
@@ -157,7 +160,7 @@ def _set_rows_or_wandb_rows_file(
         yield
         return
 
-    os.makedirs(staging_dir, exist_ok=True)
+    staging_dir.mkdir(parents=True, exist_ok=True)
     file = tempfile.NamedTemporaryFile(
         dir=staging_dir,
         prefix="wandb-eval-table-",
@@ -194,11 +197,20 @@ def _write_wandb_rows_file(file: IO[bytes], rows: Sequence[pb.EvalTableRow]) -> 
 def _encode_varint(value: int) -> bytes:
     """Encode a non-negative integer as a protobuf varint."""
     encoded = bytearray()
-    while value >= 0x80:
-        encoded.append((value & 0x7F) | 0x80)
-        value >>= 7
+    while value > _VARINT_PAYLOAD_MASK:
+        encoded.append((value & _VARINT_PAYLOAD_MASK) | _VARINT_CONTINUATION_BIT)
+        value >>= _VARINT_PAYLOAD_BITS
     encoded.append(value)
     return bytes(encoded)
+
+
+def _validate_example_key_length(example_key: str | None, *, row_number: int) -> None:
+    if example_key is not None and len(example_key) > _MAX_EXAMPLE_KEY_LENGTH:
+        raise UsageError(
+            "CES EvalTable example keys must have at most "
+            f"{_MAX_EXAMPLE_KEY_LENGTH} characters; row {row_number} "
+            f"has {len(example_key)}."
+        )
 
 
 class CESWriter:
@@ -238,33 +250,19 @@ class CESWriter:
         bound_run = self._require_bound()
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
-        self._record_media_telemetry(write_payloads)
-        if write_payloads.oversized_media_cells:
-            locations = ", ".join(write_payloads.oversized_locations)
-            wandb.termwarn(
-                "EvalTable replaced "
-                f"{write_payloads.oversized_media_cells} of "
-                f"{write_payloads.media_cells_examined} media cells with null because "
-                "their encoded payload reached the "
-                f"{_media_ces.CES_MAX_CELL_BYTES / 1_000_000:g} MB limit. "
-                f"First affected: {locations}.",
-            )
+        self._record_media_telemetry(write_payloads.media_cells_examined)
 
-        table = pb.EvalTableData(
-            name=name,
-            dataset_fields=write_payloads.dataset_fields,
-            scorers=write_payloads.scorers,
-            upload_media_paths=write_payloads.upload_media_paths,
-        )
-        staging_dir = os.path.join(
-            bound_run.run._settings.sync_dir, "tmp", "eval-tables"
-        )
+        # Build the request in place, since copying a table can be costly.
+        request = pb.UploadEvalTableRequest()
+        request.table.name = name
+        request.table.dataset_fields.extend(write_payloads.dataset_fields)
+        request.table.scorers.extend(write_payloads.scorers)
+        request.table.upload_media_paths.extend(write_payloads.upload_media_paths)
+        staging_dir = pathlib.Path(bound_run.run.sync_dir) / "tmp" / "eval-tables"
         with _set_rows_or_wandb_rows_file(
-            table, write_payloads.rows, staging_dir=staging_dir
+            request.table, write_payloads.rows, staging_dir=staging_dir
         ):
-            response = bound_run.run._upload_eval_table(
-                pb.UploadEvalTableRequest(table=table)
-            )
+            response = bound_run.run._upload_eval_table(request)
 
         _logger.debug(
             "CES EvalTable recorded evaluation_version_id=%s",
@@ -324,29 +322,18 @@ class CESWriter:
         scorer_order: dict[str, None] = {}
         normalized_rows: list[WriteRow] = []
         media_cells_examined = 0
-        oversized_locations: list[str] = []
         # Deduplicated, as rows can share content-addressed media files.
         upload_media_paths: dict[str, None] = {}
         class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
-        for row_index, row in enumerate(rows):
-            if (
-                row.example_key is not None
-                and len(row.example_key) > _MAX_EXAMPLE_KEY_LENGTH
-            ):
-                raise UsageError(
-                    "CES EvalTable example keys must have at most "
-                    f"{_MAX_EXAMPLE_KEY_LENGTH} characters; row {row_index + 1} "
-                    f"has {len(row.example_key)}."
-                )
+        for row_number, row in enumerate(rows, start=1):
+            _validate_example_key_length(row.example_key, row_number=row_number)
             inputs, input_media = self._normalize_row_input_or_output_values(
                 row.inputs,
                 source="input",
                 types=dataset_field_types,
                 order=dataset_field_order,
                 bound_run=bound_run,
-                row_index=row_index,
-                oversized_locations=oversized_locations,
                 upload_media_paths=upload_media_paths,
                 class_label_accumulator=class_label_accumulator,
             )
@@ -359,8 +346,6 @@ class CESWriter:
                     types=dataset_field_types,
                     order=dataset_field_order,
                     bound_run=bound_run,
-                    row_index=row_index,
-                    oversized_locations=oversized_locations,
                     upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
@@ -426,10 +411,6 @@ class CESWriter:
             rows=encoded_rows,
             upload_media_paths=list(upload_media_paths),
             media_cells_examined=media_cells_examined,
-            oversized_media_cells=len(oversized_locations),
-            oversized_locations=tuple(
-                oversized_locations[:_MAX_OVERSIZED_MEDIA_LOCATIONS]
-            ),
         )
 
     def _normalize_row_input_or_output_values(
@@ -440,8 +421,6 @@ class CESWriter:
         types: dict[tuple[_CESFieldSource, str], _CESFieldType],
         order: dict[tuple[_CESFieldSource, str], None],
         bound_run: _BoundRun,
-        row_index: int,
-        oversized_locations: list[str],
         upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[dict[str, pb.EvalTableValue], int]:
@@ -464,7 +443,7 @@ class CESWriter:
                 order[key] = None
             if _media_ces.is_supported_wandb_media(value):
                 media_cells += 1
-                normalized, value_type, oversized_size = self._normalize_media(
+                normalized, value_type = self._normalize_media(
                     value,
                     bound_run,
                     source=source,
@@ -472,11 +451,6 @@ class CESWriter:
                     upload_media_paths=upload_media_paths,
                     class_label_accumulator=class_label_accumulator,
                 )
-                if oversized_size is not None:
-                    oversized_locations.append(
-                        f"row {row_index}, {source} column {name!r} "
-                        f"({oversized_size} bytes)"
-                    )
             else:
                 normalized, primitive_type = self._normalize_primitive(value, column)
                 value_type = (
@@ -527,8 +501,8 @@ class CESWriter:
         column_name: str,
         upload_media_paths: dict[str, None],
         class_label_accumulator: _media_ces.ClassLabelAccumulator,
-    ) -> tuple[pb.EvalTableValue, _CESFieldType, int | None]:
-        """Return the media's cell, its field type, and oversized byte count.
+    ) -> tuple[pb.EvalTableValue, _CESFieldType]:
+        """Return the media's cell and its field type.
 
         Adds the run files that the media references to `upload_media_paths`.
         """
@@ -553,16 +527,10 @@ class CESWriter:
                     value_type="json",
                     media_type=_media_ces.media_type(value),
                 ),
-                None,
             )
         upload_media_paths.update(dict.fromkeys(media_cell.run_files))
         field_type = _CESFieldType(value_type="json", media_type=media_cell.media_type)
-        oversized_size = media_cell.encoded_size if media_cell.oversized else None
-        return (
-            pb.EvalTableValue(wandb_media_json=media_cell.media_json),
-            field_type,
-            oversized_size,
-        )
+        return pb.EvalTableValue(wandb_media_json=media_cell.media_json), field_type
 
     def _normalize_primitive(
         self,
@@ -685,18 +653,12 @@ class CESWriter:
             f"{observed_type!r} values."
         )
 
-    def _record_media_telemetry(self, prepared: _CESWritePayloads) -> None:
-        # Track whether cells above 3.5 MB justify extended media metadata support.
-        if prepared.media_cells_examined == 0:
+    def _record_media_telemetry(self, media_cells: int) -> None:
+        # Track how often CES EvalTables log media.
+        if media_cells == 0:
             return
 
-        recorder = get_telemetry_recorder()
-        recorder.increment_counter(
+        get_telemetry_recorder().increment_counter(
             "eval_table_ces_media_write",
             LowCardinalityAttributes(),
         )
-        if prepared.oversized_media_cells:
-            recorder.increment_counter(
-                "eval_table_ces_media_write_with_oversized_cells",
-                LowCardinalityAttributes(),
-            )
