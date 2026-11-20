@@ -366,12 +366,12 @@ jobs:
             python-arch: x64
           - os: windows-2022
             python-arch: x64
-          - os: macos-14
+          - os: macos-15
             python-arch: arm64
           # Native Intel runner, exercising the macosx x86_64 wheel. The
           # darwin-x64 CPython builds from actions/python-versions target
           # macOS 15 and link Homebrew's /usr/local gettext, so they no
-          # longer run under Rosetta on the arm64 macos-14 image.
+          # longer run under Rosetta on the arm64 macos-15 image.
           - os: macos-15-intel
             python-arch: x64
 
