@@ -1,83 +1,115 @@
 package historycodec
 
 import (
+	"bytes"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/wandb/simplejsonext"
-
-	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ToExtendedJSON renders the item's normalized value as W&B extended JSON.
-//
-// Extended JSON extends standard JSON with the literals NaN, Infinity
-// and -Infinity. Finite floats always keep a decimal point or an
-// exponent, so the text parses back to a float rather than an integer.
-// JSON containers are preserved byte for byte without validation. JSON
-// scalars render as their matching typed alternatives. Strings replace
-// each invalid UTF-8 byte with U+FFFD.
-//
-// The same inputs rejected by WireKind are errors here.
-func ToExtendedJSON(item *spb.HistoryItem) ([]byte, error) {
-	v, err := decode(item)
-	if err != nil {
-		return nil, err
-	}
-
-	switch v.kind {
-	case filestreamv1.MetricsBatch_KIND_NULL:
-		return []byte("null"), nil
-	case filestreamv1.MetricsBatch_KIND_BOOL:
-		return strconv.AppendBool(nil, v.b), nil
-	case filestreamv1.MetricsBatch_KIND_INT:
-		return strconv.AppendInt(nil, v.i, 10), nil
-	case filestreamv1.MetricsBatch_KIND_FLOAT:
-		return marshalFloat(v.f), nil
-	case filestreamv1.MetricsBatch_KIND_STRING:
-		return simplejsonext.Marshal(v.s)
-	case filestreamv1.MetricsBatch_KIND_JSON:
-		return []byte(v.s), nil
-	default:
-		return nil, fmt.Errorf(
-			"historycodec: no JSON conversion for %v", v.kind)
-	}
-}
-
-func decodeJSON(s string) (value, error) {
-	trimmed := strings.Trim(s, " \t\r\n")
-	if trimmed != "" && (trimmed[0] == '{' || trimmed[0] == '[') {
-		return value{kind: filestreamv1.MetricsBatch_KIND_JSON, s: s}, nil
-	}
-	parsed, err := simplejsonext.UnmarshalString(trimmed)
-	if err != nil {
-		return value{}, fmt.Errorf("historycodec: invalid JSON scalar")
-	}
-	return scalarValue(parsed)
-}
-
-func scalarValue(parsed any) (value, error) {
-	switch v := parsed.(type) {
+// AppendJSON appends W&B extended JSON for a normalized value to dst.
+// Containers recursively accept the same types as Kind. Floats retain
+// a decimal point or exponent, including inside containers, and NaN and
+// infinities are bare literals. Map keys are sorted by their raw bytes.
+// On error, dst may contain a partially encoded value.
+func AppendJSON(dst []byte, v any) ([]byte, error) {
+	switch v := v.(type) {
 	case nil:
-		return value{kind: filestreamv1.MetricsBatch_KIND_NULL}, nil
+		return append(dst, "null"...), nil
 	case bool:
-		return value{kind: filestreamv1.MetricsBatch_KIND_BOOL, b: v}, nil
+		return strconv.AppendBool(dst, v), nil
 	case int64:
-		return value{kind: filestreamv1.MetricsBatch_KIND_INT, i: v}, nil
+		return strconv.AppendInt(dst, v, 10), nil
 	case float64:
-		return value{kind: filestreamv1.MetricsBatch_KIND_FLOAT, f: v}, nil
+		return appendFloat(dst, v), nil
 	case string:
-		return value{kind: filestreamv1.MetricsBatch_KIND_STRING, s: normalizeString(v)}, nil
+		return AppendKey(dst, v), nil
+	case []any:
+		return appendArray(dst, v)
+	case map[string]any:
+		return appendObject(dst, v)
 	default:
-		return value{}, fmt.Errorf("historycodec: invalid JSON scalar")
+		return dst, fmt.Errorf("historycodec: unsupported value type %T", v)
 	}
 }
 
-func normalizeString(s string) string {
+func appendArray(dst []byte, values []any) ([]byte, error) {
+	dst = append(dst, '[')
+	for i, v := range values {
+		if i > 0 {
+			dst = append(dst, ',')
+		}
+		var err error
+		dst, err = AppendJSON(dst, v)
+		if err != nil {
+			return dst, err
+		}
+	}
+	return append(dst, ']'), nil
+}
+
+func appendObject(dst []byte, values map[string]any) ([]byte, error) {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	dst = append(dst, '{')
+	for i, key := range keys {
+		if i > 0 {
+			dst = append(dst, ',')
+		}
+		dst = AppendKey(dst, key)
+		dst = append(dst, ':')
+		var err error
+		dst, err = AppendJSON(dst, values[key])
+		if err != nil {
+			return dst, err
+		}
+	}
+	return append(dst, '}'), nil
+}
+
+// AppendKey appends a quoted JSON string, repairing each invalid UTF-8
+// byte with U+FFFD. Non-ASCII characters are not escaped.
+func AppendKey(dst []byte, key string) []byte {
+	key = NormalizeString(key)
+	dst = append(dst, '"')
+	for i := 0; i < len(key); i++ {
+		dst = appendStringByte(dst, key[i])
+	}
+	return append(dst, '"')
+}
+
+func appendStringByte(dst []byte, b byte) []byte {
+	switch b {
+	case '"', '\\':
+		return append(dst, '\\', b)
+	case '\b':
+		return append(dst, '\\', 'b')
+	case '\f':
+		return append(dst, '\\', 'f')
+	case '\n':
+		return append(dst, '\\', 'n')
+	case '\r':
+		return append(dst, '\\', 'r')
+	case '\t':
+		return append(dst, '\\', 't')
+	default:
+		if b < 0x20 {
+			const hex = "0123456789abcdef"
+			return append(dst, '\\', 'u', '0', '0', hex[b>>4], hex[b&15])
+		}
+		return append(dst, b)
+	}
+}
+
+// NormalizeString replaces each invalid UTF-8 byte with U+FFFD.
+// Valid strings are returned unchanged without allocation.
+func NormalizeString(s string) string {
 	if utf8.ValidString(s) {
 		return s
 	}
@@ -89,23 +121,19 @@ func normalizeString(s string) string {
 	return b.String()
 }
 
-// marshalFloat renders f as extended JSON. 'g' with precision -1 is the
-// shortest text that round-trips to the same float64 bits. It drops the
-// decimal point on integral values, so ".0" is appended when the result
-// has neither a decimal point nor an exponent.
-func marshalFloat(f float64) []byte {
+func appendFloat(dst []byte, f float64) []byte {
 	switch {
 	case math.IsNaN(f):
-		return []byte("NaN")
+		return append(dst, "NaN"...)
 	case math.IsInf(f, 1):
-		return []byte("Infinity")
+		return append(dst, "Infinity"...)
 	case math.IsInf(f, -1):
-		return []byte("-Infinity")
+		return append(dst, "-Infinity"...)
 	}
-
-	s := strconv.FormatFloat(f, 'g', -1, 64)
-	if !strings.ContainsAny(s, ".eE") {
-		s += ".0"
+	start := len(dst)
+	dst = strconv.AppendFloat(dst, f, 'g', -1, 64)
+	if bytes.IndexAny(dst[start:], ".eE") < 0 {
+		dst = append(dst, ".0"...)
 	}
-	return []byte(s)
+	return dst
 }

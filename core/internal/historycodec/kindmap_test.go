@@ -6,10 +6,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/historycodec"
+	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -23,6 +26,19 @@ type fixture struct {
 }
 
 var fixtures = []fixture{
+	{
+		name: "json/negative integer zero",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-0`}},
+		kind: filestreamv1.MetricsBatch_KIND_INT,
+		json: "0",
+	},
+	{
+		name: "json/nested",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
+			Json: `{"b":1.0,"a":[1.0,-0.0,NaN,{"z":9007199254740993,"y":"x\ud800"}],"c":{}}`}},
+		kind: filestreamv1.MetricsBatch_KIND_JSON,
+		json: `{"a":[1.0,-0.0,NaN,{"y":"x�","z":9007199254740993}],"b":1.0}`,
+	},
 	{
 		name: "json/float",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1.0`}},
@@ -276,14 +292,14 @@ var fixtures = []fixture{
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{"a": 1, "b": "x"}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"a": 1, "b": "x"}`,
+		json: `{"a":1,"b":"x"}`,
 	},
 	{
 		name: "json/array",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `[1, 2.5, "three", null]`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `[1, 2.5, "three", null]`,
+		json: `[1,2.5,"three",null]`,
 	},
 	{
 		name: "json/empty object",
@@ -311,21 +327,21 @@ var fixtures = []fixture{
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: "  {  \"a\" :\n\t [ 1 , 2 ] }  "}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: "  {  \"a\" :\n\t [ 1 , 2 ] }  ",
+		json: `{"a":[1,2]}`,
 	},
 	{
 		name: "json/nested non-finite",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{"nan": NaN, "pos": Infinity, "neg": -Infinity}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"nan": NaN, "pos": Infinity, "neg": -Infinity}`,
+		json: `{"nan":NaN,"neg":-Infinity,"pos":Infinity}`,
 	},
 	{
 		name: "json/int wider than int64",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{"big": 123456789012345678901234567890}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"big": 123456789012345678901234567890}`,
+		json: `{"big":1.2345678901234568e+29}`,
 	},
 }
 
@@ -355,64 +371,79 @@ func TestOneofCoverage(t *testing.T) {
 		"fixtures exist for alternatives not in the schema")
 }
 
-func TestWireKind(t *testing.T) {
+func TestKind(t *testing.T) {
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
-			kind, err := historycodec.WireKind(f.item)
+			v, present := fixtureValue(t, f)
+			if !present {
+				return
+			}
+			kind, err := historycodec.Kind(v)
 			require.NoError(t, err)
 			assert.Equal(t, f.kind, kind)
+			assert.NotEqual(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
 		})
 	}
 }
 
-func TestInvalidValues(t *testing.T) {
-	cases := []struct {
-		name string
-		item *spb.HistoryItem
-	}{
-		{"nil item", nil},
-		{"unset oneof", &spb.HistoryItem{}},
-		// An absent typed field is not null even when value_json is set:
-		// fallback is the caller's responsibility.
-		{"unset oneof with value_json",
-			&spb.HistoryItem{ValueJson: "1.0"}},
-		{"none payload is not NULL_VALUE",
-			&spb.HistoryItem{Value: &spb.HistoryItem_None{
-				None: structpb.NullValue(42)}}},
-		{"nil none wrapper",
-			&spb.HistoryItem{Value: (*spb.HistoryItem_None)(nil)}},
-		{"nil boolean wrapper",
-			&spb.HistoryItem{Value: (*spb.HistoryItem_Boolean)(nil)}},
-		{"nil integer wrapper",
-			&spb.HistoryItem{Value: (*spb.HistoryItem_Integer)(nil)}},
-		{"nil number wrapper",
-			&spb.HistoryItem{Value: (*spb.HistoryItem_Number)(nil)}},
-		{"nil text wrapper",
-			&spb.HistoryItem{Value: (*spb.HistoryItem_Text)(nil)}},
-		{"nil json wrapper",
-			&spb.HistoryItem{Value: (*spb.HistoryItem_Json)(nil)}},
+// fixtureValue rebuilds one top-level value from the production decoder's
+// leaves without serializing floats through RunHistory's JSONL encoder.
+func fixtureValue(t *testing.T, f fixture) (any, bool) {
+	t.Helper()
+	item := proto.Clone(f.item).(*spb.HistoryItem)
+	item.Key = "metric"
+	rh := runhistory.New()
+	require.NoError(t, rh.SetFromRecord(item))
+	if rh.IsEmpty() {
+		require.Equal(t, "json/empty object", f.name)
+		return nil, false // Empty objects do not create cells.
 	}
 
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			kind, err := historycodec.WireKind(c.item)
-			assert.Error(t, err)
-			assert.Equal(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind,
-				"an invalid value must never map to a wire kind")
-
-			_, err = historycodec.ToExtendedJSON(c.item)
-			assert.Error(t, err)
-		})
+	root := make(map[string]any)
+	collect := func(path pathtree.TreePath, v any) bool {
+		kind, err := historycodec.Kind(v)
+		require.NoError(t, err)
+		require.NotEqual(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
+		_, err = historycodec.AppendJSON(nil, v)
+		require.NoError(t, err)
+		setPath(root, path.Labels(), v)
+		return true
 	}
+	rh.ForEach(
+		func(p pathtree.TreePath, v float64) bool { return collect(p, v) },
+		func(p pathtree.TreePath, v int64) bool { return collect(p, v) },
+		collect,
+	)
+	require.Len(t, root, 1)
+	return root["metric"], true
 }
 
-func TestInvalidJSONScalars(t *testing.T) {
-	for _, input := range []string{"", "   ", "1 2", "tru", "9223372036854775808 2"} {
-		item := &spb.HistoryItem{Key: "private-metric", Value: &spb.HistoryItem_Json{Json: input}}
-		kind, err := historycodec.WireKind(item)
-		require.EqualError(t, err, "historycodec: invalid JSON scalar")
+func setPath(root map[string]any, path []string, v any) {
+	for _, key := range path[:len(path)-1] {
+		child, ok := root[key].(map[string]any)
+		if !ok {
+			child = make(map[string]any)
+			root[key] = child
+		}
+		root = child
+	}
+	root[path[len(path)-1]] = v
+}
+
+func TestUnsupportedValues(t *testing.T) {
+	for _, v := range []any{int(1234567), float32(1234567), struct{ Secret string }{"private-value"}} {
+		kind, err := historycodec.Kind(v)
+		require.Error(t, err)
 		assert.Equal(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
-		_, err = historycodec.ToExtendedJSON(item)
-		require.EqualError(t, err, "historycodec: invalid JSON scalar")
+		assert.NotContains(t, err.Error(), "1234567")
+		assert.NotContains(t, err.Error(), "private-value")
+		for _, nested := range []any{v, []any{v}, map[string]any{"private-key": v}} {
+			dst, err := historycodec.AppendJSON([]byte("prefix:"), nested)
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), "1234567")
+			assert.NotContains(t, err.Error(), "private-value")
+			assert.NotContains(t, err.Error(), "private-key")
+			assert.Contains(t, string(dst), "prefix:")
+		}
 	}
 }
