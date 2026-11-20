@@ -415,6 +415,11 @@ func (s *Symon) handleToggleFocusedChartLogY(msg tea.KeyPressMsg) tea.Cmd {
 	return s.handleCycleFocusedChartMode(msg)
 }
 
+func (s *Symon) handleScrollFocusedChartRows(msg tea.KeyPressMsg) tea.Cmd {
+	s.grid.scrollFocusedChartRows(chartRowScrollDelta(msg))
+	return nil
+}
+
 func (s *Symon) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 	guides := nextChartGuides(s.config.ChartGuides())
 	if err := s.config.SetChartGuides(guides); err != nil {

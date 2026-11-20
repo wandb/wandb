@@ -25,6 +25,9 @@ NOW_FN = datetime.datetime.now
 SLEEP_FN = time.sleep
 SLEEP_ASYNC_FN = asyncio.sleep
 
+# Jitter must not consume the global generator, which user code may have seeded.
+_random = random.SystemRandom()
+
 
 class RetryCancelledError(wandb.errors.Error):
     """A retry did not occur because it was cancelled."""
@@ -287,7 +290,7 @@ class _RetryLoop:
         Raises:
             RetryCancelledError: If the operation is cancelled.
         """
-        sleep_amount = self._next_sleep_time * (1 + random.random() * 0.25)
+        sleep_amount = self._next_sleep_time * (1 + _random.random() * 0.25)
 
         if self._cancel_event:
             cancelled = self._cancel_event.wait(sleep_amount)
@@ -351,7 +354,7 @@ class ExponentialBackoff(Backoff):
 
         result, self._next_sleep = (
             self._next_sleep,
-            min(self._max_sleep, self._next_sleep * (1 + random.random())),
+            min(self._max_sleep, self._next_sleep * (1 + _random.random())),
         )
 
         return result
