@@ -289,6 +289,17 @@ func TestEncode_RejectsRowsThatDontFitColumns(t *testing.T) {
 			wantErr: `field "a": W&B media value in "json" column`,
 		},
 		{
+			name: "JSON in media column",
+			field: &spb.EvalTableField{
+				Source:         "input",
+				Name:           "a",
+				ValueType:      "json",
+				WandbMediaType: "image-file",
+			},
+			row:     &spb.EvalTableRow{Input: values(jsonValue(`{}`))},
+			wantErr: `field "a": JSON value in image-file column`,
+		},
+		{
 			name:    "invalid JSON",
 			field:   &spb.EvalTableField{Source: "input", Name: "a", ValueType: "json"},
 			row:     &spb.EvalTableRow{Input: values(jsonValue(`{"a":`))},
@@ -326,4 +337,281 @@ func TestEncode_RejectsOversizedRow(t *testing.T) {
 
 	assert.ErrorContains(t, err, "row is")
 	assert.ErrorContains(t, err, "(row 1)")
+}
+
+func TestEncode_ConvertsMedia(t *testing.T) {
+	// W&B media JSON, as from Python's Media.to_json.
+	image := `{` +
+		`"_type":"image-file",` +
+		`"path":"media/eval_tables/images/eval/cat.png",` +
+		`"sha256":"aaa",` +
+		`"size":1024,` +
+		`"format":"png",` +
+		`"width":32,` +
+		`"height":24,` +
+		`"caption":"a cat",` +
+		`"grouping":1,` +
+		`"boxes":{"predictions":{` +
+		`"_type":"boxes2D",` +
+		`"path":"media/eval_tables/boxes/eval/cat.boxes2D.json",` +
+		`"sha256":"bbb",` +
+		`"size":10` +
+		`}},` +
+		`"masks":{"truth":{` +
+		`"_type":"mask",` +
+		`"artifact_path":"wandb-artifact://_id/abc/mask.png",` +
+		`"sha256":"ccc",` +
+		`"size":20` +
+		`}}` +
+		`}`
+	audio := `{` +
+		`"_type":"audio-file",` +
+		`"artifact_path":"wandb-artifact://_id/def/meow.wav",` +
+		`"_latest_artifact_path":"wandb-artifact://entity/project/sounds:latest/meow.wav",` +
+		`"sha256":"ddd",` +
+		`"size":2048,` +
+		`"caption":"meow"` +
+		`}`
+	video := `{` +
+		`"_type":"video-file",` +
+		`"path":"media/eval tables/videos/cat#1.mp4",` +
+		`"sha256":"eee",` +
+		`"size":4096,` +
+		`"width":64,` +
+		`"height":48` +
+		`}`
+
+	table, err := encode(t, &spb.EvalTableData{
+		Name: "my-table",
+		DatasetFields: []*spb.EvalTableField{
+			{Source: "input", Name: "prompt", ValueType: "string"},
+			{Source: "output", Name: "answer", ValueType: "string"},
+			{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
+			{Source: "output", Name: "audio", ValueType: "json", WandbMediaType: "audio-file"},
+			{Source: "output", Name: "video", ValueType: "json", WandbMediaType: "video-file"},
+		},
+		Rows: []*spb.EvalTableRow{{
+			Input: values(stringValue("draw a cat")),
+			Output: values(
+				stringValue("a cat"),
+				mediaValue(image),
+				mediaValue(audio),
+				mediaValue(video),
+			),
+		}},
+	})
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"dataset_fields": [
+			{"source": "input", "name": "prompt", "value_type": "string"},
+			{"source": "output", "name": "answer", "value_type": "string"},
+			{
+				"source": "output",
+				"name": "image",
+				"value_type": "json",
+				"extension_type": "wandb-image",
+				"extension_schema_version": 1
+			},
+			{
+				"source": "output",
+				"name": "audio",
+				"value_type": "json",
+				"extension_type": "wandb-audio",
+				"extension_schema_version": 1
+			},
+			{
+				"source": "output",
+				"name": "video",
+				"value_type": "json",
+				"extension_type": "wandb-video",
+				"extension_schema_version": 1
+			}
+		],
+		"scorers": []
+	}`, table.ColumnsJSON(t))
+	assert.JSONEq(t, `[{
+		"input": {"prompt": "draw a cat"},
+		"output": {
+			"answer": "a cat",
+			"image": {
+				"extension_type": "wandb-image",
+				"schema_version": 1,
+				"wb_media_type": "image-file",
+				"format": "png",
+				"sha256": "aaa",
+				"size": 1024,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/images/eval/cat.png",
+				"width": 32,
+				"height": 24,
+				"caption": "a cat",
+				"boxes": {"predictions": {
+					"_type": "boxes2D",
+					"sha256": "bbb",
+					"size": 10,
+					"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval_tables/boxes/eval/cat.boxes2D.json"
+				}},
+				"masks": {"truth": {
+					"_type": "mask",
+					"sha256": "ccc",
+					"size": 20,
+					"uri": "wandb-artifact://_id/abc/mask.png"
+				}}
+			},
+			"audio": {
+				"extension_type": "wandb-audio",
+				"schema_version": 1,
+				"wb_media_type": "audio-file",
+				"sha256": "ddd",
+				"size": 2048,
+				"uri": "wandb-artifact://_id/def/meow.wav",
+				"caption": "meow"
+			},
+			"video": {
+				"extension_type": "wandb-video",
+				"schema_version": 1,
+				"wb_media_type": "video-file",
+				"sha256": "eee",
+				"size": 4096,
+				"uri": "wandb-run-file://test-entity/test-project/test-run/media/eval%20tables/videos/cat%231.mp4",
+				"width": 64,
+				"height": 48
+			}
+		},
+		"scores": {}
+	}]`, table.CESRowsJSON(t))
+}
+
+func TestEncode_KeepsNullMedia(t *testing.T) {
+	table, err := encode(t, &spb.EvalTableData{
+		DatasetFields: []*spb.EvalTableField{
+			{Source: "input", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
+			{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
+		},
+		Rows: []*spb.EvalTableRow{
+			{Input: values(nullValue())},
+			{Output: values(nullValue())},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t,
+		`[`+
+			`{"input":{"image":null},"output":null,"scores":{}},`+
+			`{"input":null,"output":{"image":null},"scores":{}}`+
+			`]`,
+		table.CESRowsJSON(t))
+}
+
+func TestEncode_RejectsOversizedMedia(t *testing.T) {
+	const clickhouseSingleRowInsertBytesLimit = 3_500_000
+	fields := []*spb.EvalTableField{
+		{Source: "output", Name: "image", ValueType: "json", WandbMediaType: "image-file"},
+	}
+	imageJSON := func(caption string) string {
+		return `{"_type":"image-file","path":"a.png","format":"png",` +
+			`"sha256":"a","size":1,"caption":"` + caption + `"}`
+	}
+
+	// The size of the CES value of an image with an empty caption.
+	empty, err := encode(t, &spb.EvalTableData{
+		DatasetFields: fields,
+		Rows:          []*spb.EvalTableRow{{Output: values(mediaValue(imageJSON("")))}},
+	})
+	require.NoError(t, err)
+	emptySize := len(empty.CESRowsJSON(t)) -
+		len(`[{"input":null,"output":{"image":},"scores":{}}]`)
+
+	testCases := []struct {
+		name    string
+		size    int
+		wantErr string
+	}{
+		{name: "under the limit", size: clickhouseSingleRowInsertBytesLimit - 1},
+		{
+			name: "at the limit",
+			size: clickhouseSingleRowInsertBytesLimit,
+			wantErr: `field "image": media value is 3500000 bytes, ` +
+				`must be under 3500000 (row 2)`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			caption := strings.Repeat("a", tc.size-emptySize)
+
+			_, err := encode(t, &spb.EvalTableData{
+				DatasetFields: fields,
+				Rows: []*spb.EvalTableRow{
+					{Output: values(mediaValue(imageJSON("a cat")))},
+					{Output: values(mediaValue(imageJSON(caption)))},
+				},
+			})
+
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
+		})
+	}
+}
+
+func TestEncode_RejectsInvalidMedia(t *testing.T) {
+	testCases := []struct {
+		name      string
+		mediaType string
+		media     string
+		wantErr   string
+	}{
+		{
+			name:      "unknown media type",
+			mediaType: "html-file",
+			media:     `{"_type":"html-file","path":"a.html","sha256":"a","size":1}`,
+			wantErr:   `field "media" has unknown media type "html-file"`,
+		},
+		{
+			name:      "mismatched media type",
+			mediaType: "image-file",
+			media:     `{"_type":"audio-file","path":"a.wav","sha256":"a","size":1}`,
+			wantErr:   `field "media": expected image-file media, got "audio-file"`,
+		},
+		{
+			name:      "no file",
+			mediaType: "audio-file",
+			media:     `{"_type":"audio-file","sha256":"a","size":1}`,
+			wantErr:   `field "media": media has no path or artifact path`,
+		},
+		{
+			name:      "overlay without file",
+			mediaType: "image-file",
+			media: `{"_type":"image-file","path":"a.png","format":"png",` +
+				`"sha256":"a","size":1,"boxes":{"b":{"_type":"boxes2D"}}}`,
+			wantErr: `field "media": boxes "b": media has no path or artifact path`,
+		},
+		{
+			name:      "invalid JSON",
+			mediaType: "image-file",
+			media:     `{"_type":`,
+			wantErr:   `field "media": invalid media`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := encode(t, &spb.EvalTableData{
+				DatasetFields: []*spb.EvalTableField{{
+					Source:         "output",
+					Name:           "media",
+					ValueType:      "json",
+					WandbMediaType: tc.mediaType,
+				}},
+				Rows: []*spb.EvalTableRow{{Output: values(mediaValue(tc.media))}},
+			})
+
+			assert.ErrorContains(t, err, tc.wantErr)
+			assert.True(t, evaltables.IsUsageError(err))
+		})
+	}
 }

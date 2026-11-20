@@ -9,6 +9,7 @@ import (
 
 	ces "github.com/wandb/cwevals-go"
 
+	"github.com/wandb/wandb/core/internal/runbranch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -30,6 +31,8 @@ type rowColumn struct {
 
 // rowEncoder writes the CES row JSON of an EvalTable's typed rows.
 type rowEncoder struct {
+	media *mediaConverter
+
 	inputs  []rowColumn
 	outputs []rowColumn
 	scores  []rowColumn
@@ -38,8 +41,9 @@ type rowEncoder struct {
 // The table's columns must have passed validateColumns.
 func newRowEncoder(
 	data *spb.EvalTableData,
+	runPath runbranch.RunPath,
 ) (*rowEncoder, error) {
-	e := &rowEncoder{}
+	e := &rowEncoder{media: &mediaConverter{runPath: runPath}}
 
 	for _, field := range data.GetDatasetFields() {
 		column, err := newRowColumn(
@@ -204,6 +208,15 @@ func (e *rowEncoder) appendValue(
 			return nil, errors.New("invalid JSON")
 		}
 		return append(buf, value.JsonValue...), nil
+	case *spb.EvalTableValue_WandbMediaJson:
+		converted, err := e.media.convertMedia(
+			json.RawMessage(value.WandbMediaJson),
+			column.mediaType,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return append(buf, converted...), nil
 	default:
 		return append(buf, "null"...), nil
 	}
