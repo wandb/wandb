@@ -2,6 +2,8 @@ package historycodec_test
 
 import (
 	"math"
+	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,18 +15,22 @@ import (
 	"github.com/wandb/wandb/core/internal/historycodec"
 )
 
-func TestAppendJSON(t *testing.T) {
+func TestNormalizeFixtures(t *testing.T) {
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
 			v, present := fixtureValue(t, f)
 			if !present {
 				return
 			}
-			encoded, err := historycodec.AppendJSON([]byte("prefix:"), v)
+			normalized, err := historycodec.Normalize(v)
 			require.NoError(t, err)
-			assert.Equal(t, "prefix:"+f.json, string(encoded))
-			got := parseJSON(t, encoded[len("prefix:"):])
-			assertValue(t, parseJSON(t, []byte(f.json)), got)
+			want := parseJSON(t, []byte(f.json))
+			assertValue(t, want, normalized, false)
+			if f.kind == filestreamv1.MetricsBatch_KIND_JSON {
+				encoded, err := simplejsonext.Marshal(normalized)
+				require.NoError(t, err)
+				assertValue(t, want, parseJSON(t, encoded), true)
+			}
 		})
 	}
 }
@@ -60,7 +66,8 @@ func TestMetricsBatchRoundTrip(t *testing.T) {
 		require.Equal(t, f.kind, kind)
 		got := unpackValue(t, decoded, kind, offsets[kind])
 		offsets[kind]++
-		assertValue(t, parseJSON(t, []byte(f.json)), got)
+		assertValue(t, parseJSON(t, []byte(f.json)), got,
+			kind == filestreamv1.MetricsBatch_KIND_JSON)
 	}
 	assert.Len(t, decoded.Bools, offsets[filestreamv1.MetricsBatch_KIND_BOOL])
 	assert.Len(t, decoded.Ints, offsets[filestreamv1.MetricsBatch_KIND_INT])
@@ -82,7 +89,9 @@ func packValue(t *testing.T, batch *filestreamv1.MetricsBatch, v any) {
 	case string:
 		batch.Strings = append(batch.Strings, historycodec.NormalizeString(v))
 	case []any, map[string]any:
-		encoded, err := historycodec.AppendJSON(nil, v)
+		normalized, err := historycodec.Normalize(v)
+		require.NoError(t, err)
+		encoded, err := simplejsonext.Marshal(normalized)
 		require.NoError(t, err)
 		batch.Jsons = append(batch.Jsons, string(encoded))
 	default:
@@ -123,8 +132,11 @@ func parseJSON(t *testing.T, b []byte) any {
 	return v
 }
 
-func assertValue(t *testing.T, want, got any) {
+func assertValue(t *testing.T, want, got any, jsonCell bool) {
 	t.Helper()
+	if jsonCell && assertJSONNumbers(t, want, got) {
+		return
+	}
 	require.IsType(t, want, got)
 	switch w := want.(type) {
 	case float64:
@@ -133,14 +145,14 @@ func assertValue(t *testing.T, want, got any) {
 		g := got.([]any)
 		require.Len(t, g, len(w))
 		for i := range w {
-			assertValue(t, w[i], g[i])
+			assertValue(t, w[i], g[i], jsonCell)
 		}
 	case map[string]any:
 		g := got.(map[string]any)
 		require.Len(t, g, len(w))
 		for key, v := range w {
 			require.Contains(t, g, key)
-			assertValue(t, v, g[key])
+			assertValue(t, v, g[key], jsonCell)
 		}
 	default:
 		assert.Equal(t, want, got)
@@ -167,10 +179,11 @@ func TestNestedValues(t *testing.T) {
 		"c": map[string]any{},
 	}
 	want := `{"a":[1.0,-0.0,NaN,{"x��":-Infinity,"y":"x�","z":9007199254740993}],"b":1.0,"c":{}}`
-	got, err := historycodec.AppendJSON(nil, v)
+	normalized, err := historycodec.Normalize(v)
 	require.NoError(t, err)
-	assert.Equal(t, want, string(got))
-	assertValue(t, parseJSON(t, []byte(want)), parseJSON(t, got))
+	got, err := simplejsonext.Marshal(normalized)
+	require.NoError(t, err)
+	assertValue(t, parseJSON(t, []byte(want)), parseJSON(t, got), true)
 }
 
 func TestEmptyValues(t *testing.T) {
@@ -189,24 +202,11 @@ func TestEmptyValues(t *testing.T) {
 		kind, err := historycodec.Kind(c.v)
 		require.NoError(t, err)
 		assert.NotEqual(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
-		got, err := historycodec.AppendJSON(nil, c.v)
+		normalized, err := historycodec.Normalize(c.v)
+		require.NoError(t, err)
+		got, err := simplejsonext.Marshal(normalized)
 		require.NoError(t, err)
 		assert.Equal(t, c.json, string(got))
-	}
-}
-
-func TestAppendKey(t *testing.T) {
-	for _, s := range []string{
-		"", "héllo 🌍", "a\xff\xfeb", "\"\\/\b\f\n\r\t\x00\x01\x1f",
-		"<>&\u2028\u2029", "�",
-	} {
-		want, err := simplejsonext.Marshal(historycodec.NormalizeString(s))
-		require.NoError(t, err)
-		got := historycodec.AppendKey([]byte("prefix:"), s)
-		assert.Equal(t, "prefix:"+string(want), string(got))
-		encoded, err := historycodec.AppendJSON(nil, s)
-		require.NoError(t, err)
-		assert.Equal(t, string(want), string(encoded))
 	}
 }
 
@@ -220,13 +220,108 @@ func TestNormalizeString(t *testing.T) {
 	}))
 }
 
-func TestAppendJSONReusesBuffer(t *testing.T) {
-	dst := make([]byte, 0, 1024)
-	var v any = []any{1.0, int64(9007199254740993), "valid", true, nil}
+func jsonNumber(v any) *big.Rat {
+	switch v := v.(type) {
+	case int64:
+		return new(big.Rat).SetInt64(v)
+	case float64:
+		return new(big.Rat).SetFloat64(v)
+	default:
+		return nil
+	}
+}
+
+func assertJSONNumbers(t *testing.T, want, got any) bool {
+	t.Helper()
+	w, g := jsonNumber(want), jsonNumber(got)
+	if w == nil || g == nil {
+		return false
+	}
+	assert.Zero(t, w.Cmp(g), "different numeric values: %v and %v", want, got)
+	return true
+}
+
+func TestNormalizeUnchanged(t *testing.T) {
+	var v any = map[string]any{
+		"array": []any{nil, true, int64(9007199254740993), 1.0, "héllo"},
+		"map":   map[string]any{"nan": math.NaN(), "inf": math.Inf(1)},
+	}
+	got, err := historycodec.Normalize(v)
+	require.NoError(t, err)
+	assert.Equal(t, reflect.ValueOf(v).Pointer(), reflect.ValueOf(got).Pointer())
 	assert.Zero(t, testing.AllocsPerRun(100, func() {
-		_, err := historycodec.AppendJSON(dst, v)
+		_, err := historycodec.Normalize(v)
 		if err != nil {
 			panic(err)
 		}
 	}))
+
+	slice := v.(map[string]any)["array"]
+	got, err = historycodec.Normalize(slice)
+	require.NoError(t, err)
+	assert.Equal(t, reflect.ValueOf(slice).Pointer(), reflect.ValueOf(got).Pointer())
+}
+
+func TestNormalizeCopyOnWrite(t *testing.T) {
+	unchanged := map[string]any{"valid": "héllo"}
+	leaf := map[string]any{"bad\xff\xfe": "a\xff\xfeb", "untouched": unchanged}
+	array := []any{leaf, unchanged}
+	input := map[string]any{"array": array, "unchanged": unchanged}
+	got, err := historycodec.Normalize(input)
+	require.NoError(t, err)
+	result := got.(map[string]any)
+	repairedArray := result["array"].([]any)
+	repairedLeaf := repairedArray[0].(map[string]any)
+	assert.Equal(t, "a��b", repairedLeaf["bad��"])
+	assert.NotContains(t, repairedLeaf, "bad\xff\xfe")
+
+	assert.Equal(t, "a\xff\xfeb", leaf["bad\xff\xfe"])
+	assert.NotContains(t, leaf, "bad��")
+	assert.Equal(t, reflect.ValueOf(leaf).Pointer(), reflect.ValueOf(array[0]).Pointer())
+	assert.Equal(t, reflect.ValueOf(array).Pointer(), reflect.ValueOf(input["array"]).Pointer())
+	assert.NotEqual(t, reflect.ValueOf(input).Pointer(), reflect.ValueOf(result).Pointer())
+	assert.NotEqual(t, reflect.ValueOf(array).Pointer(), reflect.ValueOf(repairedArray).Pointer())
+	assert.NotEqual(t, reflect.ValueOf(leaf).Pointer(), reflect.ValueOf(repairedLeaf).Pointer())
+	assert.Equal(t,
+		reflect.ValueOf(unchanged).Pointer(), reflect.ValueOf(result["unchanged"]).Pointer())
+	assert.Equal(t, reflect.ValueOf(unchanged).Pointer(), reflect.ValueOf(repairedArray[1]).Pointer())
+	assert.Equal(t,
+		reflect.ValueOf(unchanged).Pointer(), reflect.ValueOf(repairedLeaf["untouched"]).Pointer())
+}
+
+func TestNormalizeKeyCollisions(t *testing.T) {
+	input := map[string]any{
+		"key\xfe": "first",
+		"key�":    "valid",
+		"key\xff": "last\xff",
+	}
+	for i := 0; i < 100; i++ {
+		got, err := historycodec.Normalize(input)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"key�": "last�"}, got)
+	}
+	assert.Equal(t, "last\xff", input["key\xff"])
+	assert.Len(t, input, 3)
+}
+
+func TestNormalizeKeysOnly(t *testing.T) {
+	child := []any{"unchanged"}
+	input := map[string]any{"bad\xff": child}
+	got, err := historycodec.Normalize(input)
+	require.NoError(t, err)
+	result := got.(map[string]any)
+	assert.Contains(t, result, "bad�")
+	assert.Contains(t, input, "bad\xff")
+	assert.NotEqual(t, reflect.ValueOf(input).Pointer(), reflect.ValueOf(result).Pointer())
+	assert.Equal(t, reflect.ValueOf(child).Pointer(), reflect.ValueOf(result["bad�"]).Pointer())
+}
+
+func TestNormalizeJSONNumbers(t *testing.T) {
+	v := []any{1.0, math.Copysign(0, -1), math.NaN()}
+	normalized, err := historycodec.Normalize(v)
+	require.NoError(t, err)
+	got, err := simplejsonext.Marshal(normalized)
+	require.NoError(t, err)
+	assert.Equal(t, "[1,-0,NaN]", string(got))
+	assertValue(t, v, parseJSON(t, got), true)
 }

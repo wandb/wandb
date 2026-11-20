@@ -404,7 +404,7 @@ func fixtureValue(t *testing.T, f fixture) (any, bool) {
 		kind, err := historycodec.Kind(v)
 		require.NoError(t, err)
 		require.NotEqual(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
-		_, err = historycodec.AppendJSON(nil, v)
+		_, err = historycodec.Normalize(v)
 		require.NoError(t, err)
 		setPath(root, path.Labels(), v)
 		return true
@@ -438,12 +438,11 @@ func TestUnsupportedValues(t *testing.T) {
 		assert.NotContains(t, err.Error(), "1234567")
 		assert.NotContains(t, err.Error(), "private-value")
 		for _, nested := range []any{v, []any{v}, map[string]any{"private-key": v}} {
-			dst, err := historycodec.AppendJSON([]byte("prefix:"), nested)
+			_, err := historycodec.Normalize(nested)
 			require.Error(t, err)
 			assert.NotContains(t, err.Error(), "1234567")
 			assert.NotContains(t, err.Error(), "private-value")
 			assert.NotContains(t, err.Error(), "private-key")
-			assert.Contains(t, string(dst), "prefix:")
 		}
 	}
 }

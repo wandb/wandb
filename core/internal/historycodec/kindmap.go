@@ -3,8 +3,9 @@
 // a nested subtree is one JSON cell, not a set of flattened keys.
 //
 // Supported values are nil, bool, int64, float64, string, []any and
-// map[string]any. Extended JSON preserves float kinds at every depth,
-// sorts map keys, and replaces each invalid UTF-8 byte with U+FFFD.
+// map[string]any. JSON cells are encoded with simplejsonext.Marshal after
+// Normalize repairs invalid UTF-8. Nested floats use simplejsonext's
+// spelling (1.0 becomes 1), and map key order is unspecified.
 package historycodec
 
 import (
@@ -14,7 +15,7 @@ import (
 )
 
 // Kind returns the wire kind for a normalized value. Containers map to
-// KIND_JSON; their contents are checked recursively by AppendJSON.
+// KIND_JSON; their contents are checked recursively by Normalize.
 // Unsupported types return KIND_UNSPECIFIED and an error.
 func Kind(v any) (filestreamv1.MetricsBatch_Kind, error) {
 	switch v.(type) {
