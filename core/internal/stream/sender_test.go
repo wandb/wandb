@@ -163,24 +163,6 @@ func TestSendExitBeforeRunInitialization(t *testing.T) {
 	}
 }
 
-func TestSendSummaryUpdatesSummaryFile(t *testing.T) {
-	x := makeSender(t, gqlmock.NewMockClient())
-
-	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_Summary{
-			Summary: &spb.SummaryRecord{
-				Update: []*spb.SummaryItem{
-					{Key: "test-key", ValueJson: `"test-value"`},
-				},
-			},
-		},
-	}, nil)
-
-	assert.Equal(t,
-		map[string]any{"test-key": "test-value"},
-		x.Sender.TestOnlyGetSummary().ToNestedMaps())
-}
-
 func TestSendSummaryIgnoresInboundStep(t *testing.T) {
 	fileStream := filestreamtest.NewFakeFileStream()
 	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)

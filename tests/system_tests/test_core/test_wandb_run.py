@@ -1,5 +1,6 @@
 import math
 import os
+import pathlib
 import pickle
 import signal
 import subprocess
@@ -14,6 +15,7 @@ import pytest
 import wandb
 from wandb import env
 from wandb.errors import UsageError
+from wandb.sdk.lib import json_util
 from wandb.sdk.lib.service import service_port_file
 from wandb.util import get_core_path
 
@@ -227,6 +229,24 @@ def test_network_fault_graphql(wandb_backend_spy):
         assert "wandb-summary.json" in uploaded_files
         assert "requirements.txt" in uploaded_files
         assert "config.yaml" in uploaded_files
+
+
+def test_summary_file(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init() as run:
+        run.log({"x": 1})
+        run.define_metric("y", summary="max")
+        run.log({"y": 2})
+        run.summary.update({"z": 3})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["x"] == 1
+        assert summary["y"] == {"max": 2}
+        assert summary["z"] == 3
+
+        assert summary == json_util.loads(
+            pathlib.Path(run.dir, "wandb-summary.jsonl").read_text(),
+        )
 
 
 def test_summary_update(wandb_backend_spy):

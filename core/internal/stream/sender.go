@@ -364,11 +364,6 @@ func (s *Sender) SendRecord(record *spb.Record, request *runwork.Request) {
 	s.sendRecord(record, request)
 }
 
-// TestOnlyGetSummary returns the Sender's accumulated run summary.
-func (s *Sender) TestOnlyGetSummary() *runsummary.RunSummary {
-	return s.runSummary
-}
-
 // sendRecord sends a record
 //
 //gocyclo:ignore
