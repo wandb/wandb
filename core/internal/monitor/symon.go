@@ -26,6 +26,8 @@ const (
 // The sidecar is started by the first Subscribe or Probe call, not by NewSymon.
 // If it exits or its stream ends while subscribed, it is started again and
 // the subscription is reopened.
+//
+// A nil Symon does not start or communicate with wandb-symon.
 type Symon struct {
 	ctx             context.Context
 	resourceManager *SymonResourceManager
@@ -53,6 +55,17 @@ func NewSymon(
 		resourceRef:     resourceManager.Acquire(),
 		logger:          logger,
 	}
+}
+
+// TestOnlyIsSubscribed reports whether an uncancelled subscription exists.
+func (a *Symon) TestOnlyIsSubscribed() bool {
+	if a == nil {
+		return false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.unsubscribe != nil
 }
 
 // Subscribe passes the samples described by request to publish until

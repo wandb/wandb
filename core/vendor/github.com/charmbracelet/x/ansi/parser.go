@@ -354,7 +354,7 @@ func (p *Parser) performAction(action parser.Action, state parser.State, b byte)
 
 	case parser.DispatchAction:
 		// Increment the last parameter
-		if p.paramsLen > 0 && p.paramsLen < len(p.params)-1 ||
+		if p.paramsLen > 0 && p.paramsLen < len(p.params) ||
 			p.paramsLen == 0 && len(p.params) > 0 && p.params[0] != parser.MissingParam {
 			p.paramsLen++
 		}

@@ -212,11 +212,11 @@ func WithLegacyHeaderMatching() ServeMuxOption {
 }
 
 func defaultOutgoingHeaderMatcher(key string) (string, bool) {
-	return fmt.Sprintf("%s%s", MetadataHeaderPrefix, key), true
+	return MetadataHeaderPrefix + key, true
 }
 
 func defaultOutgoingTrailerMatcher(key string) (string, bool) {
-	return fmt.Sprintf("%s%s", MetadataTrailerPrefix, key), true
+	return MetadataTrailerPrefix + key, true
 }
 
 // WithIncomingHeaderMatcher returns a ServeMuxOption representing a headerMatcher for incoming request to gateway.
@@ -489,7 +489,9 @@ func (s *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if override := r.Header.Get("X-HTTP-Method-Override"); override != "" && !s.disableHTTPMethodOverride && s.isPathLengthFallback(r) {
+	// "X-Http-Method-Override" is the canonical spelling; Header.Get allocates a
+	// canonicalised copy of any other, and this lookup happens on every request.
+	if override := r.Header.Get("X-Http-Method-Override"); override != "" && !s.disableHTTPMethodOverride && s.isPathLengthFallback(r) {
 		if err := r.ParseForm(); err != nil {
 			_, outboundMarshaler := MarshalerForRequest(s, r)
 			sterr := status.Error(codes.InvalidArgument, err.Error())
@@ -549,6 +551,14 @@ func (s *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		pathParams, err := h.pat.matchAndEscape(comps, verb, unescapingMode, s.strictDeepWildcard)
 		if err != nil {
+			// ErrNotMatch is returned once for every registered pattern the request does not
+			// match, so it is by far the most common error reaching this branch. Checking it
+			// first keeps errors.As off that path: its target parameter is an any, so &mse is
+			// boxed onto the heap on every call -- one allocation per route a request did not
+			// match, which grows with the number of registered routes.
+			if errors.Is(err, ErrNotMatch) {
+				continue
+			}
 			var mse MalformedSequenceError
 			if ok := errors.As(err, &mse); ok {
 				_, outboundMarshaler := MarshalerForRequest(s, r)
@@ -646,9 +656,12 @@ func (s *ServeMux) GetForwardResponseOptions() []func(context.Context, http.Resp
 }
 
 func (s *ServeMux) isPathLengthFallback(r *http.Request) bool {
+	if s.disablePathLengthFallback || r.Method != http.MethodPost {
+		return false
+	}
 	// Like net/http's ParseForm, ignore parameters such as charset.
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	return !s.disablePathLengthFallback && r.Method == "POST" && err == nil && mediaType == "application/x-www-form-urlencoded"
+	return err == nil && mediaType == "application/x-www-form-urlencoded"
 }
 
 type handler struct {
