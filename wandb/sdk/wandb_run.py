@@ -3449,8 +3449,6 @@ class Run:
             overrides["project"] = self._settings.project or ""
             overrides["base_url"] = self._settings.base_url
 
-        # The run already uses these credentials; re-verifying them here
-        # turns a transient network failure into an AuthenticationError.
         self._cached_public_api = public.Api(
             overrides,
             api_key=self._settings.api_key,
