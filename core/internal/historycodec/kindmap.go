@@ -1,12 +1,12 @@
-// Package historycodec converts between the typed history log schema
-// (spb.HistoryItem) and the filestream wire schema
+// Package historycodec converts the typed history log schema
+// (spb.HistoryItem) to the filestream wire schema
 // (filestreamv1.MetricsBatch).
 //
-// HistoryItem.value is a protobuf oneof with six alternatives. Each
-// alternative maps to exactly one MetricsBatch kind and to a lossless
-// W&B extended JSON representation. These helpers are the conversion
-// contract for the batch builder; they do not change the JSONL upload
-// path.
+// HistoryItem.value is a protobuf oneof with six alternatives.
+// JSON containers retain their raw text; JSON scalars are normalized to
+// scalar wire kinds, and strings replace invalid UTF-8 bytes with U+FFFD.
+// These helpers are the conversion contract for the batch builder; they
+// do not change the JSONL upload path.
 package historycodec
 
 import (
@@ -18,12 +18,13 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// WireKind returns the MetricsBatch kind for the item's typed value.
+// WireKind returns the MetricsBatch kind after normalizing JSON scalars.
 //
 // It returns an error when the item is nil, its value oneof is unset or
-// holds a nil wrapper, the none payload is not NULL_VALUE, or the
-// alternative has no mapping. An unset oneof is not a null value: the
-// caller is responsible for any value_json fallback.
+// holds a nil wrapper, the none payload is not NULL_VALUE, the
+// alternative has no mapping, or a JSON scalar cannot be parsed.
+// An unset oneof is not a null value: the caller is responsible for any
+// value_json fallback.
 func WireKind(item *spb.HistoryItem) (filestreamv1.MetricsBatch_Kind, error) {
 	v, err := decode(item)
 	if err != nil {
@@ -80,14 +81,11 @@ func decode(item *spb.HistoryItem) (value, error) {
 	case *spb.HistoryItem_Text:
 		return value{
 			kind: filestreamv1.MetricsBatch_KIND_STRING,
-			s:    v.Text,
+			s:    normalizeString(v.Text),
 		}, nil
 
 	case *spb.HistoryItem_Json:
-		return value{
-			kind: filestreamv1.MetricsBatch_KIND_JSON,
-			s:    v.Json,
-		}, nil
+		return decodeJSON(v.Json)
 
 	case nil:
 		return value{}, fmt.Errorf("historycodec: value oneof is not set")

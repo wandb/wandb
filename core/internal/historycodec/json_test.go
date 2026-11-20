@@ -3,6 +3,7 @@ package historycodec_test
 import (
 	"math"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,12 +28,19 @@ func TestToExtendedJSON(t *testing.T) {
 
 // TestRoundTrip serializes each fixture through the log wire format,
 // converts the decoded item to extended JSON, and reconstructs a value
-// from the parsed scalar and the declared alternative. It requires the
-// same alternative and the same scalar after the trip.
+// from the parsed scalar and expected wire kind. It requires the
+// normalized value after the trip.
 func TestRoundTrip(t *testing.T) {
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
-			raw, err := proto.Marshal(f.item)
+			source := f.item
+			if text, ok := source.Value.(*spb.HistoryItem_Text); ok && !utf8.ValidString(text.Text) {
+				// Protobuf string fields reject invalid UTF-8 on the log wire.
+				encoded, err := historycodec.ToExtendedJSON(source)
+				require.NoError(t, err)
+				source = reconstruct(t, f, encoded)
+			}
+			raw, err := proto.Marshal(source)
 			require.NoError(t, err)
 			item := &spb.HistoryItem{}
 			require.NoError(t, proto.Unmarshal(raw, item))
@@ -45,14 +53,14 @@ func TestRoundTrip(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, f.json, string(encoded))
 
-			assertSameValue(t, f.item, reconstruct(t, f, encoded))
+			assertSameValue(t, reconstruct(t, f, []byte(f.json)), reconstruct(t, f, encoded))
 		})
 	}
 }
 
 // TestMetricsBatchRoundTrip packs the fixture values into a minimal
 // valid MetricsBatch, one row each, and requires every cell of the
-// decoded batch to carry the original log value.
+// decoded batch to carry the expected normalized value.
 func TestMetricsBatchRoundTrip(t *testing.T) {
 	batch := &filestreamv1.MetricsBatch{
 		Keys:   []string{"metric"},
@@ -61,9 +69,15 @@ func TestMetricsBatchRoundTrip(t *testing.T) {
 	for _, f := range fixtures {
 		batch.RowEnds = append(batch.RowEnds, uint32(len(batch.CellKinds)+1))
 		batch.CellKeys = append(batch.CellKeys, 0)
-		batch.CellKinds = append(batch.CellKinds, f.kind)
+		kind, err := historycodec.WireKind(f.item)
+		require.NoError(t, err)
+		require.Equal(t, f.kind, kind)
+		batch.CellKinds = append(batch.CellKinds, kind)
+		encoded, err := historycodec.ToExtendedJSON(f.item)
+		require.NoError(t, err)
+		converted := reconstruct(t, f, encoded)
 
-		switch v := f.item.Value.(type) {
+		switch v := converted.Value.(type) {
 		case *spb.HistoryItem_None:
 			// KIND_NULL cells have no payload.
 		case *spb.HistoryItem_Boolean:
@@ -125,7 +139,7 @@ func TestMetricsBatchRoundTrip(t *testing.T) {
 			t.Fatalf("cell %d: unexpected kind %v",
 				c, decoded.CellKinds[c])
 		}
-		assertSameValue(t, f.item, got)
+		assertSameValue(t, reconstruct(t, f, []byte(f.json)), got)
 	}
 
 	assert.Len(t, decoded.Floats, floats)
@@ -136,7 +150,7 @@ func TestMetricsBatchRoundTrip(t *testing.T) {
 }
 
 // reconstruct parses encoded extended JSON and wraps the scalar in the
-// fixture's declared alternative: the same information a batch decoder
+// fixture's expected wire kind: the same information a batch decoder
 // has from the cell kind.
 func reconstruct(
 	t *testing.T,
@@ -147,7 +161,7 @@ func reconstruct(
 
 	// Raw JSON is not parsed back; the source kind comes from the cell
 	// kind, and the text must be identical.
-	if f.field == "json" {
+	if f.kind == filestreamv1.MetricsBatch_KIND_JSON {
 		return &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: string(encoded)}}
 	}
@@ -155,35 +169,35 @@ func reconstruct(
 	parsed, err := simplejsonext.Unmarshal(encoded)
 	require.NoError(t, err)
 
-	switch f.field {
-	case "none":
+	switch f.kind {
+	case filestreamv1.MetricsBatch_KIND_NULL:
 		require.Nil(t, parsed)
 		return &spb.HistoryItem{Value: &spb.HistoryItem_None{
 			None: structpb.NullValue_NULL_VALUE}}
-	case "boolean":
+	case filestreamv1.MetricsBatch_KIND_BOOL:
 		v, ok := parsed.(bool)
 		require.True(t, ok, "expected bool, got %T", parsed)
 		return &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{
 			Boolean: v}}
-	case "integer":
+	case filestreamv1.MetricsBatch_KIND_INT:
 		v, ok := parsed.(int64)
 		require.True(t, ok,
 			"integer text must not parse as a float, got %T", parsed)
 		return &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
 			Integer: v}}
-	case "number":
+	case filestreamv1.MetricsBatch_KIND_FLOAT:
 		v, ok := parsed.(float64)
 		require.True(t, ok,
 			"float text lost its kind, parsed as %T", parsed)
 		return &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: v}}
-	case "text":
+	case filestreamv1.MetricsBatch_KIND_STRING:
 		v, ok := parsed.(string)
 		require.True(t, ok, "expected string, got %T", parsed)
 		return &spb.HistoryItem{Value: &spb.HistoryItem_Text{
 			Text: v}}
 	default:
-		t.Fatalf("no reconstruction for alternative %q", f.field)
+		t.Fatalf("no reconstruction for kind %v", f.kind)
 		return nil
 	}
 }

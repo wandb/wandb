@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/wandb/simplejsonext"
 
@@ -12,13 +13,14 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ToExtendedJSON renders the item's typed value as W&B extended JSON.
+// ToExtendedJSON renders the item's normalized value as W&B extended JSON.
 //
 // Extended JSON extends standard JSON with the literals NaN, Infinity
 // and -Infinity. Finite floats always keep a decimal point or an
 // exponent, so the text parses back to a float rather than an integer.
-// The json alternative is emitted verbatim: it must hold valid extended
-// JSON text, and it is preserved byte for byte.
+// JSON containers are preserved byte for byte without validation. JSON
+// scalars render as their matching typed alternatives. Strings replace
+// each invalid UTF-8 byte with U+FFFD.
 //
 // The same inputs rejected by WireKind are errors here.
 func ToExtendedJSON(item *spb.HistoryItem) ([]byte, error) {
@@ -44,6 +46,47 @@ func ToExtendedJSON(item *spb.HistoryItem) ([]byte, error) {
 		return nil, fmt.Errorf(
 			"historycodec: no JSON conversion for %v", v.kind)
 	}
+}
+
+func decodeJSON(s string) (value, error) {
+	trimmed := strings.Trim(s, " \t\r\n")
+	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+		return value{kind: filestreamv1.MetricsBatch_KIND_JSON, s: s}, nil
+	}
+	parsed, err := simplejsonext.UnmarshalString(trimmed)
+	if err != nil {
+		return value{}, fmt.Errorf("historycodec: invalid JSON scalar")
+	}
+	return scalarValue(parsed)
+}
+
+func scalarValue(parsed any) (value, error) {
+	switch v := parsed.(type) {
+	case nil:
+		return value{kind: filestreamv1.MetricsBatch_KIND_NULL}, nil
+	case bool:
+		return value{kind: filestreamv1.MetricsBatch_KIND_BOOL, b: v}, nil
+	case int64:
+		return value{kind: filestreamv1.MetricsBatch_KIND_INT, i: v}, nil
+	case float64:
+		return value{kind: filestreamv1.MetricsBatch_KIND_FLOAT, f: v}, nil
+	case string:
+		return value{kind: filestreamv1.MetricsBatch_KIND_STRING, s: normalizeString(v)}, nil
+	default:
+		return value{}, fmt.Errorf("historycodec: invalid JSON scalar")
+	}
+}
+
+func normalizeString(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // marshalFloat renders f as extended JSON. 'g' with precision -1 is the

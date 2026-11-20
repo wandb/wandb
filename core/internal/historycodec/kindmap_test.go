@@ -16,17 +16,117 @@ import (
 // A fixture declares one test value with its expected wire kind and
 // extended JSON text, independent of the implementation.
 type fixture struct {
-	name  string
-	field string // The item's oneof field name.
-	item  *spb.HistoryItem
-	kind  filestreamv1.MetricsBatch_Kind
-	json  string
+	name string
+	item *spb.HistoryItem
+	kind filestreamv1.MetricsBatch_Kind
+	json string
 }
 
 var fixtures = []fixture{
 	{
-		name:  "none/null",
-		field: "none",
+		name: "json/float",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1.0`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `1.0`,
+	},
+	{
+		name: "json/exact integer",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `9007199254740993`}},
+		kind: filestreamv1.MetricsBatch_KIND_INT,
+		json: `9007199254740993`,
+	},
+	{
+		name: "json/wide integer",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `99999999999999999999`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `1e+20`,
+	},
+	{
+		name: "json/min int64",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-9223372036854775808`}},
+		kind: filestreamv1.MetricsBatch_KIND_INT,
+		json: `-9223372036854775808`,
+	},
+	{
+		name: "json/null",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `null`}},
+		kind: filestreamv1.MetricsBatch_KIND_NULL,
+		json: `null`,
+	},
+	{
+		name: "json/true",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `true`}},
+		kind: filestreamv1.MetricsBatch_KIND_BOOL,
+		json: `true`,
+	},
+	{
+		name: "json/string",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `"s"`}},
+		kind: filestreamv1.MetricsBatch_KIND_STRING,
+		json: `"s"`,
+	},
+	{
+		name: "json/surrogate",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `"\ud800"`}},
+		kind: filestreamv1.MetricsBatch_KIND_STRING,
+		json: `"�"`,
+	},
+	{
+		name: "json/NaN",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `NaN`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `NaN`,
+	},
+	{
+		name: "json/whitespace scalar",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: ` 1 `}},
+		kind: filestreamv1.MetricsBatch_KIND_INT,
+		json: `1`,
+	},
+	{
+		name: "json/fraction",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1.50`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `1.5`,
+	},
+	{
+		name: "json/exponent",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1e2`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `100.0`,
+	},
+	{
+		name: "json/Infinity",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `Infinity`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `Infinity`,
+	},
+	{
+		name: "json/-Infinity",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-Infinity`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `-Infinity`,
+	},
+	{
+		name: "json/overflow boundary",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `9223372036854775808`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `9.223372036854776e+18`,
+	},
+	{
+		name: "json/negative overflow",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-9223372036854775809`}},
+		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
+		json: `-9.223372036854776e+18`,
+	},
+	{
+		name: "text/invalid UTF-8",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{Text: "a\xff\xfeb"}},
+		kind: filestreamv1.MetricsBatch_KIND_STRING,
+		json: `"a��b"`,
+	},
+	{
+		name: "none/null",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_None{
 			None: structpb.NullValue_NULL_VALUE}},
 		kind: filestreamv1.MetricsBatch_KIND_NULL,
@@ -34,16 +134,14 @@ var fixtures = []fixture{
 	},
 
 	{
-		name:  "boolean/false",
-		field: "boolean",
+		name: "boolean/false",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{
 			Boolean: false}},
 		kind: filestreamv1.MetricsBatch_KIND_BOOL,
 		json: "false",
 	},
 	{
-		name:  "boolean/true",
-		field: "boolean",
+		name: "boolean/true",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{
 			Boolean: true}},
 		kind: filestreamv1.MetricsBatch_KIND_BOOL,
@@ -51,40 +149,35 @@ var fixtures = []fixture{
 	},
 
 	{
-		name:  "integer/zero",
-		field: "integer",
+		name: "integer/zero",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
 			Integer: 0}},
 		kind: filestreamv1.MetricsBatch_KIND_INT,
 		json: "0",
 	},
 	{
-		name:  "integer/negative",
-		field: "integer",
+		name: "integer/negative",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
 			Integer: -12345}},
 		kind: filestreamv1.MetricsBatch_KIND_INT,
 		json: "-12345",
 	},
 	{
-		name:  "integer/max int64",
-		field: "integer",
+		name: "integer/max int64",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
 			Integer: math.MaxInt64}},
 		kind: filestreamv1.MetricsBatch_KIND_INT,
 		json: "9223372036854775807",
 	},
 	{
-		name:  "integer/min int64",
-		field: "integer",
+		name: "integer/min int64",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
 			Integer: math.MinInt64}},
 		kind: filestreamv1.MetricsBatch_KIND_INT,
 		json: "-9223372036854775808",
 	},
 	{
-		name:  "integer/above 2^53",
-		field: "integer",
+		name: "integer/above 2^53",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
 			Integer: 1<<53 + 1}},
 		kind: filestreamv1.MetricsBatch_KIND_INT,
@@ -92,48 +185,42 @@ var fixtures = []fixture{
 	},
 
 	{
-		name:  "number/integral value",
-		field: "number",
+		name: "number/integral value",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: 1.0}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "1.0",
 	},
 	{
-		name:  "number/positive zero",
-		field: "number",
+		name: "number/positive zero",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: 0.0}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "0.0",
 	},
 	{
-		name:  "number/negative zero",
-		field: "number",
+		name: "number/negative zero",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: math.Copysign(0, -1)}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "-0.0",
 	},
 	{
-		name:  "number/fraction",
-		field: "number",
+		name: "number/fraction",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: 1.0 / 3.0}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "0.3333333333333333",
 	},
 	{
-		name:  "number/smallest subnormal",
-		field: "number",
+		name: "number/smallest subnormal",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: math.SmallestNonzeroFloat64}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "5e-324",
 	},
 	{
-		name:  "number/largest finite",
-		field: "number",
+		name: "number/largest finite",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: math.MaxFloat64}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
@@ -141,24 +228,21 @@ var fixtures = []fixture{
 	},
 
 	{
-		name:  "number/NaN",
-		field: "number",
+		name: "number/NaN",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: math.NaN()}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "NaN",
 	},
 	{
-		name:  "number/+Infinity",
-		field: "number",
+		name: "number/+Infinity",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: math.Inf(1)}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
 		json: "Infinity",
 	},
 	{
-		name:  "number/-Infinity",
-		field: "number",
+		name: "number/-Infinity",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
 			Number: math.Inf(-1)}},
 		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
@@ -166,24 +250,21 @@ var fixtures = []fixture{
 	},
 
 	{
-		name:  "text/empty",
-		field: "text",
+		name: "text/empty",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
 			Text: ""}},
 		kind: filestreamv1.MetricsBatch_KIND_STRING,
 		json: `""`,
 	},
 	{
-		name:  "text/unicode",
-		field: "text",
+		name: "text/unicode",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
 			Text: "héllo 🌍"}},
 		kind: filestreamv1.MetricsBatch_KIND_STRING,
 		json: `"héllo 🌍"`,
 	},
 	{
-		name:  "text/escapes",
-		field: "text",
+		name: "text/escapes",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
 			Text: "a\"b\\c\n\t\x01"}},
 		kind: filestreamv1.MetricsBatch_KIND_STRING,
@@ -191,64 +272,56 @@ var fixtures = []fixture{
 	},
 
 	{
-		name:  "json/object",
-		field: "json",
+		name: "json/object",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{"a": 1, "b": "x"}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
 		json: `{"a": 1, "b": "x"}`,
 	},
 	{
-		name:  "json/array",
-		field: "json",
+		name: "json/array",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `[1, 2.5, "three", null]`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
 		json: `[1, 2.5, "three", null]`,
 	},
 	{
-		name:  "json/empty object",
-		field: "json",
+		name: "json/empty object",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
 		json: `{}`,
 	},
 	{
-		name:  "json/empty array",
-		field: "json",
+		name: "json/empty array",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `[]`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
 		json: `[]`,
 	},
 	{
-		name:  "json/scalar text",
-		field: "json",
+		name: "json/scalar text",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `"scalar"`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
+		kind: filestreamv1.MetricsBatch_KIND_STRING,
 		json: `"scalar"`,
 	},
 	{
-		name:  "json/whitespace",
-		field: "json",
+		name: "json/whitespace",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: "  {  \"a\" :\n\t [ 1 , 2 ] }  "}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
 		json: "  {  \"a\" :\n\t [ 1 , 2 ] }  ",
 	},
 	{
-		name:  "json/nested non-finite",
-		field: "json",
+		name: "json/nested non-finite",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{"nan": NaN, "pos": Infinity, "neg": -Infinity}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
 		json: `{"nan": NaN, "pos": Infinity, "neg": -Infinity}`,
 	},
 	{
-		name:  "json/int wider than int64",
-		field: "json",
+		name: "json/int wider than int64",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{"big": 123456789012345678901234567890}`}},
 		kind: filestreamv1.MetricsBatch_KIND_JSON,
@@ -266,7 +339,9 @@ func TestOneofCoverage(t *testing.T) {
 
 	covered := make(map[string]int)
 	for _, f := range fixtures {
-		covered[f.field]++
+		field := f.item.ProtoReflect().WhichOneof(oneof)
+		require.NotNil(t, field)
+		covered[string(field.Name())]++
 	}
 
 	fields := oneof.Fields()
@@ -328,5 +403,16 @@ func TestInvalidValues(t *testing.T) {
 			_, err = historycodec.ToExtendedJSON(c.item)
 			assert.Error(t, err)
 		})
+	}
+}
+
+func TestInvalidJSONScalars(t *testing.T) {
+	for _, input := range []string{"", "   ", "1 2", "tru", "9223372036854775808 2"} {
+		item := &spb.HistoryItem{Key: "private-metric", Value: &spb.HistoryItem_Json{Json: input}}
+		kind, err := historycodec.WireKind(item)
+		require.EqualError(t, err, "historycodec: invalid JSON scalar")
+		assert.Equal(t, filestreamv1.MetricsBatch_KIND_UNSPECIFIED, kind)
+		_, err = historycodec.ToExtendedJSON(item)
+		require.EqualError(t, err, "historycodec: invalid JSON scalar")
 	}
 }
