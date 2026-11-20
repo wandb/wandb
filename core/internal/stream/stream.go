@@ -200,7 +200,10 @@ func (s *Stream) maybeSavingToTransactionLog(
 		return work
 	}
 
-	w, err := transactionlog.OpenWriter(s.settings.GetTransactionLogPath())
+	w, err := transactionlog.OpenWriter(
+		s.settings.GetTransactionLogPath(),
+		transactionlog.VersionForSettings(s.settings),
+	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf(
 			"stream: error opening transaction log for writing: %v", err))
