@@ -229,7 +229,7 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	state := fs.initialState(entity, project, offsetMap)
+	state := fs.fetchInitialState(entity, project, offsetMap)
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
 	feedbackChan := fs.startTransmitting(transmitChan, state)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)

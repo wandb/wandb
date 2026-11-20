@@ -43,25 +43,6 @@ func (u *Updates) HasRemovals() bool {
 	return u != nil && !u.remove.IsEmpty()
 }
 
-// SerializeWithoutHistory returns the values set by the updates, except
-// values from run.log(), in the format of [RunSummary.Serialize].
-func (u *Updates) SerializeWithoutHistory() ([]byte, error) {
-	rs := New()
-	if u != nil {
-		u.update.ForEachLeaf(func(path pathtree.TreePath, v updatedValue) bool {
-			if v.fromHistory {
-				return true
-			}
-
-			if value, err := simplejsonext.UnmarshalString(v.json); err == nil {
-				rs.Set(path, value)
-			}
-			return true
-		})
-	}
-	return rs.Serialize()
-}
-
 // NoUpdates returns a mutable Updates instance that makes no changes.
 func NoUpdates() *Updates {
 	return &Updates{
@@ -129,6 +110,12 @@ func (u *Updates) Merge(newUpdates *Updates) {
 // A partial success is possible if some values' JSON strings cannot be
 // unmarshaled.
 func (u *Updates) Apply(rs *RunSummary) error {
+	return u.ApplyWithDelta(rs, nil)
+}
+
+// ApplyWithDelta also copies explicit, non-null values into delta when supplied.
+// Removals still require a full summary.
+func (u *Updates) ApplyWithDelta(rs *RunSummary, delta *pathtree.PathTree[any]) error {
 	if u == nil {
 		return nil
 	}
@@ -144,6 +131,9 @@ func (u *Updates) Apply(rs *RunSummary) error {
 					fmt.Errorf("error in path %s: %v", toDottedPath(path), err))
 			} else {
 				rs.Set(path, value)
+				if delta != nil && !v.fromHistory && value != nil {
+					delta.Set(path, value)
+				}
 			}
 
 			return true

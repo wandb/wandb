@@ -50,7 +50,7 @@ func TestStopState_FeedbackTable(t *testing.T) {
 	}
 }
 
-func TestInitialState_SummaryDelta(t *testing.T) {
+func TestFetchInitialState_SummaryDelta(t *testing.T) {
 	const query = "ProjectAcceptsSummaryDelta"
 	tests := []struct {
 		name    string
@@ -92,7 +92,7 @@ func TestInitialState_SummaryDelta(t *testing.T) {
 					}),
 			}
 
-			state := fs.initialState("entity", "project", nil)
+			state := fs.fetchInitialState("entity", "project", nil)
 
 			assert.Equal(t, tc.want, state.SummaryDelta)
 			assert.True(t, client.AllStubsUsed())
@@ -103,7 +103,7 @@ func TestInitialState_SummaryDelta(t *testing.T) {
 	}
 }
 
-func TestInitialState_SlowFeatureLookupFallsBackToFull(t *testing.T) {
+func TestFetchInitialState_SlowFeatureLookupFallsBackToFull(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		client := gqlmock.NewMockClient()
 		client.StubMatchHang(gqlmock.WithOpName("ServerFeaturesQuery"))
@@ -117,14 +117,14 @@ func TestInitialState_SlowFeatureLookupFallsBackToFull(t *testing.T) {
 		}
 
 		start := time.Now()
-		state := fs.initialState("entity", "project", nil)
+		state := fs.fetchInitialState("entity", "project", nil)
 		assert.False(t, state.SummaryDelta)
 		assert.Equal(t, summaryDeltaQueryTimeout, time.Since(start))
 		assert.Len(t, client.AllRequests(), 1)
 	})
 }
 
-func TestInitialState_NoGraphqlClient(t *testing.T) {
+func TestFetchInitialState_NoGraphqlClient(t *testing.T) {
 	fs := &fileStream{
 		beforeRunEndCtx: t.Context(),
 		settings:        settings.New(),
@@ -134,7 +134,7 @@ func TestInitialState_NoGraphqlClient(t *testing.T) {
 			}),
 	}
 
-	state := fs.initialState("entity", "project", FileStreamOffsetMap{
+	state := fs.fetchInitialState("entity", "project", FileStreamOffsetMap{
 		HistoryChunk: 7,
 	})
 

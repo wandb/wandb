@@ -1,6 +1,7 @@
 package filestream_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,11 +21,9 @@ func pop(
 	state *FileStreamState,
 	request *FileStreamRequest,
 ) (*FileStreamRequestJSON, bool) {
-	return state.Pop(
-		request,
-		observabilitytest.NewTestLogger(t),
-		observability.NewPrinter(0),
-	)
+	state.Logger = observabilitytest.NewTestLogger(t)
+	state.Printer = observability.NewPrinter(0)
+	return state.Pop(request)
 }
 
 func TestState_IsAtSizeLimit_NotAtLimit(t *testing.T) {
@@ -193,15 +192,18 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 
 func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
+	state.Logger = logger
 	request := &FileStreamRequest{}
 	request.HistoryLines = []string{"the history"}
 	request.SummaryUpdates = runsummary.FromProto(&spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{Key: "key", ValueJson: `"value"`},
+			{Key: "bad", ValueJson: "invalid"},
 		},
 	})
 
-	json, hasMore := pop(t, state, request)
+	json, hasMore := state.Pop(request)
 
 	assert.True(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
@@ -209,14 +211,20 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	assert.Equal(t, 15, state.LastRunSummarySize)
 	assert.Equal(t, 7, state.SummaryLineNum)
 
-	// The summary goes out once there is room.
-	json, hasMore = pop(t, state, request)
+	// History-only arrivals leave the already encoded summary valid.
+	request.Merge(&FileStreamRequest{HistoryLines: []string{"more history"}})
+	json, hasMore = state.Pop(request)
+	assert.True(t, hasMore)
+	assert.NotContains(t, json.Files, SummaryFileName)
+
+	json, hasMore = state.Pop(request)
 
 	assert.False(t, hasMore)
 	assert.Equal(t,
 		[]string{`{"key":"value"}`},
 		json.Files[SummaryFileName].Content)
 	assert.Nil(t, request.SummaryUpdates)
+	assert.Equal(t, 1, strings.Count(logs.String(), "error in path bad"))
 }
 
 func TestState_Pop_SummaryLineTooLong(t *testing.T) {
@@ -225,7 +233,8 @@ func TestState_Pop_SummaryLineTooLong(t *testing.T) {
 	logger, logs := observabilitytest.NewRecordingTestLogger(t)
 	printer := observability.NewPrinter(100)
 
-	json, hasMore := state.Pop(request, logger, printer)
+	state.Logger, state.Printer = logger, printer
+	json, hasMore := state.Pop(request)
 
 	assert.False(t, hasMore)
 	assert.NotContains(t, json.Files, SummaryFileName)
@@ -330,7 +339,7 @@ func TestState_Pop_Preempting(t *testing.T) {
 }
 
 func TestState_Pop_ExitCode(t *testing.T) {
-	state := deltaState()
+	state := &FileStreamState{}
 	request := &FileStreamRequest{}
 	request.Complete = true
 	request.ExitCode = 1
@@ -340,11 +349,8 @@ func TestState_Pop_ExitCode(t *testing.T) {
 	assert.False(t, hasMore)
 	assert.True(t, *json.Complete)
 	assert.EqualValues(t, 1, *json.ExitCode)
-	assert.Empty(t, json.Files)
-
-	json, _ = pop(t, state, request)
-	assert.Nil(t, json.Complete)
-	assert.Nil(t, json.ExitCode)
+	assert.True(t, request.Complete)           // not changed
+	assert.EqualValues(t, 1, request.ExitCode) // not changed
 }
 
 func TestState_Pop_NoExitCodeIfNotComplete(t *testing.T) {
@@ -467,19 +473,34 @@ func TestState_Pop_FinalCheckpoint(t *testing.T) {
 	const history = `{"acc":0.6}`
 	const delta = `{"best":0.7}`
 	const full = `{"acc":0.6,"best":0.7}`
+	type chunk map[string]string
 	for _, tc := range []struct {
-		name      string
-		lineLimit int
-		wantFull  bool
+		name                    string
+		requestLimit, lineLimit int
+		chunks                  []chunk
 	}{
-		{"checkpoint fits", len(full), true},
-		{"only the delta fits", len(delta), false},
+		{"shares last request", len(full) + len("done"), len(full), []chunk{
+			{HistoryFileName: history, SummaryFileName: delta}, {OutputFileName: "done", SummaryFileName: full},
+		}},
+		{"waits for room", len(delta), len(full), []chunk{
+			{HistoryFileName: history}, {SummaryFileName: delta}, {OutputFileName: "done"}, {SummaryFileName: full},
+		}},
+		{"checkpoint too large", len(delta), len(delta), []chunk{
+			{HistoryFileName: history}, {SummaryFileName: delta}, {OutputFileName: "done"},
+		}},
+		{"delta already occupies summary line", 999, len(full), []chunk{
+			{HistoryFileName: history, SummaryFileName: delta, OutputFileName: "done"}, {SummaryFileName: full},
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			state := deltaState()
-			state.MaxRequestSizeBytes = len(delta)
-			state.MaxFileLineSize = tc.lineLimit
-
+			logger, logs := observabilitytest.NewRecordingTestLogger(t)
+			state := &FileStreamState{
+				SummaryDelta:        true,
+				Logger:              logger,
+				Printer:             observability.NewPrinter(10),
+				MaxRequestSizeBytes: tc.requestLimit,
+				MaxFileLineSize:     tc.lineLimit,
+			}
 			request := &FileStreamRequest{
 				HistoryLines: []string{history},
 				SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
@@ -494,30 +515,31 @@ func TestState_Pop_FinalCheckpoint(t *testing.T) {
 			}
 			request.ConsoleLines.Put(0, "done")
 
-			for _, chunk := range []struct{ file, line string }{
-				{HistoryFileName, history},
-				{SummaryFileName, delta},
-				{OutputFileName, "done"},
-			} {
-				json, more := pop(t, state, request)
-				require.True(t, more)
-				assert.Nil(t, json.Complete)
-				assert.Equal(t, chunk.file == SummaryFileName, json.SummaryDelta)
-				require.Len(t, json.Files, 1)
-				assert.Equal(t, []string{chunk.line}, json.Files[chunk.file].Content)
+			for i, files := range tc.chunks {
+				final := i == len(tc.chunks)-1
+				json, more := state.Pop(request)
+				require.Equal(t, !final, more)
+				require.Len(t, json.Files, len(files))
+				for file, wantLine := range files {
+					lines := json.Files[file].Content
+					require.Len(t, lines, 1, file)
+					if file == SummaryFileName {
+						assert.JSONEq(t, wantLine, lines[0])
+					} else {
+						assert.Equal(t, wantLine, lines[0])
+					}
+				}
+				assert.Equal(t, files[SummaryFileName] == delta, json.SummaryDelta)
+				if final {
+					assert.Equal(t, new(true), json.Complete)
+					assert.Equal(t, new(int32(5)), json.ExitCode)
+				} else {
+					assert.Nil(t, json.Complete)
+				}
 			}
-
-			json, more := pop(t, state, request)
-			assert.False(t, more)
-			assert.Equal(t, new(true), json.Complete)
-			assert.Equal(t, new(int32(5)), json.ExitCode)
-			assert.False(t, json.SummaryDelta)
-			if tc.wantFull {
-				lines := json.Files[SummaryFileName].Content
-				require.Len(t, lines, 1)
-				assert.JSONEq(t, full, lines[0])
-			} else {
-				assert.Empty(t, json.Files)
+			assert.Empty(t, state.Printer.Read())
+			if tc.lineLimit < len(full) {
+				assert.Contains(t, logs.String(), "run summary line too long")
 			}
 		})
 	}
