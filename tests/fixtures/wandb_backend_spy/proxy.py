@@ -100,6 +100,12 @@ _RELAYABLE_REQUEST_HEADERS = {
 }
 _RELAYABLE_RESPONSE_HEADERS = {"content-type"}
 
+CES_PATH = "/evaluations"
+"""The path of the proxy's fake CoreWeave Evaluation Service (CES).
+
+The proxy answers CES requests itself, since the local W&B server has no CES.
+"""
+
 
 class WandbBackendProxy:
     """An object that can be used to insert spies into the W&B backend proxy."""
@@ -118,6 +124,11 @@ class WandbBackendProxy:
         self._target_port = target_port
         self._spy: WandbBackendSpy | None = None
         self.port = local_port
+
+    @property
+    def ces_base_url(self) -> str:
+        """The base URL of the proxy's fake CES, for WANDB_CES_BASE_URL."""
+        return f"http://127.0.0.1:{self.port}{CES_PATH}"
 
     @contextlib.contextmanager
     def spy(self) -> Generator[WandbBackendSpy]:
@@ -148,6 +159,7 @@ class WandbBackendProxy:
         app.post(
             "/files/{entity}/{project}/{run_id}/file_stream",
         )(self._post_file_stream)
+        app.post(f"{CES_PATH}/{{path:path}}")(self._post_ces)
 
         return app
 
@@ -231,3 +243,18 @@ class WandbBackendProxy:
             )
 
         return response
+
+    async def _post_ces(self, request: fastapi.Request, path: str) -> fastapi.Response:
+        """Handle a request to the fake CES, which only exists with a spy."""
+        with self._lock:
+            spy = self._spy
+
+        if not spy:
+            return fastapi.Response(status_code=404)
+
+        return spy.post_ces(
+            await request.body(),
+            method=request.method,
+            path=request.url.path,
+            idempotency_key=request.headers.get("idempotency-key"),
+        )
