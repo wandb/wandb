@@ -16,6 +16,8 @@ class WriteRow:
     inputs: Mapping[ColumnKey, Any]
     output: Mapping[ColumnKey, Any] | None
     scores: Mapping[ColumnKey, Any]
+    # Identifies the row's example for comparisons, if the table has a key column.
+    example_key: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

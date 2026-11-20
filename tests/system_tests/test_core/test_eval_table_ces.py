@@ -22,11 +22,13 @@ _ROWS = [
         "input": {"question": "2+2"},
         "output": {"answer": "4"},
         "scores": {"correct": True, "confidence": 0.9},
+        "example_key": "q1",
     },
     {
         "input": {"question": "3+3"},
         "output": {"answer": "5"},
         "scores": {"correct": False, "confidence": 0.25},
+        "example_key": "q2",
     },
 ]
 
@@ -49,14 +51,15 @@ def _log_eval_table() -> wandb.Run:
         run.log(
             {
                 "eval": wandb.EvalTable(
-                    columns=["question", "answer", "correct", "confidence"],
+                    columns=["id", "question", "answer", "correct", "confidence"],
                     data=[
-                        ["2+2", "4", True, 0.9],
-                        ["3+3", "5", False, 0.25],
+                        ["q1", "2+2", "4", True, 0.9],
+                        ["q2", "3+3", "5", False, 0.25],
                     ],
                     input_columns=["question"],
                     output_columns=["answer"],
                     score_columns=["correct", "confidence"],
+                    key_column="id",
                     backend="ces",
                 )
             }
@@ -115,7 +118,7 @@ def _assert_logged_to_ces(wandb_backend_spy, run: wandb.Run) -> None:
     assert history[0]["eval"] == {
         "_type": "eval-table-ces",
         "schema_version": 1,
-        "ncols": 4,
+        "ncols": 5,
         "nrows": 2,
         "log_mode": "IMMUTABLE",
         "evaluation_id": "eval-id",

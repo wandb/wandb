@@ -27,6 +27,11 @@ def test_eval_table_rejects_unknown_backend():
         wandb.EvalTable(columns=["x"], backend="unknown")
 
 
+def test_eval_table_key_column_requires_ces_backend():
+    with pytest.raises(UsageError, match="key_column requires backend='ces'"):
+        wandb.EvalTable(columns=["id"], data=[["q1"]], key_column="id")
+
+
 def test_to_json_requires_bind(mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
     table = wandb.EvalTable(columns=["out"], data=[["x"]], backend="ces")
