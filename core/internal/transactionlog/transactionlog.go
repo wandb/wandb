@@ -1,33 +1,41 @@
 // Package transactionlog implements reading and writing .wandb files.
 package transactionlog
 
-// wandbStoreVersion is written into .wandb file headers.
+import (
+	"errors"
+
+	"github.com/wandb/wandb/core/internal/settings"
+)
+
+// VersionForSettings returns the version for a transaction log (.wandb file)
+// written with the given settings.
 //
-// Incrementing this prevents older SDKs from attempting to read .wandb
-// files in a new format. It may also prevent the next SDK version from reading
-// old .wandb files, depending on the implementation of ensureSupportedVersion.
-// Update the error messages below.
-const wandbStoreVersion = 0
-
-// UnsupportedVersionError reports a file version that this SDK cannot read.
-type UnsupportedVersionError struct {
-	Version uint8
-}
-
-// Error omits the package prefix because sync shows this message to users.
-// The file version does not identify which SDK version the reader needs.
-func (e *UnsupportedVersionError) Error() string {
-	if e.Version > wandbStoreVersion {
-		return "a newer wandb version is required to read this file"
+// The current SDK supports transaction log versions 0 and 1.
+//
+// Version 0 MUST include JSON history values for backwards compatibility, and
+// MAY include typed history values as well. Older SDKs can still read version 0
+// files, but they will not interpret typed history values.
+//
+// Version 1 MUST include typed history values only, and omits JSON history
+// values. This is not compatible with SDKs versions that predate typed history
+// values, which will reject version 1 files.
+func VersionForSettings(s *settings.Settings) uint8 {
+	if s.IsHistoryValueEncodingJSON() {
+		return 0
 	}
-
-	return "an older wandb version is required to read this file"
+	return 1 // typed history values only
 }
 
 // ensureSupportedVersion returns an error for an unsupported version.
+//
+// The error does not have the conventional prefix ("transactionlog:") and one
+// should not be added because that would add noise. The message is shown to
+// the user when using `wandb sync`.
 func ensureSupportedVersion(version uint8) error {
-	if version != wandbStoreVersion {
-		return &UnsupportedVersionError{Version: version}
+	switch {
+	case version <= 1:
+		return nil
+	default:
+		return errors.New("a newer wandb version is required to read this file")
 	}
-	return nil
 }
