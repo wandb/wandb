@@ -1,5 +1,6 @@
 """telemetry lib tests."""
 
+import random
 import threading
 from unittest.mock import MagicMock
 
@@ -178,6 +179,30 @@ def test_proxy_noop_after_disable(monkeypatch):
     proxy.log("test log")
     meter_provider.get_meter.assert_not_called()
     logger_provider.get_logger.assert_not_called()
+
+
+def test_export_leaves_global_random_state_alone(monkeypatch):
+    monkeypatch.setattr(opentelemetry_proxy, "_disabled", threading.Event())
+    proxy = OpenTelemetryProxy(settings=Settings(base_url="http://localhost"))
+    proxy._session = MagicMock()
+    proxy._session.post.return_value = MagicMock(status_code=200, ok=True)
+    state = random.getstate()
+
+    proxy.increment_counter("test_counter")
+    proxy.log("test log")
+    proxy.shutdown()
+
+    random_state_moved = random.getstate() != state
+    assert not random_state_moved
+    exported_to = {
+        call.args[0]
+        for call in proxy._session.post.call_args_list
+        if "data" in call.kwargs
+    }
+    assert exported_to == {
+        "http://localhost/sdk/otel/v1/metrics",
+        "http://localhost/sdk/otel/v1/logs",
+    }
 
 
 def test_add_to_counter(monkeypatch):

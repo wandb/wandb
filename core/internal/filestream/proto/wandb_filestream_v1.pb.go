@@ -31,9 +31,8 @@ const (
 	MetricsBatch_KIND_INT         MetricsBatch_Kind = 3
 	MetricsBatch_KIND_BOOL        MetricsBatch_Kind = 4
 	MetricsBatch_KIND_STRING      MetricsBatch_Kind = 5
-	// Anything not representable in the other five kinds, kept as JSON text.
-	// Nested values are represented as `KIND_JSON` cells under their
-	// top-level key.
+	// An object or array, kept as JSON text under its top-level key.
+	// The server rejects a scalar.
 	MetricsBatch_KIND_JSON MetricsBatch_Kind = 6
 )
 
