@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -464,9 +465,19 @@ func TestUpload_SplitsRowsIntoBatches(t *testing.T) {
 			wantBatches: []int{7, 3},
 		},
 		{
-			name:        "by row count",
-			rows:        outputRows(10_001, 0),
-			wantBatches: []int{10_000, 1},
+			name:        "a tenth of the table",
+			rows:        outputRows(25_000, 0),
+			wantBatches: slices.Repeat([]int{2_500}, 10),
+		},
+		{
+			name:        "at least 1,000 rows",
+			rows:        outputRows(2_500, 0),
+			wantBatches: []int{1_000, 1_000, 500},
+		},
+		{
+			name:        "at most 10,000 rows",
+			rows:        outputRows(100_001, 0),
+			wantBatches: append(slices.Repeat([]int{10_000}, 10), 1),
 		},
 	}
 
