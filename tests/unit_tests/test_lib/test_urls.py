@@ -48,3 +48,18 @@ def test_normalize_forge_base_url():
         urls.normalize_forge_base_url("https://forge.coreweave.com/api/wandb/")
         == urls.DEFAULT_BASE_URL
     )
+
+
+@pytest.mark.parametrize(
+    "api_url, ces_url",
+    [
+        ("https://api.wandb.ai", "https://evaluations.wandb.ai"),
+        ("https://api.forge.coreweave.com", "https://evaluations.wandb.ai"),
+        ("https://api.qa.wandb.ai", "https://evaluations.qa.wandb.ai"),
+        ("https://api.qa.forge.coreweave.com", "https://evaluations.qa.wandb.ai"),
+        ("https://wandb.example.com", "https://wandb.example.com/evaluations"),
+        ("https://example.com/wandb/", "https://example.com/wandb/evaluations"),
+    ],
+)
+def test_api_to_ces_url(api_url: str, ces_url: str):
+    assert urls.api_to_ces_url(api_url) == ces_url
