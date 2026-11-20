@@ -102,7 +102,7 @@ type FileStreamRequestJSON struct {
 	Files        map[string]OffsetAndContent `json:"files,omitempty"`
 	Uploaded     []string                    `json:"uploaded,omitempty"`
 	Preempting   *bool                       `json:"preempting,omitempty"`
-	SummaryDelta *bool                       `json:"summary_delta,omitempty"`
+	SummaryDelta bool                        `json:"summary_delta,omitempty"`
 
 	Complete *bool  `json:"complete,omitempty"`
 	ExitCode *int32 `json:"exitcode,omitempty"`

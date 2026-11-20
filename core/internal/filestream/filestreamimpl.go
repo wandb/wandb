@@ -91,11 +91,7 @@ func (fs *fileStream) initialState(
 // acceptsSummaryDelta asks the backend whether the project accepts summary
 // deltas. It returns false if it can't get an answer in time.
 func (fs *fileStream) acceptsSummaryDelta(entity, project string) bool {
-	if fs.graphqlClient == nil ||
-		!fs.featureProvider.Enabled(
-			fs.beforeRunEndCtx,
-			spb.ServerFeature_FILESTREAM_SUMMARY_DELTA,
-		) {
+	if fs.graphqlClient == nil {
 		return false
 	}
 
@@ -105,6 +101,10 @@ func (fs *fileStream) acceptsSummaryDelta(entity, project string) bool {
 		summaryDeltaQueryTimeout,
 	)
 	defer cancel()
+
+	if !fs.featureProvider.Enabled(ctx, spb.ServerFeature_FILESTREAM_SUMMARY_DELTA) {
+		return false
+	}
 
 	response, err := gql.ProjectAcceptsSummaryDelta(
 		ctx,

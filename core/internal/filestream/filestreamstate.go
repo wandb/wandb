@@ -107,10 +107,8 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	s.popConsoleLines(builder, request)
-
-	// Last of the files, so that popSummary knows whether any data remains.
 	s.popSummary(builder, request, logger, printer)
+	s.popConsoleLines(builder, request)
 
 	s.popUploadedFiles(builder, request)
 	s.popPreempting(builder, request)
@@ -184,15 +182,14 @@ func (s *FileStreamState) popEvents(
 // popSummary adds the summary to the request if it changed.
 //
 // In delta mode, it sends only the changes that aren't values from history.
-// A change that removes a key and the end of the stream send the full summary.
+// A change that removes a key requires the full summary.
 func (s *FileStreamState) popSummary(
 	builder *requestJSONBuilder,
 	request *FileStreamRequest,
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) {
-	final := s.SummaryDelta && request.Complete && !builder.HasMore
-	if request.SummaryUpdates.IsEmpty() && (!final || s.RunSummary == nil) {
+	if request.SummaryUpdates.IsEmpty() {
 		return
 	}
 
@@ -211,8 +208,7 @@ func (s *FileStreamState) popSummary(
 		)
 	}
 
-	isDelta := s.SummaryDelta && !final &&
-		!request.SummaryUpdates.HasRemovals()
+	isDelta := s.SummaryDelta && !request.SummaryUpdates.HasRemovals()
 
 	var summaryJSON []byte
 	if isDelta {
@@ -353,7 +349,7 @@ func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 	}
 	if len(x.SummaryChunk.Content) > 0 {
 		json.Files[SummaryFileName] = x.SummaryChunk
-		json.SummaryDelta = nullify.NilIfZero(x.SummaryDelta)
+		json.SummaryDelta = x.SummaryDelta
 	}
 	if len(x.ConsoleLinesChunk.Content) > 0 {
 		json.Files[OutputFileName] = x.ConsoleLinesChunk

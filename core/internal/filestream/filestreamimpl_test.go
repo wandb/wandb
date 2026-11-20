@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -99,6 +101,27 @@ func TestInitialState_SummaryDelta(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitialState_SlowFeatureLookupFallsBackToFull(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := gqlmock.NewMockClient()
+		client.StubMatchHang(gqlmock.WithOpName("ServerFeaturesQuery"))
+		logger := observabilitytest.NewTestLogger(t)
+		fs := &fileStream{
+			beforeRunEndCtx: t.Context(),
+			settings:        settings.New(),
+			logger:          logger,
+			graphqlClient:   client,
+			featureProvider: featurechecker.New(client, logger),
+		}
+
+		start := time.Now()
+		state := fs.initialState("entity", "project", nil)
+		assert.False(t, state.SummaryDelta)
+		assert.Equal(t, summaryDeltaQueryTimeout, time.Since(start))
+		assert.Len(t, client.AllRequests(), 1)
+	})
 }
 
 func TestInitialState_NoGraphqlClient(t *testing.T) {
