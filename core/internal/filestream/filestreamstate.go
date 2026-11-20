@@ -186,6 +186,12 @@ func (s *FileStreamState) popSummary(
 	logger *observability.CoreLogger,
 	printer *observability.Printer,
 ) {
+	// In delta mode, send buffered history first so a later row can't
+	// overwrite an explicit summary value.
+	if s.SummaryDelta && len(request.HistoryLines) > 0 {
+		return
+	}
+
 	updates := request.SummaryUpdates
 	isDelta := s.SummaryDelta && !checkpoint && !updates.HasRemovals()
 	line := request.deferredSummary
