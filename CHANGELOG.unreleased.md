@@ -14,40 +14,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Added
-
-- In W&B LEET TUI, `wandb leet <project-url>` browses the runs of a W&B project, Esc on a run opened by its URL goes to its project, and remote runs that are still running update every 15 seconds (@jacobromero, @dmitryduev in https://github.com/wandb/wandb/pull/12942)
-- LEET shows the system metrics of runs opened from a W&B server with `wandb leet <run-url>` or from a project view (@jacobromero, @dmitryduev in https://github.com/wandb/wandb/pull/13217)
-- In LEET, the system metrics of a remote run that is still running update every 15 seconds along with its history (@dmitryduev in https://github.com/wandb/wandb/pull/13219)
-- The TPU system metadata of runs on multi-host or multislice GKE TPU pods now includes the host's worker index and count within its slice and the slice index and count (`tpu.worker_id`, `tpu.worker_count`, `tpu.slice_id`, `tpu.num_slices`), read from the `TPU_WORKER_ID`, `TPU_WORKER_HOSTNAMES`, `MEGASCALE_SLICE_ID` and `MEGASCALE_NUM_SLICES` environment variables (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
-- System metrics and hardware metadata are collected on Google TPU 8t and TPU 8i hosts (@dmitryduev in https://github.com/wandb/wandb/pull/13340)
-- The automations API supports sandbox events: `OnSandboxState` fires when a W&B sandbox in a project or team is created, completes or fails, filtered with `SandboxEvent.state` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13281)
-- `backup_sync_dir_fn` setting to run a function when during `run.finish` this can be used to save run sync data when a run is complete or gets cancelled (@jacobromero in https://github.com/wandb/wandb/pull/13371)
-- `wandb leet`: `shift+↑` and `shift+↓` scroll the rows of a heatmap system chart that has more series than fit, so every CPU core or GPU can be inspected (@dmitryduev in https://github.com/wandb/wandb/pull/13189)
-
-### Changed
-
-- Unparseable automations are skipped when listing automations via `Api.automations()` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13287)
-- Identity token logins now stay signed in after the identity token has been used, when the JWT issuer is configured to allow it: the W&B server returns a refresh token that renews the access token until the issuer's session timeout (@ckacal in https://github.com/wandb/wandb/pull/13082)
-
 ### Fixed
 
-- `wandb-core` now attempts to finish active runs for up to 30 seconds after receiving SIGTERM before exiting (@jacobromero in https://github.com/wandb/wandb/pull/13374)
-- `Artifact.link()` and `Run.link_artifact()` warn when the target collection name contains `:` (for example `my-coll:prod`) and point to the `aliases` argument for adding aliases (@mrobers1982 in https://github.com/wandb/wandb/pull/13321)
-- `Api.automations()` lists push notification automations (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13282)
-- Installing `wandb` from source on Android (Termux) now builds for Android instead of failing on a glibc Linux Rust target (@dmitryduev in https://github.com/wandb/wandb/pull/13289)
-- Launch agents in secure mode now reject jobs with SageMaker or Vertex resource arguments (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13202)
-- In LEET, a remote run opened before it logged any history did not update its state, summary or system metrics while it was running (@dmitryduev in https://github.com/wandb/wandb/pull/13221)
-- `wandb leet symon` scaled the GPU PCIe and NVLink throughput charts and the Trainium memory charts by 1024³ on top of the bytes that the monitor reports, so their y-axis labels read like `7.67e+09GB/s` instead of `7.67GB/s` (@dmitryduev in https://github.com/wandb/wandb/pull/13191)
-- System metrics were not collected when `TMPDIR` was longer than about 60 characters or on a filesystem without Unix socket support (@dmitryduev in https://github.com/wandb/wandb/pull/13200)
-- System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
-- Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
-- `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
-- `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
-- `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
-- A script that seeds Python's `random` module got a different sequence of random numbers from run to run after `wandb.init()`, which made seeded training runs non-reproducible since 0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/13407 and https://github.com/wandb/wandb/pull/13408)
 - `wandb.sklearn.plot_silhouette` now plots every cluster, including noise (`-1`) and labels that do not start at 0 (@David-Wu1119 in https://github.com/wandb/wandb/pull/13116)
-
-### Security
-
-- Updated the `wandb/launch-agent` image base to a `chainguard-base` build with a patched Brotli (1.2.1) to address CVE-2026-111497, and bumped the Go build toolchain to 1.27.4

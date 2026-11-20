@@ -30,7 +30,7 @@ env:
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04-2-cores
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -366,12 +366,12 @@ jobs:
             python-arch: x64
           - os: windows-2022
             python-arch: x64
-          - os: macos-14
+          - os: macos-15
             python-arch: arm64
           # Native Intel runner, exercising the macosx x86_64 wheel. The
           # darwin-x64 CPython builds from actions/python-versions target
           # macOS 15 and link Homebrew's /usr/local gettext, so they no
-          # longer run under Rosetta on the arm64 macos-14 image.
+          # longer run under Rosetta on the arm64 macos-15 image.
           - os: macos-15-intel
             python-arch: x64
 
@@ -426,7 +426,7 @@ jobs:
   create-dev-branch:
     name: Create dev branch and PR
     needs: pypi-publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     if: ${{ inputs.mode == 'release' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -473,7 +473,7 @@ jobs:
   publish-release-notes:
     name: Publish Release Notes
     needs: pypi-publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     if: ${{ inputs.mode == 'release' }}
     steps:
       - name: Checkout
@@ -529,7 +529,7 @@ jobs:
   notify-core:
     if: ${{ inputs.mode != 'test-release' }}
     name: notify wandb/core of release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-2-cores
     timeout-minutes: 10
     needs: [pypi-publish]
 
