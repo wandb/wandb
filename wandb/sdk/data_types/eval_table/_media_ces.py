@@ -20,13 +20,13 @@ import pathlib
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypeVar
 from urllib.parse import quote
 
 from wandb import util
 from wandb.errors import UsageError
 from wandb.sdk.data_types.audio import Audio
-from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.data_types.base_types.media import Media, _overlay_singleton_key
 from wandb.sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
 from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.data_types.image import Image
@@ -52,6 +52,7 @@ CESExtensionType = Literal["wandb-image", "wandb-audio", "wandb-video"]
 _MediaFieldSource = Literal["inputs", "outputs"]
 _DIGEST_PATH_LENGTH = 30
 _MediaT = TypeVar("_MediaT", bound=Media)
+_ImageOverlay: TypeAlias = ImageMask | BoundingBoxes2D
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,7 @@ class EvalTableMediaField:
 
     def singleton_key(self, overlay_key: str) -> str:
         media_key = f"{self.eval_table_key}/{self.source}/{self.column_name}"
-        return f"{media_key}_wandb_delimeter_{overlay_key}"
+        return _overlay_singleton_key(media_key, overlay_key)
 
 
 def _add_missing_class_labels(
@@ -107,7 +108,7 @@ class ClassLabelAccumulator:
 
     def add(
         self,
-        media: Media,
+        overlay: _ImageOverlay,
         field: EvalTableMediaField,
         overlay_key: str,
         class_labels: dict[int | str, str] | None,
@@ -115,14 +116,10 @@ class ClassLabelAccumulator:
         if class_labels is None:
             return
 
-        if isinstance(media, BoundingBoxes2D):
-            singleton_type = "bounding_box/class_labels"
-        elif isinstance(media, ImageMask):
-            singleton_type = "mask/class_labels"
-        else:
-            return
-
-        key = (singleton_type, field.singleton_key(overlay_key))
+        key = (
+            overlay._class_labels_singleton_type,
+            field.singleton_key(overlay_key),
+        )
         _add_missing_class_labels(self._labels.setdefault(key, {}), class_labels)
 
     def flush(self, run: Run) -> None:
@@ -269,9 +266,9 @@ def _unbound_copy(media: _MediaT) -> _MediaT:
 
 
 # Keyed by the Image's overlay dict key, which `Image.to_json` emits and the
-# frontend joins labels on. Path-backed masks never set their own `_key`.
-def _image_overlays(image: Image) -> list[tuple[str, Media]]:
-    overlays: list[tuple[str, Media]] = []
+# frontend joins labels on. A prebuilt overlay's own `_key` can differ from it.
+def _image_overlays(image: Image) -> list[tuple[str, _ImageOverlay]]:
+    overlays: list[tuple[str, _ImageOverlay]] = []
     if image._boxes:
         overlays.extend(image._boxes.items())
     if image._masks:
@@ -509,27 +506,15 @@ SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = tuple(
 
 
 def _overlay_class_labels(
-    media: Media | None,
+    overlay: _ImageOverlay,
     image_classes: Classes | None,
 ) -> dict[int | str, str] | None:
-    if isinstance(media, ImageMask):
-        if media._class_labels is not None:
-            return media._class_labels
-        # Path-backed and artifact-rehydrated masks carry no labels of their own.
-        return _image_class_labels(image_classes)
-    if isinstance(media, BoundingBoxes2D):
-        return _box_class_labels(media, image_classes)
-    return None
-
-
-def _image_class_labels(
-    image_classes: Classes | None,
-) -> dict[int | str, str] | None:
-    if image_classes is None:
-        return None
-    return {
-        class_item["id"]: class_item["name"] for class_item in image_classes._class_set
-    }
+    if isinstance(overlay, BoundingBoxes2D):
+        return _box_class_labels(overlay, image_classes)
+    if overlay._class_labels is not None:
+        return overlay._class_labels
+    # Path-backed and artifact-rehydrated masks carry no labels of their own.
+    return image_classes._labels_by_id() if image_classes is not None else None
 
 
 def _box_class_labels(
@@ -543,7 +528,7 @@ def _box_class_labels(
     if not labels_are_generated or image_classes is None:
         return class_labels
 
-    parent_labels = _image_class_labels(image_classes) or {}
+    parent_labels = image_classes._labels_by_id()
     return {
         class_id: parent_labels.get(class_id, name)
         for class_id, name in class_labels.items()

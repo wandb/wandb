@@ -9,7 +9,7 @@ from wandb import util
 from wandb.sdk.lib import runid
 
 from .._private import MEDIA_TMP
-from ..base_types.media import Media
+from ..base_types.media import Media, _overlay_singleton_key
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
@@ -127,6 +127,7 @@ class ImageMask(Media):
     """
 
     _log_type = "mask"
+    _class_labels_singleton_type = "mask/class_labels"
 
     def __init__(self, val: dict, key: str) -> None:
         """Initialize an ImageMask object.
@@ -146,6 +147,7 @@ class ImageMask(Media):
         super().__init__()
         # None for path-backed masks, which carry no labels of their own.
         self._class_labels: dict[int | str, str] | None = None
+        self._key = key
 
         if "path" in val:
             self._set_file(val["path"])
@@ -166,7 +168,6 @@ class ImageMask(Media):
             self.validate(val)
             self._val = val
             self._class_labels = val["class_labels"]
-            self._key = key
 
             ext = "." + self.type_name() + ".png"
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ext)
@@ -193,8 +194,8 @@ class ImageMask(Media):
         super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         if self._class_labels is not None:
             run._add_singleton(
-                "mask/class_labels",
-                str(key) + "_wandb_delimeter_" + self._key,
+                self._class_labels_singleton_type,
+                _overlay_singleton_key(str(key), self._key),
                 self._class_labels,
             )
 

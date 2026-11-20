@@ -243,9 +243,7 @@ class Image(BatchableMedia):
 
         if classes is not None:
             if isinstance(classes, Classes):
-                total_classes.update(
-                    {val["id"]: val["name"] for val in classes._class_set}
-                )
+                total_classes.update(classes._labels_by_id())
             else:
                 total_classes.update({val["id"]: val["name"] for val in classes})
 
@@ -962,7 +960,8 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
-                    str(item["id"]): item["name"] for item in py_obj._classes._class_set
+                    str(class_id): name
+                    for class_id, name in py_obj._classes._labels_by_id().items()
                 }
             else:
                 class_set = {}
