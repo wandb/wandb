@@ -39,11 +39,17 @@ type RunHandle struct {
 	// was initialized.
 	unsentTelemetry *spb.TelemetryRecord
 
-	// stopwatch tracks the _runtime metric.
-	//
-	// `_runtime` is the default X axis for system metrics, and it is named
-	// something like "Relative Time (Process)" in the UI.
+	// stopwatch tracks the time elapsed since the start of the run segment.
 	stopwatch Stopwatch
+
+	// stopwatchOffset is the offset to add to the stopwatch to get the
+	// `_runtime` metric.
+	//
+	// `_runtime` is the time since the start of the run (minus however long
+	// the run was "paused", which happens in notebooks when no cells are
+	// running). It is the default X axis for system metrics, and it is named
+	// something like "Relative Time (Process)" in the UI.
+	stopwatchOffset time.Duration
 }
 
 func New() *RunHandle {
@@ -113,9 +119,7 @@ func (h *RunHandle) initOrFail(upserter *runupserter.RunUpserter) error {
 	}
 
 	h.upserter = upserter
-
-	h.stopwatch.Adjust(upserter.StartRuntime())
-	h.stopwatch.Start()
+	h.stopwatchOffset = upserter.StartRuntime()
 
 	if h.unsentTelemetry != nil {
 		upserter.UpdateTelemetry(h.unsentTelemetry)
@@ -143,13 +147,32 @@ func (h *RunHandle) Upserter() (*runupserter.RunUpserter, error) {
 	}
 }
 
-// Runtime returns the `_runtime` metric for the run.
+// StartStopwatch begins tracking elapsed time.
 //
-// This may be incorrect if the run has not been initialized.
-func (h *RunHandle) Runtime() time.Duration {
+// Does nothing if the stopwatch is already started.
+func (h *RunHandle) StartStopwatch() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.stopwatch.Start()
+}
+
+// RelativeTime returns the amount of time this run segment was active.
+//
+// Normally this is the time since the start of the run segment.
+// In notebooks, the run timer is paused when nothing is running.
+func (h *RunHandle) RelativeTime() time.Duration {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.stopwatch.Elapsed()
+}
+
+// Runtime returns the `_runtime` metric for the run.
+//
+// This may be incorrect until the run has been initialized.
+func (h *RunHandle) Runtime() time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.stopwatch.Elapsed() + h.stopwatchOffset
 }
 
 // PauseRunTimer pauses the `_runtime` metric, preventing it from increasing.

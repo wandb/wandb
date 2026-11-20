@@ -151,7 +151,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         poll_exit: pb.PollExitRequest | None = None,
         partial_history: pb.PartialHistoryRequest | None = None,
         sampled_history: pb.SampledHistoryRequest | None = None,
-        run_start: pb.RunStartRequest | None = None,
         check_version: pb.CheckVersionRequest | None = None,
         log_artifact: pb.LogArtifactRequest | None = None,
         download_artifact: pb.DownloadArtifactRequest | None = None,
@@ -190,8 +189,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.partial_history.CopyFrom(partial_history)
         elif sampled_history:
             request.sampled_history.CopyFrom(sampled_history)
-        elif run_start:
-            request.run_start.CopyFrom(run_start)
         elif check_version:
             request.check_version.CopyFrom(check_version)
         elif log_artifact:
@@ -436,13 +433,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         sync_finish: pb.SyncFinishRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(sync_finish=sync_finish)
-        return self._deliver(record)
-
-    def _deliver_run_start(
-        self,
-        run_start: pb.RunStartRequest,
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(run_start=run_start)
         return self._deliver(record)
 
     def _deliver_get_summary(

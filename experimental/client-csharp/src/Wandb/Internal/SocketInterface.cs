@@ -90,45 +90,6 @@ namespace Wandb.Internal
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Delivers a run start request to the server.
-        /// </summary>
-        /// <param name="run">The run information to start.</param>
-        /// <param name="timeoutMilliseconds">
-        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
-        /// </param>
-        /// <returns>
-        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
-        /// </returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
-        public async Task<Result> DeliverRunStart(
-            Run run,
-            int timeoutMilliseconds = 0
-        )
-        {
-            ArgumentNullException.ThrowIfNull(run);
-
-            var record = new Record
-            {
-                Request = new Request
-                {
-                    RunStart = new RunStartRequest
-                    {
-                        Run = new RunRecord
-                        {
-                            Project = run.Settings.Project,
-                            Entity = run.Settings.Entity,
-                            DisplayName = run.Settings.DisplayName,
-                            RunId = run.Settings.RunId,
-                            Resumed = run.Settings.Resumed,
-                            StartTime = Timestamp.FromDateTime(run.Settings.StartDatetime.ToUniversalTime()),
-                            StartingStep = run.StartingStep,
-                        }
-                    },
-                }
-            };
-            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
-        }
 
         /// <summary>
         /// Gets the run summary from wandb-core.
