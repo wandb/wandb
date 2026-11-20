@@ -22,7 +22,7 @@ func WandbFile(t *testing.T, records ...*spb.Record) string {
 	return path
 }
 
-func WandbFileUnsupportedVersion(t *testing.T, version byte, records ...*spb.Record) string {
+func WandbFileUnsupportedVersion(t *testing.T, version uint8, records ...*spb.Record) string {
 	t.Helper()
 
 	w, path := NewWriter(t, &WriterOptions{
@@ -34,7 +34,7 @@ func WandbFileUnsupportedVersion(t *testing.T, version byte, records ...*spb.Rec
 	return path
 }
 
-func WandbFileVersion(t *testing.T, version byte, records ...*spb.Record) string {
+func WandbFileVersion(t *testing.T, version uint8, records ...*spb.Record) string {
 	t.Helper()
 
 	w, path := NewWriter(t, &WriterOptions{Records: records, Version: version})
@@ -63,11 +63,11 @@ func NewWriter(t *testing.T, options *WriterOptions) (*transactionlog.Writer, st
 	var w *transactionlog.Writer
 	var err error
 	if options.AllowUnsupportedVersion {
-		w, err = transactionlog.OpenWriter(path)
+		w, err = transactionlog.OpenWriter(path, 0)
 		require.NoError(t, err)
 		writeVersion(t, path, options.Version)
 	} else {
-		w, err = transactionlog.OpenWriter(path)
+		w, err = transactionlog.OpenWriter(path, options.Version)
 		require.NoError(t, err)
 	}
 	for _, record := range options.Records {
@@ -76,7 +76,7 @@ func NewWriter(t *testing.T, options *WriterOptions) (*transactionlog.Writer, st
 	return w, path
 }
 
-func writeVersion(t *testing.T, path string, version byte) {
+func writeVersion(t *testing.T, path string, version uint8) {
 	t.Helper()
 	f, err := os.OpenFile(path, os.O_RDWR, 0o600)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func ReaderWriter(t *testing.T) (
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "just-the-header.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	r, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
@@ -164,7 +164,7 @@ func ErrorReader(t *testing.T) *transactionlog.Reader {
 
 // validWandbFileContents contains a valid .wandb file with the given records,
 // including at a minimum a 7-byte W&B header.
-func validWandbFileContents(t *testing.T, version byte, records ...*spb.Record) *bytes.Buffer {
+func validWandbFileContents(t *testing.T, version uint8, records ...*spb.Record) *bytes.Buffer {
 	t.Helper()
 	path := WandbFileVersion(t, version, records...)
 

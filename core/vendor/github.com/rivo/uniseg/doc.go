@@ -70,11 +70,11 @@ broken.
 Monospace width, as referred to in this package, is the width of a string in a
 monospace font. This is commonly used in terminal user interfaces or text
 displays or editors that don't support proportional fonts. A width of 1
-corresponds to a single character cell. The C function [wcswidth()] and its
-implementation in other programming languages is in widespread use for the same
-purpose. However, there is no standard for the calculation of such widths, and
-this package differs from wcswidth() in a number of ways, presumably to generate
-more visually pleasing results.
+corresponds to a single character cell. The populear C function [wcswidth()] and
+its implementation in other programming languages is in widespread use for the
+same purpose. However, there is no standard for the calculation of such widths,
+and this package differs from wcswidth() in a number of ways, presumably to
+generate more visually pleasing results.
 
 To start, we assume that every code point has a width of 1, with the following
 exceptions:
@@ -84,8 +84,9 @@ exceptions:
   - U+2E3A, Two-Em Dash, has a width of 3.
   - U+2E3B, Three-Em Dash, has a width of 4.
   - Characters with the East-Asian Width properties "Fullwidth" (F) and "Wide"
-    (W) have a width of 2. (Properties "Ambiguous" (A) and "Neutral" (N) both
-    have a width of 1.)
+    (W) have a width of 2. "Ambiguous" (A) can be configured with
+    [EastAsianAmbiguousWidth], with a default of 1. ("Neutral" (N) always has a
+    width of 1.)
   - Code points with grapheme cluster break property Regional Indicator have a
     width of 2.
   - Code points with grapheme cluster break property Extended Pictographic have
