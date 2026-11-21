@@ -3449,7 +3449,11 @@ class Run:
             overrides["project"] = self._settings.project or ""
             overrides["base_url"] = self._settings.base_url
 
-        self._cached_public_api = public.Api(overrides, api_key=self._settings.api_key)
+        self._cached_public_api = public.Api(
+            overrides,
+            api_key=self._settings.api_key,
+            _verify_credentials=False,
+        )
         return self._cached_public_api
 
     # TODO(jhr): annotate this
