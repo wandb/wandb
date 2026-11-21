@@ -17,13 +17,13 @@ aiohttp==3.14.5
     #   litellm
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.20.0
+alembic==1.20.1
     # via optuna
 alive-progress==3.3.0
     # via pymoo
 annotated-types==0.8.0
     # via pydantic
-anyio==4.15.1
+anyio==4.16.0
     # via
     #   dspy
     #   httpx
@@ -54,7 +54,7 @@ autoflake==2.4.0
     # via ariadne-codegen
 autograd==1.9.1
     # via pymoo
-awscli==1.46.1
+awscli==1.46.2
     # via wandb
 ax-platform==1.3.1
     # via wandb
@@ -65,9 +65,9 @@ azure-core==1.41.0
     #   azure-containerregistry
     #   azure-identity
     #   azure-storage-blob
-azure-identity==1.26.0
+azure-identity==1.27.0
     # via wandb
-azure-storage-blob==12.31.0
+azure-storage-blob==12.31.1
     # via wandb
 babel==2.18.0
     # via jupyterlab-server
@@ -81,12 +81,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.10.1
     # via -r requirements/requirements_dev.txt
-boto3==1.43.114
+boto3==1.43.123
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.114
+botocore==1.43.123
     # via
     #   boto3
     #   moto
@@ -94,11 +94,11 @@ botocore==1.43.114
     #   wandb
 botorch==0.18.1
     # via ax-platform
-cachetools==7.2.1
+cachetools==7.2.8
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   -r requirements/requirements_dev.txt
     #   httpcore
@@ -113,7 +113,7 @@ cffi==2.1.1
     #   cryptography
     #   moocore
     #   soundfile
-chardet==7.6.0
+chardet==7.7.0
     # via wandb
 charset-normalizer==3.5.2
     # via requests
@@ -151,7 +151,7 @@ comm==0.2.3
     #   ipywidgets
 contourpy==1.4.0
     # via matplotlib
-coverage==7.16.2
+coverage==7.17.0
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
@@ -168,11 +168,11 @@ cryptography==46.0.7
     #   pyopenssl
 cuda-bindings==13.4.4
     # via torch
-cuda-pathfinder==1.8.3
+cuda-pathfinder==1.8.5
     # via cuda-bindings
 cuda-toolkit==13.0.2
     # via torch
-cwsandbox==1.19.1
+cwsandbox==1.23.0
     # via wandb
 cycler==0.12.1
     # via matplotlib
@@ -182,7 +182,7 @@ decorator==4.4.2
     # via moviepy
 defusedxml==0.7.1
     # via nbconvert
-deprecated==3.0.0
+deprecated==3.0.1
     # via pymoo
 diskcache==5.6.3
     # via dspy
@@ -204,11 +204,11 @@ farama-notifications==0.0.6
     # via gymnasium
 fastapi==0.115.14
     # via -r requirements/requirements_test.txt
-fastjsonschema==2.22.2
+fastjsonschema==2.22.3
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==4.1.2
+filelock==4.2.7
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -217,7 +217,7 @@ flask==2.3.3
     # via -r requirements/requirements_test.txt
 flatbuffers==25.12.19
     # via tensorflow
-fonttools==4.67.0
+fonttools==4.68.0
     # via matplotlib
 fqdn==1.6.0
     # via jsonschema
@@ -235,7 +235,7 @@ gast==0.7.0
     # via tensorflow
 gepa==0.1.4
     # via dspy
-google-api-core==2.42.0
+google-api-core==2.43.2
     # via
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -264,9 +264,9 @@ google-cloud-aiplatform==1.115.0
     # via wandb
 google-cloud-artifact-registry==1.23.0
     # via wandb
-google-cloud-bigquery==3.46.1
+google-cloud-bigquery==3.47.0
     # via google-cloud-aiplatform
-google-cloud-compute==1.55.0
+google-cloud-compute==1.56.0
     # via wandb
 google-cloud-core==2.8.0
     # via
@@ -291,7 +291,7 @@ google-resumable-media==2.11.0
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-googleapis-common-protos==1.75.5
+googleapis-common-protos==1.76.0
     # via
     #   cwsandbox
     #   google-api-core
@@ -310,11 +310,11 @@ graphviz==0.21
     # via
     #   ax-platform
     #   catboost
-grpc-google-iam-v1==0.14.5
+grpc-google-iam-v1==0.14.6
     # via
     #   google-cloud-artifact-registry
     #   google-cloud-resource-manager
-grpcio==1.84.0
+grpcio==1.85.1
     # via
     #   cwsandbox
     #   google-api-core
@@ -326,7 +326,7 @@ grpcio==1.84.0
     #   grpcio-status
     #   tensorboard
     #   tensorflow
-grpcio-status==1.84.0
+grpcio-status==1.85.1
     # via google-api-core
 gymnasium==1.4.0
     # via
@@ -341,11 +341,11 @@ h5py==3.15.1
     # via
     #   keras-nightly
     #   tensorflow
-hf-xet==1.7.0
+hf-xet==1.8.0
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
-httpcore2==2.13.1
+httpcore2==2.16.0
     # via httpx2
 httpx==0.27.2
     # via
@@ -353,13 +353,13 @@ httpx==0.27.2
     #   ariadne-codegen
     #   jupyterlab
     #   litellm
-httpx2==2.13.1
+httpx2==2.16.0
     # via
     #   huggingface-hub
     #   openai
-huggingface-hub==2.2.0
+huggingface-hub==2.4.0
     # via tokenizers
-hypothesis==6.169.1
+hypothesis==6.170.14
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -377,11 +377,11 @@ imageio==2.38.1
     # via
     #   -r requirements/requirements_dev.txt
     #   moviepy
-imageio-ffmpeg==0.6.0
+imageio-ffmpeg==0.8.0
     # via
     #   imageio
     #   moviepy
-importlib-metadata==9.0.1
+importlib-metadata==10.1.0
     # via litellm
 iniconfig==2.3.1
     # via pytest
@@ -391,7 +391,7 @@ ipykernel==7.4.0
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==9.17.1
+ipython==9.18.1
     # via
     #   -r requirements/requirements_dev.txt
     #   ipykernel
@@ -415,9 +415,9 @@ isort==9.0.2
     # via ariadne-codegen
 itsdangerous==2.2.0
     # via flask
-jax==0.11.2
+jax==0.12.0.1
     # via -r requirements/requirements_dev.txt
-jaxlib==0.11.2
+jaxlib==0.12.0.1
     # via jax
 jedi==0.20.1
     # via ipython
@@ -432,7 +432,7 @@ jinja2==3.1.6
     #   litellm
     #   nbconvert
     #   torch
-jiter==0.17.0
+jiter==0.18.0
     # via openai
 jmespath==1.1.0
     # via
@@ -441,11 +441,11 @@ jmespath==1.1.0
     #   botocore
 joblib==1.6.0
     # via scikit-learn
-json-repair==0.64.0
+json-repair==0.64.3
     # via dspy
 json5==0.17.3
     # via jupyterlab-server
-jsonpointer==3.2.1
+jsonpointer==3.7
     # via jsonschema
 jsonref==1.1.0
     # via sweeps
@@ -462,7 +462,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyter==1.1.1
     # via -r requirements/requirements_dev.txt
-jupyter-builder==1.2.3
+jupyter-builder==1.2.4
     # via
     #   jupyterlab
     #   notebook
@@ -498,7 +498,7 @@ jupyter-server==2.21.1
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.6.4
+jupyterlab==4.6.5
     # via
     #   jupyter
     #   notebook
@@ -510,13 +510,13 @@ jupyterlab-server==2.28.1
     #   notebook
 jupyterlab-widgets==3.0.17
     # via ipywidgets
-keras-nightly==3.16.0.dev2026101404
+keras-nightly==3.16.0.dev2026110203
     # via tensorflow
 kfp==2.16.1
     # via -r requirements/requirements_dev.txt
-kfp-pipeline-spec==2.17.0
+kfp-pipeline-spec==2.18.0
     # via kfp
-kfp-server-api==2.17.0
+kfp-server-api==2.18.0
     # via kfp
 kiwisolver==1.5.1
     # via matplotlib
@@ -549,7 +549,7 @@ looptime==0.9
     # via -r requirements/requirements_test.txt
 mako==1.4.3
     # via alembic
-markdown==3.11.1
+markdown==3.11.2
     # via
     #   ax-platform
     #   tensorboard
@@ -572,9 +572,9 @@ matplotlib-inline==0.2.2
     #   ipython
 mdurl==0.1.2
     # via markdown-it-py
-metaflow==2.19.39
+metaflow==2.19.40
     # via -r requirements/requirements_dev.txt
-mistune==3.3.4
+mistune==3.4.0
     # via nbconvert
 ml-dtypes==0.6.0
     # via
@@ -584,7 +584,7 @@ ml-dtypes==0.6.0
     #   tensorflow
 moocore==0.3.2
     # via pymoo
-moto==5.2.4
+moto==5.2.5
     # via -r requirements/requirements_test.txt
 moviepy==1.0.3
     # via -r requirements/requirements_dev.txt
@@ -598,7 +598,7 @@ msal==1.39.0
     #   msal-extensions
 msal-extensions==1.3.1
     # via azure-identity
-multidict==7.1.0
+multidict==7.2.1
     # via
     #   aiohttp
     #   yarl
@@ -611,7 +611,7 @@ mypy-extensions==1.1.0
     #   typing-inspect
 namex==0.1.0
     # via keras-nightly
-narwhals==2.27.1
+narwhals==2.28.0
     # via
     #   bokeh
     #   lightgbm
@@ -638,7 +638,7 @@ networkx==3.7
     # via torch
 ninja==1.13.2
     # via botorch
-notebook==7.6.3
+notebook==7.6.4
     # via jupyter
 notebook-shim==0.2.4
     # via
@@ -721,16 +721,16 @@ nvidia-nvshmem-cu13==3.4.5
     # via torch
 nvidia-nvtx==13.0.85
     # via cuda-toolkit
-oauthlib==4.0.0
+oauthlib==4.0.1
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.31.0
+openai==3.42.1
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   litellm
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
     # via
     #   google-api-core
     #   opentelemetry-exporter-http-transport
@@ -738,24 +738,24 @@ opentelemetry-api==1.45.1
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
     #   wandb
-opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-http-transport==0.66b2
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-common==0.66b1
+opentelemetry-exporter-otlp-common==0.66b2
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-common==1.45.1
+opentelemetry-exporter-otlp-proto-common==1.45.2
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.2
     # via wandb
-opentelemetry-proto==1.45.1
+opentelemetry-proto==1.45.2
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.45.1
+opentelemetry-sdk==1.45.2
     # via
     #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-http
     #   wandb
-opentelemetry-semantic-conventions==0.66b1
+opentelemetry-semantic-conventions==0.66b2
     # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via
@@ -818,7 +818,7 @@ pillow==13.0.0
     #   rdkit
     #   tensorboard
     #   torchvision
-platformdirs==4.13.0
+platformdirs==4.14.3
     # via
     #   black
     #   jupyter-core
@@ -829,7 +829,7 @@ plotly==7.1.0
     #   -r requirements/requirements_dev.txt
     #   ax-platform
     #   catboost
-pluggy==1.6.0
+pluggy==1.7.0
     # via
     #   pytest
     #   pytest-cov
@@ -891,15 +891,15 @@ py-partiql-parser==0.6.3
     # via moto
 pyarrow==26.0.0
     # via -r requirements/requirements_dev.txt
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via
     #   pyasn1-modules
     #   rsa
 pyasn1-modules==0.4.2
     # via google-auth
-pycparser==3.11
+pycparser==3.12
     # via cffi
-pydantic==2.14.1
+pydantic==2.14.2
     # via
     #   ariadne-codegen
     #   dspy
@@ -910,11 +910,11 @@ pydantic==2.14.1
     #   openai
     #   sweeps
     #   wandb
-pydantic-core==2.50.1
+pydantic-core==2.50.2
     # via pydantic
 pyfakefs==5.10.2
     # via -r requirements/requirements_test.txt
-pyflakes==4.0.3
+pyflakes==4.1.0
     # via autoflake
 pygments==2.21.0
     # via
@@ -954,7 +954,7 @@ pytest-cov==7.1.0
     # via -r requirements/requirements_test.txt
 pytest-flakefinder==1.1.0
     # via -r requirements/requirements_test.txt
-pytest-mock==3.16.0
+pytest-mock==3.17.0
     # via -r requirements/requirements_test.txt
 pytest-split==0.10.0
     # via -r requirements/requirements_test.txt
@@ -982,7 +982,7 @@ pytokens==0.4.1
     # via black
 pytorch-lightning==2.6.6
     # via lightning
-pytz==2026.5
+pytz==2026.6
     # via pandas
 pyyaml==6.0.3
     # via
@@ -1068,7 +1068,7 @@ rpds-py==2026.9.1
     #   referencing
 rsa==4.7.2
     # via awscli
-s3transfer==0.19.2
+s3transfer==0.19.3
     # via boto3
 scikit-learn==1.9.1
     # via
@@ -1117,13 +1117,13 @@ sortedcontainers==2.4.0
     # via hypothesis
 soundfile==0.14.0
     # via -r requirements/requirements_dev.txt
-soupsieve==3.0.3
+soupsieve==3.0.4
     # via beautifulsoup4
-sqlalchemy==2.1.4
+sqlalchemy==2.1.6
     # via
     #   alembic
     #   optuna
-stable-baselines3==2.9.0
+stable-baselines3==2.9.2
     # via -r requirements/requirements_dev.txt
 stack-data==0.6.3
     # via ipython
@@ -1185,7 +1185,7 @@ torchmetrics==1.9.0
     #   pytorch-lightning
 torchvision==0.26.0
     # via -r requirements/requirements_dev.txt
-tornado==6.5.10
+tornado==6.6
     # via
     #   bokeh
     #   ipykernel
@@ -1227,7 +1227,7 @@ truststore==0.10.5
     # via
     #   httpcore2
     #   httpx2
-types-pyyaml==6.0.12.20260906
+types-pyyaml==6.0.12.20261030
     # via responses
 typing-extensions==4.16.0
     # via
@@ -1268,7 +1268,7 @@ typing-inspect==0.9.0
     # via pyre-extensions
 typing-inspection==0.4.4
     # via pydantic
-tzdata==2026.5
+tzdata==2026.6
     # via
     #   arrow
     #   pandas
@@ -1288,7 +1288,7 @@ urllib3==2.8.0
     #   responses
 uvicorn==0.32.1
     # via -r requirements/requirements_test.txt
-wcwidth==0.9.2
+wcwidth==0.9.4
     # via
     #   prompt-toolkit
     #   pyte
@@ -1313,7 +1313,7 @@ wheel==0.48.0
     # via astunparse
 widgetsnbextension==4.0.16
     # via ipywidgets
-wrapt==2.5.1
+wrapt==2.5.2
     # via
     #   deprecated
     #   tensorflow
@@ -1321,13 +1321,13 @@ xgboost==3.4.1
     # via -r requirements/requirements_dev.txt
 xmltodict==1.0.4
     # via moto
-xxhash==4.0.1
+xxhash==4.0.2
     # via wandb
 xyzservices==2026.9.1
     # via bokeh
 yarl==1.25.1
     # via aiohttp
-zipp==4.1.1
+zipp==4.1.2
     # via importlib-metadata
 
 # The following packages were excluded from the output:
