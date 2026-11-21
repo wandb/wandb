@@ -93,6 +93,10 @@ type Sender struct {
 	// once the run is initialized.
 	fileStreamStart sync.WaitGroup
 
+	// finishRun tracks the goroutine that finishes the run after an Exit
+	// record, including the final FileStream upload.
+	finishRun sync.WaitGroup
+
 	// settings is the settings for the sender
 	settings *settings.Settings
 
@@ -302,6 +306,11 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	close(hangDetectionOutChan)
 
 	s.fileStreamStart.Wait()
+
+	// Wait for the final uploads, so that FileStreamError is final once Do
+	// returns. This only waits if the work channel was closed before the
+	// Exit record's response, since that response is sent last.
+	s.finishRun.Wait()
 
 	s.logger.Info("sender: closed")
 }
@@ -604,10 +613,10 @@ func (s *Sender) startFinishRun(
 	exitRecord *spb.RunExitRecord,
 	exitRequest *runwork.Request,
 ) {
-	go func() {
+	s.finishRun.Go(func() {
 		defer s.logger.Reraise("stream")
 		s.finishRunSync(exitRecord, exitRequest)
-	}()
+	})
 }
 
 // finishRunSync implements the startFinishRun goroutine.
@@ -1438,4 +1447,13 @@ func (s *Sender) logCalledAfterExit(method string) {
 		"stream",
 		fmt.Errorf("sender: %s called after exit", method),
 	)
+}
+
+// FileStreamError returns the upload failure after Do has finished.
+// A nil result does not establish success for file or artifact uploads.
+func (s *Sender) FileStreamError() error {
+	if s.fileStream == nil {
+		return nil
+	}
+	return s.fileStream.Err()
 }
