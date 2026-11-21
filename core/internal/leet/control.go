@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
@@ -60,6 +61,16 @@ const (
 // the LEET showing it.
 const controlLockName = ".wandb-leet.lock"
 
+// controlLockPath is the lock file of the LEET showing target: a wandb
+// directory, or the W&B URL a Compute Compass view is open on.
+func controlLockPath(target string) string {
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		sum := sha256.Sum256([]byte(target))
+		return filepath.Join(controlSocketDir(), hex.EncodeToString(sum[:8])+".lock")
+	}
+	return filepath.Join(target, controlLockName)
+}
+
 // controlLock is the content of the lock file.
 type controlLock struct {
 	PID int `json:"pid"`
@@ -89,7 +100,7 @@ func ServeControl(
 		return
 	}
 
-	lockPath := filepath.Join(wandbDir, controlLockName)
+	lockPath := controlLockPath(wandbDir)
 	lock := controlLock{
 		PID:     os.Getpid(),
 		Address: address,

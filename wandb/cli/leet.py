@@ -88,6 +88,7 @@ def leet() -> None:
         wandb leet system --bins 60   Print a run's system metrics as JSON
         wandb leet compute usage URL Print compute usage for a W&B scope as JSON
         wandb leet compute drilldown URL --fields F  Print device series as JSON
+        wandb leet compass URL        View the compute usage of an organization or team
         wandb leet session status     Steer the LEET open on a wandb directory
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
@@ -726,6 +727,28 @@ def drilldown(
     )
 
 
+@leet.command()
+@click.argument("scope_url")
+@click.help_option("-h", "--help")
+def compass(scope_url: str) -> None:
+    """View the compute usage of a W&B organization, team or project.
+
+    Shows GPU-hours, GPU activity, idle time and coverage with the projects
+    and users that used the most, and a hierarchy of teams, users, projects
+    and runs. SCOPE_URL is https://<host>/orgs/<org>, https://<host>/<team>
+    or https://<host>/<team>/<project>.
+
+    `wandb leet session SCOPE_URL METHOD` steers the view with the methods
+    status, tab.set, scope.set, period.set, hierarchy.set and node.select.
+    """
+    try:
+        config = _create_remote_launch_config(scope_url, allow_scope=True)
+    except (ValueError, UsageError, AuthenticationError) as e:
+        _fatal(str(e))
+    args = [*_base_args("leet", "compass"), *_get_remote_launch_args(config)]
+    _run_core(args, os.environ | {"WANDB_API_KEY": config.api_key})
+
+
 @leet.command(cls=ScriptCommand)
 @click.argument("args", nargs=-1, required=True, metavar="[PATH] METHOD")
 @click.option(
@@ -754,8 +777,9 @@ def session(args: tuple[str, ...], params: str) -> None:
         wandb leet session action --params '{"name": "workspace.next_page", "key": "n"}'
         wandb leet session actions
 
-    PATH is the wandb directory LEET shows. If PATH is not provided, the
-    configured wandb directory is used.
+    PATH is the wandb directory LEET shows, or the URL `wandb leet compass`
+    was opened on. If PATH is not provided, the configured wandb directory
+    is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
     if len(args) > 2:
         _fatal_json("bad_request", f"unexpected argument: {args[2]}")
@@ -1057,16 +1081,16 @@ def _local_query_source(path: str | None) -> list[str]:
 
 
 def launch_session(path: str | None, request: dict[str, Any]) -> Never:
-    """Send a JSON-RPC request to the LEET showing a wandb directory."""
+    """Send a JSON-RPC request to the LEET showing a wandb directory or URL."""
     if path is not None and path.startswith(("https://", "http://")):
-        _fatal_json(
-            "bad_request",
-            "session requires a local wandb directory:"
-            " a run on the W&B server cannot be steered",
-        )
-    if path and not os.path.exists(path):
+        try:
+            _, wandb_dir = _parse_remote_url(path, allow_scope=True)
+        except ValueError as e:
+            _fatal_json("bad_request", str(e))
+    elif path and not os.path.exists(path):
         _fatal_json("path_not_found", f"path does not exist: {path}")
-    wandb_dir = _resolve_path(path).wandb_dir
+    else:
+        wandb_dir = _resolve_path(path).wandb_dir
 
     args = _base_args("leet", "session")
     args.extend(["--request", json.dumps(request), wandb_dir])

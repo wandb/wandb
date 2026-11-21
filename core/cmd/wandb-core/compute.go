@@ -7,6 +7,8 @@ import (
 	"os"
 	"slices"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -79,6 +81,26 @@ func bindLeetComputeUsageFlags(fs *flag.FlagSet, opts *leetOptions) {
 	)
 	fs.Func("device-type", "Keep this device type. Repeatable.", appendComputeValue(&q.DeviceTypes))
 	fs.BoolVar(&q.Compare, "compare", false, "Also query the preceding period.")
+}
+
+func bindLeetCompassFlags(fs *flag.FlagSet, opts *leetOptions) {
+	fs.StringVar(&opts.remoteURL, "remote-url", "", "W&B organization, team or project URL.")
+}
+
+// runLeetCompass runs the Compute Compass view, steered by wandb leet
+// session on the same URL.
+func runLeetCompass(opts *leetOptions, logger *observability.CoreLogger) int {
+	control, stop := serveLeetControl(opts.remoteURL, logger)
+	defer stop()
+	m, err := leet.NewCompass(opts.remoteRun, control)
+	if err == nil {
+		_, err = tea.NewProgram(m).Run()
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
 }
 
 func bindLeetComputeDrilldownFlags(fs *flag.FlagSet, opts *leetOptions) {

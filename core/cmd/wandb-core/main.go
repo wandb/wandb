@@ -483,6 +483,15 @@ var leetCommands = []*leetCommand{
 		script: true,
 	},
 	{
+		name:      "compass",
+		args:      "<scope-url>",
+		short:     "View the compute usage of a W&B organization or team",
+		mode:      "compass",
+		bindFlags: bindLeetCompassFlags,
+		validate:  validateLeetComputeUsageOptions,
+		run:       runLeetCompass,
+	},
+	{
 		name:        "session",
 		args:        "<wandb-directory>",
 		short:       "Send a request to the LEET showing a wandb directory",
@@ -1063,20 +1072,31 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 	}
 }
 
+// serveLeetControl serves wandb leet session requests for the LEET showing
+// target until the returned function is called.
+func serveLeetControl(
+	target string,
+	logger *observability.CoreLogger,
+) (chan leet.ControlMsg, func()) {
+	control := make(chan leet.ControlMsg)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		leet.ServeControl(ctx, target, control, logger)
+	}()
+	return control, func() {
+		cancel()
+		<-done
+	}
+}
+
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 	var control chan leet.ControlMsg
 	if opts.remoteRun == nil {
-		control = make(chan leet.ControlMsg)
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			leet.ServeControl(ctx, opts.wandbDir, control, logger)
-		}()
-		defer func() {
-			cancel()
-			<-done
-		}()
+		var stop func()
+		control, stop = serveLeetControl(opts.wandbDir, logger)
+		defer stop()
 	}
 
 	for {

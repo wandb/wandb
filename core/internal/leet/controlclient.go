@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -26,12 +25,17 @@ func SessionRequest(wandbDir, request string, w io.Writer) error {
 		return badRequest("--request must be a JSON-RPC request: %v", err)
 	}
 
+	lockPath := controlLockPath(wandbDir)
+	open := wandbDir
+	if !strings.HasSuffix(lockPath, controlLockName) {
+		open = "compass " + wandbDir
+	}
 	noSession := &QueryError{
 		Code: "no_session",
 		Message: fmt.Sprintf(
-			"no LEET is showing %q: open it with wandb leet %s", wandbDir, wandbDir),
+			"no LEET is showing %q: open it with wandb leet %s", wandbDir, open),
 	}
-	lock, err := readControlLock(filepath.Join(wandbDir, controlLockName))
+	lock, err := readControlLock(lockPath)
 	if err != nil {
 		return noSession
 	}
