@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 import traceback
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -695,3 +696,62 @@ def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "Deleted 1 file(s)" in result.output
     assert not file.exists()
+
+
+class _UnsizedProjects:
+    """Stand-in for the lazy, unsized paginator returned by ``Api.projects()``.
+
+    ``wandb.apis.public.Projects`` inherits ``RelayPaginator`` and intentionally
+    does not implement ``__len__``; it is iterable only.
+    """
+
+    def __init__(self, names):
+        self._names = names
+
+    def __iter__(self):
+        return (SimpleNamespace(name=name) for name in self._names)
+
+
+def _patch_projects_api(mocker, projects):
+    """Replace ``wandb.Api`` so no credentials or network access are needed."""
+    api = SimpleNamespace(
+        projects=lambda entity: projects,
+        settings={"entity": "example"},
+        default_entity="example",
+    )
+    mocker.patch.object(wandb, "Api", return_value=api)
+
+
+def test_projects_with_empty_unsized_paginator(runner, mocker):
+    projects = _UnsizedProjects([])
+    assert not hasattr(type(projects), "__len__")
+    _patch_projects_api(mocker, projects)
+
+    result = runner.invoke(cli.projects, ["--entity", "example"])
+
+    assert result.exit_code == 0, result.output
+    assert "No projects found for example" in result.output
+
+
+def test_projects_with_populated_unsized_paginator(runner, mocker):
+    projects = _UnsizedProjects(["alpha", "beta"])
+    assert not hasattr(type(projects), "__len__")
+    _patch_projects_api(mocker, projects)
+
+    result = runner.invoke(cli.projects, ["--entity", "example"])
+
+    assert result.exit_code == 0, result.output
+    assert 'Latest projects for "example"' in result.output
+    assert "alpha" in result.output
+    assert "beta" in result.output
+
+
+def test_projects_display_false_returns_sized_collection(mocker):
+    """``prompt_for_project`` calls ``len()`` on the command's return value."""
+    projects = _UnsizedProjects(["alpha", "beta"])
+    _patch_projects_api(mocker, projects)
+
+    result = cli.projects.callback(entity="example", display=False)
+
+    assert len(result) == 2
+    assert [project.name for project in result] == ["alpha", "beta"]

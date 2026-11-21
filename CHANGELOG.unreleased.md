@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- Interactive `wandb init` and the `wandb projects` command no longer crash with `TypeError: object of type 'Projects' has no len()` when listing an entity's projects (@inchang-ing in https://github.com/wandb/wandb/pull/13336)
