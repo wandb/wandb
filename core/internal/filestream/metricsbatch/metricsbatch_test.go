@@ -181,30 +181,38 @@ func sameJSON(a, b any) bool {
 	switch x := a.(type) {
 	case []any:
 		y, ok := b.([]any)
-		if !ok || len(x) != len(y) {
-			return false
-		}
-		for i := range x {
-			if !sameJSON(x[i], y[i]) {
-				return false
-			}
-		}
-		return true
+		return ok && sameArray(x, y)
 	case map[string]any:
 		y, ok := b.(map[string]any)
-		if !ok || len(x) != len(y) {
-			return false
-		}
-		for k, v := range x {
-			w, exists := y[k]
-			if !exists || !sameJSON(v, w) {
-				return false
-			}
-		}
-		return true
+		return ok && sameObject(x, y)
 	default:
 		return a == b
 	}
+}
+
+func sameArray(x, y []any) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if !sameJSON(x[i], y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameObject(x, y map[string]any) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for k, v := range x {
+		w, exists := y[k]
+		if !exists || !sameJSON(v, w) {
+			return false
+		}
+	}
+	return true
 }
 
 func asFloat(v any) (float64, bool) {

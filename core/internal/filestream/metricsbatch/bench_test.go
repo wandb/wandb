@@ -8,6 +8,9 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+const imageJSON = `{"_type":"image-file","path":"media/image.png",` +
+	`"width":32,"height":32}`
+
 func benchmarkRows() map[string]func(i int) []*spb.HistoryItem {
 	scalars := func(n int, typed bool) func(int) []*spb.HistoryItem {
 		return func(row int) []*spb.HistoryItem {
@@ -37,8 +40,7 @@ func benchmarkRows() map[string]func(i int) []*spb.HistoryItem {
 		"nested": func(row int) []*spb.HistoryItem {
 			return []*spb.HistoryItem{
 				{Key: "_step", Value: &spb.HistoryItem_Integer{Integer: int64(row)}},
-				{Key: "image", Value: &spb.HistoryItem_Json{
-					Json: `{"_type":"image-file","path":"media/image.png","width":32,"height":32}`}},
+				{Key: "image", Value: &spb.HistoryItem_Json{Json: imageJSON}},
 				{NestedKey: []string{"train", "loss"}, Value: &spb.HistoryItem_Number{Number: 0.5}},
 				{NestedKey: []string{"train", "acc"}, Value: &spb.HistoryItem_Number{Number: 0.9}},
 				{Key: "hist", ValueJson: `{"bins":[0,1,2,3],"values":[4,5,6]}`},
