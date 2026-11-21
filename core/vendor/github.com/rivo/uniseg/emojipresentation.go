@@ -5,9 +5,9 @@ package uniseg
 // emojiPresentation are taken from
 //
 // and
-// https://unicode.org/Public/15.0.0/ucd/emoji/emoji-data.txt
+// https://unicode.org/Public/18.0.0/ucd/emoji/emoji-data.txt
 // ("Extended_Pictographic" only)
-// on September 5, 2023. See https://www.unicode.org/license.html for the Unicode
+// on October 30, 2026. See https://www.unicode.org/license.html for the Unicode
 // license agreement.
 var emojiPresentation = [][3]int{
 	{0x231A, 0x231B, prEmojiPresentation},   // E0.6   [2] (⌚..⌛)    watch..hourglass done
@@ -211,6 +211,8 @@ var emojiPresentation = [][3]int{
 	{0x1F6D1, 0x1F6D2, prEmojiPresentation}, // E3.0   [2] (🛑..🛒)    stop sign..shopping cart
 	{0x1F6D5, 0x1F6D5, prEmojiPresentation}, // E12.0  [1] (🛕)       hindu temple
 	{0x1F6D6, 0x1F6D7, prEmojiPresentation}, // E13.0  [2] (🛖..🛗)    hut..elevator
+	{0x1F6D8, 0x1F6D8, prEmojiPresentation}, // E17.0  [1] (🛘)       landslide
+	{0x1F6D9, 0x1F6D9, prEmojiPresentation}, // E18.0  [1] (🛙)       lighthouse
 	{0x1F6DC, 0x1F6DC, prEmojiPresentation}, // E15.0  [1] (🛜)       wireless
 	{0x1F6DD, 0x1F6DF, prEmojiPresentation}, // E14.0  [3] (🛝..🛟)    playground slide..ring buoy
 	{0x1F6EB, 0x1F6EC, prEmojiPresentation}, // E1.0   [2] (🛫..🛬)    airplane departure..airplane arrival
@@ -274,6 +276,11 @@ var emojiPresentation = [][3]int{
 	{0x1FA80, 0x1FA82, prEmojiPresentation}, // E12.0  [3] (🪀..🪂)    yo-yo..parachute
 	{0x1FA83, 0x1FA86, prEmojiPresentation}, // E13.0  [4] (🪃..🪆)    boomerang..nesting dolls
 	{0x1FA87, 0x1FA88, prEmojiPresentation}, // E15.0  [2] (🪇..🪈)    maracas..flute
+	{0x1FA89, 0x1FA89, prEmojiPresentation}, // E16.0  [1] (🪉)       harp
+	{0x1FA8A, 0x1FA8A, prEmojiPresentation}, // E17.0  [1] (🪊)       trombone
+	{0x1FA8B, 0x1FA8D, prEmojiPresentation}, // E18.0  [3] (🪋..🪍)    meteor..net with handle
+	{0x1FA8E, 0x1FA8E, prEmojiPresentation}, // E17.0  [1] (🪎)       treasure chest
+	{0x1FA8F, 0x1FA8F, prEmojiPresentation}, // E16.0  [1] (🪏)       shovel
 	{0x1FA90, 0x1FA95, prEmojiPresentation}, // E12.0  [6] (🪐..🪕)    ringed planet..banjo
 	{0x1FA96, 0x1FAA8, prEmojiPresentation}, // E13.0 [19] (🪖..🪨)    military helmet..rock
 	{0x1FAA9, 0x1FAAC, prEmojiPresentation}, // E14.0  [4] (🪩..🪬)    mirror ball..hamsa
@@ -281,15 +288,28 @@ var emojiPresentation = [][3]int{
 	{0x1FAB0, 0x1FAB6, prEmojiPresentation}, // E13.0  [7] (🪰..🪶)    fly..feather
 	{0x1FAB7, 0x1FABA, prEmojiPresentation}, // E14.0  [4] (🪷..🪺)    lotus..nest with eggs
 	{0x1FABB, 0x1FABD, prEmojiPresentation}, // E15.0  [3] (🪻..🪽)    hyacinth..wing
+	{0x1FABE, 0x1FABE, prEmojiPresentation}, // E16.0  [1] (🪾)       leafless tree
 	{0x1FABF, 0x1FABF, prEmojiPresentation}, // E15.0  [1] (🪿)       goose
 	{0x1FAC0, 0x1FAC2, prEmojiPresentation}, // E13.0  [3] (🫀..🫂)    anatomical heart..people hugging
 	{0x1FAC3, 0x1FAC5, prEmojiPresentation}, // E14.0  [3] (🫃..🫅)    pregnant man..person with crown
+	{0x1FAC6, 0x1FAC6, prEmojiPresentation}, // E16.0  [1] (🫆)       fingerprint
+	{0x1FAC8, 0x1FAC8, prEmojiPresentation}, // E17.0  [1] (🫈)       hairy creature
+	{0x1FACC, 0x1FACC, prEmojiPresentation}, // E18.0  [1] (🫌)       monarch butterfly
+	{0x1FACD, 0x1FACD, prEmojiPresentation}, // E17.0  [1] (🫍)       orca
 	{0x1FACE, 0x1FACF, prEmojiPresentation}, // E15.0  [2] (🫎..🫏)    moose..donkey
 	{0x1FAD0, 0x1FAD6, prEmojiPresentation}, // E13.0  [7] (🫐..🫖)    blueberries..teapot
 	{0x1FAD7, 0x1FAD9, prEmojiPresentation}, // E14.0  [3] (🫗..🫙)    pouring liquid..jar
 	{0x1FADA, 0x1FADB, prEmojiPresentation}, // E15.0  [2] (🫚..🫛)    ginger root..pea pod
+	{0x1FADC, 0x1FADC, prEmojiPresentation}, // E16.0  [1] (🫜)       root vegetable
+	{0x1FADD, 0x1FADD, prEmojiPresentation}, // E18.0  [1] (🫝)       pickle
+	{0x1FADF, 0x1FADF, prEmojiPresentation}, // E16.0  [1] (🫟)       splatter
 	{0x1FAE0, 0x1FAE7, prEmojiPresentation}, // E14.0  [8] (🫠..🫧)    melting face..bubbles
 	{0x1FAE8, 0x1FAE8, prEmojiPresentation}, // E15.0  [1] (🫨)       shaking face
+	{0x1FAE9, 0x1FAE9, prEmojiPresentation}, // E16.0  [1] (🫩)       face with bags under eyes
+	{0x1FAEA, 0x1FAEA, prEmojiPresentation}, // E17.0  [1] (🫪)       distorted face
+	{0x1FAEB, 0x1FAEB, prEmojiPresentation}, // E18.0  [1] (🫫)       cracking face
+	{0x1FAEF, 0x1FAEF, prEmojiPresentation}, // E17.0  [1] (🫯)       fight cloud
 	{0x1FAF0, 0x1FAF6, prEmojiPresentation}, // E14.0  [7] (🫰..🫶)    hand with index finger and thumb crossed..heart hands
 	{0x1FAF7, 0x1FAF8, prEmojiPresentation}, // E15.0  [2] (🫷..🫸)    leftwards pushing hand..rightwards pushing hand
+	{0x1FAF9, 0x1FAFA, prEmojiPresentation}, // E18.0  [2] (🫹..🫺)    leftwards thumb sign..rightwards thumb sign
 }

@@ -28,26 +28,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
-- Unparseable automations are skipped when listing automations via `Api.automations()` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13287)
-- Identity token logins now stay signed in after the identity token has been used, when the JWT issuer is configured to allow it: the W&B server returns a refresh token that renews the access token until the issuer's session timeout (@ckacal in https://github.com/wandb/wandb/pull/13082)
+- The Optuna and Ax sweep schedulers reject `int_uniform` parameters with fractional `min` or `max`, and `q_log_uniform_values` parameters with `q` other than 1 or `min` below 1, instead of sampling values W&B would not. Optuna sampled floats for these (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/13064)
 
 ### Fixed
 
-- `wandb-core` now attempts to finish active runs for up to 30 seconds after receiving SIGTERM before exiting (@jacobromero in https://github.com/wandb/wandb/pull/13374)
-- `Artifact.link()` and `Run.link_artifact()` warn when the target collection name contains `:` (for example `my-coll:prod`) and point to the `aliases` argument for adding aliases (@mrobers1982 in https://github.com/wandb/wandb/pull/13321)
-- `Api.automations()` lists push notification automations (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13282)
-- Installing `wandb` from source on Android (Termux) now builds for Android instead of failing on a glibc Linux Rust target (@dmitryduev in https://github.com/wandb/wandb/pull/13289)
-- Launch agents in secure mode now reject jobs with SageMaker or Vertex resource arguments (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/13202)
-- In LEET, a remote run opened before it logged any history did not update its state, summary or system metrics while it was running (@dmitryduev in https://github.com/wandb/wandb/pull/13221)
-- `wandb leet symon` scaled the GPU PCIe and NVLink throughput charts and the Trainium memory charts by 1024³ on top of the bytes that the monitor reports, so their y-axis labels read like `7.67e+09GB/s` instead of `7.67GB/s` (@dmitryduev in https://github.com/wandb/wandb/pull/13191)
-- System metrics were not collected when `TMPDIR` was longer than about 60 characters or on a filesystem without Unix socket support (@dmitryduev in https://github.com/wandb/wandb/pull/13200)
-- System metrics were not collected when the temp directory was missing or not writable (@dmitryduev in https://github.com/wandb/wandb/pull/13204)
-- Reduced artifact upload request batch sizes to lower the risk of backend timeouts when logging artifacts with many files (@pinglei in https://github.com/wandb/wandb/pull/13198).
-- `File.download()` no longer fails with `invalid URL escape` when a file name contains a `%` (@jacobromero in https://github.com/wandb/wandb/pull/13177)
-- `wandb.watch` histograms are now correctly displayed for parameters and gradients where all values are identical (@jacobromero in https://github.com/wandb/wandb/pull/13260)
-- `wandb sync` of an offline run now uploads the run's artifacts, such as tables and models, to the entity and project the run is synced to, including with `--entity` and `--project` (@pinglei in https://github.com/wandb/wandb/pull/13280)
-- A script that seeds Python's `random` module got a different sequence of random numbers from run to run after `wandb.init()`, which made seeded training runs non-reproducible since 0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/13407 and https://github.com/wandb/wandb/pull/13408)
-
-### Security
-
-- Updated the `wandb/launch-agent` image base to a `chainguard-base` build with a patched Brotli (1.2.1) to address CVE-2026-111497, and bumped the Go build toolchain to 1.27.4
+- Made the `wandb-summary.json` file have the correct contents again. This was a regression in 0.31.1 (@timoffex in https://github.com/wandb/wandb/pull/13425)
