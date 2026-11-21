@@ -28,7 +28,7 @@ from .registries_search import Collections, Versions
 if TYPE_CHECKING:
     from wandb.apis.public.api import Api
     from wandb.apis.public.service_api import ServiceApi
-    from wandb.sdk.artifacts._generated import RegistryFragment
+    from wandb.sdk.artifacts._generated import RegistryFragment, UpsertModelInput
 
     from .registries_search import _VersionOrder
 
@@ -395,15 +395,23 @@ class Registry:
 
     @tracked
     def save(self) -> None:
-        """Save registry attributes to the backend."""
-        from wandb.sdk.artifacts._generated import (
-            RENAME_REGISTRY_GQL,
-            UPSERT_REGISTRY_GQL,
-            RenameProjectInput,
-            RenameRegistry,
-            UpsertModelInput,
-            UpsertRegistry,
-        )
+        """Save registry attributes to the backend.
+
+        If the name changed, the registry is renamed first. The other changed
+        attributes (description, visibility and artifact types) are saved
+        after the rename succeeds, so a rejected rename saves nothing.
+
+        Raises:
+            ValueError: If the registry could not be saved, including if the
+                rename succeeded but saving the other changed attributes failed
+                (in which case the registry object reflects the server state:
+                the new name and the other attributes as they were before
+                `save()`).
+            WandbApiFailedError: If the server rejected the rename, for
+                example because the name is taken. Nothing was saved, and
+                the staged changes are kept so `save()` can be retried.
+        """
+        from wandb.sdk.artifacts._generated import UpsertModelInput
         from wandb.sdk.artifacts._gqlutils import server_supports
         from wandb.sdk.artifacts._validators import validate_project_name
 
@@ -428,15 +436,83 @@ class Registry:
 
         old_project_name = validate_project_name(self._saved.full_name)
         new_project_name = validate_project_name(self._current.full_name)
+        renamed = old_project_name != new_project_name
 
-        upsert_input = UpsertModelInput(
-            description=self.description,
-            entity_name=self.entity,
-            name=old_project_name,
-            access=self._current.visibility.value,
-            allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
-            artifact_types=prepare_artifact_types_input(new_artifact_types),
-        )
+        def upsert_input(project_name: str) -> UpsertModelInput:
+            return UpsertModelInput(
+                description=self.description,
+                entity_name=self.entity,
+                name=project_name,
+                access=self._current.visibility.value,
+                allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
+                artifact_types=prepare_artifact_types_input(new_artifact_types),
+            )
+
+        if not renamed or not self._is_saved():
+            # Without a rename, the upsert is the only mutation.
+            # A registry that was never fetched or saved keeps the original
+            # order: the upsert may create it, and the rename can only follow.
+            self._save_upsert(upsert_input(old_project_name), failed_msg)
+            if renamed:
+                self._save_rename(old_project_name, new_project_name, failed_msg)
+            return
+
+        # Rename first. If it fails, nothing was saved and the staged changes
+        # stay on this object, so let the error propagate unchanged.
+        old_name = self._saved.name
+        pending = self._unsaved_changes()
+        upsert_after_rename = upsert_input(new_project_name)
+        self._save_rename(old_project_name, new_project_name, failed_msg)
+
+        if not pending:
+            return
+
+        try:
+            self._save_upsert(upsert_after_rename, failed_msg, wrap_errors=False)
+        except Exception as e:
+            # `_save_rename()` already set the local state to the server's:
+            # the new name and the other attributes as they were before.
+            raise ValueError(
+                f"Renamed registry {old_name!r}"
+                f" to {self.name!r} in organization {self.organization!r},"
+                f" but failed to save {', '.join(map(repr, pending))}."
+                " Set them again and call `save()` to retry."
+            ) from e
+
+    def _is_saved(self) -> bool:
+        """Return whether the saved data came from the W&B server."""
+        # A registry that was never fetched or saved only has the
+        # `RegistryData.model_construct()` draft set up in `__init__`.
+        return "id" in self._saved.model_fields_set
+
+    def _unsaved_changes(self) -> list[str]:
+        """Return the names of changed attributes, other than the name."""
+        saved, current = self._saved, self._current
+        changes: list[str] = []
+        if current.description != saved.description:
+            changes.append("description")
+        if current.visibility != saved.visibility:
+            changes.append("visibility")
+        if current.allow_all_artifact_types != saved.allow_all_artifact_types:
+            changes.append("allow_all_artifact_types")
+        if current.artifact_types.draft:
+            changes.append("artifact_types")
+        return changes
+
+    def _save_upsert(
+        self,
+        upsert_input: UpsertModelInput,
+        failed_msg: str,
+        *,
+        wrap_errors: bool = True,
+    ) -> None:
+        """Send `upsertModel` and update the local state from the result.
+
+        With `wrap_errors`, a failed request raises `ValueError(failed_msg)`.
+        Otherwise the request error propagates unchanged.
+        """
+        from wandb.sdk.artifacts._generated import UPSERT_REGISTRY_GQL, UpsertRegistry
+
         try:
             data = self._service_api.execute_graphql(
                 UPSERT_REGISTRY_GQL,
@@ -444,7 +520,9 @@ class Registry:
                 parse=UpsertRegistry.model_validate_json,
             )
         except Exception as e:
-            raise ValueError(failed_msg) from e
+            if wrap_errors:
+                raise ValueError(failed_msg) from e
+            raise
 
         if (result := data.upsert_model) and result.inserted:
             # This should only trigger if `_saved_name` was modified unexpectedly.
@@ -457,28 +535,39 @@ class Registry:
 
         self._update_attributes(registry_project)
 
-        # Update the name of the registry if it has changed
-        if old_project_name != new_project_name:
-            rename_input = RenameProjectInput(
-                entity_name=self.entity,
-                old_project_name=old_project_name,
-                new_project_name=new_project_name,
-            )
-            data = self._service_api.execute_graphql(
-                RENAME_REGISTRY_GQL,
-                variables={"input": rename_input.model_dump()},
-                parse=RenameRegistry.model_validate_json,
-            )
-            if not (
-                (result := data.rename_project) and (registry_project := result.project)
-            ):
-                raise ValueError(failed_msg)
+    def _save_rename(
+        self, old_project_name: str, new_project_name: str, failed_msg: str
+    ) -> None:
+        """Send `renameProject` and update the local state from the result.
 
-            if result.inserted:
-                # This should only trigger if `_saved_name` was modified unexpectedly.
-                wandb.termlog(f"Created new registry {self.name!r} on save")
+        A failed request propagates its error unchanged.
+        """
+        from wandb.sdk.artifacts._generated import (
+            RENAME_REGISTRY_GQL,
+            RenameProjectInput,
+            RenameRegistry,
+        )
 
-            self._update_attributes(registry_project)
+        rename_input = RenameProjectInput(
+            entity_name=self.entity,
+            old_project_name=old_project_name,
+            new_project_name=new_project_name,
+        )
+        data = self._service_api.execute_graphql(
+            RENAME_REGISTRY_GQL,
+            variables={"input": rename_input.model_dump()},
+            parse=RenameRegistry.model_validate_json,
+        )
+        if not (
+            (result := data.rename_project) and (registry_project := result.project)
+        ):
+            raise ValueError(failed_msg)
+
+        if result.inserted:
+            # This should only trigger if `_saved_name` was modified unexpectedly.
+            wandb.termlog(f"Created new registry {self.name!r} on save")
+
+        self._update_attributes(registry_project)
 
     def members(self) -> list[UserMember | TeamMember]:
         """Returns the current members (users and teams) of this registry."""
