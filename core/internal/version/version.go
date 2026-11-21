@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const Version = "0.31.2.dev1"
+const Version = "0.31.2"
 
 const MinServerVersion = "0.70.0"
 
