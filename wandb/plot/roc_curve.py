@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import wandb
 from wandb import util
 from wandb.plot.custom_chart import plot_table
-from wandb.plot.utils import test_missing, test_types
+from wandb.plot.utils import class_columns, test_missing, test_types
 
 if TYPE_CHECKING:
     from wandb.plot.custom_chart import CustomChart
@@ -108,6 +108,9 @@ def roc_curve(
         return
 
     classes = np.unique(y_true)
+    columns = class_columns(classes, y_probas.shape[-1])
+    if columns is None:
+        return
     if classes_to_plot is None:
         classes_to_plot = classes
 
@@ -123,7 +126,7 @@ def roc_curve(
             class_label = classes[i]
 
         fpr[class_label], tpr[class_label], _ = sklearn_metrics.roc_curve(
-            y_true, y_probas[..., i], pos_label=classes[i]
+            y_true, y_probas[..., columns[i]], pos_label=classes[i]
         )
 
     df = pd.DataFrame(
