@@ -155,6 +155,23 @@ func (rh *RunHistory) IsEmpty() bool {
 	return rh.metrics.IsEmpty()
 }
 
+// WireCells visits one cell per top-level label in lexical order,
+// unwrapping leaves as-is and subtrees as nested map[string]any values.
+// It excludes top-level _step, which belongs in the sequence column;
+// nested _step labels remain in their subtree. Empty top-level labels
+// are yielded unchanged for the caller to reject.
+//
+// Subtree maps are copied, but leaf values (including arrays) are shared
+// and must not be mutated. Returning false from fn stops iteration.
+func (rh *RunHistory) WireCells(fn func(key string, value any) bool) {
+	rh.metrics.ForEachTopLevel(func(key string, value any) bool {
+		if key == "_step" {
+			return true
+		}
+		return fn(key, value)
+	})
+}
+
 // Contains returns whether there is a value for the metric.
 func (rh *RunHistory) Contains(path pathtree.TreePath) bool {
 	// TODO: should this work for non-leaf values?

@@ -8,6 +8,48 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 )
 
+func TestForEachTopLevel(t *testing.T) {
+	tree := pathtree.New[any]()
+	tree.Set(pathtree.PathOf("z"), nil)
+	tree.Set(pathtree.PathOf("a", "b", "c"), int64(1))
+	tree.Set(pathtree.PathOf("a.b"), "literal")
+	var keys []string
+	values := make(map[string]any)
+	tree.ForEachTopLevel(func(key string, value any) bool {
+		keys = append(keys, key)
+		values[key] = value
+		return true
+	})
+	assert.Equal(t, []string{"a", "a.b", "z"}, keys)
+	assert.Equal(t, map[string]any{
+		"a":   map[string]any{"b": map[string]any{"c": int64(1)}},
+		"a.b": "literal", "z": nil,
+	}, values)
+	values["a"].(map[string]any)["b"].(map[string]any)["c"] = int64(2)
+	value, exists := tree.GetLeaf(pathtree.PathOf("a", "b", "c"))
+	assert.True(t, exists)
+	assert.Equal(t, int64(1), value)
+}
+
+func TestForEachTopLevelEarlyStop(t *testing.T) {
+	tree := pathtree.New[int]()
+	tree.Set(pathtree.PathOf("b"), 2)
+	tree.Set(pathtree.PathOf("a"), 1)
+	var keys []string
+	tree.ForEachTopLevel(func(key string, _ any) bool {
+		keys = append(keys, key)
+		return false
+	})
+	assert.Equal(t, []string{"a"}, keys)
+}
+
+func TestForEachTopLevelEmpty(t *testing.T) {
+	pathtree.New[int]().ForEachTopLevel(func(string, any) bool {
+		t.Fatal("empty tree yielded a node")
+		return false
+	})
+}
+
 func TestSet_NewNode(t *testing.T) {
 	tree := pathtree.New[int]()
 
