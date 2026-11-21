@@ -227,6 +227,8 @@ message ErrorInfo {
 // queries and must end with an "inform_finish" request to allow the internal
 // service to clean up.
 message RunExitRecord {
+  reserved 2;
+
   // Whether to mark the run successful (if zero) or failed (if nonzero).
   //
   // Ignored if not_complete
@@ -242,7 +244,12 @@ message RunExitRecord {
   // for a run sets its completion state.
   bool not_complete = 3;
 
-  int32 runtime = 2;
+  // The duration of the run segment.
+  //
+  // In other words, this is relative to the start of the .wandb file (if one
+  // exists). In a resumed run, this is different from the "runtime", which is
+  // the time from the start of the run.
+  optional int64 relative_time_ms = 4;
 
   _RecordInfo _info = 200;
 }

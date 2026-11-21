@@ -964,8 +964,13 @@ pub struct RunExitRecord {
     /// for a run sets its completion state.
     #[prost(bool, tag = "3")]
     pub not_complete: bool,
-    #[prost(int32, tag = "2")]
-    pub runtime: i32,
+    /// The duration of the run segment.
+    ///
+    /// In other words, this is relative to the start of the .wandb file (if one
+    /// exists). In a resumed run, this is different from the "runtime", which is
+    /// the time from the start of the run.
+    #[prost(int64, optional, tag = "4")]
+    pub relative_time_ms: ::core::option::Option<i64>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
