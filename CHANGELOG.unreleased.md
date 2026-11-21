@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `wandb.sklearn.plot_silhouette` now plots every cluster, including noise (`-1`) and labels that do not start at 0 (@David-Wu1119 in https://github.com/wandb/wandb/pull/13116)
