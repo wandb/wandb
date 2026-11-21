@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `wandb.Molecule` no longer drops the directory of a `pathlib.Path` input, so a path such as `Path('/data/mol.pdb')` is found instead of raising `FileNotFoundError` for `mol.pdb` (@sohailshk in https://github.com/wandb/wandb/pull/13383)
