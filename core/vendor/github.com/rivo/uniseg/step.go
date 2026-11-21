@@ -26,19 +26,19 @@ const (
 // don't overlap (and that they all still fit in a single int). These must
 // correspond to the Mask constants.
 const (
-	shiftWordState     = 4
-	shiftSentenceState = 9
-	shiftLineState     = 13
-	shiftPropState     = 21 // No mask as these are always the remaining bits.
+	shiftWordState     = 5
+	shiftSentenceState = 10
+	shiftLineState     = 14
+	shiftPropState     = 26 // No mask as these are always the remaining bits.
 )
 
 // The bit mask used to extract the state returned by the [Step] function, after
 // shifting. These values must correspond to the shift constants.
 const (
-	maskGraphemeState = 0xf
+	maskGraphemeState = 0x1f
 	maskWordState     = 0x1f
 	maskSentenceState = 0xf
-	maskLineState     = 0xff
+	maskLineState     = 0xfff
 )
 
 // Step returns the first grapheme cluster (user-perceived character) found in
@@ -151,9 +151,10 @@ func Step(b []byte, state int) (cluster, rest []byte, boundaries int, newState i
 		}
 
 		if firstProp == prExtendedPictographic {
-			if r == vs15 {
+			switch r {
+			case vs15:
 				width = 1
-			} else if r == vs16 {
+			case vs16:
 				width = 2
 			}
 		} else if firstProp != prRegionalIndicator && firstProp != prL {
@@ -225,9 +226,10 @@ func StepString(str string, state int) (cluster, rest string, boundaries int, ne
 		}
 
 		if firstProp == prExtendedPictographic {
-			if r == vs15 {
+			switch r {
+			case vs15:
 				width = 1
-			} else if r == vs16 {
+			case vs16:
 				width = 2
 			}
 		} else if firstProp != prRegionalIndicator && firstProp != prL {

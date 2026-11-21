@@ -20,6 +20,7 @@ type systemMetricChart interface {
 	SupportsHeatmap() bool
 	ToggleHeatmapMode() bool
 	IsHeatmapMode() bool
+	ScrollRows(delta int) bool
 	ViewModeLabel() string
 	ScaleLabel() string
 	StartInspectionAt(mouseX, mouseY int)

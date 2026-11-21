@@ -52,6 +52,9 @@ type Writer struct {
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
 
+	exitFlushDone     chan struct{}
+	exitFlushSignaled bool
+
 	// stats measures the cost of the upload pipeline. It may be nil.
 	stats *filestreamstats.Stats
 }
@@ -59,11 +62,12 @@ type Writer struct {
 // New returns a new Writer.
 func (f *WriterFactory) New(writer *transactionlog.Writer) *Writer {
 	return &Writer{
-		logger:   f.Logger,
-		settings: f.Settings,
-		out:      make(chan runwork.MaybeSavedWork),
-		writer:   writer,
-		stats:    f.Stats,
+		logger:        f.Logger,
+		settings:      f.Settings,
+		exitFlushDone: make(chan struct{}),
+		out:           make(chan runwork.MaybeSavedWork),
+		writer:        writer,
+		stats:         f.Stats,
 	}
 }
 
@@ -72,11 +76,17 @@ func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
 	return w.out
 }
 
+// ExitFlushDone closes after the exit flush attempt or when the writer stops.
+func (w *Writer) ExitFlushDone() <-chan struct{} {
+	return w.exitFlushDone
+}
+
 // Do saves all input Work and pushes it to the output channel,
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise("stream")
 	defer close(w.out)
+	defer w.signalFlushedAfterExit()
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
 	// A nil channel never fires, which disables the periodic flush.
@@ -118,6 +128,7 @@ func (w *Writer) process(work runwork.Work) {
 	savedWork := runwork.MaybeSavedWork{Work: work}
 
 	record := work.ToRecord()
+
 	if !w.isLocal(record) {
 		recordNum := w.setNumber(record)
 		offset, err := w.write(record)
@@ -134,7 +145,27 @@ func (w *Writer) process(work runwork.Work) {
 		}
 	}
 
+	if record.GetExit() != nil {
+		err := w.Flush()
+		if err != nil {
+			w.logger.CaptureError(
+				"stream",
+				fmt.Errorf("writer: failed to flush after exit: %v", err),
+			)
+		}
+
+		w.signalFlushedAfterExit()
+	}
+
 	w.out <- savedWork
+}
+
+func (w *Writer) signalFlushedAfterExit() {
+	if w.exitFlushSignaled {
+		return
+	}
+	w.exitFlushSignaled = true
+	close(w.exitFlushDone)
 }
 
 // finish closes the transaction log writer.
