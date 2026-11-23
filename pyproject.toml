@@ -23,6 +23,7 @@ dependencies = [
     "opentelemetry-sdk>=1.43.0",
     "opentelemetry-exporter-otlp-proto-common>=1.43.0",
     "xxhash>=3.0.0",
+    "cwevals==0.0.1b3",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
