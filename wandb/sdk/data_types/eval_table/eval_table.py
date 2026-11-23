@@ -95,9 +95,10 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Optional storage-backend override. Weave is the default. Pass
-                "ces" to write through the CoreWeave Evaluation Service instead, which
-                is not yet released. CES input and output columns accept lists of
+            backend: Optional storage-backend override. The CoreWeave Evaluation
+                Service ("ces") is the default. Pass "weave" to use the Weave backend
+                from the private preview phase, which will be removed soon.
+                CES input and output columns accept lists of
                 up to 128 wandb.Image values, preserving order and duplicates.
                 Empty lists use the resolved column dtype. All-empty or all-null
                 image-list columns need an explicit ListType(wandb.Image) dtype.
@@ -145,7 +146,7 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
-        self._backend: Backend = backend if backend is not None else "weave"
+        self._backend: Backend = backend if backend is not None else "ces"
         self._writer: EvalTableWriter = create_writer(
             self._backend,
             allow_mixed_types=allow_mixed_types,

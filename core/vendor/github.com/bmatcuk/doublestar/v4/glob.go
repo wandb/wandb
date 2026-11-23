@@ -150,7 +150,7 @@ func (g *glob) globAlts(fsys fs.FS, pattern string, openingIdx, closingIdx int, 
 		patIdx := openingIdx + 1
 		altResultsStartIdx := len(matches)
 		thisResultStartIdx := altResultsStartIdx
-		for patIdx < closingIdx {
+		for patIdx <= closingIdx {
 			nextIdx := indexNextAlt(pattern[patIdx:closingIdx], true)
 			if nextIdx == -1 {
 				nextIdx = closingIdx

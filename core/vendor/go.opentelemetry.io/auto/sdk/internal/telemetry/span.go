@@ -82,14 +82,14 @@ type Span struct {
 	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	//
 	// This field is semantically required and it is expected that end_time >= start_time.
-	StartTime time.Time `json:"startTimeUnixNano,omitempty"`
+	StartTime time.Time `json:"startTimeUnixNano,omitzero"`
 	// end_time_unix_nano is the end time of the span. On the client side, this is the time
 	// kept by the local machine where the span execution ends. On the server side, this
 	// is the time when the server application handler stops running.
 	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	//
 	// This field is semantically required and it is expected that end_time >= start_time.
-	EndTime time.Time `json:"endTimeUnixNano,omitempty"`
+	EndTime time.Time `json:"endTimeUnixNano,omitzero"`
 	// attributes is a collection of key/value pairs. Note, global attributes
 	// like server name can be set using the resource API. Examples of attributes:
 	//
@@ -300,7 +300,7 @@ const (
 // text description and key-value pairs.
 type SpanEvent struct {
 	// time_unix_nano is the time the event occurred.
-	Time time.Time `json:"timeUnixNano,omitempty"`
+	Time time.Time `json:"timeUnixNano,omitzero"`
 	// name of the event.
 	// This field is semantically required to be set to non-empty string.
 	Name string `json:"name,omitempty"`

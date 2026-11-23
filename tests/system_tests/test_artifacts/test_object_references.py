@@ -9,11 +9,10 @@ from typing import Literal
 
 import boto3
 import botocore
-import google.cloud.storage
 import numpy as np
 import wandb
 from bokeh.plotting import figure
-from pytest import MonkeyPatch, TempPathFactory, fail, fixture, raises
+from pytest import MonkeyPatch, TempPathFactory, fail, fixture, raises, skip
 from wandb.data_types import WBValue
 from wandb.sdk.lib.hashutil import b64_to_hex_id
 
@@ -1098,10 +1097,7 @@ def anon_storage_handlers(monkeypatch: MonkeyPatch):
         return self._s3
 
     def init_gcs(self):
-        if self._client is not None:
-            return self._client
-        self._client = google.cloud.storage.Client.create_anonymous_client()
-        return self._client
+        skip("gs://wandb-artifact-refs-public-test no longer allows anonymous reads")
 
     monkeypatch.setattr(S3Handler, "init_boto", init_boto)
     monkeypatch.setattr(GCSHandler, "init_gcs", init_gcs)

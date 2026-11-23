@@ -6,7 +6,7 @@ package telemetry
 // Attr is a key-value pair.
 type Attr struct {
 	Key   string `json:"key,omitempty"`
-	Value Value  `json:"value,omitempty"`
+	Value Value  `json:"value,omitzero"`
 }
 
 // String returns an Attr for a string value.
