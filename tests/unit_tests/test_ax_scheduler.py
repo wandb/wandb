@@ -80,6 +80,43 @@ class TestQDefault:
         assert sweep_parameter_to_parameter("x", parameter) == expected
 
 
+class TestUnrepresentableIntRanges:
+    """Int ranges Ax can't sample exactly are rejected, not approximated."""
+
+    @pytest.mark.parametrize(
+        ("parameter", "match"),
+        [
+            (
+                {"distribution": "q_log_uniform_values", "min": 1, "max": 256, "q": 2},
+                "'p' uses q_log_uniform_values with q=2",
+            ),
+            (
+                {"distribution": "q_log_uniform_values", "min": 0.5, "max": 256},
+                "'p' uses q_log_uniform_values with min=0.5",
+            ),
+            (
+                {"distribution": "int_uniform", "min": 1.5, "max": 5.5},
+                "'p' uses int_uniform with min=1.5",
+            ),
+        ],
+        ids=["qlog_q_not_one", "qlog_min_below_one", "int_fractional_bounds"],
+    )
+    def test_raises_naming_the_parameter(
+        self, parameter: dict[str, Any], match: str
+    ) -> None:
+        with pytest.raises(ValueError, match=match):
+            sweep_parameter_to_parameter("p", parameter)
+
+    def test_accepts_whole_float_bounds(self) -> None:
+        parameter = sweep_parameter_to_parameter(
+            "p", {"distribution": "int_uniform", "min": 1.0, "max": 5.0}
+        )
+
+        assert parameter == ax_module.RangeParameterConfig(
+            name="p", bounds=(1, 5), parameter_type="int"
+        )
+
+
 class TestAskNRuns:
     """How `ask_n_runs` maps Ax's generation failures onto the contract."""
 
