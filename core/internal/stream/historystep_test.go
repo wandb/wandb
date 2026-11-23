@@ -30,6 +30,8 @@ func makeHistoryStepTracker(
 		StartingStep: startingStep,
 	}
 	handle := runhandle.New()
+	finishInit := handle.WillInit()
+	defer finishInit()
 	require.NoError(t,
 		handle.Init(
 			runupsertertest.NewTestUpserterFromRun(

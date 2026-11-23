@@ -29,6 +29,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -544,17 +545,8 @@ func (s *Sender) sendRequestSampledHistory(
 	})
 }
 
-func (s *Sender) sendJobFlush() {
+func (s *Sender) sendJobFlush(upserter *runupserter.RunUpserter) {
 	if s.jobBuilder == nil {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendJobFlush: %v", err),
-		)
 		return
 	}
 
@@ -661,16 +653,26 @@ func (s *Sender) finishRunSync(
 		defer cancelAbortOnRequestFinish()
 	}
 
+	// We may start to exit before receiving a run record, like when syncing
+	// an empty file. If we did receive a run record, wait for initialization
+	// to complete before continuing.
+	var upserterOrNil *runupserter.RunUpserter
+	if s.runHandle.BeganInit() {
+		select {
+		case <-s.runWork.BeforeEndCtx().Done():
+		case <-s.runHandle.ReadyOrFailed():
+			upserterOrNil, _ = s.runHandle.Upserter()
+		}
+	}
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()
-	// Sync can stop before receiving a run record, for example on an empty file.
-	upserter, _ := s.runHandle.Upserter()
-	if upserter != nil {
+	if upserterOrNil != nil {
 		s.uploadSummaryFile()
-		upserter.Finish()
+		upserterOrNil.Finish()
 		s.uploadConfigFile()
 	}
 	s.mu.Unlock()
@@ -680,8 +682,8 @@ func (s *Sender) finishRunSync(
 	s.artifactWG.Wait()
 
 	s.mu.Lock()
-	if upserter != nil {
-		s.sendJobFlush()
+	if upserterOrNil != nil {
+		s.sendJobFlush(upserterOrNil)
 	}
 	s.mu.Unlock()
 

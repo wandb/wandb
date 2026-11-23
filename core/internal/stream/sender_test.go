@@ -99,7 +99,9 @@ func makeSenderWithFileStream(
 			"run1",
 			runupserter.RunUpserterParams{Settings: settings},
 		)
+		finishInit := runHandle.WillInit()
 		assert.NoError(t, runHandle.Init(upserter))
+		finishInit()
 	}
 
 	senderFactory := stream.SenderFactory{
