@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -259,7 +260,7 @@ func TestUpload(t *testing.T) {
 	requests := ces.Requests()
 	require.Len(t, requests, 4)
 	assert.Equal(t, tablePath, requests[0].Path)
-	assert.JSONEq(t, `{"name": "my-table"}`, requests[0].Body)
+	assert.Equal(t, "my-table", bodyField(t, requests[0], "name"))
 	assert.Equal(t, tablePath+"/eval-id/columns", requests[1].Path)
 	assert.JSONEq(t, `{
 		"dataset_fields": [
@@ -360,6 +361,41 @@ func TestEncode_AllValueTypes(t *testing.T) {
 			`"example_key":"2"}`+
 			`]`,
 		table.CESRowsJSON(t))
+}
+
+// bodyField returns a string field of a request's JSON body.
+func bodyField(t *testing.T, request cesRequest, field string) string {
+	t.Helper()
+	var body map[string]any
+	require.NoError(t, json.Unmarshal([]byte(request.Body), &body))
+	value, _ := body[field].(string)
+	return value
+}
+
+func TestUpload_NamesFirstVersionWithUUIDv7(t *testing.T) {
+	ces := newFakeCES(t)
+	uploader, _ := newTestUploader(t, ces, projectFoundJSON)
+	data := &spb.EvalTableData{Name: "t", DatasetFields: outputFieldX, Rows: outputRows(1, 1)}
+
+	_, err := upload(context.Background(), uploader, data)
+	require.NoError(t, err)
+	_, err = upload(context.Background(), uploader, data)
+	require.NoError(t, err)
+
+	requests := ces.Requests()
+	require.Len(t, requests, 8)
+	var supplied []string
+	for _, request := range []cesRequest{requests[0], requests[4]} {
+		require.Equal(t, tablePath, request.Path)
+		assert.NotContains(t, request.Body, "evaluation_id")
+		id := bodyField(t, request, "evaluation_version_id")
+		parsed, err := uuid.Parse(id)
+		require.NoError(t, err)
+		assert.Equal(t, uuid.Version(7), parsed.Version())
+		assert.Equal(t, parsed.String(), id)
+		supplied = append(supplied, id)
+	}
+	assert.NotEqual(t, supplied[0], supplied[1])
 }
 
 func TestUpload_DistinctIdempotencyKeys(t *testing.T) {
