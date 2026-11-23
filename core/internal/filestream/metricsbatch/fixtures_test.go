@@ -16,6 +16,10 @@ type fixture struct {
 	item *spb.HistoryItem
 	kind filestreamv1.MetricsBatch_Kind
 	json string
+
+	// absent is true when RunHistory stores nothing for the value,
+	// so the row has no cell.
+	absent bool
 }
 
 var fixtures = []fixture{
@@ -253,6 +257,13 @@ var fixtures = []fixture{
 	},
 
 	{
+		name: "text/numeric",
+		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
+			Text: "007"}},
+		kind: filestreamv1.MetricsBatch_KIND_STRING,
+		json: `"007"`,
+	},
+	{
 		name: "text/empty",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
 			Text: ""}},
@@ -292,8 +303,7 @@ var fixtures = []fixture{
 		name: "json/empty object",
 		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
 			Json: `{}`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{}`,
+		absent: true,
 	},
 	{
 		name: "json/empty array",

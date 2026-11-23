@@ -118,10 +118,7 @@ func (mh *MetricHandler) UpdateMetrics(
 		if key == "" {
 			continue
 		}
-		keyLabels := strings.Split(key, ".")
-		keyPath := pathtree.PathOf(keyLabels[0], keyLabels[1:]...)
-
-		latest, ok := history.GetNumber(keyPath)
+		latest, ok := history.GetNumber(stepMetricPath(key))
 		if !ok {
 			continue
 		}
@@ -149,14 +146,10 @@ func (mh *MetricHandler) InsertStepMetrics(
 			return true
 		}
 
-		stepMetricLabels := strings.Split(metricDef.Step, ".")
-		stepMetricPath := pathtree.PathOf(
-			stepMetricLabels[0],
-			stepMetricLabels[1:]...,
-		)
+		stepPath := stepMetricPath(metricDef.Step)
 
 		// Skip if the step is already set.
-		if history.Contains(stepMetricPath) {
+		if history.Contains(stepPath) {
 			return true
 		}
 		latest, ok := mh.latestStep[metricDef.Step]
@@ -164,9 +157,21 @@ func (mh *MetricHandler) InsertStepMetrics(
 		if !ok {
 			return true
 		}
-		history.SetFloat(stepMetricPath, latest)
+		history.SetFloat(stepPath, latest)
 		return true
 	})
+}
+
+// stepMetricPath returns the history path of a step metric.
+//
+// Dots separate nested labels. A name that starts with a dot is one
+// top-level key, because history cannot have an empty first label.
+func stepMetricPath(name string) pathtree.TreePath {
+	labels := strings.Split(name, ".")
+	if labels[0] == "" {
+		return pathtree.PathOf(name)
+	}
+	return pathtree.PathOf(labels[0], labels[1:]...)
 }
 
 // createGlobMetrics returns new metric definitions created by matching

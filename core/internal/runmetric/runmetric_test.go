@@ -3,6 +3,10 @@ package runmetric
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -90,4 +94,53 @@ func TestGlobMetricEndingWildcard(t *testing.T) {
 		t.Errorf("Expected match, got %v", match)
 	}
 
+}
+
+func TestStepSync_NestedStep(t *testing.T) {
+	mh := New()
+	_ = mh.ProcessRecord(&spb.MetricRecord{Name: "train.step"})
+	_ = mh.ProcessRecord(&spb.MetricRecord{
+		Name:       "loss",
+		StepMetric: "train.step",
+		Options:    &spb.MetricOptions{StepSync: true},
+	})
+
+	first := runhistory.New()
+	first.SetFloat(pathtree.PathOf("train", "step"), 3)
+	mh.UpdateMetrics(first)
+	second := runhistory.New()
+	second.SetFloat(pathtree.PathOf("loss"), 0.5)
+	mh.UpdateMetrics(second)
+	mh.InsertStepMetrics(second)
+
+	step, ok := second.GetNumber(pathtree.PathOf("train", "step"))
+	assert.True(t, ok)
+	assert.Equal(t, 3.0, step)
+}
+
+func TestStepSync_LeadingDotStep(t *testing.T) {
+	mh := New()
+	_ = mh.ProcessRecord(&spb.MetricRecord{Name: ".a.b"})
+	_ = mh.ProcessRecord(&spb.MetricRecord{
+		Name:       "loss",
+		StepMetric: ".a.b",
+		Options:    &spb.MetricOptions{StepSync: true},
+	})
+
+	first := runhistory.New()
+	first.SetFloat(pathtree.PathOf(".a.b"), 3)
+	mh.UpdateMetrics(first)
+	second := runhistory.New()
+	second.SetFloat(pathtree.PathOf("loss"), 0.5)
+	mh.UpdateMetrics(second)
+	mh.InsertStepMetrics(second)
+
+	step, ok := second.GetNumber(pathtree.PathOf(".a.b"))
+	assert.True(t, ok)
+	assert.Equal(t, 3.0, step)
+	records, err := second.ToRecords(true, false)
+	assert.NoError(t, err)
+	for _, record := range records {
+		assert.NotEmpty(t, record.NestedKey[0])
+	}
 }

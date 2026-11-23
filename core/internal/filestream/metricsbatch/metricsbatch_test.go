@@ -262,8 +262,8 @@ func TestFixtures(t *testing.T) {
 	for i, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
 			got, present := rows[i]["metric"]
-			if f.name == "json/empty object" {
-				assert.False(t, present, "an empty object makes no cell")
+			if f.absent {
+				assert.False(t, present)
 				return
 			}
 			require.True(t, present)
@@ -310,8 +310,10 @@ func TestOneofCoverage(t *testing.T) {
 	assert.Empty(t, covered, "fixtures exist for alternatives not in the schema")
 }
 
-func TestTypedLegacyAndMixedItems(t *testing.T) {
-	typed := []*spb.HistoryItem{
+// TestValueEncodings checks typed-only, JSON-only and both-field items.
+// When both fields are set, the typed value wins.
+func TestValueEncodings(t *testing.T) {
+	typedOnly := []*spb.HistoryItem{
 		{Key: "null", Value: &spb.HistoryItem_None{}},
 		{Key: "bool", Value: &spb.HistoryItem_Boolean{Boolean: true}},
 		{Key: "int", Value: &spb.HistoryItem_Integer{Integer: 7}},
@@ -319,7 +321,7 @@ func TestTypedLegacyAndMixedItems(t *testing.T) {
 		{Key: "string", Value: &spb.HistoryItem_Text{Text: "s"}},
 		{Key: "json", Value: &spb.HistoryItem_Json{Json: `[1,"x"]`}},
 	}
-	legacy := []*spb.HistoryItem{
+	jsonOnly := []*spb.HistoryItem{
 		{Key: "null", ValueJson: "null"},
 		{Key: "bool", ValueJson: "true"},
 		{Key: "int", ValueJson: "7"},
@@ -327,19 +329,30 @@ func TestTypedLegacyAndMixedItems(t *testing.T) {
 		{Key: "string", ValueJson: `"s"`},
 		{Key: "json", ValueJson: `[1,"x"]`},
 	}
-	var mixed []*spb.HistoryItem
-	for i := range typed {
-		if i%2 == 0 {
-			mixed = append(mixed, typed[i])
-		} else {
-			mixed = append(mixed, legacy[i])
-		}
+	var both []*spb.HistoryItem
+	for _, item := range typedOnly {
+		item = proto.Clone(item).(*spb.HistoryItem)
+		item.ValueJson = `"json-loses"`
+		both = append(both, item)
 	}
+	want := []map[string]typedValue{{
+		"null":   {filestreamv1.MetricsBatch_KIND_NULL, nil},
+		"bool":   {filestreamv1.MetricsBatch_KIND_BOOL, true},
+		"int":    {filestreamv1.MetricsBatch_KIND_INT, int64(7)},
+		"float":  {filestreamv1.MetricsBatch_KIND_FLOAT, 1.5},
+		"string": {filestreamv1.MetricsBatch_KIND_STRING, "s"},
+		"json":   {filestreamv1.MetricsBatch_KIND_JSON, []any{int64(1), "x"}},
+	}}
 
-	want := build(t, prepared(t, typed...))
-	assert.Len(t, want.CellKinds, 6)
-	assert.True(t, proto.Equal(want, build(t, prepared(t, legacy...))))
-	assert.True(t, proto.Equal(want, build(t, prepared(t, mixed...))))
+	for name, items := range map[string][]*spb.HistoryItem{
+		"typed only": typedOnly,
+		"JSON only":  jsonOnly,
+		"both":       both,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, want, decode(t, build(t, prepared(t, items...))))
+		})
+	}
 }
 
 func TestPresence(t *testing.T) {
@@ -587,6 +600,10 @@ func TestOwnership(t *testing.T) {
 	first.Finish()
 	assert.True(t, proto.Equal(before, batch))
 	assert.True(t, proto.Equal(batch, second.Finish()))
+	assert.Equal(t, []map[string]typedValue{{
+		"arr": {filestreamv1.MetricsBatch_KIND_JSON, []any{int64(1), int64(2)}},
+		"obj": {filestreamv1.MetricsBatch_KIND_JSON, map[string]any{"x": int64(1)}},
+	}}, decode(t, batch))
 }
 
 func TestWideRow(t *testing.T) {
