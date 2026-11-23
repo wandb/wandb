@@ -9902,8 +9902,8 @@ type EvalTableRow struct {
 	Output *EvalTableRowValues `protobuf:"bytes,2,opt,name=output,proto3" json:"output,omitempty"`
 	// Values of the scorers, in their order in scorers.
 	Scores []*EvalTableValue `protobuf:"bytes,3,rep,name=scores,proto3" json:"scores,omitempty"`
-	// Identifies a row without inputs. CES derives the key of other rows
-	// from their inputs.
+	// Identifies the row's example, for matching rows across evaluations.
+	// If unset, CES derives it from the row's inputs.
 	ExampleKey    string `protobuf:"bytes,4,opt,name=example_key,json=exampleKey,proto3" json:"example_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
