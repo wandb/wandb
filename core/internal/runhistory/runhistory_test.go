@@ -508,7 +508,7 @@ func TestForEachTopLevel(t *testing.T) {
 			},
 		},
 		{
-			name: "legacy scalars and whole arrays",
+			name: "JSON-only scalars and whole arrays",
 			records: []*spb.HistoryItem{
 				{Key: "text", ValueJson: `"s"`},
 				{Key: "int", ValueJson: "1"},

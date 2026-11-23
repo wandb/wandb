@@ -237,8 +237,8 @@ func (pt *PathTree[T]) ForEachLeaf(fn func(path TreePath, value T) bool) {
 }
 
 // ForEachTopLevel visits top-level labels in lexical order until fn
-// returns false. Leaves are passed as-is; subtrees are copied to nested
-// maps. Leaf values inside those maps are not cloned.
+// returns false. Leaves are passed as-is. Subtrees are copied to nested
+// maps, but the leaf values inside those maps are not cloned.
 func (pt *PathTree[T]) ForEachTopLevel(fn func(key string, value any) bool) {
 	keys := make([]string, 0, len(pt.tree))
 	for key := range pt.tree {

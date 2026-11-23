@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- A metric defined with `step_sync` and a `step_metric` that starts with a dot, such as `.foo`, now gets the latest logged value of that step (@geoffhardy in https://github.com/wandb/wandb/pull/13430)
