@@ -135,6 +135,8 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
+	data.WriterID = fs.writerID
+
 	marshalStart := time.Now()
 	jsonData, err := json.Marshal(data)
 	marshalDuration := time.Since(marshalStart)

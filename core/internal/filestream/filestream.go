@@ -64,13 +64,15 @@ type FileStream interface {
 	// Start asynchronously begins to upload to the backend.
 	//
 	// All operations are associated with the specified run (defined by
-	// `entity`, `project` and `runID`). In case we are resuming a run,
+	// `entity`, `project` and `runID`) and sent as `writerID`, the writer
+	// session that produced the data. In case we are resuming a run,
 	// the `offsetMap` specifies the initial file offsets for each file
 	// type (history, output logs, events, summary).
 	Start(
 		entity string,
 		project string,
 		runID string,
+		writerID string,
 		offsetMap FileStreamOffsetMap,
 	)
 
@@ -97,6 +99,9 @@ type fileStream struct {
 	//
 	// This must not include the schema and hostname prefix.
 	path string
+
+	// The ID of the writer session, sent with every request.
+	writerID string
 
 	mu              sync.Mutex
 	isFinished      bool
@@ -211,9 +216,12 @@ func (fs *fileStream) Start(
 	entity string,
 	project string,
 	runID string,
+	writerID string,
 	offsetMap FileStreamOffsetMap,
 ) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
+
+	fs.writerID = writerID
 
 	fs.path = fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",

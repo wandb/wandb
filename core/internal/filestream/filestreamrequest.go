@@ -99,6 +99,9 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 // [FileStreamRequest] can be thought of as the "idealized" request;
 // it is what we wish the API looked like.
 type FileStreamRequestJSON struct {
+	// WriterID identifies the writer session that produced the data.
+	WriterID string `json:"writer_id,omitempty"`
+
 	Files      map[string]OffsetAndContent `json:"files,omitempty"`
 	Uploaded   []string                    `json:"uploaded,omitempty"`
 	Preempting *bool                       `json:"preempting,omitempty"`

@@ -69,6 +69,7 @@ type RunUpserter struct {
 	telemetry   *spb.TelemetryRecord
 	metrics     *runmetric.MetricHandler
 	environment *runenvironment.RunEnvironment
+	writerID    string
 }
 
 type RunUpserterParams struct {
@@ -176,6 +177,7 @@ func InitRun(
 		telemetry:   telemetry,
 		metrics:     runmetric.New(),
 		environment: environment,
+		writerID:    runRecord.WriterId,
 	}
 
 	// If resuming, rewinding or forking, we need to modify metadata
@@ -374,6 +376,11 @@ func (upserter *RunUpserter) RunPath() runbranch.RunPath {
 		Project: upserter.params.Project,
 		RunID:   upserter.params.RunID,
 	}
+}
+
+// WriterID returns the ID of the writer session that produced the run's data.
+func (upserter *RunUpserter) WriterID() string {
+	return upserter.writerID
 }
 
 // ConfigYAML returns the run's config as a YAML string.
