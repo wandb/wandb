@@ -1462,10 +1462,15 @@ func (s *Sender) uploadEvalTable(
 		return nil, fmt.Errorf("sender: uploadEvalTable: %v", err)
 	}
 
-	table, err := evaltables.Encode(msg.GetTable(), upserter.RunPath())
+	table, err := evaltables.Encode(ctx, msg.GetTable(), upserter.RunPath())
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := table.Close(); err != nil {
+			s.logger.CaptureError("stream", fmt.Errorf("sender: uploadEvalTable: %v", err))
+		}
+	}()
 
 	if mediaPaths := msg.GetTable().GetUploadMediaPaths(); len(mediaPaths) > 0 {
 		files := &spb.FilesRecord{}
