@@ -25,6 +25,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -427,6 +428,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendUseArtifact(record)
 	case *spb.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
+	case *spb.Record_EvalTable:
+		s.sendEvalTable(x.EvalTable)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",
@@ -1424,7 +1427,13 @@ func (s *Sender) sendRequestUploadEvalTable(
 		defer cancel()
 		defer op.Finish()
 
-		response, err := s.uploadEvalTable(ctx, msg)
+		response, err := s.uploadEvalTable(
+			ctx,
+			func(runPath runbranch.RunPath) (*evaltables.EncodedTable, error) {
+				return evaltables.Encode(ctx, msg.GetTable(), runPath)
+			},
+			msg.GetTable().GetUploadMediaPaths(),
+		)
 
 		switch {
 		case evaltables.IsUsageError(err):
@@ -1451,18 +1460,52 @@ func (s *Sender) sendRequestUploadEvalTable(
 	}()
 }
 
-// uploadEvalTable validates an EvalTable, then uploads it and the run
-// files that its media cells reference.
+// sendEvalTable uploads an EvalTable that an offline run recorded.
+//
+// It does nothing in offline mode, so that `wandb sync` uploads the table.
+func (s *Sender) sendEvalTable(msg *spb.EvalTableRecord) {
+	if s.evalTableUploader == nil {
+		return
+	}
+
+	op := s.operations.New(fmt.Sprintf("uploading eval table %s", msg.GetTable().GetName()))
+	ctx := op.Context(s.runWork.BeforeEndCtx())
+
+	s.evalTableWG.Add(1)
+	go func() {
+		defer s.evalTableWG.Done()
+		defer op.Finish()
+
+		_, err := s.uploadEvalTable(
+			ctx,
+			func(runPath runbranch.RunPath) (*evaltables.EncodedTable, error) {
+				return evaltables.EncodeRecord(ctx, msg, runPath, s.settings.GetSyncDir())
+			},
+			msg.GetTable().GetUploadMediaPaths(),
+		)
+		if err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: failed to upload EvalTable: %v", err),
+				"evaluationVersionID", msg.GetEvaluationVersionId(),
+			)
+		}
+	}()
+}
+
+// uploadEvalTable validates and encodes an EvalTable of the run, then
+// uploads it and the run files that its media cells reference.
 func (s *Sender) uploadEvalTable(
 	ctx context.Context,
-	msg *spb.UploadEvalTableRequest,
+	encode func(runbranch.RunPath) (*evaltables.EncodedTable, error),
+	mediaPaths []string,
 ) (*spb.UploadEvalTableResponse, error) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		return nil, fmt.Errorf("sender: uploadEvalTable: %v", err)
 	}
 
-	table, err := evaltables.Encode(ctx, msg.GetTable(), upserter.RunPath())
+	table, err := encode(upserter.RunPath())
 	if err != nil {
 		return nil, err
 	}
@@ -1472,7 +1515,7 @@ func (s *Sender) uploadEvalTable(
 		}
 	}()
 
-	if mediaPaths := msg.GetTable().GetUploadMediaPaths(); len(mediaPaths) > 0 {
+	if len(mediaPaths) > 0 {
 		files := &spb.FilesRecord{}
 		for _, path := range mediaPaths {
 			files.Files = append(files.Files, &spb.FilesItem{

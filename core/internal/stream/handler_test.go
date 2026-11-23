@@ -7,12 +7,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -1067,5 +1069,105 @@ func TestHandleDerivedSummary(t *testing.T) {
 				"wrong number of summary records",
 			)
 		})
+	}
+}
+
+func makeOfflineHandler(t *testing.T, inChan chan runwork.Work, syncDir string) *stream.Handler {
+	t.Helper()
+
+	runHandle := runhandle.New()
+	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
+
+	factory := stream.HandlerFactory{
+		Logger: observabilitytest.NewTestLogger(t),
+		Settings: settings.From(&spb.Settings{
+			XOffline: wrapperspb.Bool(true),
+			SyncDir:  wrapperspb.String(syncDir),
+		}),
+		TerminalPrinter: observability.NewPrinter(0),
+		RunHandle:       runHandle,
+	}
+	h := factory.New(runworktest.New())
+
+	go h.Do(inChan)
+	t.Cleanup(func() {
+		close(inChan)
+		for range h.OutChan() {
+		}
+	})
+
+	return h
+}
+
+func uploadEvalTableWork(
+	t *testing.T,
+	table *spb.EvalTableData,
+) (runwork.Work, <-chan *spb.ServerResponse) {
+	t.Helper()
+	request, outputs := runworktest.SimpleRequest(t, "test-id")
+	return runwork.Work{
+		WorkImpl: runwork.WorkRecord{Record: &spb.Record{
+			RecordType: &spb.Record_Request{
+				Request: &spb.Request{
+					RequestType: &spb.Request_UploadEvalTable{
+						UploadEvalTable: &spb.UploadEvalTableRequest{Table: table},
+					},
+				},
+			},
+		}},
+		Request: request,
+	}, outputs
+}
+
+func TestHandleUploadEvalTable_OfflineRecordsTable(t *testing.T) {
+	inChan := make(chan runwork.Work, 1)
+	handler := makeOfflineHandler(t, inChan, t.TempDir())
+	table := &spb.EvalTableData{
+		Name:          "t",
+		DatasetFields: []*spb.EvalTableField{{Source: "output", Name: "x", ValueType: "string"}},
+		Rows: []*spb.EvalTableRow{{
+			Output: &spb.EvalTableRowValues{Values: []*spb.EvalTableValue{
+				{Value: &spb.EvalTableValue_StringValue{StringValue: "1"}},
+			}},
+		}},
+	}
+	work, outputs := uploadEvalTableWork(t, table)
+
+	inChan <- work
+
+	forwarded := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record.GetEvalTable()
+	require.NotNil(t, forwarded)
+	assert.True(t, proto.Equal(table, forwarded.GetTable()))
+	response := (<-outputs).GetResultCommunicate().GetResponse().GetUploadEvalTableResponse()
+	assert.Nil(t, response.GetError())
+	assert.NotEmpty(t, response.GetEvaluationVersionId())
+	assert.Equal(t, forwarded.GetEvaluationVersionId(), response.GetEvaluationVersionId())
+	assert.Empty(t, response.GetEvaluationId())
+	assert.Empty(t, response.GetDatasetId())
+	assert.Empty(t, response.GetDatasetVersionId())
+}
+
+func TestHandleUploadEvalTable_OfflineRejectsInvalidTable(t *testing.T) {
+	inChan := make(chan runwork.Work, 1)
+	handler := makeOfflineHandler(t, inChan, t.TempDir())
+	work, outputs := uploadEvalTableWork(t, &spb.EvalTableData{
+		Name:          "t",
+		DatasetFields: []*spb.EvalTableField{{Source: "metadata", Name: "a", ValueType: "string"}},
+	})
+
+	inChan <- work
+
+	response := (<-outputs).GetResultCommunicate().GetResponse().GetUploadEvalTableResponse()
+	assert.Equal(t,
+		&spb.ErrorInfo{
+			Code:    spb.ErrorInfo_USAGE,
+			Message: `field "a" has unknown source "metadata"`,
+		},
+		response.GetError())
+	assert.Empty(t, response.GetEvaluationVersionId())
+	select {
+	case work := <-handler.OutChan():
+		t.Fatalf("handler forwarded %v", work)
+	default:
 	}
 }
