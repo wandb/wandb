@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -17,7 +17,6 @@ class WriteRow:
     inputs: Mapping[ColumnKey, Any]
     output: Mapping[ColumnKey, Any] | None
     scores: Mapping[ColumnKey, Any]
-    column_types: Mapping[ColumnKey, Type] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -47,6 +46,7 @@ class EvalTableWriter(Protocol):
         *,
         name: str,
         rows: Sequence[WriteRow],
+        column_types: Mapping[ColumnKey, Type],
         ncols: int,
         log_mode: LogMode,
     ) -> WriteResult:

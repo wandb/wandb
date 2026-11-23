@@ -11,6 +11,7 @@ from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 
 if TYPE_CHECKING:
+    from wandb.sdk.data_types._dtypes import Type
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
@@ -174,6 +175,7 @@ class WeaveWriter:
         *,
         name: str,
         rows: Sequence[WriteRow],
+        column_types: Mapping[ColumnKey, Type],
         ncols: int,
         log_mode: LogMode,
     ) -> WriteResult:

@@ -20,7 +20,7 @@ import pathlib
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeVar
 from urllib.parse import quote
 
 from wandb import util
@@ -177,12 +177,8 @@ def _media_serializer(media: Media) -> _MediaSerializer:
     )
 
 
-def is_supported_wandb_media(value: Any) -> bool:
-    return isinstance(value, SUPPORTED_WANDB_MEDIA_TYPES) or (
-        isinstance(value, list)
-        and bool(value)
-        and all(isinstance(item, Image) for item in value)
-    )
+def is_media_cell(value: Any) -> bool:
+    return isinstance(value, _MEDIA_CELL_TYPES)
 
 
 def media_extension_type(media: Media | list[Image]) -> CESExtensionType:
@@ -199,39 +195,44 @@ def prepare_media(
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
     if isinstance(media, list):
-        if len(media) > CES_MAX_IMAGE_LIST_ITEMS:
-            raise UsageError(
-                f"CES EvalTable image lists support at most {CES_MAX_IMAGE_LIST_ITEMS} images per cell."
-            )
-        if any(not isinstance(item, Image) for item in media):
-            raise UsageError(
-                "CES EvalTable image lists must contain only wandb.Image values."
-            )
+        # A single unsupported reference drops the whole cell, so check every
+        # image and overlay before binding any files or collecting class labels.
+        for item in media:
+            _validate_image_references(item, run)
         value: _CESImageListValue = {
             "extension_type": "wandb-image-list",
             "schema_version": 1,
             "items": [
-                cast(
-                    "WandbImageV1Param",
-                    _media_extension_value(item, run, field, class_label_accumulator),
+                _image_ces_extension_value(
+                    _media_json(item, run, field, class_label_accumulator), run
                 )
                 for item in media
             ],
         }
         return _prepared_media_cell(value, extension_type="wandb-image-list")
+    serializer = _media_serializer(media)
     return _prepared_media_cell(
-        _media_extension_value(media, run, field, class_label_accumulator),
-        extension_type=media_extension_type(media),
+        serializer.build_value(
+            _media_json(media, run, field, class_label_accumulator), run
+        ),
+        extension_type=serializer.extension_type,
     )
 
 
-def _media_extension_value(
+def _validate_image_references(image: Image, run: Run) -> None:
+    if _committed_artifact_ref_url(image) is None and image._run is not run:
+        _validate_run_file(image)
+    for _, overlay in _image_overlays(image):
+        if overlay._run is not run:
+            _validate_run_file(overlay)
+
+
+def _media_json(
     media: Media,
     run: Run,
     field: EvalTableMediaField,
     class_label_accumulator: ClassLabelAccumulator | None,
-) -> _CESMediaExtensionValue:
-    serializer = _media_serializer(media)
+) -> dict[str, Any]:
     working_media = (
         _image_for_run(media, run)
         if isinstance(media, Image)
@@ -242,8 +243,7 @@ def _media_extension_value(
     if isinstance(working_media, Image):
         _prepare_image_overlays(working_media, run, field, class_label_accumulator)
 
-    media_json = working_media.to_json(run)
-    return serializer.build_value(media_json, run)
+    return working_media.to_json(run)
 
 
 def _prepare_image_overlays(
@@ -381,23 +381,7 @@ def _ensure_eval_table_run_file(
             f"Cannot rebind {type(media).__name__} from a different run in place."
         )
 
-    _check_external_reference_artifact(media)
-
-    if media.path_is_reference(media._path):
-        type_name = type(media).__name__
-        raise UnsupportedMediaVariantError(
-            f"EvalTable does not support wandb.{type_name} values that reference "
-            "external storage. Pass unsupported_media_mode='stub' to log null instead.",
-            stub_warning=(
-                f"wandb.{type_name} values that reference external storage are not "
-                "supported by EvalTable. They will be logged as null."
-            ),
-        )
-
-    if not media.file_is_set():
-        raise UsageError(
-            f"Cannot log {type(media).__name__} in an EvalTable without a file."
-        )
+    _validate_run_file(media)
 
     assert media._path is not None
     assert media._sha256 is not None
@@ -418,6 +402,24 @@ def _ensure_eval_table_run_file(
     )
     _place_media_file_in_run(media, run, logical_path)
     return _run_file_uri(run, logical_path)
+
+
+def _validate_run_file(media: Media) -> None:
+    _check_external_reference_artifact(media)
+    if media.path_is_reference(media._path):
+        type_name = type(media).__name__
+        raise UnsupportedMediaVariantError(
+            f"EvalTable does not support wandb.{type_name} values that reference "
+            "external storage. Pass unsupported_media_mode='stub' to log null instead.",
+            stub_warning=(
+                f"wandb.{type_name} values that reference external storage are not "
+                "supported by EvalTable. They will be logged as null."
+            ),
+        )
+    if not media.file_is_set():
+        raise UsageError(
+            f"Cannot log {type(media).__name__} in an EvalTable without a file."
+        )
 
 
 # Mirrors the file placement in `Media.bind_to_run`, which only supports its own
@@ -551,6 +553,7 @@ _MEDIA_SERIALIZERS = (
 SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = tuple(
     serializer.media_type for serializer in _MEDIA_SERIALIZERS
 )
+_MEDIA_CELL_TYPES = (*SUPPORTED_WANDB_MEDIA_TYPES, list)
 
 
 def _overlay_class_labels(

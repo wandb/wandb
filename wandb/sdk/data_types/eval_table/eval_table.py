@@ -101,7 +101,8 @@ class EvalTable(Table):
                 CES input and output columns accept lists of
                 up to 128 wandb.Image values, preserving order and duplicates.
                 Empty lists use the resolved column dtype. All-empty or all-null
-                image-list columns need an explicit ListType(wandb.Image) dtype.
+                image-list columns need an explicit dtype, such as
+                `dtype=[[wandb.Image]]` for a table with one column.
                 A complete media cell reaching 3,500,000 UTF-8 JSON bytes is logged
                 as null with a warning. Image file bytes are stored separately.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
@@ -374,18 +375,12 @@ class EvalTable(Table):
                 output = None
 
             scores = {columns_by_name[col]: values[col] for col in self._score_columns}
-            rows.append(
-                WriteRow(
-                    inputs=inputs,
-                    output=output,
-                    scores=scores,
-                    column_types=self._column_types.params["type_map"],
-                )
-            )
+            rows.append(WriteRow(inputs=inputs, output=output, scores=scores))
 
         return self._writer.write(
             name=self._run_log_key,
             rows=rows,
+            column_types=self._column_types.params["type_map"],
             ncols=len(self.columns),
             log_mode=self.log_mode,
         )
