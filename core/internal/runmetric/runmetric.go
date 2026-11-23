@@ -164,12 +164,14 @@ func (mh *MetricHandler) InsertStepMetrics(
 
 // stepMetricPath returns the history path of a step metric.
 //
-// Dots separate nested labels. A name that starts with a dot is one
-// top-level key, because history cannot have an empty first label.
+// Dots separate nested labels. A leading dot is part of the first label,
+// because history cannot have an empty first label. For example, ".a.b"
+// is the path [".a", "b"].
 func stepMetricPath(name string) pathtree.TreePath {
 	labels := strings.Split(name, ".")
 	if labels[0] == "" {
-		return pathtree.PathOf(name)
+		labels = labels[1:]
+		labels[0] = "." + labels[0]
 	}
 	return pathtree.PathOf(labels[0], labels[1:]...)
 }

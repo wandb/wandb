@@ -119,28 +119,38 @@ func TestStepSync_NestedStep(t *testing.T) {
 }
 
 func TestStepSync_LeadingDotStep(t *testing.T) {
-	mh := New()
-	_ = mh.ProcessRecord(&spb.MetricRecord{Name: ".a.b"})
-	_ = mh.ProcessRecord(&spb.MetricRecord{
-		Name:       "loss",
-		StepMetric: ".a.b",
-		Options:    &spb.MetricOptions{StepSync: true},
-	})
+	for _, tc := range []struct {
+		name string
+		path pathtree.TreePath
+	}{
+		{".foo", pathtree.PathOf(".foo")},
+		{".foo.bar", pathtree.PathOf(".foo", "bar")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mh := New()
+			_ = mh.ProcessRecord(&spb.MetricRecord{Name: tc.name})
+			_ = mh.ProcessRecord(&spb.MetricRecord{
+				Name:       "loss",
+				StepMetric: tc.name,
+				Options:    &spb.MetricOptions{StepSync: true},
+			})
 
-	first := runhistory.New()
-	first.SetFloat(pathtree.PathOf(".a.b"), 3)
-	mh.UpdateMetrics(first)
-	second := runhistory.New()
-	second.SetFloat(pathtree.PathOf("loss"), 0.5)
-	mh.UpdateMetrics(second)
-	mh.InsertStepMetrics(second)
+			first := runhistory.New()
+			first.SetFloat(tc.path, 3)
+			mh.UpdateMetrics(first)
+			second := runhistory.New()
+			second.SetFloat(pathtree.PathOf("loss"), 0.5)
+			mh.UpdateMetrics(second)
+			mh.InsertStepMetrics(second)
 
-	step, ok := second.GetNumber(pathtree.PathOf(".a.b"))
-	assert.True(t, ok)
-	assert.Equal(t, 3.0, step)
-	records, err := second.ToRecords(true, false)
-	assert.NoError(t, err)
-	for _, record := range records {
-		assert.NotEmpty(t, record.NestedKey[0])
+			step, ok := second.GetNumber(tc.path)
+			assert.True(t, ok)
+			assert.Equal(t, 3.0, step)
+			records, err := second.ToRecords(true, false)
+			assert.NoError(t, err)
+			for _, record := range records {
+				assert.NotEmpty(t, record.NestedKey[0])
+			}
+		})
 	}
 }
