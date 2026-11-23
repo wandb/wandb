@@ -746,7 +746,8 @@ func (h *Handler) handleExit(
 	close(h.receivedExitCh)
 	h.beforeExitWG.Wait()
 
-	exit.Runtime = int32(h.runHandle.Runtime().Seconds())
+	relativeTimeMs := h.runHandle.RelativeTime().Milliseconds()
+	exit.RelativeTimeMs = &relativeTimeMs
 
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()

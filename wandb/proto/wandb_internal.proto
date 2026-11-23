@@ -242,7 +242,22 @@ message RunExitRecord {
   // for a run sets its completion state.
   bool not_complete = 3;
 
+  // The total duration of the run in seconds.
+  //
+  // This is deprecated because it cannot be computed for offline resumed runs.
+  // The relative_time_ms should be used instead.
+  //
+  // This field is set only by older SDKs, and read only by newer SDKs.
+  // It is thus kept only for compatibility and can be removed when
+  // transaction log version 0 is unsupported.
   int32 runtime = 2;
+
+  // The duration of the run segment in milliseconds.
+  //
+  // In other words, this is relative to the start of the .wandb file (if one
+  // exists). In a resumed run, this is different from the "runtime", which is
+  // the time from the start of the run.
+  optional int64 relative_time_ms = 4;
 
   _RecordInfo _info = 200;
 }
