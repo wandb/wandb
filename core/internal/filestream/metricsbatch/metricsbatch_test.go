@@ -174,11 +174,9 @@ func assertSameValue(t *testing.T, expected, actual any, json bool) {
 }
 
 func sameJSON(a, b any) bool {
-	if x, ok := asFloat(a); ok {
-		y, ok := asFloat(b)
-		return ok && (x == y || math.IsNaN(x) && math.IsNaN(y))
-	}
 	switch x := a.(type) {
+	case int64, float64:
+		return sameNumber(x, b)
 	case []any:
 		y, ok := b.([]any)
 		return ok && sameArray(x, y)
@@ -215,14 +213,27 @@ func sameObject(x, y map[string]any) bool {
 	return true
 }
 
-func asFloat(v any) (float64, bool) {
-	switch x := v.(type) {
+// sameNumber treats an int64 and a float64 as equal only when each
+// converts exactly to the other.
+func sameNumber(a, b any) bool {
+	switch x := a.(type) {
 	case int64:
-		return float64(x), true
+		switch y := b.(type) {
+		case int64:
+			return x == y
+		case float64:
+			return float64(x) == y && y >= math.MinInt64 && y < math.MaxInt64 &&
+				int64(y) == x
+		}
 	case float64:
-		return x, true
+		switch y := b.(type) {
+		case int64:
+			return sameNumber(y, x)
+		case float64:
+			return x == y || math.IsNaN(x) && math.IsNaN(y)
+		}
 	}
-	return 0, false
+	return false
 }
 
 func joinedErrors(err error) []error {
@@ -592,4 +603,12 @@ func TestWideRow(t *testing.T) {
 	assert.Len(t, batch.Keys, 10000)
 	assert.Equal(t, []uint32{10000}, batch.RowEnds)
 	decode(t, batch)
+}
+
+func TestSameJSONKeepsIntegerPrecision(t *testing.T) {
+	big := map[string]any{"z": int64(9007199254740993)}
+	assert.True(t, sameJSON(big, map[string]any{"z": int64(9007199254740993)}))
+	assert.False(t, sameJSON(big, map[string]any{"z": int64(9007199254740992)}))
+	assert.False(t, sameJSON(big, map[string]any{"z": float64(9007199254740992)}))
+	assert.True(t, sameJSON([]any{float64(1)}, []any{int64(1)}))
 }
