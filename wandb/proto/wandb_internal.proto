@@ -227,8 +227,6 @@ message ErrorInfo {
 // queries and must end with an "inform_finish" request to allow the internal
 // service to clean up.
 message RunExitRecord {
-  reserved 2;
-
   // Whether to mark the run successful (if zero) or failed (if nonzero).
   //
   // Ignored if not_complete
@@ -243,6 +241,16 @@ message RunExitRecord {
   // This is used in "shared" mode by secondary nodes. Only the primary node
   // for a run sets its completion state.
   bool not_complete = 3;
+
+  // The total duration of the run.
+  //
+  // This is deprecated because it cannot be computed for offline resumed runs.
+  // The relative_time_ms should be used instead.
+  //
+  // This field is set only by older SDKs, and read only by newer SDKs.
+  // It is thus kept only for compatibility and can be removed when
+  // transaction log version 0 is unsupported.
+  int32 runtime = 2;
 
   // The duration of the run segment.
   //

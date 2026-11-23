@@ -2147,6 +2147,15 @@ type RunExitRecord struct {
 	// This is used in "shared" mode by secondary nodes. Only the primary node
 	// for a run sets its completion state.
 	NotComplete bool `protobuf:"varint,3,opt,name=not_complete,json=notComplete,proto3" json:"not_complete,omitempty"`
+	// The total duration of the run.
+	//
+	// This is deprecated because it cannot be computed for offline resumed runs.
+	// The relative_time_ms should be used instead.
+	//
+	// This field is set only by older SDKs, and read only by newer SDKs.
+	// It is thus kept only for compatibility and can be removed when
+	// transaction log version 0 is unsupported.
+	Runtime int32 `protobuf:"varint,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
 	// The duration of the run segment.
 	//
 	// In other words, this is relative to the start of the .wandb file (if one
@@ -2200,6 +2209,13 @@ func (x *RunExitRecord) GetNotComplete() bool {
 		return x.NotComplete
 	}
 	return false
+}
+
+func (x *RunExitRecord) GetRuntime() int32 {
+	if x != nil {
+		return x.Runtime
+	}
+	return 0
 }
 
 func (x *RunExitRecord) GetRelativeTimeMs() int64 {
@@ -12164,13 +12180,14 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rCOMMUNICATION\x10\x01\x12\x12\n" +
 	"\x0eAUTHENTICATION\x10\x02\x12\t\n" +
 	"\x05USAGE\x10\x03\x12\x0f\n" +
-	"\vUNSUPPORTED\x10\x04\"\xcc\x01\n" +
+	"\vUNSUPPORTED\x10\x04\"\xe0\x01\n" +
 	"\rRunExitRecord\x12\x1b\n" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12!\n" +
-	"\fnot_complete\x18\x03 \x01(\bR\vnotComplete\x12-\n" +
+	"\fnot_complete\x18\x03 \x01(\bR\vnotComplete\x12\x18\n" +
+	"\aruntime\x18\x02 \x01(\x05R\aruntime\x12-\n" +
 	"\x10relative_time_ms\x18\x04 \x01(\x03H\x00R\x0erelativeTimeMs\x88\x01\x01\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04InfoB\x13\n" +
-	"\x11_relative_time_msJ\x04\b\x02\x10\x03\",\n" +
+	"\x11_relative_time_ms\",\n" +
 	"\rRunExitResult\x12\x1b\n" +
 	"\ttimed_out\x18\x01 \x01(\bR\btimedOut\"H\n" +
 	"\x13RunPreemptingRecord\x121\n" +

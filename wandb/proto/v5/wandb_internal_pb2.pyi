@@ -323,16 +323,18 @@ class ErrorInfo(_message.Message):
     def __init__(self, message: _Optional[str] = ..., code: _Optional[_Union[ErrorInfo.ErrorCode, str]] = ...) -> None: ...
 
 class RunExitRecord(_message.Message):
-    __slots__ = ("exit_code", "not_complete", "relative_time_ms", "_info")
+    __slots__ = ("exit_code", "not_complete", "runtime", "relative_time_ms", "_info")
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
     NOT_COMPLETE_FIELD_NUMBER: _ClassVar[int]
+    RUNTIME_FIELD_NUMBER: _ClassVar[int]
     RELATIVE_TIME_MS_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     exit_code: int
     not_complete: bool
+    runtime: int
     relative_time_ms: int
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, exit_code: _Optional[int] = ..., not_complete: bool = ..., relative_time_ms: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, exit_code: _Optional[int] = ..., not_complete: bool = ..., runtime: _Optional[int] = ..., relative_time_ms: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class RunExitResult(_message.Message):
     __slots__ = ("timed_out",)

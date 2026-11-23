@@ -964,6 +964,16 @@ pub struct RunExitRecord {
     /// for a run sets its completion state.
     #[prost(bool, tag = "3")]
     pub not_complete: bool,
+    /// The total duration of the run.
+    ///
+    /// This is deprecated because it cannot be computed for offline resumed runs.
+    /// The relative_time_ms should be used instead.
+    ///
+    /// This field is set only by older SDKs, and read only by newer SDKs.
+    /// It is thus kept only for compatibility and can be removed when
+    /// transaction log version 0 is unsupported.
+    #[prost(int32, tag = "2")]
+    pub runtime: i32,
     /// The duration of the run segment.
     ///
     /// In other words, this is relative to the start of the .wandb file (if one
