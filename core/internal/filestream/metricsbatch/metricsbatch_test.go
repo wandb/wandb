@@ -2,7 +2,9 @@ package metricsbatch
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -150,89 +152,24 @@ func payload(
 	}
 }
 
-// assertSameValue compares floats by bits and JSON trees by parsed value,
-// where numerically equal ints and floats match and NaN matches NaN.
-func assertSameValue(t *testing.T, expected, actual any, json bool) {
-	t.Helper()
-	if json {
-		assert.True(t, sameJSON(expected, actual),
-			"expected %#v, got %#v", expected, actual)
-		return
-	}
-	if f, ok := expected.(float64); ok {
-		g, ok := actual.(float64)
-		require.True(t, ok, "expected float64, got %T", actual)
-		if math.IsNaN(f) {
-			assert.True(t, math.IsNaN(g))
-		} else {
-			assert.Equal(t, math.Float64bits(f), math.Float64bits(g))
-		}
-		return
-	}
-	assert.Equal(t, expected, actual)
-}
-
-func sameJSON(a, b any) bool {
+// sameValue reports whether two decoded values are identical, with no
+// conversion between int64 and float64. Floats compare by bits, but
+// NaN matches NaN.
+func sameValue(a, b any) bool {
 	switch x := a.(type) {
-	case int64, float64:
-		return sameNumber(x, b)
+	case float64:
+		y, ok := b.(float64)
+		return ok && (math.Float64bits(x) == math.Float64bits(y) ||
+			math.IsNaN(x) && math.IsNaN(y))
 	case []any:
 		y, ok := b.([]any)
-		return ok && sameArray(x, y)
+		return ok && slices.EqualFunc(x, y, sameValue)
 	case map[string]any:
 		y, ok := b.(map[string]any)
-		return ok && sameObject(x, y)
+		return ok && maps.EqualFunc(x, y, sameValue)
 	default:
 		return a == b
 	}
-}
-
-func sameArray(x, y []any) bool {
-	if len(x) != len(y) {
-		return false
-	}
-	for i := range x {
-		if !sameJSON(x[i], y[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func sameObject(x, y map[string]any) bool {
-	if len(x) != len(y) {
-		return false
-	}
-	for k, v := range x {
-		w, exists := y[k]
-		if !exists || !sameJSON(v, w) {
-			return false
-		}
-	}
-	return true
-}
-
-// sameNumber treats an int64 and a float64 as equal only when each
-// converts exactly to the other.
-func sameNumber(a, b any) bool {
-	switch x := a.(type) {
-	case int64:
-		switch y := b.(type) {
-		case int64:
-			return x == y
-		case float64:
-			return float64(x) == y && y >= math.MinInt64 && y < math.MaxInt64 &&
-				int64(y) == x
-		}
-	case float64:
-		switch y := b.(type) {
-		case int64:
-			return sameNumber(y, x)
-		case float64:
-			return x == y || math.IsNaN(x) && math.IsNaN(y)
-		}
-	}
-	return false
 }
 
 func joinedErrors(err error) []error {
@@ -272,8 +209,8 @@ func TestFixtures(t *testing.T) {
 
 			expected, err := simplejsonext.UnmarshalString(f.json)
 			require.NoError(t, err)
-			assertSameValue(t, expected, got.value,
-				f.kind == filestreamv1.MetricsBatch_KIND_JSON)
+			assert.True(t, sameValue(expected, got.value),
+				"expected %#v, got %#v", expected, got.value)
 		})
 	}
 
@@ -558,12 +495,4 @@ func TestOwnership(t *testing.T) {
 		"arr": {filestreamv1.MetricsBatch_KIND_JSON, []any{int64(1), int64(2)}},
 		"obj": {filestreamv1.MetricsBatch_KIND_JSON, map[string]any{"x": int64(1)}},
 	}}, decode(t, batch))
-}
-
-func TestSameJSONKeepsIntegerPrecision(t *testing.T) {
-	big := map[string]any{"z": int64(9007199254740993)}
-	assert.True(t, sameJSON(big, map[string]any{"z": int64(9007199254740993)}))
-	assert.False(t, sameJSON(big, map[string]any{"z": int64(9007199254740992)}))
-	assert.False(t, sameJSON(big, map[string]any{"z": float64(9007199254740992)}))
-	assert.True(t, sameJSON([]any{float64(1)}, []any{int64(1)}))
 }
