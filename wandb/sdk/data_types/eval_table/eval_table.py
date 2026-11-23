@@ -103,11 +103,7 @@ class EvalTable(Table):
                 instead of by their inputs or row position. Values must be non-empty
                 strings of at most 2048 characters, or integers. The column may also
                 be an input or output column, but not a score column. If it's
-                neither, it isn't logged as an input or output. Only the CES backend
-                supports it. (Values may repeat, such as when an example is
-                evaluated several times: the k-th row with a key matches the k-th
-                row with that key in the other table. How repeated keys match is
-                still being designed and may change.)
+                neither, it isn't logged as an input or output. (CES backend only)
             backend: Optional storage-backend override. The CoreWeave Evaluation
                 Service ("ces") is the default. Pass "weave" to use the Weave backend
                 from the private preview phase, which will be removed soon.
