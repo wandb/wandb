@@ -90,7 +90,7 @@ func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
 // Wire schema for typed filestream uploads.
 //
 // The SDK sends a FileStreamUpload as the body of `POST .../file_stream`
-// with the content type `application/vnd.wandb.filestream.v1+protobuf`.
+// with the content type `application/vnd.wandb.filestream.proto+v1`.
 //
 // The legacy JSON body is also supported on the same route, with
 // content type `application/json`. See `FileStreamRequestJSON` for the
