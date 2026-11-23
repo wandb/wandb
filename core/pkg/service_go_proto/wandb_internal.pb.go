@@ -2147,7 +2147,7 @@ type RunExitRecord struct {
 	// This is used in "shared" mode by secondary nodes. Only the primary node
 	// for a run sets its completion state.
 	NotComplete bool `protobuf:"varint,3,opt,name=not_complete,json=notComplete,proto3" json:"not_complete,omitempty"`
-	// The total duration of the run.
+	// The total duration of the run in seconds.
 	//
 	// This is deprecated because it cannot be computed for offline resumed runs.
 	// The relative_time_ms should be used instead.
@@ -2156,7 +2156,7 @@ type RunExitRecord struct {
 	// It is thus kept only for compatibility and can be removed when
 	// transaction log version 0 is unsupported.
 	Runtime int32 `protobuf:"varint,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	// The duration of the run segment.
+	// The duration of the run segment in milliseconds.
 	//
 	// In other words, this is relative to the start of the .wandb file (if one
 	// exists). In a resumed run, this is different from the "runtime", which is
