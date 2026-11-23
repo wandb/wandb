@@ -28,6 +28,7 @@ import wandb.util
 from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
@@ -106,6 +107,8 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         SampledHistoryResponse,
+        UploadEvalTableRequest,
+        UploadEvalTableResponse,
     )
 
     from .artifacts.artifact import Artifact
@@ -1393,6 +1396,30 @@ class Run:
             return
         files: FilesDict = dict(files=[(GlobStr(fname), "now")])
         self._interface.publish_files(files)
+
+    @_log_to_run
+    def _upload_eval_table(
+        self,
+        request: UploadEvalTableRequest,
+    ) -> UploadEvalTableResponse:
+        """Upload an EvalTable to CES through wandb-core and wait for the result.
+
+        This is a W&B-internal function: it can be used by other internal
+        wandb code.
+
+        Raises:
+            UsageError: If wandb-core rejects the table as invalid.
+            UnsupportedError: If the run can't log EvalTables, such as in
+                offline mode.
+            Error: If the upload fails.
+        """
+        assert self._interface
+
+        handle = self._interface.deliver_upload_eval_table(request)
+        response = handle.wait_or(timeout=None).response.upload_eval_table_response
+        if error := ProtobufErrorHandler.to_exception(response.error):
+            raise error
+        return response
 
     def _pop_all_charts(
         self,
