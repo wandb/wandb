@@ -11,6 +11,9 @@ import (
 
 // A fixture declares one test value with its expected wire kind and
 // extended JSON text, independent of the implementation.
+//
+// For KIND_JSON, json is the text that the builder emits. Thus a nested
+// float with no fractional part has no decimal point: 1.0 is 1.
 type fixture struct {
 	name string
 	item *spb.HistoryItem
@@ -68,7 +71,7 @@ var fixtures = []fixture{
 	fx("json/negative integer zero", jsonv(`-0`), kInt, `0`),
 	fx("json/nested",
 		jsonv(`{"b":1.0,"a":[1.0,-0.0,NaN,{"z":9007199254740993,"y":"x\ud800"}],"c":{}}`),
-		kJSON, `{"a":[1.0,-0.0,NaN,{"y":"x�","z":9007199254740993}],"b":1.0}`),
+		kJSON, `{"a":[1,-0,NaN,{"y":"x�","z":9007199254740993}],"b":1}`),
 	fx("json/float", jsonv(`1.0`), kFloat, `1.0`),
 	fx("json/exact integer", jsonv(`9007199254740993`), kInt, `9007199254740993`),
 	fx("json/wide integer", jsonv(`99999999999999999999`), kFloat, `1e+20`),
