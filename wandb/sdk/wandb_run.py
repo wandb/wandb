@@ -89,12 +89,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .mailbox import (
-    HandleAbandonedError,
-    MailboxClosedError,
-    MailboxHandle,
-    wait_with_progress,
-)
+from .mailbox import HandleAbandonedError, MailboxClosedError, MailboxHandle
 from .wandb_alerts import AlertLevel
 from .wandb_setup import _WandbSetup
 
@@ -2833,20 +2828,14 @@ class Run:
 
         backup_thread = self._start_backup_sync_dir()
 
-        with progress.progress_printer(
-            self._printer,
+        # Wait for the run to complete.
+        result = progress.wait_printing_progress(
+            exit_handle,
+            printer=self._printer,
+            interface=self._interface,
             default_text="Finishing up...",
-        ) as progress_printer:
-            # Wait for the run to complete.
-            result = wait_with_progress(
-                exit_handle,
-                timeout=None,
-                display_progress=functools.partial(
-                    progress.loop_printing_operation_stats,
-                    progress_printer,
-                    self._interface,
-                ),
-            )
+            timeout=None,
+        )
 
         if backup_thread is not None:
             backup_thread.join()
