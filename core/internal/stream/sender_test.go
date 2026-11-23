@@ -120,7 +120,6 @@ func makeSenderWithFileStream(
 		Peeker:                  &observability.Peeker{},
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
-		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
 	}
 	if len(stats) > 0 {
 		senderFactory.Stats = stats[0]

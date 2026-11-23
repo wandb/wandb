@@ -45,7 +45,6 @@ var stepMetric = pathtree.PathOf("_step")
 
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
-	NewHistoryStepTracker,
 )
 
 // SenderFactory constructs a Sender.
@@ -67,7 +66,6 @@ type SenderFactory struct {
 	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
-	HistoryStepTracker      *HistoryStepTracker
 	Stats                   *filestreamstats.Stats
 }
 
@@ -262,12 +260,11 @@ func (f *SenderFactory) NewWithFileStream(
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
 		runSummary:        runsummary.New(),
-		stepTracker:       f.HistoryStepTracker,
+		stepTracker:       NewHistoryStepTracker(f.Logger),
 		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 		stats:             f.Stats,
 	}
-	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -673,7 +670,7 @@ func (s *Sender) finishRunSync(
 	if upserterOrNil != nil {
 		s.uploadSummaryFile()
 		upserterOrNil.Finish()
-		s.uploadConfigFile()
+		s.uploadConfigFile(upserterOrNil)
 	}
 	s.mu.Unlock()
 
@@ -750,12 +747,8 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendTelemetry: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendTelemetry")
+	if !ok {
 		return
 	}
 
@@ -767,12 +760,8 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendMetadata: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendEnvironment")
+	if !ok {
 		return
 	}
 
@@ -780,24 +769,15 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 
 	// TODO: only upload the wandb-metadata.json file if the server
 	// does not understand environment info in the config.
-	s.uploadMetadataFile()
+	s.uploadMetadataFile(upserter)
 }
 
-func (s *Sender) uploadMetadataFile() {
+func (s *Sender) uploadMetadataFile(upserter *runupserter.RunUpserter) {
 	if s.runfilesUploader == nil {
 		return
 	}
 
 	if !s.settings.IsPrimary() {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: uploadMetadataFile: %v", err),
-		)
 		return
 	}
 
@@ -901,6 +881,11 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
+	upserter, ok := s.mustInitialize("sendHistory")
+	if !ok {
+		return
+	}
+
 	// Measure re-reading the history items produced by the handler.
 	ingestStart := time.Now()
 	history := runhistory.New()
@@ -932,14 +917,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 
 	s.runHistorySampler.SampleNext(history)
 
-	step, err := s.stepTracker.ApplyHistoryStep(history)
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: error applying history step: %v", err),
-		)
-		return
-	}
+	step := s.stepTracker.ApplyHistoryStep(upserter, history)
 
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.HistoryUpdate{
@@ -1016,21 +994,12 @@ func (s *Sender) uploadSummaryFile() {
 	}
 }
 
-func (s *Sender) uploadConfigFile() {
+func (s *Sender) uploadConfigFile(upserter *runupserter.RunUpserter) {
 	if s.runfilesUploader == nil {
 		return
 	}
 
 	if !s.settings.IsPrimary() {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: uploadConfigFile: %v", err),
-		)
 		return
 	}
 
@@ -1095,12 +1064,8 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendConfig: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendConfig")
+	if !ok {
 		return
 	}
 
@@ -1118,12 +1083,8 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendSystemMetrics: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendSystemMetrics")
+	if !ok {
 		return
 	}
 
@@ -1178,12 +1139,8 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureFatalAndPanic(
-			"stream",
-			fmt.Errorf("sender: sendAlert: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendAlert")
+	if !ok {
 		return
 	}
 	runPath := upserter.RunPath()
@@ -1243,12 +1200,8 @@ func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendMetric: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendMetric")
+	if !ok {
 		return
 	}
 
@@ -1261,6 +1214,11 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 		return
 	}
 
+	// The file uploader will fail if the run has not been initialized.
+	if _, ok := s.mustInitialize("sendFiles"); !ok {
+		return
+	}
+
 	s.runfilesUploader.Process(filesRecord)
 }
 
@@ -1269,17 +1227,20 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 		return
 	}
 
+	upserter, ok := s.mustInitialize("sendArtifact")
+	if !ok {
+		return
+	}
+
 	// A run's artifacts go where the run is, as resolved by its upsert.
 	//
 	// An offline run's artifact records have no entity, and `wandb sync`
 	// options such as --entity change only the run record.
-	if upserter, err := s.runHandle.Upserter(); err == nil {
-		runPath := upserter.RunPath()
-		msg = proto.CloneOf(msg)
-		msg.Entity = runPath.Entity
-		msg.Project = runPath.Project
-		msg.RunId = runPath.RunID
-	}
+	runPath := upserter.RunPath()
+	msg = proto.CloneOf(msg)
+	msg.Entity = runPath.Entity
+	msg.Project = runPath.Project
+	msg.RunId = runPath.RunID
 
 	op := s.operations.New(
 		fmt.Sprintf(
@@ -1421,6 +1382,36 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// mustInitialize asserts that run initialization has begun and waits for it
+// to complete successfully.
+//
+// Returns (nil, False) and logs an error using the method name on failure.
+func (s *Sender) mustInitialize(
+	method string,
+) (*runupserter.RunUpserter, bool) {
+	if !s.runHandle.BeganInit() {
+		s.logger.CaptureError("stream",
+			fmt.Errorf("sender: %s called before init", method))
+		return nil, false
+	}
+
+	select {
+	case <-s.runWork.BeforeEndCtx().Done():
+		s.logger.Error(fmt.Sprintf("sender: %s: run aborted", method))
+		return nil, false
+
+	case <-s.runHandle.ReadyOrFailed():
+	}
+
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("sender: %s: %v", method, err))
+		return nil, false
+	}
+
+	return upserter, true
 }
 
 // receivedExit returns true if an Exit record has been received.
