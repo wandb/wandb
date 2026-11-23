@@ -108,9 +108,9 @@ class EvalTable(Table):
                 evaluated several times: the k-th row with a key matches the k-th
                 row with that key in the other table. How repeated keys match is
                 still being designed and may change.)
-            backend: Optional storage-backend override. Weave is the default. Pass
-                "ces" to write through the CoreWeave Evaluation Service instead, which
-                is not yet released.
+            backend: Optional storage-backend override. The CoreWeave Evaluation
+                Service ("ces") is the default. Pass "weave" to use the Weave backend
+                from the private preview phase, which will be removed soon.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -153,7 +153,7 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
-        self._backend: Backend = backend if backend is not None else "weave"
+        self._backend: Backend = backend if backend is not None else "ces"
         if key_column is not None and self._backend != "ces":
             raise UsageError("EvalTable key_column requires backend='ces'.")
         self._writer: EvalTableWriter = create_writer(
