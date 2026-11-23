@@ -1,12 +1,24 @@
 package evaltables
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"sync"
+
+	"github.com/Khan/genqlient/graphql"
+	"github.com/google/uuid"
 
 	ces "github.com/wandb/cwevals-go"
+	"github.com/wandb/cwevals-go/option"
 
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -14,9 +26,52 @@ const (
 	// maxRequestBodyBytes is CES's request body limit.
 	maxRequestBodyBytes = 16 << 20
 
+	// targetRowBatchBytes is the size above which a row append request body
+	// is split, so we leave headroom below CES's 16 MiB request limit.
+	targetRowBatchBytes = 8 << 20
+
+	maxRowsPerBatch = 10_000
+
 	rowBatchPrefix = `{"rows":[`
 	rowBatchSuffix = `]}`
+
+	idempotencyKeyVersion = "v3"
 )
+
+type Uploader struct {
+	graphqlClient graphql.Client
+	logger        *observability.CoreLogger
+
+	// evalTables returns the CES client, creating it on first use.
+	evalTables func() (*ces.EvalTableService, error)
+
+	// scopeMu guards scopeID.
+	scopeMu sync.Mutex
+
+	// scopeID is the run's project's internal ID, or empty if not yet fetched.
+	scopeID string
+}
+
+type UploaderParams struct {
+	CredentialProvider api.CredentialProvider
+	GraphqlClient      graphql.Client
+	Logger             *observability.CoreLogger
+	Settings           *settings.Settings
+}
+
+func NewUploader(params UploaderParams) *Uploader {
+	return &Uploader{
+		graphqlClient: params.GraphqlClient,
+		logger:        params.Logger,
+		evalTables: sync.OnceValues(func() (*ces.EvalTableService, error) {
+			return NewEvalTableService(
+				params.CredentialProvider,
+				params.Logger.Logger,
+				params.Settings,
+			)
+		}),
+	}
+}
 
 // usageError is a problem with a request's table, which the user can fix.
 type usageError struct{ error }
@@ -66,6 +121,183 @@ func Encode(
 		columns: columns,
 		cesRows: cesRows,
 	}, nil
+}
+
+// Upload creates an EvalTable in CES, adds its columns and rows,
+// and cuts a version.
+func (u *Uploader) Upload(
+	ctx context.Context,
+	table *EncodedTable,
+) (*spb.UploadEvalTableResponse, error) {
+	evalTables, err := u.evalTables()
+	if err != nil {
+		return nil, err
+	}
+
+	scopeID, err := u.projectScopeID(ctx, table.runPath)
+	if err != nil {
+		return nil, err
+	}
+
+	upload := &tableUpload{
+		evalTables: evalTables,
+		scopeID:    scopeID,
+		keys:       newIdempotencyKeys(),
+	}
+
+	created, err := upload.create(ctx, table)
+	if err != nil {
+		return nil, err
+	}
+	if err := upload.addRows(ctx, table, u.newProgress(ctx)); err != nil {
+		return nil, err
+	}
+	version, err := upload.cutVersion(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &spb.UploadEvalTableResponse{
+		EvaluationId:        created.EvaluationID,
+		EvaluationVersionId: version.EvaluationVersionID,
+		DatasetId:           created.DatasetID,
+		DatasetVersionId:    version.DatasetVersionID,
+	}, nil
+}
+
+// newProgress returns the progress of the upload's operation, or nil if
+// it can't, in which case the upload reports no progress.
+func (u *Uploader) newProgress(ctx context.Context) *wboperation.WandbProgress {
+	progress, err := wboperation.Get(ctx).NewProgress()
+	if err != nil {
+		u.logger.CaptureError("evaltables", fmt.Errorf("evaltables: %v", err))
+	}
+	return progress
+}
+
+// tableUpload makes the CES requests of one Upload.
+type tableUpload struct {
+	evalTables *ces.EvalTableService
+	scopeID    string
+	keys       idempotencyKeys
+
+	// evaluationID is the created EvalTable's ID, set by create.
+	evaluationID string
+}
+
+// create creates the EvalTable in CES and adds its columns.
+func (t *tableUpload) create(
+	ctx context.Context,
+	table *EncodedTable,
+) (*ces.EvalTableNewResponse, error) {
+	created, err := t.evalTables.New(
+		ctx,
+		ces.EvalTableNewParams{ScopeID: ces.F(t.scopeID), Name: ces.F(table.name)},
+		t.keys.option("create"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evaltables: failed to create EvalTable: %v", err)
+	}
+	t.evaluationID = created.EvaluationID
+
+	columns := table.columns
+	columns.ScopeID = ces.F(t.scopeID)
+	_, err = t.evalTables.Columns.New(
+		ctx,
+		t.evaluationID,
+		columns,
+		t.keys.option("columns"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evaltables: failed to add columns: %v", err)
+	}
+
+	return created, nil
+}
+
+// addRows adds the table's rows in batches, reporting them to progress.
+func (t *tableUpload) addRows(
+	ctx context.Context,
+	table *EncodedTable,
+	progress *wboperation.WandbProgress,
+) error {
+	totalRows := len(table.cesRows)
+	rowsDone := 0
+	for i, batch := range rowBatches(table.cesRows) {
+		_, err := t.evalTables.Rows.Add(
+			ctx,
+			t.evaluationID,
+			ces.EvalTableRowAddParams{ScopeID: ces.F(t.scopeID)},
+			t.keys.option(fmt.Sprintf("rows-%d", i)),
+			// The rows are already JSON, so send them without decoding them
+			// into the CES SDK's types.
+			option.WithRequestBody("application/json", batch.body),
+		)
+		if err != nil {
+			return fmt.Errorf("evaltables: failed to add rows: %v", err)
+		}
+
+		rowsDone += batch.rows
+		progress.SetUnitsOfTotal(rowsDone, totalRows, "rows")
+	}
+	return nil
+}
+
+func (t *tableUpload) cutVersion(
+	ctx context.Context,
+) (*ces.EvalTableVersionNewResponse, error) {
+	version, err := t.evalTables.Versions.New(
+		ctx,
+		t.evaluationID,
+		ces.EvalTableVersionNewParams{ScopeID: ces.F(t.scopeID)},
+		t.keys.option("version"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evaltables: failed to cut version: %v", err)
+	}
+	return version, nil
+}
+
+// projectScopeID returns the internal ID of the run's project.
+func (u *Uploader) projectScopeID(
+	ctx context.Context,
+	runPath runbranch.RunPath,
+) (string, error) {
+	u.scopeMu.Lock()
+	scopeID := u.scopeID
+	u.scopeMu.Unlock()
+
+	if scopeID != "" {
+		return scopeID, nil
+	}
+
+	// Concurrent uploads may look up the ID more than once; that's harmless.
+	response, err := gql.ProjectInternalID(
+		ctx,
+		u.graphqlClient,
+		runPath.Entity,
+		runPath.Project,
+	)
+	if err != nil {
+		return "", fmt.Errorf("evaltables: failed to look up project: %v", err)
+	}
+
+	project := response.GetProject()
+	if project == nil || project.GetInternalId() == "" {
+		return "", fmt.Errorf(
+			"evaltables: project %s/%s not found",
+			runPath.Entity,
+			runPath.Project,
+		)
+	}
+
+	scopeID = project.GetInternalId()
+
+	u.scopeMu.Lock()
+	u.scopeID = scopeID
+	u.scopeMu.Unlock()
+
+	return scopeID, nil
 }
 
 func datasetFieldParams(
@@ -165,4 +397,79 @@ func validateColumns(
 	}
 
 	return nil
+}
+
+type rowBatch struct {
+	body []byte
+	rows int
+}
+
+// rowBatches groups JSON-encoded rows into row append request bodies.
+//
+// Each body has at most maxRowsPerBatch rows and is at most
+// targetRowBatchBytes, unless it has a single larger row.
+func rowBatches(cesRows [][]byte) []rowBatch {
+	var batches []rowBatch
+	var body bytes.Buffer
+	nrows := 0
+
+	flush := func() {
+		body.WriteString(rowBatchSuffix)
+		batches = append(batches, rowBatch{
+			body: bytes.Clone(body.Bytes()),
+			rows: nrows,
+		})
+		body.Reset()
+		nrows = 0
+	}
+
+	for _, row := range cesRows {
+		if nrows > 0 &&
+			(nrows >= maxRowsPerBatch ||
+				body.Len()+1+len(row)+len(rowBatchSuffix) > targetRowBatchBytes) {
+			flush()
+		}
+
+		if nrows == 0 {
+			body.WriteString(rowBatchPrefix)
+		} else {
+			body.WriteByte(',')
+		}
+		body.Write(row)
+		nrows++
+	}
+
+	if nrows > 0 {
+		flush()
+	}
+
+	return batches
+}
+
+type idempotencyKeys struct {
+	prefix string
+}
+
+// newIdempotencyKeys derives CES idempotency keys for one EvalTable upload.
+//
+// The keys share a random ID, so that retries within the upload reuse the
+// CES resources it already created, and separate uploads never collide.
+// Uploads can't key on where the table is logged: in shared mode, writers
+// to the same run can log the same key at the same step.
+//
+// CES replays a create, row append, or version request with the same key,
+// and rejects one with the same key but a different body. Repeating an
+// identical column declaration is a no-op.
+func newIdempotencyKeys() idempotencyKeys {
+	return idempotencyKeys{
+		prefix: fmt.Sprintf(
+			"wandb-eval-table-%s-%s",
+			idempotencyKeyVersion,
+			uuid.Must(uuid.NewV7()),
+		),
+	}
+}
+
+func (k idempotencyKeys) option(operation string) option.RequestOption {
+	return option.WithHeader("Idempotency-Key", k.prefix+"-"+operation)
 }
