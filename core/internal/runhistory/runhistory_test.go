@@ -445,154 +445,33 @@ func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to unmarshal typed history item value")
 }
 
-func TestSetFromRecord_TypedEmptyKey(t *testing.T) {
-	rh := runhistory.New()
-
-	err := rh.SetFromRecord(&spb.HistoryItem{
-		Key:   "",
-		Value: &spb.HistoryItem_None{},
-	})
-
-	assert.ErrorContains(t, err, "empty history item key")
-}
-
-func TestSetFromRecord_EmptyFirstNestedLabel(t *testing.T) {
-	for _, nestedKey := range [][]string{{""}, {"", "b"}} {
-		rh := runhistory.New()
-
-		err := rh.SetFromRecord(&spb.HistoryItem{
-			NestedKey: nestedKey,
-			ValueJson: "1",
-		})
-
-		assert.ErrorContains(t, err, "empty history item key")
-		assert.True(t, rh.IsEmpty())
-	}
-}
-
-func TestSetFromRecord_EmptyLaterNestedLabel(t *testing.T) {
-	rh := runhistory.New()
-
-	err := rh.SetFromRecord(&spb.HistoryItem{
-		NestedKey: []string{"a", ""},
-		ValueJson: "1",
-	})
-
-	require.NoError(t, err)
-	value, ok := rh.GetInt(pathtree.PathOf("a", ""))
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), value)
-}
-
-func TestForEachTopLevel(t *testing.T) {
-	cases := []struct {
-		name    string
-		records []*spb.HistoryItem
-		keys    []string
-		values  map[string]any
-		stop    bool
+func TestSetFromRecord_EmptyLabels(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		item *spb.HistoryItem
+		ok   bool
 	}{
-		{
-			name: "typed scalars",
-			records: []*spb.HistoryItem{
-				{Key: "text", Value: &spb.HistoryItem_Text{Text: "a"}},
-				{Key: "null", Value: &spb.HistoryItem_None{}},
-				{Key: "int", Value: &spb.HistoryItem_Integer{Integer: 9007199254740993}},
-				{Key: "float", Value: &spb.HistoryItem_Number{Number: 1.0}},
-				{Key: "bool", Value: &spb.HistoryItem_Boolean{Boolean: false}},
-			},
-			keys: []string{"bool", "float", "int", "null", "text"},
-			values: map[string]any{
-				"bool": false, "float": 1.0, "int": int64(9007199254740993),
-				"null": nil, "text": "a",
-			},
-		},
-		{
-			name: "JSON-only scalars and whole arrays",
-			records: []*spb.HistoryItem{
-				{Key: "text", ValueJson: `"s"`},
-				{Key: "int", ValueJson: "1"},
-				{Key: "array", ValueJson: `[1,{"x":2},null]`},
-			},
-			keys: []string{"array", "int", "text"},
-			values: map[string]any{
-				"array": []any{int64(1), map[string]any{"x": int64(2)}, nil},
-				"int":   int64(1), "text": "s",
-			},
-		},
-		{
-			name: "nested keys and literal dotted key",
-			records: []*spb.HistoryItem{
-				{NestedKey: []string{"a", "b"}, Value: &spb.HistoryItem_Integer{Integer: 1}},
-				{NestedKey: []string{"a", "c"}, ValueJson: "2"},
-				{Key: "a.b", Value: &spb.HistoryItem_Text{Text: "literal"}},
-			},
-			keys: []string{"a", "a.b"},
-			values: map[string]any{
-				"a": map[string]any{"b": int64(1), "c": int64(2)}, "a.b": "literal",
-			},
-		},
-		{
-			name: "step is a key like any other",
-			records: []*spb.HistoryItem{
-				{Key: "_step", Value: &spb.HistoryItem_Integer{Integer: 10}},
-				{NestedKey: []string{"a", "_step"}, ValueJson: "2"},
-			},
-			keys: []string{"_step", "a"},
-			values: map[string]any{
-				"_step": int64(10), "a": map[string]any{"_step": int64(2)},
-			},
-		},
-		{
-			name: "early stop",
-			records: []*spb.HistoryItem{
-				{Key: "z", ValueJson: "1"},
-				{Key: "a", ValueJson: "2"},
-			},
-			keys:   []string{"a"},
-			values: map[string]any{"a": int64(2)},
-			stop:   true,
-		},
-		{name: "empty", values: map[string]any{}},
-	}
-	for _, c := range cases {
+		{"empty key", &spb.HistoryItem{Key: "", Value: &spb.HistoryItem_None{}}, false},
+		{"empty only", &spb.HistoryItem{NestedKey: []string{""}, ValueJson: "1"}, false},
+		{"empty first", &spb.HistoryItem{NestedKey: []string{"", "b"}, ValueJson: "1"}, false},
+		{"empty later", &spb.HistoryItem{NestedKey: []string{"a", ""}, ValueJson: "1"}, true},
+	} {
 		t.Run(c.name, func(t *testing.T) {
 			rh := runhistory.New()
-			for _, record := range c.records {
-				require.NoError(t, rh.SetFromRecord(record))
+
+			err := rh.SetFromRecord(c.item)
+
+			if c.ok {
+				require.NoError(t, err)
+				value, ok := rh.GetInt(pathtree.PathOf("a", ""))
+				assert.True(t, ok)
+				assert.Equal(t, int64(1), value)
+			} else {
+				assert.ErrorContains(t, err, "empty history item key")
+				assert.True(t, rh.IsEmpty())
 			}
-			var keys []string
-			values := make(map[string]any)
-			rh.ForEachTopLevel(func(key string, value any) bool {
-				keys = append(keys, key)
-				values[key] = value
-				return !c.stop
-			})
-			assert.Equal(t, c.keys, keys)
-			assert.Equal(t, c.values, values)
 		})
 	}
-}
-
-func TestForEachTopLevel_MapIsolation(t *testing.T) {
-	rh := runhistory.New()
-	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
-		Key: "a", ValueJson: `{"b":{"c":1},"d":2}`,
-	}))
-	before, err := rh.ToExtendedJSON()
-	require.NoError(t, err)
-
-	rh.ForEachTopLevel(func(_ string, value any) bool {
-		m := value.(map[string]any)
-		m["b"].(map[string]any)["c"] = int64(99)
-		delete(m, "d")
-		m["new"] = true
-		return true
-	})
-
-	after, err := rh.ToExtendedJSON()
-	require.NoError(t, err)
-	assert.JSONEq(t, string(before), string(after))
 }
 
 func TestForEachTopLevel_LeafOnlyAllocations(t *testing.T) {

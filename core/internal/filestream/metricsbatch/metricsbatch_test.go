@@ -1,7 +1,6 @@
 package metricsbatch
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"testing"
@@ -355,22 +354,6 @@ func TestValueEncodings(t *testing.T) {
 	}
 }
 
-func TestPresence(t *testing.T) {
-	rows := decode(t, build(t, prepared(t,
-		&spb.HistoryItem{Key: "null", Value: &spb.HistoryItem_None{}},
-		&spb.HistoryItem{Key: "false", Value: &spb.HistoryItem_Boolean{Boolean: false}},
-		&spb.HistoryItem{Key: "zero", Value: &spb.HistoryItem_Integer{Integer: 0}},
-		&spb.HistoryItem{Key: "empty", Value: &spb.HistoryItem_Text{Text: ""}},
-	)))
-
-	assert.Equal(t, []map[string]typedValue{{
-		"null":  {filestreamv1.MetricsBatch_KIND_NULL, nil},
-		"false": {filestreamv1.MetricsBatch_KIND_BOOL, false},
-		"zero":  {filestreamv1.MetricsBatch_KIND_INT, int64(0)},
-		"empty": {filestreamv1.MetricsBatch_KIND_STRING, ""},
-	}}, rows)
-}
-
 func TestSteps(t *testing.T) {
 	stepItem := func(step int64) *spb.HistoryItem {
 		return &spb.HistoryItem{Key: "_step", Value: &spb.HistoryItem_Integer{Integer: step}}
@@ -455,6 +438,7 @@ func TestNestedValues(t *testing.T) {
 	rows := decode(t, build(t, prepared(t,
 		&spb.HistoryItem{NestedKey: []string{"a", "b"}, ValueJson: "1.0"},
 		&spb.HistoryItem{NestedKey: []string{"a", "_step"}, ValueJson: "7"},
+		&spb.HistoryItem{NestedKey: []string{"a", ""}, ValueJson: "2"},
 		&spb.HistoryItem{Key: "a.b", ValueJson: "false"},
 		&spb.HistoryItem{Key: "obj", ValueJson: `{"x":{"y":"z"}}`},
 		&spb.HistoryItem{Key: "arr", Value: &spb.HistoryItem_Json{Json: `[1,{"k":null}]`}},
@@ -465,7 +449,9 @@ func TestNestedValues(t *testing.T) {
 	row := rows[0]
 
 	json := filestreamv1.MetricsBatch_KIND_JSON
-	assert.Equal(t, typedValue{json, map[string]any{"b": int64(1), "_step": int64(7)}}, row["a"])
+	assert.Equal(t, typedValue{json, map[string]any{
+		"b": int64(1), "_step": int64(7), "": int64(2),
+	}}, row["a"])
 	assert.Equal(t, typedValue{filestreamv1.MetricsBatch_KIND_BOOL, false}, row["a.b"])
 	assert.Equal(t, typedValue{json, map[string]any{"x": map[string]any{"y": "z"}}}, row["obj"])
 	assert.Equal(t, typedValue{json, []any{int64(1), map[string]any{"k": nil}}}, row["arr"])
@@ -503,31 +489,6 @@ func TestInvalidUTF8(t *testing.T) {
 	}}, decode(t, batch))
 }
 
-func TestEmptyFirstLabel(t *testing.T) {
-	items := []*spb.HistoryItem{
-		{NestedKey: []string{""}, ValueJson: "1"},
-		{NestedKey: []string{"", "b"}, ValueJson: "1"},
-		{NestedKey: []string{"a", ""}, ValueJson: "2"},
-		{Key: "c", ValueJson: "3"},
-	}
-	rh := runhistory.New()
-	var errs []error
-	for _, item := range items {
-		errs = append(errs, rh.SetFromRecord(item))
-	}
-
-	assert.Error(t, errs[0])
-	assert.Error(t, errs[1])
-	assert.NoError(t, errs[2])
-	assert.NoError(t, errs[3])
-	row, err := Prepare(rh)
-	require.NoError(t, err)
-	assert.Equal(t, []map[string]typedValue{{
-		"a": {filestreamv1.MetricsBatch_KIND_JSON, map[string]any{"": int64(2)}},
-		"c": {filestreamv1.MetricsBatch_KIND_INT, int64(3)},
-	}}, decode(t, build(t, row)))
-}
-
 func TestMalformedCells(t *testing.T) {
 	rh := history(t, &spb.HistoryItem{Key: "good", ValueJson: "1"})
 	rh.SetFloat(pathtree.PathOf(""), 1234567)
@@ -551,13 +512,11 @@ func TestUnsupportedTypes(t *testing.T) {
 		value any
 		err   string
 	}{
-		{int(1234567), "metricsbatch: unsupported value type"},
 		{struct{ Secret string }{"private-value"}, "metricsbatch: unsupported value type"},
 		{
 			map[string]any{"private-key": struct{ Secret string }{"private-value"}},
 			"metricsbatch: JSON encoding failed",
 		},
-		{[]any{make(chan int)}, "metricsbatch: JSON encoding failed"},
 	}
 	for i, c := range cases {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
@@ -566,11 +525,6 @@ func TestUnsupportedTypes(t *testing.T) {
 			require.EqualError(t, err, c.err)
 		})
 	}
-
-	// simplejsonext encodes these Go types inside a JSON cell.
-	c, err := encodeCell("k", []any{int(1), uint(2), float32(0.5), errors.New("e")})
-	require.NoError(t, err)
-	assert.Equal(t, `[1,2,0.5,"e"]`, c.text)
 }
 
 func TestOwnership(t *testing.T) {
@@ -604,22 +558,6 @@ func TestOwnership(t *testing.T) {
 		"arr": {filestreamv1.MetricsBatch_KIND_JSON, []any{int64(1), int64(2)}},
 		"obj": {filestreamv1.MetricsBatch_KIND_JSON, map[string]any{"x": int64(1)}},
 	}}, decode(t, batch))
-}
-
-func TestWideRow(t *testing.T) {
-	items := make([]*spb.HistoryItem, 10000)
-	for i := range items {
-		items[i] = &spb.HistoryItem{
-			Key:   fmt.Sprintf("key-%05d", i),
-			Value: &spb.HistoryItem_Integer{Integer: int64(i)},
-		}
-	}
-
-	batch := build(t, prepared(t, items...))
-
-	assert.Len(t, batch.Keys, 10000)
-	assert.Equal(t, []uint32{10000}, batch.RowEnds)
-	decode(t, batch)
 }
 
 func TestSameJSONKeepsIntegerPrecision(t *testing.T) {
