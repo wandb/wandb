@@ -22,322 +22,104 @@ type fixture struct {
 	absent bool
 }
 
+const (
+	kNull   = filestreamv1.MetricsBatch_KIND_NULL
+	kBool   = filestreamv1.MetricsBatch_KIND_BOOL
+	kInt    = filestreamv1.MetricsBatch_KIND_INT
+	kFloat  = filestreamv1.MetricsBatch_KIND_FLOAT
+	kString = filestreamv1.MetricsBatch_KIND_STRING
+	kJSON   = filestreamv1.MetricsBatch_KIND_JSON
+)
+
+func fx(
+	name string,
+	item *spb.HistoryItem,
+	kind filestreamv1.MetricsBatch_Kind,
+	json string,
+) fixture {
+	return fixture{name: name, item: item, kind: kind, json: json}
+}
+
+func jsonv(s string) *spb.HistoryItem {
+	return &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: s}}
+}
+
+func none() *spb.HistoryItem {
+	return &spb.HistoryItem{Value: &spb.HistoryItem_None{None: structpb.NullValue_NULL_VALUE}}
+}
+
+func boolean(b bool) *spb.HistoryItem {
+	return &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{Boolean: b}}
+}
+
+func integer(i int64) *spb.HistoryItem {
+	return &spb.HistoryItem{Value: &spb.HistoryItem_Integer{Integer: i}}
+}
+
+func number(f float64) *spb.HistoryItem {
+	return &spb.HistoryItem{Value: &spb.HistoryItem_Number{Number: f}}
+}
+
+func text(s string) *spb.HistoryItem {
+	return &spb.HistoryItem{Value: &spb.HistoryItem_Text{Text: s}}
+}
+
 var fixtures = []fixture{
-	{
-		name: "json/negative integer zero",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-0`}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: "0",
-	},
-	{
-		name: "json/nested",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `{"b":1.0,"a":[1.0,-0.0,NaN,{"z":9007199254740993,"y":"x\ud800"}],"c":{}}`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"a":[1.0,-0.0,NaN,{"y":"x�","z":9007199254740993}],"b":1.0}`,
-	},
-	{
-		name: "json/float",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1.0`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `1.0`,
-	},
-	{
-		name: "json/exact integer",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `9007199254740993`}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: `9007199254740993`,
-	},
-	{
-		name: "json/wide integer",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `99999999999999999999`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `1e+20`,
-	},
-	{
-		name: "json/min int64",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-9223372036854775808`}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: `-9223372036854775808`,
-	},
-	{
-		name: "json/null",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `null`}},
-		kind: filestreamv1.MetricsBatch_KIND_NULL,
-		json: `null`,
-	},
-	{
-		name: "json/true",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `true`}},
-		kind: filestreamv1.MetricsBatch_KIND_BOOL,
-		json: `true`,
-	},
-	{
-		name: "json/string",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `"s"`}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `"s"`,
-	},
-	{
-		name: "json/surrogate",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `"\ud800"`}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `"�"`,
-	},
-	{
-		name: "json/NaN",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `NaN`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `NaN`,
-	},
-	{
-		name: "json/whitespace scalar",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: ` 1 `}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: `1`,
-	},
-	{
-		name: "json/fraction",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1.50`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `1.5`,
-	},
-	{
-		name: "json/exponent",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `1e2`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `100.0`,
-	},
-	{
-		name: "json/Infinity",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `Infinity`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `Infinity`,
-	},
-	{
-		name: "json/-Infinity",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-Infinity`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `-Infinity`,
-	},
-	{
-		name: "json/overflow boundary",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `9223372036854775808`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `9.223372036854776e+18`,
-	},
-	{
-		name: "json/negative overflow",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{Json: `-9223372036854775809`}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: `-9.223372036854776e+18`,
-	},
-	{
-		name: "none/null",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_None{
-			None: structpb.NullValue_NULL_VALUE}},
-		kind: filestreamv1.MetricsBatch_KIND_NULL,
-		json: "null",
-	},
+	fx("json/negative integer zero", jsonv(`-0`), kInt, `0`),
+	fx("json/nested",
+		jsonv(`{"b":1.0,"a":[1.0,-0.0,NaN,{"z":9007199254740993,"y":"x\ud800"}],"c":{}}`),
+		kJSON, `{"a":[1.0,-0.0,NaN,{"y":"x�","z":9007199254740993}],"b":1.0}`),
+	fx("json/float", jsonv(`1.0`), kFloat, `1.0`),
+	fx("json/exact integer", jsonv(`9007199254740993`), kInt, `9007199254740993`),
+	fx("json/wide integer", jsonv(`99999999999999999999`), kFloat, `1e+20`),
+	fx("json/min int64", jsonv(`-9223372036854775808`), kInt, `-9223372036854775808`),
+	fx("json/null", jsonv(`null`), kNull, `null`),
+	fx("json/true", jsonv(`true`), kBool, `true`),
+	fx("json/string", jsonv(`"s"`), kString, `"s"`),
+	fx("json/surrogate", jsonv(`"\ud800"`), kString, `"�"`),
+	fx("json/NaN", jsonv(`NaN`), kFloat, `NaN`),
+	fx("json/whitespace scalar", jsonv(` 1 `), kInt, `1`),
+	fx("json/fraction", jsonv(`1.50`), kFloat, `1.5`),
+	fx("json/exponent", jsonv(`1e2`), kFloat, `100.0`),
+	fx("json/Infinity", jsonv(`Infinity`), kFloat, `Infinity`),
+	fx("json/-Infinity", jsonv(`-Infinity`), kFloat, `-Infinity`),
+	fx("json/overflow boundary", jsonv(`9223372036854775808`), kFloat, `9.223372036854776e+18`),
+	fx("json/negative overflow", jsonv(`-9223372036854775809`), kFloat, `-9.223372036854776e+18`),
 
-	{
-		name: "boolean/false",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{
-			Boolean: false}},
-		kind: filestreamv1.MetricsBatch_KIND_BOOL,
-		json: "false",
-	},
-	{
-		name: "boolean/true",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Boolean{
-			Boolean: true}},
-		kind: filestreamv1.MetricsBatch_KIND_BOOL,
-		json: "true",
-	},
+	fx("none/null", none(), kNull, `null`),
 
-	{
-		name: "integer/zero",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
-			Integer: 0}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: "0",
-	},
-	{
-		name: "integer/negative",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
-			Integer: -12345}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: "-12345",
-	},
-	{
-		name: "integer/max int64",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
-			Integer: math.MaxInt64}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: "9223372036854775807",
-	},
-	{
-		name: "integer/min int64",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
-			Integer: math.MinInt64}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: "-9223372036854775808",
-	},
-	{
-		name: "integer/above 2^53",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Integer{
-			Integer: 1<<53 + 1}},
-		kind: filestreamv1.MetricsBatch_KIND_INT,
-		json: "9007199254740993",
-	},
+	fx("boolean/false", boolean(false), kBool, `false`),
+	fx("boolean/true", boolean(true), kBool, `true`),
 
-	{
-		name: "number/integral value",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: 1.0}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "1.0",
-	},
-	{
-		name: "number/positive zero",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: 0.0}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "0.0",
-	},
-	{
-		name: "number/negative zero",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: math.Copysign(0, -1)}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "-0.0",
-	},
-	{
-		name: "number/fraction",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: 1.0 / 3.0}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "0.3333333333333333",
-	},
-	{
-		name: "number/smallest subnormal",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: math.SmallestNonzeroFloat64}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "5e-324",
-	},
-	{
-		name: "number/largest finite",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: math.MaxFloat64}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "1.7976931348623157e+308",
-	},
+	fx("integer/zero", integer(0), kInt, `0`),
+	fx("integer/negative", integer(-12345), kInt, `-12345`),
+	fx("integer/max int64", integer(math.MaxInt64), kInt, `9223372036854775807`),
+	fx("integer/min int64", integer(math.MinInt64), kInt, `-9223372036854775808`),
+	fx("integer/above 2^53", integer(1<<53+1), kInt, `9007199254740993`),
 
-	{
-		name: "number/NaN",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: math.NaN()}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "NaN",
-	},
-	{
-		name: "number/+Infinity",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: math.Inf(1)}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "Infinity",
-	},
-	{
-		name: "number/-Infinity",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Number{
-			Number: math.Inf(-1)}},
-		kind: filestreamv1.MetricsBatch_KIND_FLOAT,
-		json: "-Infinity",
-	},
+	fx("number/integral value", number(1.0), kFloat, `1.0`),
+	fx("number/positive zero", number(0.0), kFloat, `0.0`),
+	fx("number/negative zero", number(math.Copysign(0, -1)), kFloat, `-0.0`),
+	fx("number/fraction", number(1.0/3.0), kFloat, `0.3333333333333333`),
+	fx("number/smallest subnormal", number(math.SmallestNonzeroFloat64), kFloat, `5e-324`),
+	fx("number/largest finite", number(math.MaxFloat64), kFloat, `1.7976931348623157e+308`),
+	fx("number/NaN", number(math.NaN()), kFloat, `NaN`),
+	fx("number/+Infinity", number(math.Inf(1)), kFloat, `Infinity`),
+	fx("number/-Infinity", number(math.Inf(-1)), kFloat, `-Infinity`),
 
-	{
-		name: "text/numeric",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
-			Text: "007"}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `"007"`,
-	},
-	{
-		name: "text/empty",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
-			Text: ""}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `""`,
-	},
-	{
-		name: "text/unicode",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
-			Text: "héllo 🌍"}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `"héllo 🌍"`,
-	},
-	{
-		name: "text/escapes",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Text{
-			Text: "a\"b\\c\n\t\x01"}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `"a\"b\\c\n\t\u0001"`,
-	},
+	fx("text/numeric", text("007"), kString, `"007"`),
+	fx("text/empty", text(""), kString, `""`),
+	fx("text/unicode", text("héllo 🌍"), kString, `"héllo 🌍"`),
+	fx("text/escapes", text("a\"b\\c\n\t\x01"), kString, `"a\"b\\c\n\t\u0001"`),
 
-	{
-		name: "json/object",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `{"a": 1, "b": "x"}`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"a":1,"b":"x"}`,
-	},
-	{
-		name: "json/array",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `[1, 2.5, "three", null]`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `[1,2.5,"three",null]`,
-	},
-	{
-		name: "json/empty object",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `{}`}},
-		absent: true,
-	},
-	{
-		name: "json/empty array",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `[]`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `[]`,
-	},
-	{
-		name: "json/scalar text",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `"scalar"`}},
-		kind: filestreamv1.MetricsBatch_KIND_STRING,
-		json: `"scalar"`,
-	},
-	{
-		name: "json/whitespace",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: "  {  \"a\" :\n\t [ 1 , 2 ] }  "}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"a":[1,2]}`,
-	},
-	{
-		name: "json/nested non-finite",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `{"nan": NaN, "pos": Infinity, "neg": -Infinity}`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"nan":NaN,"neg":-Infinity,"pos":Infinity}`,
-	},
-	{
-		name: "json/int wider than int64",
-		item: &spb.HistoryItem{Value: &spb.HistoryItem_Json{
-			Json: `{"big": 123456789012345678901234567890}`}},
-		kind: filestreamv1.MetricsBatch_KIND_JSON,
-		json: `{"big":1.2345678901234568e+29}`,
-	},
+	fx("json/object", jsonv(`{"a": 1, "b": "x"}`), kJSON, `{"a":1,"b":"x"}`),
+	fx("json/array", jsonv(`[1, 2.5, "three", null]`), kJSON, `[1,2.5,"three",null]`),
+	{name: "json/empty object", item: jsonv(`{}`), absent: true},
+	fx("json/empty array", jsonv(`[]`), kJSON, `[]`),
+	fx("json/scalar text", jsonv(`"scalar"`), kString, `"scalar"`),
+	fx("json/whitespace", jsonv("  {  \"a\" :\n\t [ 1 , 2 ] }  "), kJSON, `{"a":[1,2]}`),
+	fx("json/nested non-finite", jsonv(`{"nan": NaN, "pos": Infinity, "neg": -Infinity}`),
+		kJSON, `{"nan":NaN,"neg":-Infinity,"pos":Infinity}`),
+	fx("json/int wider than int64", jsonv(`{"big": 123456789012345678901234567890}`),
+		kJSON, `{"big":1.2345678901234568e+29}`),
 }

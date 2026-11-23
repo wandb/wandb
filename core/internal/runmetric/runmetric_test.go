@@ -96,33 +96,12 @@ func TestGlobMetricEndingWildcard(t *testing.T) {
 
 }
 
-func TestStepSync_NestedStep(t *testing.T) {
-	mh := New()
-	_ = mh.ProcessRecord(&spb.MetricRecord{Name: "train.step"})
-	_ = mh.ProcessRecord(&spb.MetricRecord{
-		Name:       "loss",
-		StepMetric: "train.step",
-		Options:    &spb.MetricOptions{StepSync: true},
-	})
-
-	first := runhistory.New()
-	first.SetFloat(pathtree.PathOf("train", "step"), 3)
-	mh.UpdateMetrics(first)
-	second := runhistory.New()
-	second.SetFloat(pathtree.PathOf("loss"), 0.5)
-	mh.UpdateMetrics(second)
-	mh.InsertStepMetrics(second)
-
-	step, ok := second.GetNumber(pathtree.PathOf("train", "step"))
-	assert.True(t, ok)
-	assert.Equal(t, 3.0, step)
-}
-
-func TestStepSync_LeadingDotStep(t *testing.T) {
+func TestStepSync(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		path pathtree.TreePath
 	}{
+		{"train.step", pathtree.PathOf("train", "step")},
 		{".foo", pathtree.PathOf(".foo")},
 		{".foo.bar", pathtree.PathOf(".foo", "bar")},
 	} {
