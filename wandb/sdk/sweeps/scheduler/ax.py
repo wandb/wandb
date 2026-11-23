@@ -16,7 +16,9 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    int_uniform_bounds,
     is_terminal_state,
+    q_log_uniform_values_bounds,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -116,9 +118,8 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
 
     Returns an `ax.RangeParameterConfig` / `ax.ChoiceParameterConfig` — the
     objects Ax's `Client.configure_experiment(parameters=[...])` accepts.
-    Distributions with no Ax equivalent (normal, beta, inv_log_uniform, ...,
-    and `q_log_uniform_values` with `q != 1`, which would need a quantized
-    log range) raise ValueError.
+    Distributions with no Ax equivalent (normal, beta, inv_log_uniform, ...)
+    and int ranges Ax can't represent exactly raise ValueError.
     """
     # Constant / categorical shorthands: `distribution` is optional in W&B.
     if "value" in parameter or (
@@ -135,7 +136,7 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
     if dist == "int_uniform":
         return ax.RangeParameterConfig(
             name=name,
-            bounds=(int(parameter["min"]), int(parameter["max"])),
+            bounds=int_uniform_bounds(name, parameter),
             parameter_type="int",
         )
 
@@ -167,18 +168,9 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
         )
 
     if dist == "q_log_uniform_values":
-        # W&B spells a log-scale int range this way (with q=1); Ax can't
-        # combine a log scale with a step, so only q=1 round-trips.
-        q = parameter.get("q", 1)
-        if not _is_int(q) or int(q) != 1:
-            raise ValueError(
-                f"Sweep parameter {name!r} uses q_log_uniform_values with q={q!r}; "
-                "Ax cannot combine a log scale with a step, so only q=1 (a log-scale "
-                "int range) is supported."
-            )
         return ax.RangeParameterConfig(
             name=name,
-            bounds=(int(parameter["min"]), int(parameter["max"])),
+            bounds=q_log_uniform_values_bounds(name, parameter),
             parameter_type="int",
             scaling="log",
         )
