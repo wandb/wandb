@@ -54,7 +54,7 @@ core-foundation = "0.10.1"
 libc = "0.2.189"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.3", features = ["fs", "process"] }
+nix = { version = "0.31.3", features = ["feature", "fs", "process"] }
 
 [profile.release]
 strip = "symbols"
