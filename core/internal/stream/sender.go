@@ -876,6 +876,8 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 //
 // If the history record does not contain a _step value, this method will
 // auto-assign one. It will also update the run summary's _step value.
+//
+// In shared mode, the server assigns steps, so _step is left unset.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit() {
 		s.logCalledAfterExit("sendHistory")
@@ -918,7 +920,10 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 
 	s.runHistorySampler.SampleNext(history)
 
-	step := s.stepTracker.ApplyHistoryStep(upserter, history)
+	var step int64
+	if !s.settings.IsSharedMode() {
+		step = s.stepTracker.ApplyHistoryStep(upserter, history)
+	}
 
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.HistoryUpdate{
