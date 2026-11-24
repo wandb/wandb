@@ -46,9 +46,10 @@ func (h *AuthHandler) HandleRequest(
 // HandleAuthenticate verifies the account credentials.
 //
 // The credentials come from the settings used to initialize the API
-// instance: an API key, or an identity token file when using federated
-// identity. Both are applied by the credential provider attached to the
-// GraphQL client, so this handler works the same for either method.
+// instance: an API key, an identity token file when using federated
+// identity, or a stored browser login. All are applied by the credential
+// provider attached to the GraphQL client, so this handler works the same
+// for each method.
 func (h *AuthHandler) HandleAuthenticate(
 	ctx context.Context,
 	request *spb.AuthenticateRequest,
@@ -110,11 +111,11 @@ func (h *AuthHandler) HandleAuthenticate(
 // HandleGetAccessToken returns the access token for the API instance's
 // credentials.
 //
-// A token exists only when using federated identity, in which case the
-// credential provider exchanges the configured identity token for an
-// access token, caching it in the credentials file and refreshing it when
-// it is at or near expiration. For other credential types, the response
-// contains an empty access token.
+// A token exists when using federated identity or a browser login, in which
+// case the credential provider exchanges the configured identity token, or
+// refreshes the stored browser login, for an access token, caching it in the
+// credentials file and refreshing it when it is at or near expiration. For
+// other credential types, the response contains an empty access token.
 func (h *AuthHandler) HandleGetAccessToken(
 	ctx context.Context,
 	_ *spb.GetAccessTokenRequest,

@@ -26,7 +26,7 @@ import wandb.errors
 from wandb import Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
 from wandb.errors.links import url_registry
-from wandb.sdk import wandb_setup, wandb_sweep
+from wandb.sdk import wandb_login, wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.lib import config_util, filesystem, settings_file, urls, wbauth
 from wandb.sdk.lib.filenames import DIFF_FNAME
@@ -288,6 +288,13 @@ def projects(entity, display=True):
     help="Force a new login prompt, ignoring any existing credentials.",
 )
 @click.option(
+    "--browser",
+    default=False,
+    is_flag=True,
+    help="""Log in through your browser instead of with an API key. Stores a
+    credential that is renewed for you.""",
+)
+@click.option(
     "--anonymously",
     default=False,
     hidden=True,
@@ -298,15 +305,16 @@ def projects(entity, display=True):
     "--verify/--no-verify",
     default=True,
     is_flag=True,
-    help="""Verify the API key with W&B after storing it. If verification
-    is successful, display the source of the credentials and the
-    default team.""",
+    help="""Verify the credentials with W&B after storing them. If verification
+    is successful, display the account and default team.""",
 )
 @display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+def login(key, host, cloud, relogin, browser, anonymously, verify, no_offline=False):
     """Authenticate your machine with W&B.
 
-    Store an API key locally for authenticating with W&B services.
+    Store an API key locally for authenticating with W&B services, or, with
+    --browser, approve the login in your browser and store a credential that
+    is renewed for you.
     By default, credentials are stored without server-side verification.
 
     If no API key is provided as an argument, the command looks for
@@ -314,12 +322,14 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
         1. The WANDB_API_KEY environment variable
 
-        2. The api_key setting in a system or workspace settings file (use
-            `wandb status` to see which settings file is used)
+        2. A browser login stored by a previous `wandb login --browser`
 
         3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
 
-        4. An interactive prompt (if a TTY is available)
+        4. The api_key setting in a system or workspace settings file (use
+            `wandb status` to see which settings file is used)
+
+        5. An interactive prompt (if a TTY is available)
 
     For self-hosted or dedicated cloud deployments, specify the server
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
@@ -327,6 +337,10 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     For example, to log in interactively (prompts for API key):
 
         $ wandb login
+
+    To log in through your browser:
+
+        $ wandb login --browser
 
     To log in with an explicit API key (WANDB_API_KEY_EXAMPLE):
 
@@ -356,20 +370,24 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
             repeat=False,
         )
 
-    if host and cloud:
-        wandb.termerror("Cannot use --host and --cloud together.")
-        sys.exit(1)
-
-    if cloud:
-        host = urls.DEFAULT_BASE_URL
+    host = _resolve_login_host(host=host, cloud=cloud)
 
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
-    relogin = True if key or relogin else False
+
+    if key and browser:
+        wandb.termerror("Pass an API key or --browser, not both.")
+        sys.exit(1)
+
+    relogin = bool(key or relogin)
 
     global_settings = wandb_setup.singleton().settings
     global_settings.x_cli_only_mode = True
-    global_settings.x_disable_viewer = relogin and not verify
+    global_settings.x_disable_viewer = (relogin or browser) and not verify
+
+    if browser:
+        _run_browser_login_cli(host=host, relogin=relogin, verify=verify)
+        return
 
     wandb.login(
         force=True,
@@ -379,6 +397,33 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         verify=verify,
         referrer="models",
     )
+
+
+def _resolve_login_host(*, host: str | None, cloud: bool) -> str | None:
+    """Validate --host/--cloud and return the host to pass to login, if any."""
+    if host and cloud:
+        wandb.termerror("Cannot use --host and --cloud together.")
+        sys.exit(1)
+
+    return urls.DEFAULT_BASE_URL if cloud else host
+
+
+def _run_browser_login_cli(
+    *,
+    host: str | None,
+    relogin: bool,
+    verify: bool,
+) -> None:
+    """Run `wandb login --browser`, reporting expected environment failures cleanly."""
+    try:
+        wandb_login._login_with_browser(
+            host=host,
+            relogin=relogin,
+            verify=verify,
+        )
+    except (wandb.errors.UsageError, TimeoutError) as e:
+        wandb.termerror(str(e))
+        sys.exit(1)
 
 
 @cli.command(context_settings=CONTEXT)

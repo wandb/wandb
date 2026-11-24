@@ -48,3 +48,48 @@ def test_execute_graphql_propagates_core_api_error_response():
         api.execute_graphql("query Viewer { viewer { id } }")
 
     assert exc_info.value.response is error_response
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        pytest.param(Settings(identity_token_file="token.jwt"), id="identity-token"),
+        pytest.param(Settings(), id="browser-login"),
+    ],
+)
+def test_access_token_comes_from_core_without_an_api_key(settings: Settings):
+    api = ServiceApi(settings)
+    sent: list[apb.ApiRequest] = []
+
+    def send_api_request(
+        request: apb.ApiRequest,
+        timeout: float | None = None,
+    ) -> apb.ApiResponse:
+        sent.append(request)
+        return apb.ApiResponse(
+            auth_response=apb.AuthResponse(
+                get_access_token_response=apb.GetAccessTokenResponse(
+                    access_token="wb_at_token"
+                )
+            )
+        )
+
+    api.send_api_request = send_api_request
+
+    assert api.access_token() == "wb_at_token"
+    [request] = sent
+    assert request.auth_request.HasField("get_access_token_request")
+
+
+def test_access_token_is_none_for_an_api_key():
+    api = ServiceApi(Settings(api_key="k" * 40))
+
+    def send_api_request(
+        request: apb.ApiRequest,
+        timeout: float | None = None,
+    ) -> apb.ApiResponse:
+        raise AssertionError("an API key has no access token to fetch")
+
+    api.send_api_request = send_api_request
+
+    assert api.access_token() is None

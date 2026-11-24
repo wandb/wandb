@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- `wandb login --browser` logs in through your browser instead of with an API key, and stores a credential that is renewed for you (@ckacal in https://github.com/wandb/wandb/pull/13084)
