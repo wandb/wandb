@@ -64,9 +64,6 @@ type RunUpserter struct {
 	// the Runtime field can be dropped from the RunRecord.
 	startRuntime time.Duration
 
-	// segmentID identifies the current run segment / transaction log.
-	segmentID string
-
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
@@ -174,7 +171,6 @@ func InitRun(
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
 
-		segmentID:   runRecord.SegmentId,
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
@@ -367,12 +363,6 @@ func (upserter *RunUpserter) FillRunRecord(record *spb.RunRecord) {
 				ValueJson: valueJSON,
 			})
 	}
-}
-
-// SegmentID returns the ID for the current run segment / transaction log.
-func (upserter *RunUpserter) SegmentID() string {
-	// No mutex because this field is immutable.
-	return upserter.segmentID
 }
 
 // RunPath returns the run's entity, project and run ID.
