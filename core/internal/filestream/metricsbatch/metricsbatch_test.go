@@ -335,13 +335,13 @@ func TestEmptyRows(t *testing.T) {
 		prepared(t),
 		prepared(t, &spb.HistoryItem{Key: "_step", ValueJson: "5"}),
 	)
-	assert.Equal(t, []uint32{1, 1, 1}, batch.RowEnds)
-	checkAndDecode(t, batch)
+	assert.Equal(t, []map[string]typedValue{
+		{"a": {kInt, int64(1)}},
+		{},
+		{seqKey: {kInt, int64(5)}},
+	}, checkAndDecode(t, batch))
 
-	empty := NewBuilder().Finish()
-	assert.Equal(t, seqKey, empty.SeqKey)
-	assert.Empty(t, empty.RowEnds)
-	assert.Empty(t, checkAndDecode(t, empty))
+	assert.Empty(t, checkAndDecode(t, NewBuilder().Finish()))
 }
 
 func TestDictionary(t *testing.T) {
