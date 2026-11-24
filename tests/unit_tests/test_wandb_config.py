@@ -1,6 +1,8 @@
 """config tests."""
 
 import argparse
+from collections import ChainMap, UserDict
+from types import MappingProxyType
 
 import pytest
 import yaml
@@ -143,6 +145,23 @@ def test_update_with_config(consolidated, config):
 
     assert config._as_dict() == dict(this=2)
     assert consolidated == dict(this=2)
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        UserDict({"lr": 0.1}),
+        ChainMap({"lr": 0.1}),
+        MappingProxyType({"lr": 0.1}),
+    ],
+)
+def test_update_with_non_dict_mapping(consolidated, config, mapping):
+    # A Mapping is config items, not an object whose vars() should be read.
+    # Before the fix these became {'data': ...}, {'maps': ...} or a TypeError.
+    config.update(mapping)
+
+    assert config._as_dict() == {"lr": 0.1}
+    assert consolidated == {"lr": 0.1}
 
 
 def test_update_with_preinit_config(consolidated, config):
