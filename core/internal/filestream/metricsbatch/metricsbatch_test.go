@@ -330,6 +330,9 @@ func TestMalformedSteps(t *testing.T) {
 }
 
 func TestEmptyRows(t *testing.T) {
+	// The second row is empty, and the third has only a step, so neither
+	// has a cell. Each must still be its own row after the first row's
+	// cell, and not merge into the first row.
 	batch := build(t,
 		prepared(t, &spb.HistoryItem{Key: "a", ValueJson: "1"}),
 		prepared(t),
@@ -341,6 +344,7 @@ func TestEmptyRows(t *testing.T) {
 		{seqKey: {kInt, int64(5)}},
 	}, checkAndDecode(t, batch))
 
+	// A batch with no rows is valid.
 	assert.Empty(t, checkAndDecode(t, NewBuilder().Finish()))
 }
 
