@@ -236,7 +236,9 @@ def link_artifact_gql_options(
     return omit_fields, omit_variables
 
 
-def update_artifact_gql_options(service_api: ServiceApi) -> tuple[set[str], set[str]]:
+def update_artifact_gql_options(
+    service_api: ServiceApi, *, is_link: bool = False
+) -> tuple[set[str], set[str]]:
     """Return `(omit_fields, omit_variables)` for an UpdateArtifact request.
 
     Unlike `link_artifact_gql_options`, `UpdateArtifact` always requests the
@@ -245,9 +247,18 @@ def update_artifact_gql_options(service_api: ServiceApi) -> tuple[set[str], set[
     for servers that don't return `artifactMembership` at all. It's only
     safe to drop once a membership -- which `Artifact._assign_attrs` prefers
     over the artifact's own `aliases` -- is actually in the response.
+
+    For a link, the response describes the source artifact, and
+    `Artifact._update` keeps the link's own version and aliases, so the
+    membership and every `aliases` field are omitted.
     """
     omit_fields = omit_artifact_fields(service_api)
     omit_variables: set[str] = set()
+
+    if is_link:
+        omit_fields |= {"artifactMembership", "aliases"}
+        omit_variables.add("includeAliases")
+        return omit_fields, omit_variables
 
     if not service_api.feature_enabled(
         ServerFeature.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD

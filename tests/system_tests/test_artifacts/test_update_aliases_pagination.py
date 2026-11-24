@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import pytest
 import wandb
 from wandb.sdk.artifacts._generated import ArtifactMembershipFragment
 from wandb.sdk.artifacts._validators import FullArtifactPath
@@ -203,13 +204,76 @@ def test_update_defers_membership_aliases(user, wandb_backend_spy: WandbBackendS
     assert aliases_response.total_calls == 1
 
 
-def test_linked_save_keeps_portfolio_version_and_aliases(
+def test_update_keeps_aliases_when_membership_missing(
     user, wandb_backend_spy: WandbBackendSpy
 ):
     gql = wandb_backend_spy.gql
     _stub_server_features(
         wandb_backend_spy,
         pagination_enabled=True,
+        ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD=True,
+    )
+
+    with wandb.init() as run:
+        artifact = wandb.Artifact("my-update-null-membership", type="dataset")
+        with artifact.new_file("x.txt", "w") as f:
+            f.write("hello")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    collection = artifact.name.split(":")[0]
+    update_response = gql.Constant(
+        content={
+            "data": {
+                "result": {
+                    "artifact": _artifact_fragment_dict(
+                        artifact_id=artifact.id,
+                        entity=artifact.entity,
+                        project=artifact.project,
+                        collection=collection,
+                    ),
+                    "artifactMembership": None,
+                },
+            },
+        }
+    )
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="UpdateArtifact"), update_response)
+    aliases_response = gql.Constant(
+        content={
+            "data": {
+                "project": {
+                    "artifactCollectionMembership": {
+                        "aliasesConnection": _aliases_connection(
+                            ["from-server"], has_next_page=False
+                        )
+                    }
+                }
+            },
+        }
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ArtifactMembershipAliases"), aliases_response
+    )
+
+    artifact._aliases = ["known"]
+    artifact._saved_aliases = ["known"]
+    artifact.description = "updated description"
+    artifact.save()
+
+    assert update_response.total_calls == 1
+    assert "$includeAliases" not in update_response.requests[0].query
+    assert artifact.aliases == ["known"]
+    assert aliases_response.total_calls == 0
+
+
+@pytest.mark.parametrize("pagination_enabled", [True, False])
+def test_linked_save_keeps_portfolio_version_and_aliases(
+    user, wandb_backend_spy: WandbBackendSpy, pagination_enabled: bool
+):
+    gql = wandb_backend_spy.gql
+    _stub_server_features(
+        wandb_backend_spy,
+        pagination_enabled=pagination_enabled,
         ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD=True,
     )
 
@@ -303,7 +367,9 @@ def test_linked_save_keeps_portfolio_version_and_aliases(
     assert update_response.total_calls == 1
     assert linked.version == "v7"
     assert linked.linked_at == portfolio_membership.created_at
-    assert "$includeAliases" not in update_response.requests[0].query
+    sent_query = update_response.requests[0].query
+    assert "$includeAliases" not in sent_query
+    assert "artifactMembership" not in sent_query
     assert aliases_response.total_calls == 0
 
     assert linked.aliases == ["portfolio-only"]

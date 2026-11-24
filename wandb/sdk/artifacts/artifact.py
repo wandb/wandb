@@ -1472,7 +1472,9 @@ class Artifact:
             # membership instead of fanning out across every collection this
             # artifact belongs to (see Artifact.aliases vs
             # ArtifactCollectionMembership.aliases).
-            omit_fields, omit_variables = update_artifact_gql_options(client)
+            omit_fields, omit_variables = update_artifact_gql_options(
+                client, is_link=self.is_link
+            )
 
             data = client.execute_graphql(
                 UPDATE_ARTIFACT_GQL,
@@ -1506,17 +1508,17 @@ class Artifact:
                 ) = link_state
             else:
                 self._assign_attrs(artifact, membership=result.artifact_membership)
-                if (
-                    aliases_after_save is not None
-                    and result.artifact_membership is not None
-                    and result.artifact_membership.aliases is None
-                    and self._version == version_before_update
-                ):
-                    # We already know the complete post-mutation alias set.
-                    # The paginated response omitted aliases, so keep that
-                    # set instead of forcing another fetch on the next read.
-                    self._aliases = aliases_after_save
-                    self._saved_aliases = saved_aliases_after_save
+                if "aliases" in omit_fields:
+                    # The request omitted every `aliases` field, so whatever
+                    # `_assign_attrs` resolved (possibly an empty list, if no
+                    # membership came back) isn't the real alias set. Keep the
+                    # known post-mutation set if the version is unchanged;
+                    # otherwise fetch the aliases on the next read.
+                    if self._version == version_before_update:
+                        self._aliases = aliases_after_save
+                        self._saved_aliases = saved_aliases_after_save
+                    else:
+                        self._aliases = self._saved_aliases = None
 
             self._ttl_changed = False  # Reset after updating artifact
         else:
