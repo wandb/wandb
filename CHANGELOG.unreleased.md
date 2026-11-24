@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `wandb.plot.roc_curve` and `wandb.plot.pr_curve` (and the `wandb.sklearn` plots that use them) no longer score a class with another class's column of `y_probas` when `y_true` is missing some classes (@David-Wu1119 in https://github.com/wandb/wandb/pull/13097)
