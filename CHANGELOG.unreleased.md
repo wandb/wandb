@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `run.log_artifact()` and `wandb.Table` logging no longer fail with `AuthenticationError` when the run's internal API key check hits a transient network error. This was a regression in 0.27.1 (@joseph-shih-wandb in https://github.com/wandb/wandb/pull/13421)
