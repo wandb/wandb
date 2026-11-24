@@ -117,6 +117,10 @@ type LowCardinalityAttributes struct {
 
 	// ValueKind is use to tag telemetry for the kind of a history value.
 	ValueKind string
+
+	// FinishFilestreamSize is the size bucket of the filestream bytes a run
+	// uploaded after it exited. See `filestreamstats` for possible values.
+	FinishFilestreamSize string
 }
 
 // merge returns a copy of attrs with the non-empty fields of other
@@ -152,29 +156,34 @@ func (attrs *LowCardinalityAttributes) merge(
 	merged.ContentEncoding = cmp.Or(other.ContentEncoding, merged.ContentEncoding)
 	merged.ValueReadSource = cmp.Or(other.ValueReadSource, merged.ValueReadSource)
 	merged.ValueKind = cmp.Or(other.ValueKind, merged.ValueKind)
+	merged.FinishFilestreamSize = cmp.Or(
+		other.FinishFilestreamSize,
+		merged.FinishFilestreamSize,
+	)
 
 	return &merged
 }
 
 func (attrs *LowCardinalityAttributes) toMap() map[string]string {
 	out := map[string]string{
-		"go_version":        attrs.GoVersion,
-		"operating_system":  attrs.OperatingSystem,
-		"architecture":      attrs.Architecture,
-		"error.originator":  attrs.ErrorOriginator,
-		"python_version":    attrs.PythonVersion,
-		"python_runtime":    attrs.PythonRuntime,
-		"exception_type":    attrs.ExceptionType,
-		"wandb_version":     attrs.WandbVersion,
-		"leet_mode":         attrs.LeetMode,
-		"execution_context": attrs.ExecutionContext,
-		"stream":            attrs.Stream,
-		"segment":           attrs.Segment,
-		"value_encoding":    attrs.ValueEncoding,
-		"wire_encoding":     attrs.WireEncoding,
-		"content_encoding":  attrs.ContentEncoding,
-		"value_read_source": attrs.ValueReadSource,
-		"value_kind":        attrs.ValueKind,
+		"go_version":             attrs.GoVersion,
+		"operating_system":       attrs.OperatingSystem,
+		"architecture":           attrs.Architecture,
+		"error.originator":       attrs.ErrorOriginator,
+		"python_version":         attrs.PythonVersion,
+		"python_runtime":         attrs.PythonRuntime,
+		"exception_type":         attrs.ExceptionType,
+		"wandb_version":          attrs.WandbVersion,
+		"leet_mode":              attrs.LeetMode,
+		"execution_context":      attrs.ExecutionContext,
+		"stream":                 attrs.Stream,
+		"segment":                attrs.Segment,
+		"value_encoding":         attrs.ValueEncoding,
+		"wire_encoding":          attrs.WireEncoding,
+		"content_encoding":       attrs.ContentEncoding,
+		"value_read_source":      attrs.ValueReadSource,
+		"value_kind":             attrs.ValueKind,
+		"finish_filestream_size": attrs.FinishFilestreamSize,
 	}
 	maps.DeleteFunc(out, func(_ string, value string) bool {
 		return value == ""

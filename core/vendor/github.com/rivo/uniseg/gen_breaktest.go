@@ -32,7 +32,7 @@ import (
 // We want to test against a specific version rather than the latest. When the
 // package is upgraded to a new version, change these to generate new tests.
 const (
-	testCaseURL = `https://www.unicode.org/Public/15.0.0/ucd/auxiliary/%s.txt`
+	testCaseURL = `https://www.unicode.org/Public/18.0.0/ucd/auxiliary/%s.txt`
 )
 
 func main() {
@@ -89,7 +89,10 @@ var ` + os.Args[3] + ` = []testCase {
 
 	sc := bufio.NewScanner(body)
 	num := 1
-	var line []byte
+	var (
+		line     []byte
+		testCase int
+	)
 	original := make([]byte, 0, 64)
 	expected := make([]byte, 0, 64)
 	for sc.Scan() {
@@ -107,7 +110,8 @@ var ` + os.Args[3] + ` = []testCase {
 		if err != nil {
 			return nil, fmt.Errorf(`line %d: %v: %q`, num, err, line)
 		}
-		fmt.Fprintf(buf, "\t{original: \"%s\", expected: %s}, // %s\n", original, expected, comment)
+		fmt.Fprintf(buf, "\t{original: \"%s\", expected: %s}, // TC%d: %s\n", original, expected, testCase, comment)
+		testCase++
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
@@ -17,13 +18,34 @@ func MaybeGQLErrorResponse(responseBody []byte) string {
 		return ""
 	}
 
-	return FormatGQLErrors(gqlResponse)
+	return extractGQLErrors(gqlResponse)
 }
 
-// FormatGQLErrors formats the error messages in a graphql.Response.
+// FormatGQLErrors returns the user message for a GraphQL error.
+//
+// If the error response includes an "errors" field, the errors are joined
+// into one string. Otherwise, it returns a non-empty string with the HTTP
+// status code and description.
+//
+// Never returns an empty string. This is important because some legacy Python
+// code treats an empty error message as "no error".
+func FormatGQLErrors(err *graphql.HTTPError) string {
+	if message := extractGQLErrors(err.Response); message != "" {
+		return message
+	} else {
+		return fmt.Sprintf(
+			"<HTTP status %d %q>",
+			err.StatusCode,
+			http.StatusText(err.StatusCode),
+		)
+	}
+}
+
+// extractGQLErrors returns the error messages in a graphql.Response
+// combined into one string.
 //
 // Returns the empty string if there are no errors.
-func FormatGQLErrors(response graphql.Response) string {
+func extractGQLErrors(response graphql.Response) string {
 	switch {
 	case len(response.Errors) < 1:
 		return ""
