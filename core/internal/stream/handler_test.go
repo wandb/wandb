@@ -12,7 +12,9 @@ import (
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -821,6 +823,83 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 			}
 		})
 	}
+}
+
+// logLeadingDotStepRun defines "loss" with the synced step metric ".clock",
+// logs {".clock": 3} and then {"loss": 0.5}, and returns the second history
+// record emitted by the handler.
+func logLeadingDotStepRun(t *testing.T) *spb.HistoryRecord {
+	t.Helper()
+
+	inChan := make(chan runwork.Work, stream.BufferSize)
+	handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
+		XServerSideDerivedSummary: wrapperspb.Bool(true),
+	})
+
+	inChan <- runwork.NoRequest(runwork.WorkRecord{Record: &spb.Record{
+		RecordType: &spb.Record_Metric{Metric: &spb.MetricRecord{
+			Name:       "loss",
+			StepMetric: ".clock",
+			Options:    &spb.MetricOptions{StepSync: true},
+		}},
+	}})
+
+	logRow := func(step int64, key, valueJSON string) *spb.HistoryRecord {
+		inChan <- runwork.NoRequest(runwork.WorkRecord{Record: &spb.Record{
+			RecordType: &spb.Record_Request{Request: &spb.Request{
+				RequestType: &spb.Request_PartialHistory{
+					PartialHistory: &spb.PartialHistoryRequest{
+						Item:   []*spb.HistoryItem{{Key: key, ValueJson: valueJSON}},
+						Step:   &spb.HistoryStep{Num: step},
+						Action: &spb.HistoryAction{Flush: true},
+					},
+				},
+			}},
+		}})
+		for work := range handler.OutChan() {
+			record := work.WorkImpl.(runwork.WorkRecord).Record
+			if history := record.GetHistory(); history != nil {
+				return history
+			}
+		}
+		require.FailNow(t, "handler closed without a history record")
+		return nil
+	}
+
+	logRow(0, ".clock", "3")
+	return logRow(1, "loss", "0.5")
+}
+
+// senderRow reads a history record the way Sender.sendHistory does.
+func senderRow(t *testing.T, history *spb.HistoryRecord) *runhistory.RunHistory {
+	t.Helper()
+
+	row := runhistory.New()
+	for _, item := range history.Item {
+		assert.NoError(t, row.SetFromRecord(item))
+	}
+	return row
+}
+
+func TestHandlePartialHistory_LeadingDotStepMetric(t *testing.T) {
+	history := logLeadingDotStepRun(t)
+
+	// The step metric name is split on dots, so ".clock" becomes the path
+	// ["", "clock"]. The logged ".clock" value is not tracked, and the
+	// inserted step is 0.
+	byKey := make(map[string]string)
+	for _, item := range history.Item {
+		byKey[fmt.Sprintf("%q", item.NestedKey)] = item.ValueJson
+	}
+	assert.Equal(t, "0", byKey[`["" "clock"]`])
+	assert.NotContains(t, byKey, `[".clock"]`)
+
+	// The sender accepts the empty first label and uploads {"": {"clock": 0}}.
+	row := senderRow(t, history)
+	step, ok := row.GetNumber(pathtree.PathOf("", "clock"))
+	assert.True(t, ok)
+	assert.Equal(t, 0.0, step)
+	assert.False(t, row.Contains(pathtree.PathOf(".clock")))
 }
 
 func TestHandleHistory(t *testing.T) {
