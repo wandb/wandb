@@ -566,16 +566,20 @@ func TestState_Pop_FinalRemovalServesAsCheckpoint(t *testing.T) {
 }
 
 func TestState_Pop_SummaryDeltaThatDoesNotFitAccumulates(t *testing.T) {
+	const history = "the history"
 	state := deltaState()
-	state.MaxRequestSizeBytes = 10
+	state.MaxRequestSizeBytes = len(history) // the row fills the request
 
 	request := &FileStreamRequest{
-		HistoryLines:   []string{"the history"},
+		HistoryLines:   []string{history},
 		SummaryUpdates: summaryUpdate("b", "2"),
 	}
 	json, hasMore := pop(t, state, request)
 	assert.True(t, hasMore)
+	assert.Equal(t, []string{history}, json.Files[HistoryFileName].Content)
 	assert.NotContains(t, json.Files, SummaryFileName)
+
+	// The delta waiting for room picks up later changes.
 
 	request.Merge(&FileStreamRequest{SummaryUpdates: summaryUpdate("c", "3")})
 	line, isDelta := popSummaryLine(t, state, request)
@@ -587,11 +591,13 @@ func TestState_Pop_SummaryDeltaAfterTooLargeSummary(t *testing.T) {
 	state := deltaState()
 	state.MaxFileLineSize = 12
 
+	// Dropped for exceeding the line limit, as a full summary would be.
 	line, _ := popSummaryLine(t, state, &FileStreamRequest{
 		SummaryUpdates: summaryUpdate("big", `"a long value"`),
 	})
 	assert.Empty(t, line)
 
+	// Later changes still go out.
 	line, isDelta := popSummaryLine(t, state,
 		&FileStreamRequest{SummaryUpdates: summaryUpdate("b", "2")})
 	assert.JSONEq(t, `{"b":2}`, line)
