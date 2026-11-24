@@ -404,6 +404,11 @@ func TestNestedValues(t *testing.T) {
 }
 
 func TestInvalidUTF8(t *testing.T) {
+	// The Python SDK cannot send invalid UTF-8. Protobuf rejects it in
+	// proto3 string fields when it marshals or unmarshals them, and the
+	// JSON decoder replaces a lone surrogate escape with U+FFFD. Only Go
+	// code that builds the history in the same process can add invalid
+	// UTF-8, as this test does.
 	rh := history(t,
 		&spb.HistoryItem{Key: "bad-key\xff", ValueJson: "1"},
 		&spb.HistoryItem{Key: "text", Value: &spb.HistoryItem_Text{Text: "a\xff"}},
