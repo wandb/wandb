@@ -974,15 +974,7 @@ class _WandbInit:
                 tel.feature.resumed = result.run_result.run.resumed
         run._set_run_obj(result.run_result.run)
 
-        self._logger.info("starting run threads in backend")
-
-        run_start_handle = interface.deliver_run_start(run)
-        try:
-            # TODO: add progress to let user know we are doing something
-            run_start_handle.wait_or(timeout=30)
-        except TimeoutError:
-            pass
-
+        # TODO: Probe environment automatically after initializing the run.
         interface.publish_probe_system_info()
 
         assert self._wl is not None
@@ -1345,8 +1337,8 @@ def init(  # noqa: C901
             using the format `{run_id}?_step={step}`. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging
             from that step. The target run must be in the same project.
-            If an `id` argument is also provided, the `resume_from` argument will
-            take precedence.
+            If an `id` argument is also provided, it must match the run ID in
+            `resume_from`; otherwise a `ValueError` is raised.
             `resume`, `resume_from` and `fork_from` cannot be used together, only
             one of them can be used at a time.
             Note that this feature is in beta and may change in the future.
