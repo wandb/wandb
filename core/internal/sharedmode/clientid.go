@@ -2,7 +2,7 @@ package sharedmode
 
 import "github.com/google/uuid"
 
-// ClientID is a unique ID for a writer in "shared" mode.
+// ClientID is a unique ID for a run writer.
 //
 // This identifies the process that uploaded a set of metrics when
 // running in "shared" mode, where there may be multiple writers for
