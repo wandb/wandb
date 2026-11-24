@@ -409,6 +409,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendUseArtifact(record)
 	case *spb.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
+	case *spb.Record_SystemMetrics:
+		// Not uploaded yet.
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",
