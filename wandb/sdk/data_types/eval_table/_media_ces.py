@@ -20,35 +20,61 @@ import pathlib
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeVar
 from urllib.parse import quote
+
+from typing_extensions import NotRequired
 
 from wandb import util
 from wandb.errors import UsageError
 from wandb.sdk.data_types.audio import Audio
 from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.data_types.bokeh import Bokeh
 from wandb.sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
 from wandb.sdk.data_types.helper_types.image_mask import ImageMask
+from wandb.sdk.data_types.html import Html
 from wandb.sdk.data_types.image import Image
+from wandb.sdk.data_types.molecule import Molecule
+from wandb.sdk.data_types.object_3d import Object3D
 from wandb.sdk.data_types.video import Video
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     from coreweave_evaluations.types.wandb_audio_v1_param import WandbAudioV1Param
+    from coreweave_evaluations.types.wandb_bokeh_v1_param import WandbBokehV1Param
+    from coreweave_evaluations.types.wandb_html_v1_param import WandbHTMLV1Param
     from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
+    from coreweave_evaluations.types.wandb_molecule_v1_param import WandbMoleculeV1Param
+    from coreweave_evaluations.types.wandb_object3d_v1_param import WandbObject3dV1Param
     from coreweave_evaluations.types.wandb_video_v1_param import WandbVideoV1Param
 
     from wandb.sdk.data_types.helper_types.classes import Classes
     from wandb.sdk.wandb_run import Run
 
-    _CESMediaExtensionValue = WandbImageV1Param | WandbAudioV1Param | WandbVideoV1Param
+    _CESMediaExtensionValue = (
+        WandbImageV1Param
+        | WandbAudioV1Param
+        | WandbVideoV1Param
+        | WandbHTMLV1Param
+        | WandbBokehV1Param
+        | WandbObject3dV1Param
+        | WandbMoleculeV1Param
+    )
 
 
 # Stays under the 3.5 MiB ClickHouse single-row insert limit that Weave adopted
 # after larger rows failed in production (wandb/weave#2353, wandb/weave#5448).
 CES_MAX_CELL_BYTES = 3_500_000
-CESExtensionType = Literal["wandb-image", "wandb-audio", "wandb-video"]
+CESExtensionType = Literal[
+    "wandb-image",
+    "wandb-audio",
+    "wandb-video",
+    "wandb-html",
+    "wandb-bokeh",
+    "wandb-object3d",
+    "wandb-molecule",
+]
 _MediaFieldSource = Literal["inputs", "outputs"]
 _DIGEST_PATH_LENGTH = 30
 _MediaT = TypeVar("_MediaT", bound=Media)
@@ -183,6 +209,7 @@ def prepare_media(
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
     serializer = _media_serializer(media)
+    _check_renderable_format(media)
     working_media = (
         _image_for_run(media, run)
         if isinstance(media, Image)
@@ -198,6 +225,25 @@ def prepare_media(
     return _prepared_media_cell(
         extension_value,
         extension_type=serializer.extension_type,
+    )
+
+
+def _check_renderable_format(media: Media) -> None:
+    path = media._path
+    if path is None:
+        return
+    if isinstance(media, Object3D) and not path.endswith(".pts.json"):
+        supported = "point clouds (.pts.json)"
+    elif isinstance(media, Molecule) and not path.lower().endswith((".pdb", ".cif")):
+        supported = "PDB and CIF files"
+    else:
+        return
+
+    type_name = type(media).__name__
+    message = f"EvalTable supports only {supported} for wandb.{type_name}."
+    raise UnsupportedMediaVariantError(
+        f"{message} Pass unsupported_media_mode='stub' to log null instead.",
+        stub_warning=f"{message} This value will be logged as null.",
     )
 
 
@@ -498,10 +544,80 @@ def _video_ces_extension_value(
     return value
 
 
+class _MediaFileFields(TypedDict):
+    schema_version: Literal[1]
+    sha256: str
+    size: int
+    uri: str
+    caption: NotRequired[str]
+
+
+def _media_file_fields(media_json: dict[str, Any], run: Run) -> _MediaFileFields:
+    fields: _MediaFileFields = {
+        "schema_version": 1,
+        "sha256": media_json["sha256"],
+        "size": media_json["size"],
+        "uri": _uri_from_media_json(media_json, run),
+    }
+    if "caption" in media_json:
+        fields["caption"] = media_json["caption"]
+    return fields
+
+
+def _html_ces_extension_value(media_json: dict[str, Any], run: Run) -> WandbHTMLV1Param:
+    from coreweave_evaluations.types.wandb_html_v1_param import WandbHTMLV1Param
+
+    return WandbHTMLV1Param(
+        extension_type="wandb-html",
+        wb_media_type="html-file",
+        **_media_file_fields(media_json, run),
+    )
+
+
+def _bokeh_ces_extension_value(
+    media_json: dict[str, Any], run: Run
+) -> WandbBokehV1Param:
+    from coreweave_evaluations.types.wandb_bokeh_v1_param import WandbBokehV1Param
+
+    return WandbBokehV1Param(
+        extension_type="wandb-bokeh",
+        wb_media_type="bokeh-file",
+        **_media_file_fields(media_json, run),
+    )
+
+
+def _object3d_ces_extension_value(
+    media_json: dict[str, Any], run: Run
+) -> WandbObject3dV1Param:
+    from coreweave_evaluations.types.wandb_object3d_v1_param import WandbObject3dV1Param
+
+    return WandbObject3dV1Param(
+        extension_type="wandb-object3d",
+        wb_media_type="object3D-file",
+        **_media_file_fields(media_json, run),
+    )
+
+
+def _molecule_ces_extension_value(
+    media_json: dict[str, Any], run: Run
+) -> WandbMoleculeV1Param:
+    from coreweave_evaluations.types.wandb_molecule_v1_param import WandbMoleculeV1Param
+
+    return WandbMoleculeV1Param(
+        extension_type="wandb-molecule",
+        wb_media_type="molecule-file",
+        **_media_file_fields(media_json, run),
+    )
+
+
 _MEDIA_SERIALIZERS = (
     _MediaSerializer(Image, "wandb-image", _image_ces_extension_value),
     _MediaSerializer(Audio, "wandb-audio", _audio_ces_extension_value),
     _MediaSerializer(Video, "wandb-video", _video_ces_extension_value),
+    _MediaSerializer(Html, "wandb-html", _html_ces_extension_value),
+    _MediaSerializer(Bokeh, "wandb-bokeh", _bokeh_ces_extension_value),
+    _MediaSerializer(Object3D, "wandb-object3d", _object3d_ces_extension_value),
+    _MediaSerializer(Molecule, "wandb-molecule", _molecule_ces_extension_value),
 )
 SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = tuple(
     serializer.media_type for serializer in _MEDIA_SERIALIZERS

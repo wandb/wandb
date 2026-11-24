@@ -70,7 +70,11 @@ class EvalTable(Table):
 
         Supports arguments of parent Table class except where noted below.
 
-        Warning: Media suport is only partially implemented. We may not save all
+        CES-backed tables support `wandb.Html`, `wandb.data_types.Bokeh`,
+        `wandb.Object3D` point clouds, and `wandb.Molecule` PDB and CIF files,
+        as well as `wandb.Image`, `wandb.Audio`, and `wandb.Video`.
+
+        Warning: Media support is only partially implemented. We may not save all
         metadata, and media types not yet supported will be replaced with stubs for now.
         Use unsupported_media_mode=raise if you want to fail fast on unsupported media
         instead.
@@ -100,8 +104,8 @@ class EvalTable(Table):
                 from the private preview phase, which will be removed soon.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
-                  like "[wandb.Html not yet supported]". (This is a temporary flag
-                  for use during development.)
+                  like "[wandb.Histogram not yet supported]". Unsupported file
+                  formats for supported media types are logged as null.
                 - "raise": fail fast when unsupported wandb value types are added.
 
         Examples:

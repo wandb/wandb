@@ -1,54 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
-import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, call
+from urllib.parse import unquote
 
 import pytest
 import wandb
 from PIL import Image as PILImage
 from wandb.errors import UsageError
 from wandb.sdk.data_types.eval_table import _media_ces, _writer, _writer_ces
-
-pytestmark = pytest.mark.usefixtures("coreweave_evaluations_module")
-
-
-@pytest.fixture
-def coreweave_evaluations_module(monkeypatch):
-    client_module = ModuleType("coreweave_evaluations")
-    client_module.__path__ = []
-    client_module.Client = MagicMock
-
-    types_module = ModuleType("coreweave_evaluations.types")
-    types_module.__path__ = []
-    audio_module = ModuleType("coreweave_evaluations.types.wandb_audio_v1_param")
-    audio_module.WandbAudioV1Param = dict
-    image_module = ModuleType("coreweave_evaluations.types.wandb_image_v1_param")
-    image_module.WandbImageV1Param = dict
-    video_module = ModuleType("coreweave_evaluations.types.wandb_video_v1_param")
-    video_module.WandbVideoV1Param = dict
-
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations.types", types_module)
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_audio_v1_param",
-        audio_module,
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_image_v1_param",
-        image_module,
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_video_v1_param",
-        video_module,
-    )
-    return client_module
 
 
 @pytest.fixture
@@ -71,7 +35,7 @@ def run_factory(mock_run, tmp_path):
 
 
 @pytest.fixture
-def mock_ces_client(monkeypatch, coreweave_evaluations_module):
+def mock_ces_client(monkeypatch):
     client = MagicMock()
     client.__enter__.return_value = client
     client.eval_tables.create.return_value = SimpleNamespace(
@@ -83,7 +47,10 @@ def mock_ces_client(monkeypatch, coreweave_evaluations_module):
         evaluation_version_id="evaluation-version-1",
     )
     monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
-    monkeypatch.setattr(coreweave_evaluations_module, "Client", MagicMock)
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
     monkeypatch.setattr(
         _writer_ces.CESWriter,
         "_resolve_scope_context",
@@ -389,14 +356,6 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     assert working_image is not image
     assert uri.startswith("wandb-run-file://entity/project/destination-run/")
     destination_run._publish_file.assert_called_once()
-
-
-def test_ces_eval_table_supports_registered_media_types():
-    assert _media_ces.SUPPORTED_WANDB_MEDIA_TYPES == (
-        wandb.Image,
-        wandb.Audio,
-        wandb.Video,
-    )
 
 
 def test_prepare_media_creates_ces_image_extension_value(run_factory, tmp_path):
@@ -1009,6 +968,110 @@ def test_eval_table_writes_supported_media_extensions_to_ces(
     assert inputs["image"]["format"] == "png"
     assert inputs["audio"]["extension_type"] == "wandb-audio"
     assert inputs["video"]["extension_type"] == "wandb-video"
+
+
+def _bokeh_plot():
+    plotting = pytest.importorskip("bokeh.plotting")
+    plot = plotting.figure()
+    plot.line([0, 1], [0, 1])
+    return wandb.data_types.Bokeh(plot)
+
+
+@pytest.mark.parametrize(
+    ("make_media", "extension_type", "wb_media_type", "suffix", "caption"),
+    [
+        (
+            lambda: wandb.Html("<h1>Eval result</h1>"),
+            "wandb-html",
+            "html-file",
+            ".html",
+            None,
+        ),
+        (_bokeh_plot, "wandb-bokeh", "bokeh-file", ".bokeh.json", None),
+        (
+            lambda: wandb.Object3D(io.StringIO("[[0, 0, 0]]"), file_type="pts.json"),
+            "wandb-object3d",
+            "object3D-file",
+            ".pts.json",
+            None,
+        ),
+        (
+            lambda: wandb.Molecule(
+                io.StringIO("data_water\n"), caption="Water", file_type="cif"
+            ),
+            "wandb-molecule",
+            "molecule-file",
+            ".cif",
+            "Water",
+        ),
+    ],
+    ids=["html", "bokeh", "point-cloud", "molecule"],
+)
+def test_eval_table_logs_rich_media_file_and_column(
+    run_factory,
+    mock_ces_client,
+    make_media,
+    extension_type,
+    wb_media_type,
+    suffix,
+    caption,
+):
+    run = run_factory("run-one")
+    table = wandb.EvalTable(
+        columns=["result"],
+        data=[[make_media()]],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
+        "dataset_fields"
+    ] == [
+        {
+            "source": "output",
+            "name": "result",
+            "value_type": "json",
+            "extension_type": extension_type,
+            "extension_schema_version": 1,
+        }
+    ]
+    value = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]["output"][
+        "result"
+    ]
+    assert value["extension_type"] == extension_type
+    assert value["schema_version"] == 1
+    assert value["wb_media_type"] == wb_media_type
+    assert value.get("caption") == caption
+    prefix = "wandb-run-file://entity/project/run-one/"
+    assert value["uri"].startswith(prefix)
+    assert value["uri"].endswith(suffix)
+    run_file = unquote(value["uri"].removeprefix(prefix))
+    run._publish_file.assert_any_call(run_file)
+    contents = (Path(run.dir) / run_file).read_bytes()
+    assert value["sha256"] == hashlib.sha256(contents).hexdigest()
+    assert value["size"] == len(contents)
+
+
+@pytest.mark.parametrize(
+    "make_media",
+    [
+        lambda: wandb.Object3D(io.StringIO("v 0 0 0\n"), file_type="obj"),
+        lambda: wandb.Molecule(io.StringIO("ligand\n"), file_type="sdf"),
+    ],
+    ids=["3d-mesh", "sdf-molecule"],
+)
+def test_eval_table_leaves_unsupported_media_files_unpublished(
+    run_factory, mock_ces_client, make_media
+):
+    run = run_factory("run-one")
+    table = wandb.EvalTable(columns=["result"], data=[[make_media()]], backend="ces")
+
+    run.log({"eval": table})
+
+    output = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]["output"]
+    assert output["result"] is None
+    run._publish_file.assert_not_called()
 
 
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):

@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- CES-backed `wandb.EvalTable` now supports HTML, Bokeh plots, Object3D point clouds, and PDB and CIF molecules in input and output cells.
