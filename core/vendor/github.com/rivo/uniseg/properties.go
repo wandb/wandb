@@ -29,6 +29,7 @@ const (
 	prMidNum
 	prExtendNumLet
 	prALetter
+	prALetterExtendedPictographic
 	prFormat
 	prHebrewLetter
 	prKatakana
@@ -80,6 +81,12 @@ const (
 	prCB
 	prRI
 	prEM
+	prHH
+	prAK
+	prVI
+	prAS
+	prVF
+	prAP
 	prN
 	prNa
 	prA
@@ -87,6 +94,14 @@ const (
 	prH
 	prF
 	prEmojiPresentation
+)
+
+// Indic conjunct properties to be merged with the other Unicode properties.
+const (
+	prInCBLinker = (iota + 1) << 7 // 7th bit because 128 is larger than the highest pr value above.
+	prInCBConsonant
+	prInCBExtend
+	prInCBMask = 0b11 << 7
 )
 
 // Unicode General Categories. Only the ones needed in the context of this
@@ -123,6 +138,7 @@ const (
 	gcCn
 	gcCs
 	gcCo
+	gcLt
 )
 
 // Special code points.
@@ -192,7 +208,7 @@ func propertyGraphemes(r rune) int {
 	if r >= 0 && r <= 0x1f || r == 0x7f {
 		return prControl
 	}
-	return property(graphemeCodePoints, r)
+	return property(graphemeCodePoints, r) | property(indicConjunct, r)
 }
 
 // propertyEastAsianWidth returns the Unicode East Asian Width property value of

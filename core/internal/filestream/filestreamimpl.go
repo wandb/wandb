@@ -135,9 +135,7 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
-	marshalStart := time.Now()
-	jsonData, err := json.Marshal(data)
-	marshalDuration := time.Since(marshalStart)
+	jsonData, err := fs.jsonMarshalTimed(data)
 	if err != nil {
 		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
@@ -149,43 +147,13 @@ func (fs *fileStream) send(
 			spb.ServerFeature_FILESTREAM_GZIP,
 		)
 
-	var compressDuration time.Duration
 	requestBody := jsonData
 	if useGzip {
-		compressStart := time.Now()
-		var compressed bytes.Buffer
-		gzipWriter := gzip.NewWriter(&compressed)
-		if _, err := gzipWriter.Write(jsonData); err != nil {
-			return fmt.Errorf("filestream: gzip write error in send(): %v", err)
+		compressed, err := fs.gzipTimed(jsonData)
+		if err != nil {
+			return fmt.Errorf("filestream: compress request: %v", err)
 		}
-		if err := gzipWriter.Close(); err != nil {
-			return fmt.Errorf("filestream: gzip close error in send(): %v", err)
-		}
-		requestBody = compressed.Bytes()
-		compressDuration = time.Since(compressStart)
-	}
-
-	// These two segments belong to the request, not to a data stream: one
-	// request carries history, events, summary and console output together.
-	fs.stats.RecordSegment(
-		context.Background(),
-		filestreamstats.SegmentRequestMarshal,
-		filestreamstats.StreamNone,
-		marshalDuration,
-	)
-	if useGzip {
-		fs.stats.RecordSegment(
-			context.Background(),
-			filestreamstats.SegmentRequestCompress,
-			filestreamstats.StreamNone,
-			compressDuration,
-		)
-	}
-
-	report := filestreamstats.RequestReport{
-		UncompressedBytes: len(jsonData),
-		CompressedBytes:   len(requestBody),
-		Compressed:        useGzip,
+		requestBody = compressed
 	}
 
 	// A heartbeat carries nothing and runs on a fixed cadence, so it is not
@@ -219,8 +187,14 @@ func (fs *fileStream) send(
 	httpDuration := time.Since(httpStart)
 
 	if !isHeartbeat {
-		report.HTTPDuration = httpDuration
-		fs.stats.RecordRequest(context.Background(), report)
+		fs.stats.RecordRequest(context.Background(),
+			filestreamstats.RequestReport{
+				UncompressedBytes: len(jsonData),
+				CompressedBytes:   len(requestBody),
+				Compressed:        useGzip,
+				HTTPDuration:      httpDuration,
+			},
+		)
 	}
 
 	switch {
@@ -271,6 +245,53 @@ func (fs *fileStream) send(
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
+}
+
+// jsonMarshalTimed calls json.Marshal() and tracks how long it takes.
+func (fs *fileStream) jsonMarshalTimed(
+	data *FileStreamRequestJSON,
+) ([]byte, error) {
+	marshalStart := time.Now()
+
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	fs.stats.RecordSegment(
+		fs.beforeRunEndCtx,
+		filestreamstats.SegmentRequestMarshal,
+		filestreamstats.StreamNone,
+		time.Since(marshalStart),
+	)
+
+	return encoded, nil
+}
+
+// gzipTimed compresses the data and tracks how long it takes.
+//
+// We compress all at once, instead of as the request is being sent,
+// because the full request must be stored in memory anyway to support retries.
+func (fs *fileStream) gzipTimed(data []byte) ([]byte, error) {
+	compressStart := time.Now()
+
+	var compressed bytes.Buffer
+	gzipWriter := gzip.NewWriter(&compressed)
+	if _, err := gzipWriter.Write(data); err != nil {
+		return nil, err
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	fs.stats.RecordSegment(
+		fs.beforeRunEndCtx,
+		filestreamstats.SegmentRequestCompress,
+		filestreamstats.StreamNone,
+		time.Since(compressStart),
+	)
+
+	return compressed.Bytes(), nil
 }
 
 // trackUploadOperation returns a WandbOperation for tracking

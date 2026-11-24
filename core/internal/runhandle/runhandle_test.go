@@ -63,3 +63,49 @@ func TestUpdateTelemetry_AfterInit(t *testing.T) {
 	telemetry := runupsertertest.UpsertBucketTelemetry(t, mockGQL.AllRequests())
 	assert.Equal(t, fakeTelemetryEncoded(), telemetry)
 }
+
+func TestInit(t *testing.T) {
+	runHandle := runhandle.New()
+	expectedUpserter := runupsertertest.NewOfflineUpserter(t)
+
+	require.NoError(t, runHandle.Init(expectedUpserter))
+	upserter, err := runHandle.Upserter()
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedUpserter, upserter)
+}
+
+func TestInit_Twice_Fails(t *testing.T) {
+	runHandle := runhandle.New()
+	upserter := runupsertertest.NewOfflineUpserter(t)
+
+	require.NoError(t, runHandle.Init(upserter))
+	err := runHandle.Init(upserter)
+
+	assert.ErrorContains(t, err, "run already initialized")
+}
+
+func TestInit_Nil_Fails(t *testing.T) {
+	runHandle := runhandle.New()
+
+	assert.Error(t, runHandle.Init(nil))
+}
+
+func TestFailInit(t *testing.T) {
+	runHandle := runhandle.New()
+
+	runHandle.FailInit()
+	upserter, err := runHandle.Upserter()
+
+	assert.Nil(t, upserter)
+	assert.ErrorContains(t, err, "run failed to initialize")
+}
+
+func TestNotInitialized(t *testing.T) {
+	runHandle := runhandle.New()
+
+	upserter, err := runHandle.Upserter()
+
+	assert.Nil(t, upserter)
+	assert.ErrorContains(t, err, "run not yet initialized")
+}

@@ -1,14 +1,16 @@
 # THIS FILE IS GENERATED! DO NOT EDIT! Maintained by Terraform.
 #
 # golangci-lint:       https://golangci-lint.run/
-# false-positives:     https://golangci-lint.run/usage/false-positives/
+# false-positives:     https://golangci-lint.run/docs/linters/false-positives/
 # actual source:       https://github.com/lrstanley/.github/blob/master/terraform/github-common-files/templates/.golangci.yml
-# modified variant of: https://gist.github.com/maratori/47a4d00457a92aa426dbd48a18776322
 
 version: "2"
 
 formatters:
   enable: [gofumpt]
+  exclusions:
+    warn-unused: false
+    generated: lax
 
 issues:
   max-issues-per-linter: 0
@@ -34,6 +36,7 @@ linters:
     - depguard # checks if package imports are in a list of acceptable packages
     - dupl # tool for code clone detection
     - durationcheck # checks for two durations multiplied together
+    - embeddedstructfieldcheck # checks embedded types in structs
     - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases
     - errname # checks that sentinel errors are prefixed with the Err and error types are suffixed with the Error
     - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
@@ -48,7 +51,9 @@ linters:
     - gocognit # computes and checks the cognitive complexity of functions
     - goconst # finds repeated strings that could be replaced by a constant
     - gocritic # provides diagnostics that check for bugs, performance and style issues
+    - godoclint # checks Golang's documentation practice
     - godot # checks if comments end in a period
+    - goheader # checks is file header matches to pattern
     - gomoddirectives # manages the use of 'replace', 'retract', and 'excludes' directives in go.mod
     - goprintffuncname # checks that printf-like functions are named with f at the end
     - gosec # inspects source code for security problems
@@ -56,10 +61,12 @@ linters:
     - iface # checks the incorrect use of interfaces, helping developers avoid interface pollution
     - ineffassign # detects when assignments to existing variables are not used
     - intrange # finds places where for loops could make use of an integer range
+    - iotamixing # checks if iotas are being used in const blocks with other non-iota declarations
     - loggercheck # checks key value pairs for common logger libraries (kitlog,klog,logr,zap)
     - makezero # finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
     - misspell # [useless] finds commonly misspelled English words in comments
+    - modernize # suggests simplifications to Go code, using modern language and library features
     - musttag # enforces field tags in (un)marshaled structs
     - nakedret # finds naked returns in functions greater than a specified function length
     - nestif # reports deeply nested if statements
@@ -76,6 +83,7 @@ linters:
     - revive # fast, configurable, extensible, flexible, and beautiful linter for Go, drop-in replacement of golint
     - rowserrcheck # checks whether Err of rows is checked successfully
     - sloglint # ensure consistent code style when using log/slog
+    - spancheck # checks for mistakes with OpenTelemetry/Census spans
     - sqlclosecheck # checks that sql.Rows and sql.Stmt are closed
     - staticcheck # is a go vet on steroids, applying a ton of static analysis checks
     - testableexamples # checks if examples are testable (have an expected output)
@@ -145,14 +153,22 @@ linters:
               desc: Use github.com/stretchr/testify/assert instead, see
     gochecksumtype:
       default-signifies-exhaustive: false
+    embeddedstructfieldcheck:
+      forbid-mutex: true
     exhaustive:
       check:
         - switch
-        - map
+        - mapliteral
+    godoclint:
+      enable:
+        # Assert no unused link in godocs.
+        - no-unused-link
+        # Require proper doc links to standard library declarations where applicable.
+        - require-stdlib-doclink
     govet:
+      enable-all: true
       disable:
         - fieldalignment
-      enable-all: true
       settings:
         shadow:
           strict: true
@@ -195,6 +211,7 @@ linters:
       - std-error-handling
     paths:
       - ".*\\.gen\\.go$"
+      - ".*\\.generated\\.go$"
       - ".*\\.gen_test\\.go$"
     rules:
       - source: "TODO"
@@ -217,13 +234,17 @@ linters:
         linters: [revive, staticcheck]
       - text: '.* always receives \S+'
         linters: [unparam]
-      - path: _test\.go
+      - path: ".*\\_test\\.go$"
         linters:
           - bodyclose
           - dupl
+          - errcheck
           - funlen
           - gocognit
           - goconst
           - gosec
           - noctx
           - wrapcheck
+      - path: "(^|/)_?examples/.*\\.go$"
+        linters:
+          - forbidigo

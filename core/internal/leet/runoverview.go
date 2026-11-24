@@ -112,7 +112,8 @@ func (ro *RunOverview) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
 func (ro *RunOverview) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
 	ro.gen++
 	for _, s := range summary {
-		_ = runsummary.FromProto(s).Apply(ro.runSummary)
+		updates, _ := runsummary.FromProto(s)
+		updates.Apply(ro.runSummary)
 	}
 }
 

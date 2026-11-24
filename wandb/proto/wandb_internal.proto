@@ -156,12 +156,14 @@ message BranchPoint {
 // the backend returns when creating a new online run), and some fields may be
 // updated (like `entity` and `project`, which are determined through a query
 // if not given).
-//
-// After creating a run, the values in RunUpdateResult must be propagated to
-// the RunStartRequest. This is a legacy pattern that wandb-core uses to
-// communicate with itself. The updated run record may be returned to another
-// process that "attaches" to the run via the AttachResponse.
 message RunRecord {
+  // A unique ID for this run segment.
+  //
+  // This is essentially a unique ID for a transaction log. If a run consists
+  // of multiple resumed segments, each segment has a different ID. This is
+  // empty in older transaction logs.
+  string segment_id = 25;
+
   string run_id = 1;
   string entity = 2;
   string project = 3;
@@ -247,7 +249,22 @@ message RunExitRecord {
   // for a run sets its completion state.
   bool not_complete = 3;
 
+  // The total duration of the run in seconds.
+  //
+  // This is deprecated because it cannot be computed for offline resumed runs.
+  // The relative_time_ms should be used instead.
+  //
+  // This field is set only by older SDKs, and read only by newer SDKs.
+  // It is thus kept only for compatibility and can be removed when
+  // transaction log version 0 is unsupported.
   int32 runtime = 2;
+
+  // The duration of the run segment in milliseconds.
+  //
+  // In other words, this is relative to the start of the .wandb file (if one
+  // exists). In a resumed run, this is different from the "runtime", which is
+  // the time from the start of the run.
+  optional int64 relative_time_ms = 4;
 
   _RecordInfo _info = 200;
 }
@@ -294,6 +311,14 @@ message HistoryStep {
 message HistoryRecord {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
+
+  // The time the step was logged relative to the start of this run segment.
+  //
+  // In other words, this is relative to the start of the .wandb file (if one
+  // exists). In a resumed run, this is different from the "runtime", which is
+  // the time from the start of the run.
+  optional int64 relative_time_ms = 3;
+
   _RecordInfo _info = 200;
 }
 
@@ -703,9 +728,9 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 85
+// Next ID: 86
 message Request {
-  reserved 18, 22, 75, 76, 79, 80;
+  reserved 11, 18, 22, 75, 76, 79, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -721,7 +746,6 @@ message Request {
     PartialHistoryRequest partial_history = 10;
     HistoryStepRequest history_step = 84;
 
-    RunStartRequest run_start = 11;
     CheckVersionRequest check_version = 12;
     LogArtifactRequest log_artifact = 13;
     DownloadArtifactRequest download_artifact = 14;
@@ -744,6 +768,7 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     SyncFinishRequest sync_finish = 81;
+    WaitForRunExitFlushRequest wait_for_run_exit_flush = 85;
 
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
@@ -758,10 +783,10 @@ message Request {
 /*
  * Response: all non persistent responses to Requests
  *
- * Next ID: 75
+ * Next ID: 77
  */
 message Response {
-  reserved 32, 72, 73;
+  reserved 28, 32, 72, 73;
 
   oneof response_type {
     KeepaliveResponse keepalive_response = 18;
@@ -774,7 +799,6 @@ message Response {
     SampledHistoryResponse sampled_history_response = 27;
     HistoryStepResponse history_step_response = 75;
 
-    RunStartResponse run_start_response = 28;
     CheckVersionResponse check_version_response = 29;
     LogArtifactResponse log_artifact_response = 30;
     DownloadArtifactResponse download_artifact_response = 31;
@@ -789,6 +813,7 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
+    WaitForRunExitFlushResponse wait_for_run_exit_flush_response = 76;
     OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
@@ -1236,15 +1261,15 @@ message RunStatusResponse {
   // google.protobuf.Timestamp sync_history_time = 4;
 }
 
-/*
- * RunStartRequest: start the run
- */
-message RunStartRequest {
-  RunRecord run = 1;
-  _RequestInfo _info = 200;
-}
+// Waits until the transaction log has been flushed after the run's exit record.
+//
+// After this message is record has been received by a client
+// it signals that the transaction log file's contents are finalized and can be read by other programs,
+// for example to create a backup.
+message WaitForRunExitFlushRequest {}
 
-message RunStartResponse {}
+// Indicates the transaction log was successfully flushed.
+message WaitForRunExitFlushResponse {}
 
 /*
  * CheckVersion:
@@ -1555,6 +1580,9 @@ message EnvironmentRecord {
   //
   // This ID distinguishes this writer's metadata from that of other writers
   // that may be contributing to the same run.
+  //
+  // Deprecated in favor of RunRecord.segment_id. For compatibility with past
+  // SDK versions, both fields are set to the same value.
   string writer_id = 199;
 
   _RecordInfo _info = 200;
