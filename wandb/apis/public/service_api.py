@@ -202,9 +202,9 @@ class ServiceApi:
         """Verify credentials with the W&B server and identify their account.
 
         The credentials come from the settings this object was created with:
-        an API key, or an identity token file when using federated identity.
-        wandb-core authenticates to the W&B backend and asks it who the
-        credentials belong to.
+        an API key, an identity token file when using federated identity, or
+        a stored browser login. wandb-core authenticates to the W&B backend
+        and asks it who the credentials belong to.
 
         Args:
             timeout: Optional timeout in seconds for waiting on wandb-core.

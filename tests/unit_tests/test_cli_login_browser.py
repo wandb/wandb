@@ -7,12 +7,13 @@ from collections.abc import Iterator
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.apis.public.service_api import ServiceApi
+import wandb
+from wandb.apis.public.service_api import AuthenticateResponse, ServiceApi
 from wandb.cli import cli
 from wandb.errors import AuthenticationError
-from wandb.sdk import wandb_setup
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import urls, wbauth
-from wandb.sdk.lib.wbauth import browser_login
+from wandb.sdk.lib.wbauth import browser_login, prompt
 
 from tests.unit_tests.test_lib.test_auth_browser_login import (
     FakeOAuthServer,
@@ -103,26 +104,93 @@ def test_login_asks_for_an_api_key_by_default(
         pytest.param(["k" * 40], id="explicit-key"),
     ],
 )
-@pytest.mark.usefixtures("local_settings")
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
 def test_api_key_login_discards_a_browser_login(
     runner,
     monkeypatch: pytest.MonkeyPatch,
     oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
-    api_key_logins: list[dict],
     extra_args: list[str],
 ):
     mock_browser_login(monkeypatch)
+    monkeypatch.setattr(prompt, "_prompt_api_key", lambda **kwargs: "k" * 40)
     browser_login.save_credentials(credentials_file, host, make_token_set())
 
     result = runner.invoke(cli.cli, ["login", "--host", host.url, *extra_args])
 
     assert result.exit_code == 0, result.output
     assert token_exchanges(oauth_server) == []
-    assert api_key_logins[-1]["relogin"] is True
     assert stored_refresh_token(credentials_file, host) is None
     assert revoked_tokens(oauth_server) == ["wb_rt_stored"]
+
+
+@pytest.mark.parametrize(
+    "login_kwargs",
+    [
+        pytest.param({"key": "k" * 40}, id="explicit-key"),
+        pytest.param({"relogin": True}, id="relogin"),
+    ],
+)
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_python_login_discards_a_browser_login(
+    monkeypatch: pytest.MonkeyPatch,
+    oauth_server: FakeOAuthServer,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+    login_kwargs: dict[str, object],
+):
+    """Python wandb.login(key=...) and wandb.login(relogin=True) persist to .netrc,
+    so they also discard and revoke any stored browser login for the host.
+    """
+    monkeypatch.setattr(prompt, "_prompt_api_key", lambda **kwargs: "k" * 40)
+    browser_login.save_credentials(credentials_file, host, make_token_set())
+
+    assert wandb.login(host=host.url, **login_kwargs) is True
+
+    assert stored_refresh_token(credentials_file, host) is None
+    assert revoked_tokens(oauth_server) == ["wb_rt_stored"]
+
+
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_ephemeral_api_key_keeps_the_browser_login(
+    oauth_server: FakeOAuthServer,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    """Per-run keys (`update_api_key=False`) do not write .netrc or touch browser logins."""
+    browser_login.save_credentials(credentials_file, host, make_token_set())
+
+    logged_in, _ = wandb_login._login(
+        key="k" * 40,
+        host=host.url,
+        update_api_key=False,
+        verify=True,
+    )
+
+    assert logged_in is True
+    assert stored_refresh_token(credentials_file, host) == "wb_rt_stored"
+    assert revoked_tokens(oauth_server) == []
+
+
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_failed_netrc_write_keeps_the_browser_login(
+    monkeypatch: pytest.MonkeyPatch,
+    oauth_server: FakeOAuthServer,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    browser_login.save_credentials(credentials_file, host, make_token_set())
+    monkeypatch.setattr(
+        wbauth,
+        "write_netrc_auth",
+        MagicMock(side_effect=wbauth.WriteNetrcError("read-only netrc")),
+    )
+
+    assert wandb.login(host=host.url, key="k" * 40) is True
+
+    assert stored_refresh_token(credentials_file, host) == "wb_rt_stored"
+    assert revoked_tokens(oauth_server) == []
 
 
 @pytest.mark.usefixtures("local_settings", "skip_verify_login")
@@ -239,21 +307,62 @@ def test_browser_flag_logs_in_again_when_the_stored_login_is_rejected(
     browser_login.save_credentials(credentials_file, host, make_token_set("wb_rt_old"))
     verified: list[str | None] = []
 
-    def reject_the_old_login(self: wbauth.AuthBrowserLogin) -> None:
-        refresh_token = stored_refresh_token(credentials_file, self.host)
+    def reject_the_old_login(
+        self: ServiceApi,
+        timeout: float | None = None,
+    ) -> AuthenticateResponse:
+        refresh_token = stored_refresh_token(credentials_file, host)
         verified.append(refresh_token)
         if refresh_token == "wb_rt_old":
-            raise AuthenticationError("revoked")
+            raise RuntimeError("revoked")
+        return AuthenticateResponse(
+            username="alice",
+            default_entity="alice-team",
+            teams=["alice-team"],
+        )
 
-    monkeypatch.setattr(wbauth.AuthBrowserLogin, "verify", reject_the_old_login)
+    monkeypatch.setattr(ServiceApi, "authenticate", reject_the_old_login)
 
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
 
     assert result.exit_code == 0, result.output
-    assert verified == ["wb_rt_old", "wb_rt_new"]
+    assert verified[:2] == ["wb_rt_old", "wb_rt_new"]
     assert "Could not use the browser login stored for" in result.output
+    assert "Currently logged in as: alice (alice-team)" in result.output
     assert revoked_tokens(oauth_server) == ["wb_rt_old"]
     assert stored_refresh_token(credentials_file, host) == "wb_rt_new"
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_browser_flag_displays_account_on_fresh_and_reused_login(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    host: wbauth.HostUrl,
+):
+    mock_browser_login(monkeypatch)
+    monkeypatch.setattr(
+        ServiceApi,
+        "authenticate",
+        MagicMock(
+            return_value=AuthenticateResponse(
+                username="alice",
+                default_entity="alice-team",
+                teams=["alice-team"],
+            )
+        ),
+    )
+
+    first = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
+    assert first.exit_code == 0, first.output
+    assert f"Currently logged in as: alice (alice-team) to {host.url}" in first.output
+    assert "wandb login --browser --relogin" in first.output
+
+    second = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
+    assert second.exit_code == 0, second.output
+    assert (
+        f"Already logged in as: alice (alice-team) to {host.url} through the browser"
+        in second.output
+    )
 
 
 @pytest.mark.usefixtures("local_settings", "skip_verify_login")
@@ -352,8 +461,8 @@ def test_browser_flag_no_verify_skips_verification(
     credentials_file: pathlib.Path,
 ):
     mock_browser_login(monkeypatch)
-    verify = MagicMock(side_effect=AssertionError("should not verify"))
-    monkeypatch.setattr(wbauth.AuthBrowserLogin, "verify", verify)
+    authenticate = MagicMock(side_effect=AssertionError("should not contact server"))
+    monkeypatch.setattr(ServiceApi, "authenticate", authenticate)
 
     result = runner.invoke(
         cli.cli,
@@ -361,7 +470,8 @@ def test_browser_flag_no_verify_skips_verification(
     )
 
     assert result.exit_code == 0, result.output
-    verify.assert_not_called()
+    authenticate.assert_not_called()
+    assert f"Logged in to {host.url} through the browser" in result.output
     assert stored_refresh_token(credentials_file, host) == "wb_rt_new"
 
 
@@ -390,13 +500,12 @@ def test_browser_login_uses_settings_app_url_when_host_is_omitted(
     assert opened and opened[0].startswith("https://app.custom.example.com/cli-login?")
 
 
-@pytest.mark.usefixtures("local_settings")
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
 def test_login_with_a_key_succeeds_when_revoking_fails(
     runner,
     oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
-    api_key_logins: list[dict],
 ):
     browser_login.save_credentials(credentials_file, host, make_token_set())
     oauth_server.status = 500
@@ -409,14 +518,13 @@ def test_login_with_a_key_succeeds_when_revoking_fails(
     assert stored_refresh_token(credentials_file, host) is None
 
 
-@pytest.mark.usefixtures("local_settings")
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
 def test_login_with_a_key_warns_when_the_browser_login_cannot_be_removed(
     runner,
     monkeypatch: pytest.MonkeyPatch,
     oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
-    api_key_logins: list[dict],
 ):
     browser_login.save_credentials(credentials_file, host, make_token_set())
 
@@ -433,12 +541,11 @@ def test_login_with_a_key_warns_when_the_browser_login_cannot_be_removed(
     assert stored_refresh_token(credentials_file, host) == "wb_rt_stored"
 
 
-@pytest.mark.usefixtures("local_settings")
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
 def test_login_with_a_key_leaves_the_credentials_file_alone_without_a_browser_login(
     runner,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
-    api_key_logins: list[dict],
 ):
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "k" * 40])
 
@@ -455,11 +562,11 @@ def test_rejected_api_key_keeps_the_browser_login(
     credentials_file: pathlib.Path,
 ):
     browser_login.save_credentials(credentials_file, host, make_token_set())
-
-    def reject_api_key(**kwargs: object) -> bool:
-        raise AuthenticationError("rejected")
-
-    monkeypatch.setattr("wandb.login", reject_api_key)
+    monkeypatch.setattr(
+        ServiceApi,
+        "authenticate",
+        MagicMock(side_effect=RuntimeError("rejected")),
+    )
 
     result = runner.invoke(cli.cli, ["login", "--host", host.url, "k" * 40])
 
@@ -577,12 +684,60 @@ def test_failed_browser_login_warns_when_revoking_fails(
 
 
 @pytest.mark.usefixtures("local_settings")
+def test_failed_verify_revokes_rotated_refresh_token(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    oauth_server: FakeOAuthServer,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    """If wandb-core rotates the refresh token during verify and verify then fails,
+    rollback revokes the rotated token rather than the already-spent initial one.
+    """
+    mock_browser_login(monkeypatch)
+    browser_login.save_credentials(credentials_file, host, make_token_set("wb_rt_old"))
+
+    def rotate_then_fail(self: ServiceApi, timeout: float | None = None) -> None:
+        browser_login.save_credentials(
+            credentials_file, host, make_token_set("wb_rt_rotated")
+        )
+        raise RuntimeError("viewer rejected")
+
+    monkeypatch.setattr(ServiceApi, "authenticate", rotate_then_fail)
+
+    result = runner.invoke(
+        cli.cli,
+        ["login", "--host", host.url, "--browser", "--relogin"],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert stored_refresh_token(credentials_file, host) == "wb_rt_old"
+    assert revoked_tokens(oauth_server) == ["wb_rt_rotated"]
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_failed_save_revokes_the_new_browser_login(
+    runner,
+    monkeypatch: pytest.MonkeyPatch,
+    oauth_server: FakeOAuthServer,
+    host: wbauth.HostUrl,
+    credentials_file: pathlib.Path,
+):
+    mock_browser_login(monkeypatch)
+    credentials_file.write_text("{corrupt json")
+
+    result = runner.invoke(cli.cli, ["login", "--host", host.url, "--browser"])
+
+    assert result.exit_code == 1, result.output
+    assert revoked_tokens(oauth_server) == ["wb_rt_new"]
+
+
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
 def test_login_with_no_key_keeps_a_browser_login(
     runner,
     oauth_server: FakeOAuthServer,
     host: wbauth.HostUrl,
     credentials_file: pathlib.Path,
-    api_key_logins: list[dict],
 ):
     browser_login.save_credentials(credentials_file, host, make_token_set())
 

@@ -287,6 +287,54 @@ def _try_browser_login_auth(*, host: HostUrl) -> AuthWithSource | None:
     )
 
 
+def revoke_browser_login(
+    *,
+    host: HostUrl,
+    refresh_token: str,
+    description: str = "the previous browser login",
+) -> None:
+    """Best-effort revoke of a browser login that is no longer stored."""
+    from . import browser_login
+
+    settings = wandb_setup.singleton().settings
+    try:
+        browser_login.revoke(
+            host=host,
+            refresh_token=refresh_token,
+            verify=not settings.insecure_disable_ssl,
+        )
+    except AuthenticationError as e:
+        term.termwarn(f"Could not revoke {description} for {host}: {e}")
+
+
+def clear_browser_login(*, host: HostUrl) -> None:
+    """Drop a stored browser login so it does not outrank a saved API key.
+
+    Failing to remove or revoke it warns instead of failing the login that
+    replaced it.
+    """
+    settings = wandb_setup.singleton().settings
+    credentials_file = pathlib.Path(settings.credentials_file)
+
+    # Skip importing browser_login (and requests) when no credentials file exists.
+    if not credentials_file.exists():
+        return
+
+    from . import browser_login
+
+    try:
+        tokens = browser_login.clear_credentials(credentials_file, host)
+    except AuthenticationError as e:
+        term.termwarn(
+            f"Could not remove the browser login for {host}, which is"
+            f" used before the new API key: {e}"
+        )
+        return
+
+    if tokens is not None:
+        revoke_browser_login(host=host, refresh_token=tokens.refresh_token)
+
+
 def _use_prompted_auth(
     *,
     host: HostUrl,
@@ -323,6 +371,10 @@ def _use_prompted_auth(
         input_timeout=input_timeout,
         verify=verify,
     )
+
+    if api_key:
+        # A browser login outranks .netrc, so it would hide the saved API key.
+        clear_browser_login(host=host)
 
     with _session_auth_lock:
         if api_key:

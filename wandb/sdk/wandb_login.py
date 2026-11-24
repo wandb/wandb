@@ -5,13 +5,15 @@ This authenticates your machine to log data to your account.
 
 from __future__ import annotations
 
+import os
+import pathlib
 from typing import TYPE_CHECKING
 
 import click
 
 import wandb
 from wandb import env
-from wandb.errors import AuthenticationError, term
+from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import settings_file, urls, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
@@ -19,6 +21,7 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.lib.wbauth import browser_login
 
 
 def login(
@@ -121,14 +124,20 @@ def login(
     if not logged_in and not prompt:
         return False
 
-    update_system_settings(
+    _update_system_settings(
         global_settings.read_system_settings(),
         host=host,
     )
     return logged_in
 
 
-def update_system_settings(
+def _resolve_host(settings: wandb.Settings, host: str | None) -> wbauth.HostUrl:
+    if host is None:
+        return wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
+    return wbauth.HostUrl(host)
+
+
+def _update_system_settings(
     system_settings: settings_file.SettingsFiles,
     *,
     host: str | None,
@@ -147,6 +156,192 @@ def update_system_settings(
         system_settings.save()
     except settings_file.SaveSettingsError as e:
         wandb.termwarn(str(e))
+
+
+def _login_with_browser(
+    *,
+    host: str | None = None,
+    relogin: bool = False,
+    verify: bool = True,
+) -> None:
+    """Log in through the browser, or reuse the browser login already stored.
+
+    There is one browser login per host. It is reused unless `relogin` is set
+    or it no longer verifies; a login this replaces is revoked.
+    """
+    # Deferred to keep requests out of SDK and CLI startup.
+    from wandb.sdk.lib.wbauth import browser_login
+
+    settings = wandb_setup.singleton().settings
+    host_url = _resolve_host(settings, host)
+    persist_host = host_url.url if host else None
+    credentials_file = pathlib.Path(settings.credentials_file)
+
+    if not relogin and (
+        auth := _reuse_browser_login(credentials_file, host_url, verify=verify)
+    ):
+        _finish_browser_login(settings, auth, persist_host=persist_host, reused=True)
+        return
+
+    if not browser_login.can_open_browser():
+        raise UsageError(
+            "`wandb login --browser` needs a browser on this machine to"
+            " finish the login. Run it where you have one, or log in with"
+            " an API key instead."
+        )
+
+    auth, previous = _acquire_browser_login(
+        credentials_file=credentials_file,
+        host_url=host_url,
+        verify=verify,
+        insecure_disable_ssl=settings.insecure_disable_ssl,
+    )
+    _finish_browser_login(settings, auth, persist_host=persist_host, reused=False)
+
+    if previous is not None:
+        wbauth.revoke_browser_login(
+            host=host_url,
+            refresh_token=previous.refresh_token,
+        )
+
+
+def _reuse_browser_login(
+    credentials_file: pathlib.Path,
+    host_url: wbauth.HostUrl,
+    *,
+    verify: bool,
+) -> wbauth.AuthBrowserLogin | None:
+    """Return the stored browser login if it is present and still verifies."""
+    from wandb.sdk.lib.wbauth import browser_login
+
+    if not browser_login.load_credentials(credentials_file, host_url):
+        return None
+
+    auth = wbauth.AuthBrowserLogin(
+        host=host_url,
+        credentials_file=credentials_file,
+    )
+    if not verify:
+        return auth
+
+    try:
+        auth.verify()
+    except AuthenticationError as e:
+        term.termwarn(
+            f"Could not use the browser login stored for {host_url}"
+            f" ({e}). Logging in again."
+        )
+        return None
+
+    return auth
+
+
+def _acquire_browser_login(
+    *,
+    credentials_file: pathlib.Path,
+    host_url: wbauth.HostUrl,
+    verify: bool,
+    insecure_disable_ssl: bool,
+) -> tuple[wbauth.AuthBrowserLogin, browser_login.TokenSet | None]:
+    """Run the browser flow, store the login, and verify it.
+
+    The previous login stays on disk until this one is stored and accepted.
+    A failure, including Ctrl-C, puts that previous login back. Any failure
+    other than Ctrl-C also revokes the new login (using the rotated refresh
+    token if verification refreshed it).
+    """
+    from wandb.sdk.lib.wbauth import browser_login
+
+    tokens = browser_login.login(
+        host=host_url,
+        timeout=browser_login.LOGIN_TIMEOUT_SECONDS,
+        verify=not insecure_disable_ssl,
+    )
+    try:
+        previous = browser_login.save_credentials(credentials_file, host_url, tokens)
+    except AuthenticationError:
+        wbauth.revoke_browser_login(
+            host=host_url,
+            refresh_token=tokens.refresh_token,
+            description="the new browser login",
+        )
+        raise
+
+    auth = wbauth.AuthBrowserLogin(
+        host=host_url,
+        credentials_file=credentials_file,
+    )
+    if verify:
+        try:
+            auth.verify()
+        except BaseException as e:
+            replaced = _restore_browser_credentials(
+                credentials_file,
+                host_url,
+                previous,
+            )
+            # Ctrl-C should exit right away, not wait on the server.
+            if isinstance(e, Exception):
+                wbauth.revoke_browser_login(
+                    host=host_url,
+                    refresh_token=(replaced or tokens).refresh_token,
+                    description="the new browser login",
+                )
+            raise
+
+    return auth, previous
+
+
+def _restore_browser_credentials(
+    credentials_file: pathlib.Path,
+    host_url: wbauth.HostUrl,
+    previous: browser_login.TokenSet | None,
+) -> browser_login.TokenSet | None:
+    """Put the previous login back (or remove the new one) after a failed verify."""
+    from wandb.sdk.lib.wbauth import browser_login
+
+    try:
+        if previous is None:
+            return browser_login.clear_credentials(credentials_file, host_url)
+        return browser_login.save_credentials(credentials_file, host_url, previous)
+    except AuthenticationError as e:
+        term.termwarn(f"Could not restore credentials for {host_url}: {e}")
+        return None
+
+
+def _finish_browser_login(
+    settings: wandb.Settings,
+    auth: wbauth.AuthBrowserLogin,
+    *,
+    persist_host: str | None,
+    reused: bool,
+) -> None:
+    """Activate session auth, persist host settings, and report login status."""
+    wbauth.use_explicit_auth(auth, source="wandb login")
+    wandb_setup.singleton().update_user_settings()
+    _update_system_settings(
+        settings.read_system_settings(),
+        host=persist_host,
+    )
+    if not settings.silent:
+        _print_logged_in_message(
+            settings,
+            host=str(auth.host),
+            auth=auth,
+            reused=reused,
+        )
+    _warn_if_env_overrides_browser_login()
+
+
+def _warn_if_env_overrides_browser_login() -> None:
+    """Warn when an exported credential will be used instead of the browser login."""
+    for var in (env.API_KEY, env.IDENTITY_TOKEN_FILE):
+        if os.getenv(var):
+            term.termwarn(
+                f"{var} is set, so W&B uses it instead of the browser login."
+                f" Unset {var} to use the browser login."
+            )
+            return
 
 
 def _login(
@@ -175,11 +370,7 @@ def _login(
         A pair (is_successful, key).
     """
     settings = wandb_setup.singleton().settings
-
-    if host is None:
-        host_url = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
-    else:
-        host_url = wbauth.HostUrl(host)
+    host_url = _resolve_host(settings, host)
 
     if relogin is None:
         relogin = settings.relogin
@@ -220,7 +411,7 @@ def _login(
 
     wandb_setup.singleton().update_user_settings()
     if auth is not None and not _silent:
-        _print_logged_in_message(settings, host=str(host_url))
+        _print_logged_in_message(settings, host=str(host_url), auth=auth)
 
     if auth is None:
         return False, None
@@ -266,6 +457,9 @@ def _use_explicit_key(
             )
         except wbauth.WriteNetrcError as e:
             wandb.termwarn(str(e))
+        else:
+            # A browser login outranks .netrc, so it would hide the saved API key.
+            wbauth.clear_browser_login(host=auth.host)
 
     return auth
 
@@ -322,8 +516,8 @@ def _verify_login(
 ) -> None:
     """Check the credentials with the server they are for.
 
-    The verification request is made by wandb-core, which supports both
-    API keys and identity token files (federated identity).
+    The verification request is made by wandb-core, which supports API keys,
+    identity token files (federated identity), and browser logins.
 
     Args:
         auth: The credentials to verify.
@@ -362,29 +556,70 @@ def _verify_login(
         ) from e
 
 
-def _print_logged_in_message(settings: wandb.Settings, *, host: str) -> None:
-    """Print a message telling the user they are logged in."""
+def _format_identity_summary(settings: wandb.Settings, *, host: str) -> str | None:
+    """Format `<username> (<entity>) to <host>` if the viewer can be resolved."""
     singleton = wandb_setup.singleton()
     username = singleton._get_username()
+    if not username:
+        return None
 
-    if username:
+    host_str = f" to {click.style(host, fg='green')}" if host else ""
+
+    # Check to see if we got an entity from the setup call or from the user.
+    entity = settings.entity or singleton._get_entity()
+
+    entity_str = ""
+    # Check if entity exists, is valid (part of a team), and differs from username.
+    if entity and entity in singleton._get_teams() and entity != username:
+        entity_str = f" ({click.style(entity, fg='yellow')})"
+
+    return f"{click.style(username, fg='yellow')}{entity_str}{host_str}"
+
+
+def _format_logged_in_state(
+    settings: wandb.Settings,
+    *,
+    host: str,
+    auth: wbauth.Auth | None,
+    reused: bool,
+) -> str:
+    """Format the account or credential summary for the logged-in message."""
+    if identity := _format_identity_summary(settings, host=host):
+        if reused:
+            return f"Already logged in as: {identity} through the browser"
+        return f"Currently logged in as: {identity}"
+
+    if isinstance(auth, wbauth.AuthBrowserLogin):
         host_str = f" to {click.style(host, fg='green')}" if host else ""
+        prefix = "Already logged in" if reused else "Logged in"
+        return f"{prefix}{host_str} through the browser"
 
-        # check to see if we got an entity from the setup call or from the user
-        entity = settings.entity or singleton._get_entity()
+    if isinstance(auth, wbauth.AuthIdentityTokenFile):
+        return "W&B credentials are configured"
 
-        entity_str = ""
-        # check if entity exist, valid (is part of a certain team) and different from the username
-        if entity and entity in singleton._get_teams() and entity != username:
-            entity_str = f" ({click.style(entity, fg='yellow')})"
+    return "W&B API key is configured"
 
-        login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}{host_str}"
-    else:
-        login_state_str = "W&B API key is configured"
 
-    login_info_str = (
-        f"Use {click.style('`wandb login --relogin`', bold=True)} to force relogin"
+def _print_logged_in_message(
+    settings: wandb.Settings,
+    *,
+    host: str,
+    auth: wbauth.Auth | None = None,
+    reused: bool = False,
+) -> None:
+    """Print a message telling the user they are logged in."""
+    login_state_str = _format_logged_in_state(
+        settings,
+        host=host,
+        auth=auth,
+        reused=reused,
     )
+    relogin_cmd = (
+        "`wandb login --browser --relogin`"
+        if isinstance(auth, wbauth.AuthBrowserLogin)
+        else "`wandb login --relogin`"
+    )
+    login_info_str = f"Use {click.style(relogin_cmd, bold=True)} to force relogin"
     term.termlog(
         f"{login_state_str}. {login_info_str}",
         repeat=False,
