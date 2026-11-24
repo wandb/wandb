@@ -135,43 +135,105 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
+	op := fs.trackUploadOperation(data)
+	defer op.Finish()
+	ctx := op.Context(fs.beforeRunEndCtx)
+
+	var report filestreamstats.RequestReport
+	req, err := fs.prepareRequest(ctx, data, &report)
+	if err != nil {
+		return err
+	}
+
+	isHeartbeat := data.IsHeartbeat()
+	shouldLogStartAndEnd := !isHeartbeat
+	if shouldLogStartAndEnd {
+		fs.logRequestSummary(data)
+	}
+
+	httpStart := time.Now()
+	resp, err := fs.apiClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("filestream: failed to send: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if !isHeartbeat { // Heartbeats are not interesting to track.
+		report.HTTPDuration = time.Since(httpStart)
+		fs.stats.RecordRequest(ctx, report)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 300 {
+		// If we reach here, that means all retries were exhausted. This could
+		// mean, for instance, that the user's internet connection broke.
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+
+		return fmt.Errorf(
+			"filestream: failed to upload: %v url=%v: %s",
+			resp.Status,
+			req.URL,
+			string(body),
+		)
+	}
+
+	if shouldLogStartAndEnd {
+		// Log after sending to record that the backend responded and should
+		// have the data in the request.
+		fs.logger.Info("filestream: request sent", "status", resp.Status)
+	}
+
+	var res map[string]any
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	if err != nil {
+		// We don't fail (and stop uploading) if we can't parse the response,
+		// as the responses are mostly informational.
+		fs.logger.CaptureError("filestream",
+			fmt.Errorf("filestream: json decode error: %v", err))
+	} else {
+		fs.logger.Debug("filestream: post response", "response", res)
+		feedbackChan <- res
+	}
+
+	return nil
+}
+
+// prepareRequest creates the FileStream request.
+//
+// On success, it sets all fields of RequestReport other than HTTPDuration.
+func (fs *fileStream) prepareRequest(
+	ctx context.Context,
+	data *FileStreamRequestJSON,
+	report *filestreamstats.RequestReport,
+) (*retryablehttp.Request, error) {
 	jsonData, err := fs.jsonMarshalTimed(data)
 	if err != nil {
-		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
+		return nil, fmt.Errorf(
+			"filestream: json marshal error in send(): %v", err)
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
 	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
-		fs.featureProvider.Enabled(
-			fs.beforeRunEndCtx,
-			spb.ServerFeature_FILESTREAM_GZIP,
-		)
+		fs.featureProvider.Enabled(ctx, spb.ServerFeature_FILESTREAM_GZIP)
 
 	requestBody := jsonData
 	if useGzip {
 		compressed, err := fs.gzipTimed(jsonData)
 		if err != nil {
-			return fmt.Errorf("filestream: compress request: %v", err)
+			return nil, fmt.Errorf("filestream: compress request: %v", err)
 		}
 		requestBody = compressed
 	}
 
-	// A heartbeat carries nothing and runs on a fixed cadence, so it is not
-	// reported. Counting it would swamp the request count of an idle run.
-	isHeartbeat := data.IsHeartbeat()
-
-	op := fs.trackUploadOperation(data)
-	defer op.Finish()
-
 	req, err := retryablehttp.NewRequestWithContext(
-		op.Context(fs.beforeRunEndCtx),
+		ctx,
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),
 		bytes.NewReader(requestBody),
 	)
 	if err != nil {
-		return fmt.Errorf("filestream: error constructing request: %v", err)
+		return nil, fmt.Errorf("filestream: error constructing request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	if useGzip {
 		req.Header.Set("Content-Encoding", "gzip")
@@ -180,74 +242,10 @@ func (fs *fileStream) send(
 		req.Header.Set("X-Wandb-Segment-ID", fs.segmentID)
 	}
 
-	shouldLogStartAndEnd := !data.IsHeartbeat()
-	if shouldLogStartAndEnd {
-		fs.logRequestSummary(data)
-	}
-
-	httpStart := time.Now()
-	resp, err := fs.apiClient.Do(req)
-	httpDuration := time.Since(httpStart)
-
-	if !isHeartbeat {
-		fs.stats.RecordRequest(context.Background(),
-			filestreamstats.RequestReport{
-				UncompressedBytes: len(jsonData),
-				CompressedBytes:   len(requestBody),
-				Compressed:        useGzip,
-				HTTPDuration:      httpDuration,
-			},
-		)
-	}
-
-	switch {
-	case err != nil:
-		return fmt.Errorf(
-			"filestream: error making HTTP request: %v. got response: %v",
-			err,
-			resp,
-		)
-	case resp.StatusCode < 200 || resp.StatusCode > 300:
-		// If we reach here, that means all retries were exhausted. This could
-		// mean, for instance, that the user's internet connection broke.
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		_ = resp.Body.Close()
-
-		return fmt.Errorf(
-			"filestream: failed to upload: %v url=%v: %s",
-			resp.Status,
-			req.URL,
-			string(body),
-		)
-
-	default:
-		if shouldLogStartAndEnd {
-			// Log after sending to record that the backend responded and should
-			// have the data in the request.
-			fs.logger.Info("filestream: request sent", "status", resp.Status)
-		}
-	}
-
-	defer func(Body io.ReadCloser) {
-		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError(
-				"filestream",
-				fmt.Errorf("filestream: error closing response body: %v", err),
-			)
-		}
-	}(resp.Body)
-
-	var res map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&res)
-	if err != nil {
-		fs.logger.CaptureError(
-			"filestream",
-			fmt.Errorf("filestream: json decode error: %v", err),
-		)
-	}
-	feedbackChan <- res
-	fs.logger.Debug("filestream: post response", "response", res)
-	return nil
+	report.UncompressedBytes = len(jsonData)
+	report.CompressedBytes = len(requestBody)
+	report.Compressed = useGzip
+	return req, nil
 }
 
 // jsonMarshalTimed calls json.Marshal() and tracks how long it takes.
