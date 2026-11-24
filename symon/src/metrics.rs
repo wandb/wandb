@@ -5,8 +5,9 @@ use std::time::Duration;
 use prost::Message;
 
 use crate::wandb_internal::{
-    DiskIoMetrics, HostMetrics, NetworkMetrics, ProcessMetrics, ProcessStats, SdkMetrics,
-    SubscribeRequest, SystemMetricsRecord,
+    AcceleratorMetrics, AcceleratorType, DiskIoMetrics, HostMetrics, NetworkMetrics, NvidiaMetrics,
+    ProcessMetrics, ProcessStats, SdkMetrics, SubscribeRequest, SystemMetricsRecord,
+    accelerator_metrics::Vendor,
 };
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -134,6 +135,48 @@ pub enum Field {
     NetworkSent,
     NetworkRecv,
     NetworkTcpRetransmits,
+    /// A rate of the NVIDIA GPU with this index from this source.
+    #[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
+    Nvidia(&'static str, u32, NvidiaRate),
+}
+
+/// The NVIDIA GPU fields that are averaged: GPM and DCGM profiling metrics
+/// and PCIe throughput.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
+pub enum NvidiaRate {
+    PcieTx,
+    PcieRx,
+    NvlinkTx,
+    NvlinkRx,
+    SmActive,
+    SmOccupancy,
+    DramActive,
+    PipeTensorActive,
+    PipeTensorHmmaActive,
+    PipeFp64Active,
+    PipeFp32Active,
+    PipeFp16Active,
+}
+
+impl NvidiaRate {
+    fn set(self, nvidia: &mut NvidiaMetrics, value: f64) {
+        let field = match self {
+            NvidiaRate::PcieTx => &mut nvidia.pcie_tx_bytes_per_s,
+            NvidiaRate::PcieRx => &mut nvidia.pcie_rx_bytes_per_s,
+            NvidiaRate::NvlinkTx => &mut nvidia.nvlink_tx_bytes_per_s,
+            NvidiaRate::NvlinkRx => &mut nvidia.nvlink_rx_bytes_per_s,
+            NvidiaRate::SmActive => &mut nvidia.sm_active_ratio,
+            NvidiaRate::SmOccupancy => &mut nvidia.sm_occupancy_ratio,
+            NvidiaRate::DramActive => &mut nvidia.dram_active_ratio,
+            NvidiaRate::PipeTensorActive => &mut nvidia.pipe_tensor_active_ratio,
+            NvidiaRate::PipeTensorHmmaActive => &mut nvidia.pipe_tensor_hmma_active_ratio,
+            NvidiaRate::PipeFp64Active => &mut nvidia.pipe_fp64_active_ratio,
+            NvidiaRate::PipeFp32Active => &mut nvidia.pipe_fp32_active_ratio,
+            NvidiaRate::PipeFp16Active => &mut nvidia.pipe_fp16_active_ratio,
+        };
+        *field = Some(value);
+    }
 }
 
 impl Field {
@@ -172,6 +215,7 @@ impl Field {
             Field::NetworkSent => network(record).sent_bytes = Some(count),
             Field::NetworkRecv => network(record).recv_bytes = Some(count),
             Field::NetworkTcpRetransmits => network(record).tcp_retransmits = Some(count),
+            Field::Nvidia(source, index, rate) => rate.set(nvidia(record, source, *index), value),
         }
     }
 }
@@ -182,6 +226,39 @@ fn process(record: &mut SystemMetricsRecord) -> &mut ProcessMetrics {
 
 fn sdk(record: &mut SystemMetricsRecord) -> &mut SdkMetrics {
     record.sdk.get_or_insert_with(SdkMetrics::default)
+}
+
+/// The NVIDIA part of the GPU with `index` from `source`, added if missing.
+fn nvidia<'a>(
+    record: &'a mut SystemMetricsRecord,
+    source: &str,
+    index: u32,
+) -> &'a mut NvidiaMetrics {
+    let accelerators = &mut record.accelerators;
+    let position = accelerators.iter().position(|device| {
+        device.r#type() == AcceleratorType::NvidiaGpu
+            && device.index == index
+            && device.source == source
+    });
+    let device = match position {
+        Some(position) => &mut accelerators[position],
+        None => {
+            accelerators.push(AcceleratorMetrics {
+                r#type: AcceleratorType::NvidiaGpu as i32,
+                index,
+                source: source.to_string(),
+                ..Default::default()
+            });
+            accelerators.last_mut().expect("just pushed")
+        }
+    };
+    if !matches!(device.vendor, Some(Vendor::Nvidia(_))) {
+        device.vendor = Some(Vendor::Nvidia(NvidiaMetrics::default()));
+    }
+    match &mut device.vendor {
+        Some(Vendor::Nvidia(nvidia)) => nvidia,
+        _ => unreachable!(),
+    }
 }
 
 fn network(record: &mut SystemMetricsRecord) -> &mut NetworkMetrics {
