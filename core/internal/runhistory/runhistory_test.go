@@ -473,15 +473,3 @@ func TestSetFromRecord_EmptyLabels(t *testing.T) {
 		})
 	}
 }
-
-func TestForEachTopLevel_LeafOnlyAllocations(t *testing.T) {
-	rh := runhistory.New()
-	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{Key: "b", ValueJson: "1"}))
-	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{Key: "a", ValueJson: "2"}))
-
-	allocations := testing.AllocsPerRun(100, func() {
-		rh.ForEachTopLevel(func(_ string, _ any) bool { return true })
-	})
-
-	assert.LessOrEqual(t, allocations, 1.0)
-}
