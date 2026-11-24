@@ -509,6 +509,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 			runPath.Entity,
 			runPath.Project,
 			runPath.RunID,
+			upserter.SegmentID(),
 			upserter.FileStreamOffsets(),
 		)
 	})

@@ -176,6 +176,7 @@ func (fs *fileStream) send(
 	if useGzip {
 		req.Header.Set("Content-Encoding", "gzip")
 	}
+	req.Header.Set("X-Wandb-Segment-ID", fs.segmentID)
 
 	shouldLogStartAndEnd := !data.IsHeartbeat()
 	if shouldLogStartAndEnd {
