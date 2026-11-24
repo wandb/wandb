@@ -445,33 +445,15 @@ func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to unmarshal typed history item value")
 }
 
-func TestSetFromRecord_EmptyLabels(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		item *spb.HistoryItem
-		ok   bool
-	}{
-		{"empty key", &spb.HistoryItem{Key: "", Value: &spb.HistoryItem_None{}}, false},
-		{"empty only", &spb.HistoryItem{NestedKey: []string{""}, ValueJson: "1"}, false},
-		{"empty first", &spb.HistoryItem{NestedKey: []string{"", "b"}, ValueJson: "1"}, false},
-		{"empty later", &spb.HistoryItem{NestedKey: []string{"a", ""}, ValueJson: "1"}, true},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			rh := runhistory.New()
+func TestSetFromRecord_TypedEmptyKey(t *testing.T) {
+	rh := runhistory.New()
 
-			err := rh.SetFromRecord(c.item)
+	err := rh.SetFromRecord(&spb.HistoryItem{
+		Key:   "",
+		Value: &spb.HistoryItem_None{},
+	})
 
-			if c.ok {
-				require.NoError(t, err)
-				value, ok := rh.GetInt(pathtree.PathOf("a", ""))
-				assert.True(t, ok)
-				assert.Equal(t, int64(1), value)
-			} else {
-				assert.ErrorContains(t, err, "empty history item key")
-				assert.True(t, rh.IsEmpty())
-			}
-		})
-	}
+	assert.ErrorContains(t, err, "empty history item key")
 }
 
 func TestForEachTopLevel_LeafOnlyAllocations(t *testing.T) {

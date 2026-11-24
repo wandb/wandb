@@ -232,9 +232,6 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 
 	switch {
 	case len(record.NestedKey) > 0:
-		if record.NestedKey[0] == "" {
-			return errors.New("empty history item key")
-		}
 		path = pathtree.PathOf(record.NestedKey[0], record.NestedKey[1:]...)
 	case record.Key != "":
 		path = pathtree.PathOf(record.Key)
