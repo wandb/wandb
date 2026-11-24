@@ -238,8 +238,17 @@ def test_whitespace_parameters():
     ]
 
 
-@pytest.mark.parametrize("stop_method", ["cancel", "stop"])
-def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
+@pytest.mark.parametrize(
+    "stop_method, stopped_state",
+    [("cancel", "CANCELED"), ("stop", "FINISHED")],
+)
+def test_sweep_pause(runner, user, mocker, stop_method, stopped_state, monkeypatch):
+    """Each CLI state flag changes the state the server stores, not just the exit code."""
+
+    def stored_state() -> str:
+        # Api caches sweeps per instance, so use a new one for each read.
+        return wandb.Api().sweep(f"{user}/{stop_method}/sweeps/{sweep_id}").state
+
     with runner.isolated_filesystem():
         sweep_config = {
             "name": f"My Sweep-{stop_method}",
@@ -248,6 +257,7 @@ def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
             "parameters": {"parameter1": {"values": [1, 2, 3]}},
         }
         sweep_id = wandb.sweep(sweep_config, entity=user, project=stop_method)
+        assert stored_state() == "PENDING"
 
         def mock_read_from_queue(a, b, c):
             sys.exit(1)
@@ -255,27 +265,33 @@ def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
         mocker.patch("wandb.wandb_agent.Agent._process_command", mock_read_from_queue)
         res_agent = runner.invoke(cli.agent, [sweep_id, "--project", stop_method])
         assert res_agent.exit_code == 1
-        assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+        # Creating the agent moved the sweep out of PENDING.
+        assert stored_state() == "RUNNING"
+
+        assert (
+            runner.invoke(
+                cli.sweep, ["--pause", sweep_id, "--project", stop_method]
+            ).exit_code
+            == 0
+        )
+        assert stored_state() == "PAUSED"
+
         assert (
             runner.invoke(
                 cli.sweep, ["--resume", sweep_id, "--project", stop_method]
             ).exit_code
             == 0
         )
-        if stop_method == "stop":
-            assert (
-                runner.invoke(
-                    cli.sweep, ["--stop", sweep_id, "--project", stop_method]
-                ).exit_code
-                == 0
-            )
-        else:
-            assert (
-                runner.invoke(
-                    cli.sweep, ["--cancel", sweep_id, "--project", stop_method]
-                ).exit_code
-                == 0
-            )
+        assert stored_state() == "RUNNING"
+
+        # --stop stores FINISHED directly; the server never writes STOPPING.
+        assert (
+            runner.invoke(
+                cli.sweep, [f"--{stop_method}", sweep_id, "--project", stop_method]
+            ).exit_code
+            == 0
+        )
+        assert stored_state() == stopped_state
 
 
 def test_sweep_scheduler(runner, user):
