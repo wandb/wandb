@@ -50,10 +50,10 @@ type typedValue struct {
 	value any
 }
 
-// decode round-trips the batch through protobuf, checks each decoder
-// rule of the wire proto, and returns the rows. A present step is under
-// "_step" with KIND_INT.
-func decode(t *testing.T, batch *filestreamv1.MetricsBatch) []map[string]typedValue {
+// checkAndDecode round-trips the batch through protobuf, checks each
+// decoder rule of the wire proto, and returns the rows. A present step is
+// under "_step" with KIND_INT.
+func checkAndDecode(t *testing.T, batch *filestreamv1.MetricsBatch) []map[string]typedValue {
 	t.Helper()
 	encoded, err := proto.Marshal(batch)
 	require.NoError(t, err)
@@ -183,7 +183,7 @@ func joinedErrors(err error) []error {
 }
 
 // TestFixtures runs each T16 fixture through SetFromRecord, Prepare,
-// Append, Finish and decode.
+// Append, Finish and checkAndDecode.
 func TestFixtures(t *testing.T) {
 	b := NewBuilder()
 	for _, f := range fixtures {
@@ -191,7 +191,7 @@ func TestFixtures(t *testing.T) {
 		item.Key = "metric"
 		b.Append(prepared(t, item))
 	}
-	rows := decode(t, b.Finish())
+	rows := checkAndDecode(t, b.Finish())
 	require.Len(t, rows, len(fixtures))
 
 	seen := make(map[filestreamv1.MetricsBatch_Kind]bool)
@@ -286,7 +286,7 @@ func TestValueEncodings(t *testing.T) {
 		"both":       both,
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, want, decode(t, build(t, prepared(t, items...))))
+			assert.Equal(t, want, checkAndDecode(t, build(t, prepared(t, items...))))
 		})
 	}
 }
@@ -305,7 +305,7 @@ func TestSteps(t *testing.T) {
 	assert.Equal(t, []int64{0, -2, math.MaxInt64, 3}, batch.Seqs)
 	assert.Equal(t, []bool{false, true, true, true}, batch.HasSeq)
 	assert.Equal(t, []string{"a"}, batch.Keys)
-	decode(t, batch)
+	checkAndDecode(t, batch)
 }
 
 func TestMalformedSteps(t *testing.T) {
@@ -324,7 +324,7 @@ func TestMalformedSteps(t *testing.T) {
 			assert.Equal(t, []bool{false}, batch.HasSeq)
 			assert.Equal(t, []int64{0}, batch.Seqs)
 			assert.Equal(t, []string{"a"}, batch.Keys)
-			decode(t, batch)
+			checkAndDecode(t, batch)
 		})
 	}
 }
@@ -336,12 +336,12 @@ func TestEmptyRows(t *testing.T) {
 		prepared(t, &spb.HistoryItem{Key: "_step", ValueJson: "5"}),
 	)
 	assert.Equal(t, []uint32{1, 1, 1}, batch.RowEnds)
-	decode(t, batch)
+	checkAndDecode(t, batch)
 
 	empty := NewBuilder().Finish()
 	assert.Equal(t, seqKey, empty.SeqKey)
 	assert.Empty(t, empty.RowEnds)
-	assert.Empty(t, decode(t, empty))
+	assert.Empty(t, checkAndDecode(t, empty))
 }
 
 func TestDictionary(t *testing.T) {
@@ -368,11 +368,11 @@ func TestDictionary(t *testing.T) {
 		filestreamv1.MetricsBatch_KIND_STRING,
 	}, batch.CellKinds)
 	assert.Equal(t, []uint32{2, 5}, batch.RowEnds)
-	decode(t, batch)
+	checkAndDecode(t, batch)
 }
 
 func TestNestedValues(t *testing.T) {
-	rows := decode(t, build(t, prepared(t,
+	rows := checkAndDecode(t, build(t, prepared(t,
 		&spb.HistoryItem{NestedKey: []string{"a", "b"}, ValueJson: "1.0"},
 		&spb.HistoryItem{NestedKey: []string{"a", "_step"}, ValueJson: "7"},
 		&spb.HistoryItem{NestedKey: []string{"a", ""}, ValueJson: "2"},
@@ -423,7 +423,7 @@ func TestInvalidUTF8(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []map[string]typedValue{{
 		"good": {filestreamv1.MetricsBatch_KIND_INT, int64(2)},
-	}}, decode(t, batch))
+	}}, checkAndDecode(t, batch))
 }
 
 func TestMalformedCells(t *testing.T) {
@@ -441,7 +441,7 @@ func TestMalformedCells(t *testing.T) {
 	assert.NotContains(t, err.Error(), "private-value")
 	assert.Equal(t, []map[string]typedValue{{
 		"good": {filestreamv1.MetricsBatch_KIND_INT, int64(1)},
-	}}, decode(t, build(t, row)))
+	}}, checkAndDecode(t, build(t, row)))
 }
 
 func TestUnsupportedTypes(t *testing.T) {
@@ -494,5 +494,5 @@ func TestOwnership(t *testing.T) {
 	assert.Equal(t, []map[string]typedValue{{
 		"arr": {filestreamv1.MetricsBatch_KIND_JSON, []any{int64(1), int64(2)}},
 		"obj": {filestreamv1.MetricsBatch_KIND_JSON, map[string]any{"x": int64(1)}},
-	}}, decode(t, batch))
+	}}, checkAndDecode(t, batch))
 }
