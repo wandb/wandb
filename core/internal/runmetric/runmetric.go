@@ -118,7 +118,10 @@ func (mh *MetricHandler) UpdateMetrics(
 		if key == "" {
 			continue
 		}
-		latest, ok := history.GetNumber(stepMetricPath(key))
+		keyLabels := strings.Split(key, ".")
+		keyPath := pathtree.PathOf(keyLabels[0], keyLabels[1:]...)
+
+		latest, ok := history.GetNumber(keyPath)
 		if !ok {
 			continue
 		}
@@ -146,10 +149,14 @@ func (mh *MetricHandler) InsertStepMetrics(
 			return true
 		}
 
-		stepPath := stepMetricPath(metricDef.Step)
+		stepMetricLabels := strings.Split(metricDef.Step, ".")
+		stepMetricPath := pathtree.PathOf(
+			stepMetricLabels[0],
+			stepMetricLabels[1:]...,
+		)
 
 		// Skip if the step is already set.
-		if history.Contains(stepPath) {
+		if history.Contains(stepMetricPath) {
 			return true
 		}
 		latest, ok := mh.latestStep[metricDef.Step]
@@ -157,23 +164,9 @@ func (mh *MetricHandler) InsertStepMetrics(
 		if !ok {
 			return true
 		}
-		history.SetFloat(stepPath, latest)
+		history.SetFloat(stepMetricPath, latest)
 		return true
 	})
-}
-
-// stepMetricPath returns the history path of a step metric.
-//
-// Dots separate nested labels. A leading dot is part of the first label,
-// because history cannot have an empty first label. For example, ".a.b"
-// is the path [".a", "b"].
-func stepMetricPath(name string) pathtree.TreePath {
-	labels := strings.Split(name, ".")
-	if labels[0] == "" {
-		labels = labels[1:]
-		labels[0] = "." + labels[0]
-	}
-	return pathtree.PathOf(labels[0], labels[1:]...)
 }
 
 // createGlobMetrics returns new metric definitions created by matching
