@@ -3333,7 +3333,7 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x0e_power_limit_wB\v\n" +
 	"\t_clock_hzB\x12\n" +
 	"\x10_fan_speed_ratioB\v\n" +
-	"\t_energy_j\"\xb8!\n" +
+	"\t_energy_j\"\xbe!\n" +
 	"\rNvidiaMetrics\x12n\n" +
 	"\vsm_clock_hz\x18\x01 \x01(\x01BIʲ\x1cE\n" +
 	"\x02Hz\x12\bSM Clock\"\x1a\x1a\x13gpu.{index}.smClock\"\x03MHzB\x19\x12\x17com.nvidia.gpu.sm.clockH\x00R\tsmClockHz\x88\x01\x01\x12\x82\x01\n" +
@@ -3355,12 +3355,12 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x14network.io.direction\x12\btransmitH\x04R\x0fpcieTxBytesPerS\x88\x01\x01\x12\xa6\x01\n" +
 	"\x13pcie_rx_bytes_per_s\x18\v \x01(\x01Bsʲ\x1co\n" +
 	"\x04By/s\x12\fPCIe Receive\"\x19\x1a\x17gpu.{index}.pcieRxBytesB>\x12\x1bcom.nvidia.gpu.pcie.io.rate\x1a\x1f\n" +
-	"\x14network.io.direction\x12\areceiveH\x05R\x0fpcieRxBytesPerS\x88\x01\x01\x12\xb2\x01\n" +
-	"\x15nvlink_tx_bytes_per_s\x18\f \x01(\x01B{ʲ\x1cw\n" +
-	"\x04By/s\x12\x0fNVLink Transmit\"\x1b\x1a\x19gpu.{index}.nvlinkTxBytesBA\x12\x1dcom.nvidia.gpu.nvlink.io.rate\x1a \n" +
-	"\x14network.io.direction\x12\btransmitH\x06R\x11nvlinkTxBytesPerS\x88\x01\x01\x12\xb0\x01\n" +
-	"\x15nvlink_rx_bytes_per_s\x18\r \x01(\x01Byʲ\x1cu\n" +
-	"\x04By/s\x12\x0eNVLink Receive\"\x1b\x1a\x19gpu.{index}.nvlinkRxBytesB@\x12\x1dcom.nvidia.gpu.nvlink.io.rate\x1a\x1f\n" +
+	"\x14network.io.direction\x12\areceiveH\x05R\x0fpcieRxBytesPerS\x88\x01\x01\x12\xb5\x01\n" +
+	"\x15nvlink_tx_bytes_per_s\x18\f \x01(\x01B~ʲ\x1cz\n" +
+	"\x04By/s\x12\x0fNVLink Transmit\"\x1b\x1a\x19gpu.{index}.nvlinkTxBytesBD\x12 com.nvidia.gpu.nvlink.throughput\x1a \n" +
+	"\x14network.io.direction\x12\btransmitH\x06R\x11nvlinkTxBytesPerS\x88\x01\x01\x12\xb3\x01\n" +
+	"\x15nvlink_rx_bytes_per_s\x18\r \x01(\x01B|ʲ\x1cx\n" +
+	"\x04By/s\x12\x0eNVLink Receive\"\x1b\x1a\x19gpu.{index}.nvlinkRxBytesBC\x12 com.nvidia.gpu.nvlink.throughput\x1a\x1f\n" +
 	"\x14network.io.direction\x12\areceiveH\aR\x11nvlinkRxBytesPerS\x88\x01\x01\x12\xb6\x01\n" +
 	"\x0fsm_active_ratio\x18\x14 \x01(\x01B\x88\x01ʲ\x1c\x83\x01\n" +
 	"\x011\x12\tSM Active\"\x19\x1a\x14gpu.{index}.smActive\"\x01%\"%\x12\rdcgm-exporter\x1a\x14gpu.{index}.smActive1\x00\x00\x00\x00\x00\x00\x00\x009\x00\x00\x00\x00\x00\x00\xf0?B\x1f\x12\x1dcom.nvidia.gpu.sm.utilizationH\bR\rsmActiveRatio\x88\x01\x01\x12\xc3\x01\n" +
