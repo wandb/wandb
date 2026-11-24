@@ -192,6 +192,46 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 	assert.Equal(t, 7, state.SummaryLineNum) // never updated; see docs
 }
 
+func TestState_Pop_SummaryWithBufferedHistory(t *testing.T) {
+	const firstRow = `{"acc":0.4}`
+	const lastRow = `{"step":1,"acc":0.5}`
+	const summary = `{"acc":9}`
+
+	for _, tc := range []struct {
+		name          string
+		delta         bool
+		firstSummary  []string
+		secondSummary []string
+	}{
+		{"full summary fits beside first row", false, []string{summary}, nil},
+		{"delta waits for last row", true, nil, []string{summary}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &FileStreamState{
+				SummaryDelta:        tc.delta,
+				MaxRequestSizeBytes: len(lastRow) + len(summary),
+				MaxFileLineSize:     len(summary),
+			}
+			request := &FileStreamRequest{
+				HistoryLines:   []string{firstRow, lastRow},
+				SummaryUpdates: summaryUpdate("acc", "9"),
+			}
+
+			chunk, more := pop(t, state, request)
+			require.True(t, more)
+			assert.Equal(t, []string{firstRow}, chunk.Files[HistoryFileName].Content)
+			assert.Equal(t, tc.firstSummary, chunk.Files[SummaryFileName].Content)
+			assert.False(t, chunk.SummaryDelta)
+
+			chunk, more = pop(t, state, request)
+			require.False(t, more)
+			assert.Equal(t, []string{lastRow}, chunk.Files[HistoryFileName].Content)
+			assert.Equal(t, tc.secondSummary, chunk.Files[SummaryFileName].Content)
+			assert.Equal(t, tc.delta, chunk.SummaryDelta)
+		})
+	}
+}
+
 func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
 	logger, logs := observabilitytest.NewRecordingTestLogger(t)
