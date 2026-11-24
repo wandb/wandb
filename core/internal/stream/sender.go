@@ -32,7 +32,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"github.com/wandb/wandb/core/internal/systemmetrics"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -411,11 +410,7 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
 	case *spb.Record_SystemMetrics:
-		// Without a typed filestream body, every server gets the legacy
-		// form; servers with TYPED_SYSTEM_METRICS will get the record.
-		if stats := systemmetrics.LegacyStats(x.SystemMetrics); stats != nil {
-			s.sendSystemMetrics(stats)
-		}
+		s.sendTypedSystemMetrics(x.SystemMetrics)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",
@@ -1114,13 +1109,39 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
-	if s.receivedExit() {
-		s.logCalledAfterExit("sendSystemMetrics")
+	startTime, ok := s.systemMetricsStartTime()
+	if !ok {
 		return
 	}
 
-	if s.fileStream == nil {
+	s.fileStream.StreamUpdate(&fs.StatsUpdate{
+		StartTime: startTime,
+		Record:    record,
+	})
+}
+
+func (s *Sender) sendTypedSystemMetrics(record *spb.SystemMetricsRecord) {
+	startTime, ok := s.systemMetricsStartTime()
+	if !ok {
 		return
+	}
+
+	s.fileStream.StreamUpdate(&fs.SystemMetricsUpdate{
+		StartTime: startTime,
+		Record:    record,
+	})
+}
+
+// systemMetricsStartTime checks that metrics can be sent and returns the
+// run's start time, used when rendering legacy events lines.
+func (s *Sender) systemMetricsStartTime() (time.Time, bool) {
+	if s.receivedExit() {
+		s.logCalledAfterExit("sendSystemMetrics")
+		return time.Time{}, false
+	}
+
+	if s.fileStream == nil {
+		return time.Time{}, false
 	}
 
 	upserter, err := s.runHandle.Upserter()
@@ -1129,7 +1150,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 			"stream",
 			fmt.Errorf("sender: sendSystemMetrics: %v", err),
 		)
-		return
+		return time.Time{}, false
 	}
 
 	// This is a sanity check to ensure that the start time is set
@@ -1142,13 +1163,10 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 			"stream",
 			errors.New("sender: sendSystemMetrics: start time not set"),
 		)
-		return
+		return time.Time{}, false
 	}
 
-	s.fileStream.StreamUpdate(&fs.StatsUpdate{
-		StartTime: startTime,
-		Record:    record,
-	})
+	return startTime, true
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {

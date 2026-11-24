@@ -118,7 +118,7 @@ func (c *FakeClient) Do(req *retryablehttp.Request) (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	body, err := io.ReadAll(req.Body)
+	body, err := req.BodyBytes()
 	if err != nil {
 		panic(err)
 	}
