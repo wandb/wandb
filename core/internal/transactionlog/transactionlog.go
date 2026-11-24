@@ -19,11 +19,14 @@ import (
 // Version 1 MUST include typed history values only, and omits JSON history
 // values. This is not compatible with SDKs versions that predate typed history
 // values, which will reject version 1 files.
+//
+// Version 1 is also written when system metrics are stored as typed records,
+// with history values in either form.
 func VersionForSettings(s *settings.Settings) uint8 {
-	if s.IsHistoryValueEncodingJSON() {
+	if s.IsHistoryValueEncodingJSON() && !s.IsStatsTyped() {
 		return 0
 	}
-	return 1 // typed history values only
+	return 1 // typed history values only, or typed system metrics
 }
 
 // ensureSupportedVersion returns an error for an unsupported version.

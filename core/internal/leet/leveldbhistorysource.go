@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -175,6 +176,11 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 		return nil
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
+	case *spb.Record_SystemMetrics:
+		if stats := systemmetrics.LegacyStats(rec.SystemMetrics); stats != nil {
+			return ParseStats(hs.runPath, stats)
+		}
+		return nil
 	case *spb.Record_Summary:
 		return SummaryMsg{RunPath: hs.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
