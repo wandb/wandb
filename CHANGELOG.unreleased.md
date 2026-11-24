@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- CES `EvalTable` input and output columns support ordered lists of up to 128 images, including bounding boxes and masks.

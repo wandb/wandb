@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from wandb.sdk.data_types._dtypes import Type
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
@@ -45,6 +46,7 @@ class EvalTableWriter(Protocol):
         *,
         name: str,
         rows: Sequence[WriteRow],
+        column_types: Mapping[ColumnKey, Type],
         ncols: int,
         log_mode: LogMode,
     ) -> WriteResult:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -72,6 +74,10 @@ def run_factory(mock_run, tmp_path):
 
 @pytest.fixture
 def mock_ces_client(monkeypatch, coreweave_evaluations_module):
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
     client = MagicMock()
     client.__enter__.return_value = client
     client.eval_tables.create.return_value = SimpleNamespace(
@@ -1009,6 +1015,169 @@ def test_eval_table_writes_supported_media_extensions_to_ces(
     assert inputs["image"]["format"] == "png"
     assert inputs["audio"]["extension_type"] == "wandb-audio"
     assert inputs["video"]["extension_type"] == "wandb-video"
+
+
+def test_image_list_preserves_128_duplicates_and_uploads_content_once(
+    run_factory, tmp_path
+):
+    run = run_factory("image-list")
+    image = wandb.Image(_png(tmp_path), caption="Repeated image")
+
+    prepared = _media_ces.prepare_media([image] * 128, run, _IMAGE_FIELD)
+
+    assert prepared.extension_type == "wandb-image-list"
+    assert prepared.value["schema_version"] == 1
+    assert len(prepared.value["items"]) == 128
+    assert all(item == prepared.value["items"][0] for item in prepared.value["items"])
+    assert prepared.encoded_size < _media_ces.CES_MAX_CELL_BYTES
+    run._publish_file.assert_called_once()
+
+
+def test_eval_table_image_lists_infer_empty_cells_and_preserve_nulls(
+    run_factory, mock_ces_client, tmp_path
+):
+    run = run_factory("image-list")
+    first = wandb.Image(_png(tmp_path, "first.png"), caption="First")
+    second = wandb.Image(_png(tmp_path, "second.png"), caption="Second")
+    table = wandb.EvalTable(
+        columns=["images", "generated"],
+        data=[[[], []], [[first, second, first], [second]], [None, None]],
+        input_columns=["images"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    fields = mock_ces_client.eval_tables.columns.create.call_args.kwargs[
+        "dataset_fields"
+    ]
+    assert [
+        (field["source"], field["name"], field["extension_type"]) for field in fields
+    ] == [
+        ("input", "images", "wandb-image-list"),
+        ("output", "generated", "wandb-image-list"),
+    ]
+    rows = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"]
+    assert rows[0]["input"]["images"]["items"] == []
+    assert [item["caption"] for item in rows[1]["input"]["images"]["items"]] == [
+        "First",
+        "Second",
+        "First",
+    ]
+    assert rows[1]["output"]["generated"]["items"][0]["caption"] == "Second"
+    assert rows[2]["input"]["images"] is None
+    assert rows[2]["output"]["generated"] is None
+
+
+@pytest.mark.parametrize("values", [[[]], [None]])
+def test_all_empty_image_list_column_uses_explicit_dtype(
+    run_factory, mock_ces_client, values
+):
+    run = run_factory("empty-image-list")
+    table = wandb.EvalTable(
+        columns=["images"],
+        dtype=[[wandb.Image]],
+        data=[values],
+        input_columns=["images"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    fields = mock_ces_client.eval_tables.columns.create.call_args.kwargs[
+        "dataset_fields"
+    ]
+    assert fields[0]["extension_type"] == "wandb-image-list"
+    row = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]
+    assert row["input"]["images"] == (
+        None
+        if values[0] is None
+        else {"extension_type": "wandb-image-list", "schema_version": 1, "items": []}
+    )
+
+
+def test_untyped_empty_image_list_explains_required_dtype(run_factory, mock_ces_client):
+    run = run_factory("empty-image-list")
+    table = wandb.EvalTable(
+        columns=["images"], data=[[[]]], input_columns=["images"], backend="ces"
+    )
+
+    with pytest.raises(UsageError, match=re.escape("dtype=[[wandb.Image]]")):
+        run.log({"eval": table})
+
+    mock_ces_client.eval_tables.rows.add.assert_not_called()
+
+
+@pytest.mark.parametrize("invalid", ["too_many", "null_item", "mixed_media"])
+def test_invalid_image_list_fails_before_uploads(
+    run_factory, mock_ces_client, tmp_path, invalid
+):
+    run = run_factory("invalid-image-list")
+    image = wandb.Image(_png(tmp_path))
+    table = wandb.EvalTable(
+        columns=["images"], data=[[[image]], [[image]]], backend="ces"
+    )
+    table.data[1][0] = {
+        "too_many": [image] * 129,
+        "null_item": [image, None],
+        "mixed_media": [image, "text"],
+    }[invalid]
+
+    with pytest.raises(UsageError, match="at most 128|only wandb.Image"):
+        run.log({"eval": table})
+
+    run._publish_file.assert_not_called()
+
+
+@pytest.mark.parametrize("mode", ["stub", "raise"])
+def test_image_list_with_external_reference_skips_uploads(
+    run_factory, mock_ces_client, tmp_path, mode
+):
+    run = run_factory("external-reference")
+    local_image = wandb.Image(
+        _png(tmp_path), boxes={"predictions": _box_overlay({1: "local"})}
+    )
+    external_image = wandb.Image("https://example.test/image.png")
+    table = wandb.EvalTable(
+        columns=["images"],
+        data=[[[local_image, external_image]]],
+        input_columns=["images"],
+        backend="ces",
+        unsupported_media_mode=mode,
+    )
+
+    if mode == "stub":
+        run.log({"eval": table})
+        row = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]
+        assert row["input"]["images"] is None
+    else:
+        with pytest.raises(TypeError, match="external storage"):
+            run.log({"eval": table})
+
+    run._publish_file.assert_not_called()
+    run._add_singleton.assert_not_called()
+
+
+def test_image_list_byte_limit_applies_to_whole_cell(
+    run_factory, tmp_path, monkeypatch
+):
+    run = run_factory("image-list-bytes")
+    image = wandb.Image(_png(tmp_path), caption="Unicode: 猫")
+    prepared = _media_ces.prepare_media([image, image], run, _IMAGE_FIELD)
+    assert prepared.value is not None
+    expected_bytes = len(
+        json.dumps(prepared.value, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    )
+    monkeypatch.setattr(_media_ces, "CES_MAX_CELL_BYTES", expected_bytes + 1)
+    assert _media_ces.prepare_media([image, image], run, _IMAGE_FIELD).value is not None
+
+    monkeypatch.setattr(_media_ces, "CES_MAX_CELL_BYTES", expected_bytes)
+    oversized = _media_ces.prepare_media([image, image], run, _IMAGE_FIELD)
+    assert oversized.oversized
+    assert oversized.value is None
+    assert oversized.encoded_size == expected_bytes
 
 
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):

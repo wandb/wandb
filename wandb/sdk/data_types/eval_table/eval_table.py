@@ -98,6 +98,13 @@ class EvalTable(Table):
             backend: Optional storage-backend override. The CoreWeave Evaluation
                 Service ("ces") is the default. Pass "weave" to use the Weave backend
                 from the private preview phase, which will be removed soon.
+                CES input and output columns accept lists of
+                up to 128 wandb.Image values, preserving order and duplicates.
+                Empty lists use the resolved column dtype. All-empty or all-null
+                image-list columns need an explicit dtype, such as
+                `dtype=[[wandb.Image]]` for a table with one column.
+                A complete media cell reaching 3,500,000 UTF-8 JSON bytes is logged
+                as null with a warning. Image file bytes are stored separately.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -373,6 +380,7 @@ class EvalTable(Table):
         return self._writer.write(
             name=self._run_log_key,
             rows=rows,
+            column_types=self._column_types.params["type_map"],
             ncols=len(self.columns),
             log_mode=self.log_mode,
         )
