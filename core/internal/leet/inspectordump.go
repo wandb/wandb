@@ -142,9 +142,8 @@ var errCorruptSkipped = errors.New("skipped corrupt data")
 
 // readRecord reads the next record.
 //
-// An error wrapping errCorruptSkipped means corrupt data was skipped and
-// reading can go on. Any other error besides EOF would repeat on every
-// call, as for a file that is not a transaction log.
+// An error that wraps errCorruptSkipped means the reader advanced past corrupt
+// data. Other errors require the caller to stop or wait for more data.
 func readRecord(reader *transactionlog.Reader) (*spb.Record, error) {
 	before := reader.NextRecordOffset()
 	record, err := reader.Read()
@@ -152,7 +151,7 @@ func readRecord(reader *transactionlog.Reader) (*spb.Record, error) {
 		!errors.Is(err, io.EOF) &&
 		!errors.Is(err, io.ErrUnexpectedEOF) &&
 		reader.NextRecordOffset() > before {
-		return nil, fmt.Errorf("%w: %v", errCorruptSkipped, err)
+		return nil, fmt.Errorf("%w: %w", errCorruptSkipped, err)
 	}
 	return record, err
 }
@@ -197,8 +196,19 @@ func writeRecordJSON(w io.Writer, num int, record *spb.Record) error {
 		return err
 	}
 	delete(payload, "_info")
+
+	if record.GetHistory() == nil {
+		decodeLoggedItems(payload)
+	}
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_History:
+		items, err := decodeHistoryItems(rec.History.GetItem())
+		if err != nil {
+			return err
+		}
+		if items != nil {
+			payload["item"] = items
+		}
 		if step := rec.History.GetStep(); step != nil {
 			payload["step"] = map[string]any{"num": step.GetNum()}
 		}
@@ -210,7 +220,7 @@ func writeRecordJSON(w io.Writer, num int, record *spb.Record) error {
 
 	var line bytes.Buffer
 	fmt.Fprintf(&line, "{\"num\":%d,\"type\":%q,%q:", num, recordTypeName(record), field.Name())
-	if err := encodeJSON(&line, decodeLoggedItems(payload), ""); err != nil {
+	if err := encodeJSON(&line, payload, ""); err != nil {
 		return err
 	}
 	line.Truncate(line.Len() - 1)
@@ -254,6 +264,27 @@ func jsonValue(v any) any {
 	}
 }
 
+// decodeHistoryItems decodes protobuf history items to preserve type and precision.
+// It returns a map of dotted keys to decoded values or nil if the record has no history.
+func decodeHistoryItems(items []*spb.HistoryItem) (map[string]any, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	decoded := make(map[string]any, len(items))
+	for _, item := range items {
+		key := item.GetKey()
+		if nested := item.GetNestedKey(); len(nested) > 0 {
+			key = strings.Join(nested, ".")
+		}
+		value, err := historyItemValue(item)
+		if err != nil {
+			return nil, fmt.Errorf("history item %q: %w", key, err)
+		}
+		decoded[key] = value
+	}
+	return decoded, nil
+}
+
 // decodeLoggedItems replaces lists of {key|nested_key, value_json} objects
 // in a decoded protojson value with objects mapping keys to decoded values.
 func decodeLoggedItems(v any) any {
@@ -286,8 +317,6 @@ func loggedItems(list []any) (map[string]any, bool) {
 		if !ok {
 			return nil, false
 		}
-		// TODO: also read the typed HistoryItem.value; a writer may set it
-		// instead of value_json, though none does yet.
 		valueJSON, ok := item["value_json"].(string)
 		if !ok {
 			return nil, false

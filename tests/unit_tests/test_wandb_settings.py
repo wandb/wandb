@@ -534,6 +534,21 @@ def test_mutual_exclusion_of_branching_args():
         Settings(run_id=run_id, resume_from=f"{run_id}?_step=10", resume="allow")
 
 
+def test_resume_from_with_mismatched_run_id():
+    settings = Settings(run_id="other")
+
+    with pytest.raises(ValueError, match="different ids"):
+        settings.resume_from = "test?_step=10"
+
+
+def test_resume_from_with_matching_run_id():
+    settings = Settings(run_id="test")
+    settings.resume_from = "test?_step=10"
+
+    assert settings.run_id == "test"
+    assert settings.resume_from == RunMoment(run="test", metric="_step", value=10)
+
+
 def test_root_dir_pathlib_path():
     settings = Settings(root_dir=pathlib.Path("foo"))
     assert settings.root_dir == "foo"

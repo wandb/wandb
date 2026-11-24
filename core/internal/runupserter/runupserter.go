@@ -74,7 +74,6 @@ type RunUpserter struct {
 type RunUpserterParams struct {
 	DebounceDelay time.Duration
 
-	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -116,7 +115,7 @@ func InitRun(
 	}
 
 	// Initialize run environment info.
-	environment := runenvironment.New(params.ClientID)
+	environment := runenvironment.New(runRecord.SegmentId)
 
 	// Initialize the run config.
 	config := runconfig.New()
@@ -396,6 +395,23 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.environment.ToJSON()
+}
+
+// GitInfo returns the git commit and remote URL for this run.
+//
+// Returns nil if neither the commit nor the URL are available.
+func (upserter *RunUpserter) GitInfo() *spb.GitRepoRecord {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+
+	if upserter.params.Commit == "" && upserter.params.RemoteURL == "" {
+		return nil
+	}
+
+	return &spb.GitRepoRecord{
+		Commit:    upserter.params.Commit,
+		RemoteUrl: upserter.params.RemoteURL,
+	}
 }
 
 func (upserter *RunUpserter) StartingStep() int64 {

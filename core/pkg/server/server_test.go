@@ -144,3 +144,62 @@ func TestServe_ForceStopReturnsWithoutWaitingForConnections(t *testing.T) {
 		t.Fatal("timed out waiting for Serve() to return")
 	}
 }
+
+func TestServe_ForceStopInterruptsGracefulShutdown(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	synctest.Test(t, func(t *testing.T) {
+		s := NewServer(ServerParams{Detached: true})
+		s.connectionsWG.Add(1)
+		defer s.connectionsWG.Done()
+
+		srvCh := make(chan error, 1)
+		go func() { srvCh <- s.Serve(filepath.Join(tempRoot, "port.txt")) }()
+
+		s.Shutdown(1)
+		synctest.Wait()
+		select {
+		case err := <-srvCh:
+			t.Fatalf("graceful shutdown returned before connections finished: %v", err)
+		default:
+		}
+
+		s.ForceStop()
+		synctest.Wait()
+		select {
+		case err := <-srvCh:
+			require.NoError(t, err)
+		default:
+			t.Fatal("force stop did not interrupt graceful shutdown")
+		}
+	})
+}
+
+func TestServer_ParentExitDoesNotInterruptGracefulShutdown(t *testing.T) {
+	s := NewServer(ServerParams{ParentPID: -1})
+	s.Shutdown(1)
+
+	s.exitWhenParentIsGone()
+
+	select {
+	case <-s.forceShutdown:
+		t.Fatal("parent exit interrupted graceful shutdown")
+	default:
+	}
+}
+
+func TestServer_MalformedRequestShutsDownWithFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := NewServer(ServerParams{})
+		client := addTestConnection(t, s)
+		defer func() { _ = client.Close() }()
+
+		_, err := client.Write([]byte{'W', 1, 0, 0, 0, 0x80})
+		require.NoError(t, err)
+		synctest.Wait()
+
+		require.ErrorIs(t, s.serverLifetimeCtx.Err(), context.Canceled)
+		require.EqualValues(t, 1, s.exitCode.Load())
+	})
+}

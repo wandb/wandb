@@ -3,7 +3,6 @@ package viewport
 import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/rivo/uniseg"
 )
 
 // parseMatches converts the given matches into highlight ranges.
@@ -31,7 +30,19 @@ func parseMatches(
 	bytePos := 0
 
 	highlights := make([]highlightInfo, 0, len(matches))
-	gr := uniseg.NewGraphemes(ansi.Strip(content))
+	rem := content
+	var state byte
+
+	next := func() (seq string, width int, n int, ok bool) {
+		if len(rem) == 0 {
+			return "", 0, 0, false
+		}
+		var newState byte
+		seq, width, n, newState = ansi.DecodeSequence(rem, state, nil)
+		state = newState
+		rem = rem[n:]
+		return seq, width, n, true
+	}
 
 	for _, match := range matches {
 		byteStart, byteEnd := match[0], match[1]
@@ -44,15 +55,18 @@ func parseMatches(
 		// find the beginning of this byte range, setup current line and
 		// grapheme position.
 		for byteStart > bytePos {
-			if !gr.Next() {
+			seq, width, n, ok := next()
+			if !ok {
 				break
 			}
-			if content[bytePos] == '\n' {
+			if seq == "\n" {
 				previousLinesOffset = graphemePos + 1
 				line++
+				graphemePos++
+			} else if width > 0 {
+				graphemePos += max(1, width)
 			}
-			graphemePos += max(1, gr.Width())
-			bytePos += len(gr.Str())
+			bytePos += n
 		}
 
 		hi.lineStart = line
@@ -62,12 +76,13 @@ func parseMatches(
 
 		// loop until we find the end
 		for byteEnd > bytePos {
-			if !gr.Next() {
+			seq, width, n, ok := next()
+			if !ok {
 				break
 			}
 
 			// if it ends with a new line, add the range, increase line, and continue
-			if content[bytePos] == '\n' {
+			if seq == "\n" {
 				colstart := max(0, graphemeStart-previousLinesOffset)
 				colend := max(graphemePos-previousLinesOffset+1, colstart) // +1 its \n itself
 
@@ -78,10 +93,11 @@ func parseMatches(
 
 				previousLinesOffset = graphemePos + 1
 				line++
+				graphemePos++
+			} else if width > 0 {
+				graphemePos += max(1, width)
 			}
-
-			graphemePos += max(1, gr.Width())
-			bytePos += len(gr.Str())
+			bytePos += n
 		}
 
 		// we found it!, add highlight and continue

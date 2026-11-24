@@ -6,7 +6,8 @@ import "unicode/utf8"
 const (
 	sbAny = iota
 	sbCR
-	sbParaSep
+	sbLF
+	sbSep
 	sbATerm
 	sbUpper
 	sbLower
@@ -21,28 +22,30 @@ const (
 // sbTransitions implements the sentence break parser's state transitions. It's
 // anologous to [grTransitions], see comments there for details.
 //
-// Unicode version 15.0.0.
+// Unicode version 18.0.0.
 func sbTransitions(state, prop int) (newState int, sentenceBreak bool, rule int) {
 	switch uint64(state) | uint64(prop)<<32 {
 	// SB3.
 	case sbAny | prCR<<32:
-		return sbCR, false, 9990
+		return sbCR, false, 9980
 	case sbCR | prLF<<32:
-		return sbParaSep, false, 30
+		return sbLF, false, 30
 
 	// SB4.
 	case sbAny | prSep<<32:
-		return sbParaSep, false, 9990
+		return sbSep, false, 9980
 	case sbAny | prLF<<32:
-		return sbParaSep, false, 9990
-	case sbParaSep | prAny<<32:
+		return sbLF, false, 9980
+	case sbSep | prAny<<32:
 		return sbAny, true, 40
 	case sbCR | prAny<<32:
+		return sbAny, true, 40
+	case sbLF | prAny<<32:
 		return sbAny, true, 40
 
 	// SB6.
 	case sbAny | prATerm<<32:
-		return sbATerm, false, 9990
+		return sbATerm, false, 9980
 	case sbATerm | prNumeric<<32:
 		return sbAny, false, 60
 	case sbSB7 | prNumeric<<32:
@@ -50,9 +53,9 @@ func sbTransitions(state, prop int) (newState int, sentenceBreak bool, rule int)
 
 	// SB7.
 	case sbAny | prUpper<<32:
-		return sbUpper, false, 9990
+		return sbUpper, false, 9980
 	case sbAny | prLower<<32:
-		return sbLower, false, 9990
+		return sbLower, false, 9980
 	case sbUpper | prATerm<<32:
 		return sbSB7, false, 70
 	case sbLower | prATerm<<32:
@@ -62,7 +65,7 @@ func sbTransitions(state, prop int) (newState int, sentenceBreak bool, rule int)
 
 	// SB8a.
 	case sbAny | prSTerm<<32:
-		return sbSTerm, false, 9990
+		return sbSTerm, false, 9980
 	case sbATerm | prSContinue<<32:
 		return sbAny, false, 81
 	case sbATerm | prATerm<<32:
@@ -128,35 +131,35 @@ func sbTransitions(state, prop int) (newState int, sentenceBreak bool, rule int)
 	case sbSB8aClose | prSp<<32:
 		return sbSB8aSp, false, 90
 	case sbATerm | prSep<<32:
-		return sbParaSep, false, 90
+		return sbSep, false, 90
 	case sbATerm | prCR<<32:
-		return sbParaSep, false, 90
+		return sbCR, false, 90
 	case sbATerm | prLF<<32:
-		return sbParaSep, false, 90
+		return sbLF, false, 90
 	case sbSB7 | prSep<<32:
-		return sbParaSep, false, 90
+		return sbSep, false, 90
 	case sbSB7 | prCR<<32:
-		return sbParaSep, false, 90
+		return sbCR, false, 90
 	case sbSB7 | prLF<<32:
-		return sbParaSep, false, 90
+		return sbLF, false, 90
 	case sbSB8Close | prSep<<32:
-		return sbParaSep, false, 90
+		return sbSep, false, 90
 	case sbSB8Close | prCR<<32:
-		return sbParaSep, false, 90
+		return sbCR, false, 90
 	case sbSB8Close | prLF<<32:
-		return sbParaSep, false, 90
+		return sbLF, false, 90
 	case sbSTerm | prSep<<32:
-		return sbParaSep, false, 90
+		return sbSep, false, 90
 	case sbSTerm | prCR<<32:
-		return sbParaSep, false, 90
+		return sbCR, false, 90
 	case sbSTerm | prLF<<32:
-		return sbParaSep, false, 90
+		return sbLF, false, 90
 	case sbSB8aClose | prSep<<32:
-		return sbParaSep, false, 90
+		return sbSep, false, 90
 	case sbSB8aClose | prCR<<32:
-		return sbParaSep, false, 90
+		return sbCR, false, 90
 	case sbSB8aClose | prLF<<32:
-		return sbParaSep, false, 90
+		return sbLF, false, 90
 
 	// SB10.
 	case sbSB8Sp | prSp<<32:
@@ -164,11 +167,11 @@ func sbTransitions(state, prop int) (newState int, sentenceBreak bool, rule int)
 	case sbSB8aSp | prSp<<32:
 		return sbSB8aSp, false, 100
 	case sbSB8Sp | prSep<<32:
-		return sbParaSep, false, 100
+		return sbSep, false, 100
 	case sbSB8Sp | prCR<<32:
-		return sbParaSep, false, 100
+		return sbCR, false, 100
 	case sbSB8Sp | prLF<<32:
-		return sbParaSep, false, 100
+		return sbLF, false, 100
 
 	// SB11.
 	case sbATerm | prAny<<32:
@@ -204,7 +207,7 @@ func transitionSentenceBreakState(state int, r rune, b []byte, str string) (newS
 
 	// SB5 (Replacing Ignore Rules).
 	if nextProperty == prExtend || nextProperty == prFormat {
-		if state == sbParaSep || state == sbCR {
+		if state == sbSep || state == sbCR || state == sbLF {
 			return sbAny, true // Make sure we don't apply SB5 to SB3 or SB4.
 		}
 		if state < 0 {
@@ -237,8 +240,8 @@ func transitionSentenceBreakState(state int, r rune, b []byte, str string) (newS
 			// We only have a specific property.
 			newState, sentenceBreak, rule = anyStateState, anyStateProp, anyStateRule
 		} else {
-			// No known transition. SB999: Any × Any.
-			newState, sentenceBreak, rule = sbAny, false, 9990
+			// No known transition. SB998: Any × Any.
+			newState, sentenceBreak, rule = sbAny, false, 9980
 		}
 	}
 
