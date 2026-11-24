@@ -1732,7 +1732,13 @@ func (x *BranchPoint) GetMetric() string {
 // updated (like `entity` and `project`, which are determined through a query
 // if not given).
 type RunRecord struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A unique ID for this run segment.
+	//
+	// This is essentially a unique ID for a transaction log. If a run consists
+	// of multiple resumed segments, each segment has a different ID. This is
+	// empty in older transaction logs.
+	SegmentId    string                 `protobuf:"bytes,25,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	RunId        string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	Entity       string                 `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
 	Project      string                 `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
@@ -1794,6 +1800,13 @@ func (x *RunRecord) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RunRecord.ProtoReflect.Descriptor instead.
 func (*RunRecord) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RunRecord) GetSegmentId() string {
+	if x != nil {
+		return x.SegmentId
+	}
+	return ""
 }
 
 func (x *RunRecord) GetRunId() string {
@@ -11409,6 +11422,9 @@ type EnvironmentRecord struct {
 	//
 	// This ID distinguishes this writer's metadata from that of other writers
 	// that may be contributing to the same run.
+	//
+	// Deprecated in favor of RunRecord.segment_id. For compatibility with past
+	// SDK versions, both fields are set to the same value.
 	WriterId      string       `protobuf:"bytes,199,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -12136,8 +12152,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\vBranchPoint\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xf9\x06\n" +
-	"\tRunRecord\x12\x15\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\x98\a\n" +
+	"\tRunRecord\x12\x1d\n" +
+	"\n" +
+	"segment_id\x18\x19 \x01(\tR\tsegmentId\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x16\n" +
 	"\x06entity\x18\x02 \x01(\tR\x06entity\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x124\n" +
