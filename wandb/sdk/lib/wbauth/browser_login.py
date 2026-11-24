@@ -243,8 +243,10 @@ def save_credentials(
     credentials_file: pathlib.Path,
     host: HostUrl,
     tokens: TokenSet,
-) -> None:
-    """Stores a browser login, leaving every other entry in the file alone.
+) -> TokenSet | None:
+    """Stores a browser login and returns the one it replaced, if any.
+
+    Every other entry in the file is left alone.
 
     Args:
         credentials_file: The path to the credentials file.
@@ -252,8 +254,10 @@ def save_credentials(
         tokens: The tokens to store.
     """
     contents = _read_file(credentials_file, strict=True)
+    existing = load_credentials(credentials_file, host)
     _user_credentials(contents)[host.url] = tokens.to_json()
     _write_file(credentials_file, contents)
+    return existing
 
 
 def clear_credentials(

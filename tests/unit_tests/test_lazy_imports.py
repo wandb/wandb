@@ -46,7 +46,7 @@ def test_import_wandb_does_not_load(module, modules_loaded_by_import_wandb):
 @pytest.mark.parametrize(
     "module",
     [
-        # Only `wandb verify` makes HTTP requests of its own.
+        # Only `wandb verify` and `wandb login --browser` make HTTP requests.
         "requests",
         "wandb.sdk.verify.verify",
         # Only `wandb launch-sweep` reads YAML.

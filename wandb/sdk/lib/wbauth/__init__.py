@@ -1,6 +1,7 @@
 __all__ = (
     "Auth",
     "AuthApiKey",
+    "AuthBrowserLogin",
     "AuthIdentityTokenFile",
     "HostUrl",
     "session_credentials",
@@ -15,7 +16,7 @@ __all__ = (
     "WriteNetrcError",
 )
 
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile
+from .auth import Auth, AuthApiKey, AuthBrowserLogin, AuthIdentityTokenFile
 from .authenticate import (
     authenticate_session,
     session_credentials,

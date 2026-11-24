@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import threading
 
 from wandb import env
@@ -8,7 +9,13 @@ from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
 from . import prompt, wbnetrc
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
+from .auth import (
+    Auth,
+    AuthApiKey,
+    AuthBrowserLogin,
+    AuthIdentityTokenFile,
+    AuthWithSource,
+)
 from .host_url import HostUrl
 from .settings import set_auth_settings
 
@@ -177,8 +184,9 @@ def _use_system_auth(
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables, .netrc, or global settings.
-    If no credentials are found, the session credentials are unchanged.
+    Loads credentials from environment variables, a stored browser login,
+    .netrc, or global settings. If no credentials are found, the session
+    credentials are unchanged.
 
     Args:
         host: The W&B server URL.
@@ -197,6 +205,7 @@ def _use_system_auth(
     """
     auth = (
         _try_env_auth(host=host)  #
+        or _try_browser_login_auth(host=host)
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
     if auth is None:
@@ -258,6 +267,24 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
         )
 
     return None
+
+
+def _try_browser_login_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Stored browser login, if any. Above .netrc, below environment variables."""
+    credentials_file = pathlib.Path(wandb_setup.singleton().settings.credentials_file)
+    if not credentials_file.exists():
+        return None
+
+    # Loads requests and http.server, which `import wandb` must not.
+    from . import browser_login
+
+    if not browser_login.load_credentials(credentials_file, host):
+        return None
+
+    return AuthWithSource(
+        auth=AuthBrowserLogin(host=host, credentials_file=credentials_file),
+        source=str(credentials_file),
+    )
 
 
 def _use_prompted_auth(
