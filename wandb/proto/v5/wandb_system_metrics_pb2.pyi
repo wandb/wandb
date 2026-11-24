@@ -180,12 +180,30 @@ class SwapMetrics(_message.Message):
     def __init__(self, used_bytes: _Optional[int] = ..., used_ratio: _Optional[float] = ...) -> None: ...
 
 class CpuMetrics(_message.Message):
-    __slots__ = ("cores", "temperature_c")
+    __slots__ = ("cores", "temperature_c", "sockets")
     CORES_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_C_FIELD_NUMBER: _ClassVar[int]
+    SOCKETS_FIELD_NUMBER: _ClassVar[int]
     cores: _containers.RepeatedCompositeFieldContainer[CpuCoreMetrics]
     temperature_c: float
-    def __init__(self, cores: _Optional[_Iterable[_Union[CpuCoreMetrics, _Mapping]]] = ..., temperature_c: _Optional[float] = ...) -> None: ...
+    sockets: _containers.RepeatedCompositeFieldContainer[CpuSocketMetrics]
+    def __init__(self, cores: _Optional[_Iterable[_Union[CpuCoreMetrics, _Mapping]]] = ..., temperature_c: _Optional[float] = ..., sockets: _Optional[_Iterable[_Union[CpuSocketMetrics, _Mapping]]] = ...) -> None: ...
+
+class CpuSocketMetrics(_message.Message):
+    __slots__ = ("index", "model", "physical_cores", "logical_cpus", "user_time_s", "system_time_s")
+    INDEX_FIELD_NUMBER: _ClassVar[int]
+    MODEL_FIELD_NUMBER: _ClassVar[int]
+    PHYSICAL_CORES_FIELD_NUMBER: _ClassVar[int]
+    LOGICAL_CPUS_FIELD_NUMBER: _ClassVar[int]
+    USER_TIME_S_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_TIME_S_FIELD_NUMBER: _ClassVar[int]
+    index: int
+    model: str
+    physical_cores: int
+    logical_cpus: int
+    user_time_s: float
+    system_time_s: float
+    def __init__(self, index: _Optional[int] = ..., model: _Optional[str] = ..., physical_cores: _Optional[int] = ..., logical_cpus: _Optional[int] = ..., user_time_s: _Optional[float] = ..., system_time_s: _Optional[float] = ...) -> None: ...
 
 class CpuCoreMetrics(_message.Message):
     __slots__ = ("index", "utilization_ratio")
@@ -256,7 +274,7 @@ class AppleHostMetrics(_message.Message):
     def __init__(self, memory_used_bytes: _Optional[int] = ..., memory_used_ratio: _Optional[float] = ..., ecpu_utilization_ratio: _Optional[float] = ..., ecpu_frequency_hz: _Optional[float] = ..., pcpu_utilization_ratio: _Optional[float] = ..., pcpu_frequency_hz: _Optional[float] = ..., cpu_power_w: _Optional[float] = ..., system_power_w: _Optional[float] = ...) -> None: ...
 
 class ProcessMetrics(_message.Message):
-    __slots__ = ("cpu_ratio", "rss_bytes", "memory_ratio", "threads", "cgroup_cpu_throttled_ratio", "cgroup_oom_kills", "cpu_user_ratio", "cpu_system_ratio")
+    __slots__ = ("cpu_ratio", "rss_bytes", "memory_ratio", "threads", "cgroup_cpu_throttled_ratio", "cgroup_oom_kills", "cpu_user_ratio", "cpu_system_ratio", "cgroup_cpu_limit", "cpu_user_time_s", "cpu_system_time_s")
     CPU_RATIO_FIELD_NUMBER: _ClassVar[int]
     RSS_BYTES_FIELD_NUMBER: _ClassVar[int]
     MEMORY_RATIO_FIELD_NUMBER: _ClassVar[int]
@@ -265,6 +283,9 @@ class ProcessMetrics(_message.Message):
     CGROUP_OOM_KILLS_FIELD_NUMBER: _ClassVar[int]
     CPU_USER_RATIO_FIELD_NUMBER: _ClassVar[int]
     CPU_SYSTEM_RATIO_FIELD_NUMBER: _ClassVar[int]
+    CGROUP_CPU_LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CPU_USER_TIME_S_FIELD_NUMBER: _ClassVar[int]
+    CPU_SYSTEM_TIME_S_FIELD_NUMBER: _ClassVar[int]
     cpu_ratio: float
     rss_bytes: int
     memory_ratio: float
@@ -273,7 +294,10 @@ class ProcessMetrics(_message.Message):
     cgroup_oom_kills: int
     cpu_user_ratio: float
     cpu_system_ratio: float
-    def __init__(self, cpu_ratio: _Optional[float] = ..., rss_bytes: _Optional[int] = ..., memory_ratio: _Optional[float] = ..., threads: _Optional[int] = ..., cgroup_cpu_throttled_ratio: _Optional[float] = ..., cgroup_oom_kills: _Optional[int] = ..., cpu_user_ratio: _Optional[float] = ..., cpu_system_ratio: _Optional[float] = ...) -> None: ...
+    cgroup_cpu_limit: float
+    cpu_user_time_s: float
+    cpu_system_time_s: float
+    def __init__(self, cpu_ratio: _Optional[float] = ..., rss_bytes: _Optional[int] = ..., memory_ratio: _Optional[float] = ..., threads: _Optional[int] = ..., cgroup_cpu_throttled_ratio: _Optional[float] = ..., cgroup_oom_kills: _Optional[int] = ..., cpu_user_ratio: _Optional[float] = ..., cpu_system_ratio: _Optional[float] = ..., cgroup_cpu_limit: _Optional[float] = ..., cpu_user_time_s: _Optional[float] = ..., cpu_system_time_s: _Optional[float] = ...) -> None: ...
 
 class SdkMetrics(_message.Message):
     __slots__ = ("cpu_ratio", "rss_bytes", "cpu_user_ratio", "cpu_system_ratio")
