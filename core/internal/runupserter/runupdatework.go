@@ -27,8 +27,6 @@ const (
 type RunHandle interface {
 	// WillInit promises that initialization will happen.
 	//
-	// After this, BeganInitializing() returns true.
-	//
 	// It returns a callback that should be invoked in a defer call.
 	// If the callback runs before Init(), the initialization is considered failed.
 	WillInit() (finishInit func())

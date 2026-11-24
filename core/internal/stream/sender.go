@@ -658,8 +658,9 @@ func (s *Sender) finishRunSync(
 		select {
 		case <-s.runWork.BeforeEndCtx().Done():
 		case <-s.runHandle.ReadyOrFailed():
-			upserterOrNil, _ = s.runHandle.Upserter()
 		}
+
+		upserterOrNil, _ = s.runHandle.Upserter()
 	}
 
 	// Finish uploading captured console logs.
@@ -1387,7 +1388,7 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 // mustInitialize asserts that run initialization has begun and waits for it
 // to complete successfully.
 //
-// Returns (nil, False) and logs an error using the method name on failure.
+// Returns (nil, false) and logs an error using the method name on failure.
 func (s *Sender) mustInitialize(
 	method string,
 ) (*runupserter.RunUpserter, bool) {
@@ -1399,9 +1400,6 @@ func (s *Sender) mustInitialize(
 
 	select {
 	case <-s.runWork.BeforeEndCtx().Done():
-		s.logger.Error(fmt.Sprintf("sender: %s: run aborted", method))
-		return nil, false
-
 	case <-s.runHandle.ReadyOrFailed():
 	}
 
