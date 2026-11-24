@@ -142,7 +142,7 @@ func (fs *fileStream) send(
 	var report filestreamstats.RequestReport
 	req, err := fs.prepareRequest(ctx, data, &report)
 	if err != nil {
-		return fmt.Errorf("filestream: failed to build request: %v", err)
+		return err
 	}
 
 	isHeartbeat := data.IsHeartbeat()
@@ -163,12 +163,6 @@ func (fs *fileStream) send(
 		fs.stats.RecordRequest(ctx, report)
 	}
 
-	if shouldLogStartAndEnd {
-		// Log after sending to record that the backend responded and should
-		// have the data in the request.
-		fs.logger.Info("filestream: request sent", "status", resp.Status)
-	}
-
 	if resp.StatusCode < 200 || resp.StatusCode > 300 {
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
@@ -180,6 +174,12 @@ func (fs *fileStream) send(
 			req.URL,
 			string(body),
 		)
+	}
+
+	if shouldLogStartAndEnd {
+		// Log after sending to record that the backend responded and should
+		// have the data in the request.
+		fs.logger.Info("filestream: request sent", "status", resp.Status)
 	}
 
 	var res map[string]any
@@ -242,7 +242,7 @@ func (fs *fileStream) prepareRequest(
 	report.UncompressedBytes = len(jsonData)
 	report.CompressedBytes = len(requestBody)
 	report.Compressed = useGzip
-	return req, err
+	return req, nil
 }
 
 // jsonMarshalTimed calls json.Marshal() and tracks how long it takes.
