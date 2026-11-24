@@ -1010,6 +1010,10 @@ pub struct AcceleratorMetrics {
     pub profile: ::prost::alloc::string::String,
     #[prost(double, optional, tag = "11")]
     pub share: ::core::option::Option<f64>,
+    /// Compute processes the driver lists on the device, whoever owns them.
+    /// Unset when the collector has no process list.
+    #[prost(uint32, optional, tag = "12")]
+    pub process_count: ::core::option::Option<u32>,
     /// Fraction of time the compute units were busy, as each vendor defines it.
     #[prost(double, optional, tag = "20")]
     pub utilization_ratio: ::core::option::Option<f64>,
@@ -1301,19 +1305,25 @@ pub struct MetricLabel {
     #[prost(string, tag = "2")]
     pub value: ::prost::alloc::string::String,
 }
-/// Why an accelerator is in a writer's sample.
+/// Why an accelerator is in a writer's sample: the strongest tie between the
+/// device and the monitored process, PROCESS first, then VISIBLE_DEVICES,
+/// SCHEDULER and VISIBLE. With process_count, it lets a reader count a busy
+/// device of the job that no process of the writer is on.
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Binding {
+    /// The collector cannot tell, as for a device on another machine.
     Unspecified = 0,
     /// The device is on the host and nothing more is known.
     Visible = 1,
-    /// The job's device list (CUDA_VISIBLE_DEVICES and similar) names it.
+    /// The device list in the monitored process's environment
+    /// (CUDA_VISIBLE_DEVICES) names it.
     VisibleDevices = 2,
-    /// The monitored process tree has the device in use.
+    /// A process of the monitored tree is on the device.
     Process = 3,
-    /// The job's cgroup or pod assignment names it.
+    /// The monitored process runs in a Kubernetes pod, which sees only the
+    /// devices assigned to it.
     Scheduler = 4,
 }
 impl Binding {
