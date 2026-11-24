@@ -123,11 +123,12 @@ func LegacyStats(rec *spb.SystemMetricsRecord) *spb.StatsRecord {
 // accelerator type and source that select a template, the host suffix,
 // whether the monitored process uses the device, and the placeholders.
 type scope struct {
-	accel  spb.AcceleratorType
-	source string
-	host   string
-	inUse  bool
-	vars   map[string]string
+	accel     spb.AcceleratorType
+	source    string
+	host      string
+	inUse     bool
+	partition bool
+	vars      map[string]string
 }
 
 // child derives the scope of a message from its parent's and the message's
@@ -158,6 +159,8 @@ func (s scope) child(m protoreflect.Message) scope {
 			c.host = v.String()
 		case "binding":
 			c.inUse = spb.Binding(v.Enum()) == spb.Binding_PROCESS
+		case "parent_uuid":
+			c.partition = v.String() != ""
 		}
 	}
 	return c
@@ -200,6 +203,9 @@ func walk(m protoreflect.Message, parent scope, visit func(leaf)) {
 }
 
 func renderLegacy(l leaf, emit func(Item)) {
+	if l.scope.partition {
+		return
+	}
 	lk := pickLegacy(l.info.GetLegacy(), l.scope.accel, l.scope.source)
 	if lk == nil {
 		return

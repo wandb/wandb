@@ -592,6 +592,14 @@ message AcceleratorMetrics {
   // Product name, such as "NVIDIA H100 80GB HBM3".
   string model = 8 [(attribute) = "hw.model"];
 
+  // For a partition of a physical device, such as a MIG instance: the uuid
+  // of the physical device, the partition's profile, such as "3g.40gb", and
+  // its share of the physical device, such as 3/7 of the compute slices.
+  // Partitions have no legacy keys.
+  string parent_uuid = 9 [(attribute) = "hw.parent"];
+  string profile = 10 [(attribute) = "com.coreweave.accelerator.profile"];
+  optional double share = 11 [(attribute) = "com.coreweave.accelerator.share"];
+
   // Fraction of time the compute units were busy, as each vendor defines it.
   optional double utilization_ratio = 20 [(metric) = {
     unit: "1",
