@@ -316,11 +316,7 @@ impl Collector for DcgmGpuMonitor {
             .get_metrics()
             .await?
             .into_iter()
-            .filter_map(|(key, value)| match value {
-                metrics::MetricValue::Float(value) => Some((key.into(), value)),
-                metrics::MetricValue::Int(value) => Some((key.into(), value as f64)),
-                metrics::MetricValue::String(_) => None,
-            })
+            .map(|(id, rate, value)| (metrics::Field::Nvidia("dcgm", id, rate).into(), value))
             .collect();
         Ok(Sample {
             averages,
