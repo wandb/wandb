@@ -29,11 +29,11 @@ import (
 
 // InjectStream returns a new Stream.
 func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
-	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	openTelemetryProxy := streamOTelProxy(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, openTelemetryProxy, settings2, logLevel)
 	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
+	clientID := sharedmode.RandomClientID()
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2)
@@ -126,7 +126,7 @@ func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResou
 		Settings: settings2,
 		Stats:    stats,
 	}
-	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
+	stream := NewStream(debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
 	return stream
 }
 

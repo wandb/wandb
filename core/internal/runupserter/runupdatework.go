@@ -77,6 +77,10 @@ func (w *RunUpdateWork) Accept(
 	// is received, before the Handler processes any history records.
 	w.RunHandle.StartStopwatch()
 
+	// Assign the segment ID. This will be stored in the transaction log,
+	// and the same value will be used when syncing.
+	w.Record.GetRun().SegmentId = w.ClientID
+
 	return true
 }
 
@@ -112,7 +116,6 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 
 		DebounceDelay: runUpsertDebounceSeconds * time.Second,
 
-		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,
 		Operations:         w.Operations,
 		FeatureProvider:    w.FeatureProvider,
