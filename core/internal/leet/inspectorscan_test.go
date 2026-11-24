@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,9 +97,7 @@ func TestReadInspectorBatch_ScanAndReadAt(t *testing.T) {
 }
 
 func TestReadInspectorBatch_LiveAppend(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run-live.wandb")
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
+	w, path := txnlogtest.NewWriter(t, &txnlogtest.WriterOptions{})
 	defer func() { _ = w.Close() }()
 
 	require.NoError(t, w.Write(&spb.Record{
@@ -130,6 +129,122 @@ func TestReadInspectorBatch_LiveAppend(t *testing.T) {
 	assert.Equal(t, "history", batch.Entries[0].Type)
 }
 
+func TestReadInspectorBatch_UnsupportedVersion(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		version uint8
+	}{
+		{name: "next version", version: 2},
+		{name: "maximum version", version: 255},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := txnlogtest.WandbFileUnsupportedVersion(t, test.version)
+			scan, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
+			require.NoError(t, err)
+			defer scan.Close()
+
+			batch := scanBatch(t, scan, 1)
+			assert.Empty(t, batch.Entries)
+			assert.Zero(t, batch.Corrupt)
+			assert.ErrorContains(t, batch.Err,
+				"a newer wandb version is required to read this file",
+			)
+		})
+	}
+}
+
+func TestReadInspectorBatch_InvalidHeader(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		header  []byte
+		message string
+	}{
+		{
+			name:    "identifier",
+			header:  []byte("NOPE\xE1\xBE\x00"),
+			message: "invalid W&B identifier",
+		},
+		{
+			name:    "magic",
+			header:  []byte(":W&B\x00\x00\x00"),
+			message: "invalid W&B magic",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "invalid.wandb")
+			require.NoError(t, os.WriteFile(path, test.header, 0o600))
+			scan, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
+			require.NoError(t, err)
+			defer scan.Close()
+
+			batch := scanBatch(t, scan, 1)
+			assert.ErrorContains(t, batch.Err, test.message)
+			assert.Empty(t, batch.Entries)
+			assert.Zero(t, batch.Corrupt)
+		})
+	}
+}
+
+func TestReadInspectorBatch_SkipsCorruptRecord(t *testing.T) {
+	path := txnlogtest.WandbFile(t,
+		&spb.Record{RecordType: &spb.Record_OutputRaw{
+			OutputRaw: &spb.OutputRawRecord{Line: strings.Repeat("x", 32*1024)},
+		}},
+		&spb.Record{RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 5}},
+		}},
+	)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	// Corrupt the first chunk so recovery must skip to the next block.
+	copy(data[7:], []byte{1, 2, 3, 4, 5, 6, 7})
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+
+	scan, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+	defer scan.Close()
+
+	batch := scanBatch(t, scan, 1)
+	require.NoError(t, batch.Err)
+	assert.True(t, batch.AtEOF)
+	assert.Equal(t, 1, batch.Corrupt)
+	require.Len(t, batch.Entries, 1)
+	assert.Equal(t, "history", batch.Entries[0].Type)
+	assert.Equal(t, "step 5", batch.Entries[0].Summary)
+}
+
+func TestReadInspectorBatch_PartialRecordResumesAfterAppend(t *testing.T) {
+	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.Truncate(path, int64(len(data)-1)))
+	scan, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+	defer scan.Close()
+
+	batch := scanBatch(t, scan, 1)
+	require.NoError(t, batch.Err)
+	assert.True(t, batch.AtEOF)
+	assert.Zero(t, batch.Corrupt)
+	assert.False(t, batch.ExitSeen)
+	require.Len(t, batch.Entries, 4)
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+	_, err = f.Write(data[len(data)-1:])
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	batch = scanBatch(t, scan, 5)
+	require.NoError(t, batch.Err)
+	assert.True(t, batch.AtEOF)
+	assert.Zero(t, batch.Corrupt)
+	assert.True(t, batch.ExitSeen)
+	require.Len(t, batch.Entries, 1)
+	assert.Equal(t, "exit", batch.Entries[0].Type)
+	assert.Equal(t, 5, batch.Entries[0].Num)
+}
+
 func TestDumpRecords(t *testing.T) {
 	path := txnlogtest.WandbFile(t, inspectorTestRecords()...)
 
@@ -158,7 +273,10 @@ func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
 	runDir := filepath.Join(wandbDir, "run-20260821_120000-abc123")
 	require.NoError(t, os.MkdirAll(runDir, 0o755))
 
-	w, err := transactionlog.OpenWriter(filepath.Join(runDir, "run-abc123.wandb"))
+	w, err := transactionlog.OpenWriter(
+		filepath.Join(runDir, "run-abc123.wandb"),
+		0,
+	)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(&spb.Record{
 		RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "abc123"}},
