@@ -807,6 +807,13 @@ pub struct BranchPoint {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
+    /// A unique ID for this run segment.
+    ///
+    /// This is essentially a unique ID for a transaction log. If a run consists
+    /// of multiple resumed segments, each segment has a different ID. This is
+    /// empty in older transaction logs.
+    #[prost(string, tag = "25")]
+    pub segment_id: ::prost::alloc::string::String,
     #[prost(string, tag = "1")]
     pub run_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -3093,6 +3100,9 @@ pub struct EnvironmentRecord {
     ///
     /// This ID distinguishes this writer's metadata from that of other writers
     /// that may be contributing to the same run.
+    ///
+    /// Deprecated in favor of RunRecord.segment_id. For compatibility with past
+    /// SDK versions, both fields are set to the same value.
     #[prost(string, tag = "199")]
     pub writer_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
