@@ -465,6 +465,9 @@ func TestUnsupportedTypes(t *testing.T) {
 }
 
 func TestOwnership(t *testing.T) {
+	// A prepared row must not share containers with the history. Changing
+	// an array or a nested value, or adding a key, after Prepare must not
+	// change the row.
 	rh := history(t,
 		&spb.HistoryItem{Key: "arr", ValueJson: "[1,2]"},
 		&spb.HistoryItem{Key: "obj", ValueJson: `{"x":1}`},
@@ -480,16 +483,23 @@ func TestOwnership(t *testing.T) {
 	rh.SetString(pathtree.PathOf("obj", "x"), "changed")
 	rh.SetString(pathtree.PathOf("new"), "changed")
 
+	// Append the same row to two builders. The first batch must have the
+	// values from before the history changed.
 	first, second := NewBuilder(), NewBuilder()
 	first.Append(row)
 	second.Append(row)
 	batch := first.Finish()
 	assert.Equal(t, []string{"[1,2]", `{"x":1}`}, batch.Jsons)
 
+	// Finish resets the builder. More appends to the first builder must not
+	// change the batch it already returned.
 	before := proto.Clone(batch)
 	first.Append(prepared(t, &spb.HistoryItem{Key: "arr", ValueJson: "3"}))
 	first.Finish()
 	assert.True(t, proto.Equal(before, batch))
+
+	// Append must not change the row, so the second builder gives the same
+	// batch as the first.
 	assert.True(t, proto.Equal(batch, second.Finish()))
 	assert.Equal(t, []map[string]typedValue{{
 		"arr": {filestreamv1.MetricsBatch_KIND_JSON, []any{int64(1), int64(2)}},
