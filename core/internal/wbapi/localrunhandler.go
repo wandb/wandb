@@ -40,8 +40,8 @@ func NewLocalRunHandler(logger *observability.CoreLogger) *LocalRunHandler {
 
 // HandleListLocalRuns lists the runs in a wandb directory, newest first.
 //
-// Runs share the cache used by detail requests, so cached runs read only
-// appended records. The first read scans the full log for metadata updates.
+// Each run's identity and state come from the first and last records of its
+// log, so the listing costs the same for runs of any size.
 func (h *LocalRunHandler) HandleListLocalRuns(
 	ctx context.Context,
 	request *spb.ListLocalRunsRequest,
@@ -50,25 +50,19 @@ func (h *LocalRunHandler) HandleListLocalRuns(
 	if err != nil {
 		return apiErrorResponse(err.Error(), 0)
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
 
 	response := &spb.ListLocalRunsResponse{}
 	for _, dir := range dirs {
 		if err := ctx.Err(); err != nil {
 			return apiErrorResponse(err.Error(), 0)
 		}
-		run, err := h.read(ctx, dir.WandbFile)
+		probe, err := runreader.Probe(dir.WandbFile, h.logger)
 		if err != nil {
-			if ctx.Err() != nil {
-				return apiErrorResponse(ctx.Err().Error(), 0)
-			}
 			h.logger.Debug("wbapi: skipping local run", "path", dir.WandbFile, "error", err)
 			continue
 		}
-		info := run.Info()
 		response.Runs = append(response.Runs,
-			localRunInfo(dir.WandbFile, &info, run.State()))
+			localRunInfo(dir.WandbFile, &probe.Info, probe.State))
 	}
 
 	return &spb.ApiResponse{

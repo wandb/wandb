@@ -133,7 +133,7 @@ func TestLocalRunHandler(t *testing.T) {
 	assert.NotNil(t, deleted.GetApiErrorResponse())
 }
 
-func TestLocalRunHandler_ListTracksMetadataUpdates(t *testing.T) {
+func TestLocalRunHandler_ListReadsHeadAndTail(t *testing.T) {
 	dir := t.TempDir()
 	runDir := filepath.Join(dir, "run-20260101_120000-abc")
 	require.NoError(t, os.Mkdir(runDir, 0o755))
@@ -173,19 +173,13 @@ func TestLocalRunHandler_ListTracksMetadataUpdates(t *testing.T) {
 
 	writeInfo("initial")
 	writeHistory()
+	assertInfo("initial", "running")
+
+	// The final block starts in the middle of a large row; the rename and
+	// exit after it must still be found.
 	writeInfo("renamed")
-	writeHistory()
-	assertInfo("renamed", "running")
-
-	// A later listing must read appended updates, even outside the tail blocks.
-	writeInfo("latest")
-	writeHistory()
-	assertInfo("latest", "running")
-
-	// An exit need not be in the last four blocks, either.
 	require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_Exit{
 		Exit: &spb.RunExitRecord{ExitCode: 0},
 	}}))
-	writeHistory()
-	assertInfo("latest", "finished")
+	assertInfo("renamed", "finished")
 }
