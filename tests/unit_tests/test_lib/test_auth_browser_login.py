@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import functools
+import http.client
 import http.server
 import json
 import pathlib
@@ -13,12 +15,9 @@ import ssl
 import threading
 import time
 import types
-import urllib.error
 import urllib.parse
-import urllib.request
 import webbrowser
 from collections.abc import Callable, Iterator
-from typing import Protocol
 
 import pytest
 from wandb import util
@@ -65,7 +64,6 @@ def serve_oauth(tls: ssl.SSLContext | None = None) -> Iterator[FakeOAuthServer]:
             fake.received.append({"path": self.path, **dict(form)})
             if fake.stall:
                 fake.stopped.wait()
-                return
 
             body = b"" if fake.body is None else json.dumps(fake.body).encode()
             self.send_response(fake.status)
@@ -117,21 +115,33 @@ def tls_context(assets_path: Callable[[str], pathlib.Path]) -> ssl.SSLContext:
     return context
 
 
-class _MockBrowserLogin(Protocol):
-    def __call__(
-        self,
-        *,
-        query: dict[str, str] | None = None,
-        redirect_target: dict[str, str] | None = None,
-        responded: threading.Event | None = None,
-        before_redirect: Callable[[str], None] | None = None,
-    ) -> dict[str, str]: ...
+MockBrowserLogin = Callable[..., dict[str, str]]
 
 
 @pytest.fixture
-def mock_browser_login(
+def mock_browser_login(monkeypatch: pytest.MonkeyPatch) -> Iterator[MockBrowserLogin]:
+    """Returns a function that fakes the browser; see _mock_browser_login.
+
+    The fake browser runs on a thread. Waiting for it here keeps it from
+    running alongside later tests and their fixtures.
+    """
+    threads: list[threading.Thread] = []
+    yield functools.partial(_mock_browser_login, monkeypatch, threads)
+
+    for thread in threads:
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "The fake browser is still running."
+
+
+def _mock_browser_login(
     monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[_MockBrowserLogin]:
+    threads: list[threading.Thread],
+    *,
+    query: dict[str, str] | None = None,
+    redirect_target: dict[str, str] | None = None,
+    responded: threading.Event | None = None,
+    before_redirect: Callable[[str], None] | None = None,
+) -> dict[str, str]:
     """Replace the browser with one that approves the login immediately.
 
     Instead of opening the consent page, sends the redirect the authorization
@@ -141,87 +151,61 @@ def mock_browser_login(
     Returns the query the CLI put on the consent page URL. Pass
     redirect_target to record where the loopback response sends the browser,
     and before_redirect to act on the redirect URI first.
-
-    Always declines the loopback server's 302 redirect (so background threads
-    never initiate HTTPS/OpenSSL or DNS lookups) and joins every spawned thread
-    before pytest tears down environment fixtures.
     """
-    threads: list[threading.Thread] = []
-    errors: list[BaseException] = []
+    captured: dict[str, str] = {}
 
-    def install(
-        *,
-        query: dict[str, str] | None = None,
-        redirect_target: dict[str, str] | None = None,
-        responded: threading.Event | None = None,
-        before_redirect: Callable[[str], None] | None = None,
-    ) -> dict[str, str]:
-        captured: dict[str, str] = {}
+    def fake_open(url: str) -> bool:
+        parsed = urllib.parse.urlparse(url)
+        params = dict(urllib.parse.parse_qsl(parsed.query))
+        captured.update(params)
+        captured["path"] = parsed.path
 
-        def fake_open(url: str) -> bool:
-            parsed = urllib.parse.urlparse(url)
-            params = dict(urllib.parse.parse_qsl(parsed.query))
-            captured.update(params)
-            captured["path"] = parsed.path
+        callback = dict(query or {"code": "auth-code"})
+        callback.setdefault("state", params["state"])
+        redirect = f"{params['redirect_uri']}?{urllib.parse.urlencode(callback)}"
 
-            callback = dict(query or {"code": "auth-code"})
-            callback.setdefault("state", params["state"])
-            redirect = f"{params['redirect_uri']}?{urllib.parse.urlencode(callback)}"
+        def hit_loopback() -> None:
+            try:
+                if before_redirect is not None:
+                    before_redirect(params["redirect_uri"])
+                response = _http_get(redirect)
+                if redirect_target is not None:
+                    redirect_target["location"] = response.headers["Location"]
+            except ConnectionError:
+                pass
+            finally:
+                if responded is not None:
+                    responded.set()
 
-            def hit_loopback() -> None:
-                try:
-                    if before_redirect is not None:
-                        before_redirect(params["redirect_uri"])
-                    _open_without_following(redirect, redirect_target)
-                except (urllib.error.URLError, ConnectionError):
-                    pass
-                except BaseException as exc:
-                    errors.append(exc)
-                finally:
-                    if responded is not None:
-                        responded.set()
+        thread = threading.Thread(target=hit_loopback, daemon=True)
+        threads.append(thread)
+        thread.start()
+        return True
 
-            thread = threading.Thread(target=hit_loopback, daemon=True)
-            threads.append(thread)
-            thread.start()
-            return True
-
-        monkeypatch.setattr(browser_login, "_open_browser", fake_open)
-        return captured
-
-    yield install
-
-    for thread in threads:
-        thread.join(timeout=5)
-        assert not thread.is_alive(), "mock browser thread did not exit"
-    if errors:
-        raise errors[0]
+    monkeypatch.setattr(browser_login, "_open_browser", fake_open)
+    return captured
 
 
-def _no_redirect_opener(
-    redirect_target: dict[str, str] | None = None,
-) -> urllib.request.OpenerDirector:
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, req, fp, code, msg, headers, newurl):
-            if redirect_target is not None:
-                redirect_target["location"] = newurl
-            return None
+def _http_get(url: str) -> http.client.HTTPResponse:
+    """Sends a GET request and returns the response without following redirects.
 
-    return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
-
-
-def _open_without_following(
-    url: str, redirect_target: dict[str, str] | None = None
-) -> None:
+    This is not urllib.request because it may load the system's TLS
+    certificates even for an HTTP request, and doing that on a thread crashes
+    if os.environ changes at the same time.
+    """
+    parts = urllib.parse.urlsplit(url)
+    connection = http.client.HTTPConnection(parts.netloc)
     try:
-        with _no_redirect_opener(redirect_target).open(url, timeout=10) as response:
-            response.read()
-    except urllib.error.HTTPError as exc:
-        exc.close()
+        connection.request("GET", f"{parts.path}?{parts.query}")
+        response = connection.getresponse()
+        response.read()
+        return response
+    finally:
+        connection.close()
 
 
 def test_login_exchanges_the_code_for_tokens(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     mock_browser_login()
@@ -239,7 +223,7 @@ def test_login_exchanges_the_code_for_tokens(
 
 
 def test_loopback_hands_the_tab_off_to_the_success_page(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     redirect_target: dict[str, str] = {}
@@ -265,7 +249,7 @@ def test_loopback_hands_the_tab_off_to_the_success_page(
     ],
 )
 def test_loopback_hands_a_failed_login_off_to_the_cancelled_page(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
     query: dict[str, str],
     message: str,
@@ -287,7 +271,7 @@ def test_loopback_hands_a_failed_login_off_to_the_cancelled_page(
 
 
 def test_loopback_hands_a_failed_exchange_off_to_the_cancelled_page(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     redirect_target: dict[str, str] = {}
@@ -334,7 +318,7 @@ def test_login_pages_are_served_from_the_host_root(
 
 
 def test_login_opens_the_consent_page_with_a_pkce_challenge(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     captured = mock_browser_login()
@@ -351,17 +335,13 @@ def test_login_opens_the_consent_page_with_a_pkce_challenge(
 
 
 def test_login_ignores_a_callback_with_the_wrong_state(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     def send_stray_callbacks(redirect_uri: str) -> None:
-        opener = _no_redirect_opener()
         for state in ("not-the-state-we-sent", "\u00e9", ""):
             query = urllib.parse.urlencode({"code": "stray-code", "state": state})
-            with pytest.raises(urllib.error.HTTPError) as error:
-                opener.open(f"{redirect_uri}?{query}", timeout=10)
-            error.value.close()
-            assert error.value.code == 400
+            assert _http_get(f"{redirect_uri}?{query}").status == 400
 
     mock_browser_login(before_redirect=send_stray_callbacks)
 
@@ -372,7 +352,7 @@ def test_login_ignores_a_callback_with_the_wrong_state(
 
 def test_login_is_not_stalled_by_an_idle_connection(
     monkeypatch: pytest.MonkeyPatch,
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     monkeypatch.setattr(browser_login._CallbackHandler, "timeout", 0.1)
@@ -416,7 +396,7 @@ def test_login_timeout_bounds_an_idle_connection(monkeypatch: pytest.MonkeyPatch
 
 
 def test_login_timeout_bounds_the_token_exchange(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
 ):
     mock_browser_login()
@@ -449,7 +429,7 @@ def test_login_timeout_bounds_the_token_exchange(
     ],
 )
 def test_login_rejects_an_incomplete_token_response(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     oauth_server: FakeOAuthServer,
     body: dict[str, object],
 ):
@@ -462,7 +442,7 @@ def test_login_rejects_an_incomplete_token_response(
 
 @pytest.mark.filterwarnings("ignore::urllib3.exceptions.InsecureRequestWarning")
 def test_login_honors_disabled_tls_verification(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     tls_context: ssl.SSLContext,
 ):
     mock_browser_login()
@@ -474,7 +454,7 @@ def test_login_honors_disabled_tls_verification(
 
 
 def test_login_verifies_tls_by_default(
-    mock_browser_login: _MockBrowserLogin,
+    mock_browser_login: MockBrowserLogin,
     tls_context: ssl.SSLContext,
 ):
     mock_browser_login()
