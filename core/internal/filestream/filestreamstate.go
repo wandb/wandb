@@ -108,7 +108,8 @@ func (s *FileStreamState) Pop(
 
 	s.popHistory(builder, request)
 	s.popEvents(builder, request)
-	if !request.SummaryUpdates.IsEmpty() {
+	// A request that is already full has no room for the summary.
+	if !builder.HasMore && !request.SummaryUpdates.IsEmpty() {
 		s.popSummary(builder, request, false, logger, printer)
 	}
 	s.popConsoleLines(builder, request)
@@ -188,13 +189,10 @@ func (s *FileStreamState) popSummary(
 ) {
 	updates := request.SummaryUpdates
 	isDelta := s.SummaryDelta && !checkpoint && !updates.HasRemovals()
-	line := request.deferredSummary
-	if line == nil {
-		line = s.summaryLine(updates, isDelta, checkpoint, logger, printer)
-	}
+	line := s.summaryLine(updates, isDelta, checkpoint, logger, printer)
 	if line != nil {
 		if !builder.TryAddSize(len(line)) {
-			request.deferredSummary = line
+			// The updates stay in the request and are encoded again later.
 			builder.HasMore = true
 			return
 		}
@@ -202,7 +200,6 @@ func (s *FileStreamState) popSummary(
 		builder.SummaryChunk.Content = []string{string(line)}
 		builder.SummaryDelta = isDelta
 	}
-	request.deferredSummary = nil
 	request.SummaryUpdates = nil
 }
 

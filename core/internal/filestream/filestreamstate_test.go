@@ -1,7 +1,6 @@
 package filestream_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -194,7 +193,7 @@ func TestState_Pop_AllSummaryUpdates(t *testing.T) {
 
 func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	state := &FileStreamState{MaxFileLineSize: 99, SummaryLineNum: 7}
-	logger, logs := observabilitytest.NewRecordingTestLogger(t)
+	logger, _ := observabilitytest.NewRecordingTestLogger(t)
 	printer := observability.NewPrinter(0)
 	request := &FileStreamRequest{}
 	request.HistoryLines = []string{"the history"}
@@ -213,14 +212,7 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	assert.Equal(t, 15, state.LastRunSummarySize)
 	assert.Equal(t, 7, state.SummaryLineNum)
 
-	// History-only arrivals leave the already encoded summary valid.
-	request.Merge(&FileStreamRequest{HistoryLines: []string{"more history"}})
-	json, hasMore = state.Pop(request, logger, printer)
-	assert.True(t, hasMore)
-	assert.NotContains(t, json.Files, SummaryFileName)
-	assert.Equal(t, 1, strings.Count(logs.String(), "error in path bad"))
-
-	// A new summary invalidates the encoded line and retries the pending values.
+	// The waiting updates go out with later ones.
 	request.Merge(&FileStreamRequest{
 		SummaryUpdates: summaryUpdate("added", "2"),
 	})
@@ -231,6 +223,22 @@ func TestState_Pop_SummaryUpdatesTooLarge(t *testing.T) {
 	require.Len(t, lines, 1)
 	assert.JSONEq(t, `{"key":"value","added":2}`, lines[0])
 	assert.Nil(t, request.SummaryUpdates)
+}
+
+func TestState_Pop_SummaryNotEncodedWhenRequestIsFull(t *testing.T) {
+	state := &FileStreamState{MaxRequestSizeBytes: 5, MaxFileLineSize: 99}
+	request := &FileStreamRequest{
+		HistoryLines:   []string{"row 1", "row 2"},
+		SummaryUpdates: summaryUpdate("a", "1"),
+	}
+
+	json, hasMore := pop(t, state, request)
+
+	assert.True(t, hasMore)
+	assert.Equal(t, []string{"row 1"}, json.Files[HistoryFileName].Content)
+	assert.NotContains(t, json.Files, SummaryFileName)
+	assert.Zero(t, state.LastRunSummarySize)
+	assert.False(t, request.SummaryUpdates.IsEmpty())
 }
 
 func TestState_Pop_SummaryLineTooLong(t *testing.T) {
