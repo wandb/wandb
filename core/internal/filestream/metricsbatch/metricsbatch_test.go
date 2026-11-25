@@ -483,11 +483,10 @@ func TestOwnership(t *testing.T) {
 	)
 	row, err := Prepare(rh)
 	require.NoError(t, err)
-	rh.ForEachTopLevel(func(_ string, value any) bool {
+	rh.ForEachTopLevel(func(_ string, value any) {
 		if array, ok := value.([]any); ok {
 			array[0] = "changed"
 		}
-		return true
 	})
 	rh.SetString(pathtree.PathOf("obj", "x"), "changed")
 	rh.SetString(pathtree.PathOf("new"), "changed")

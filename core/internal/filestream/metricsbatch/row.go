@@ -45,20 +45,19 @@ type cell struct {
 func Prepare(rh *runhistory.RunHistory) (*Row, error) {
 	row := &Row{}
 	var errs []error
-	rh.ForEachTopLevel(func(key string, value any) bool {
+	rh.ForEachTopLevel(func(key string, value any) {
 		if key == seqKey {
 			if row.step, row.hasStep = value.(int64); !row.hasStep {
 				errs = append(errs, errors.New("metricsbatch: sequence must be int64"))
 			}
-			return true
+			return
 		}
 		c, err := encodeCell(key, value)
 		if err != nil {
 			errs = append(errs, err)
-			return true
+			return
 		}
 		row.cells = append(row.cells, c)
-		return true
 	})
 	return row, errors.Join(errs...)
 }
