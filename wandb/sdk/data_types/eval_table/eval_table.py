@@ -247,6 +247,10 @@ class EvalTable(Table):
 
         with telemetry.context(run=run) as tel:
             tel.feature.eval_table = True
+            if self._backend == "ces":
+                tel.feature.eval_table_ces = True
+            else:
+                tel.feature.eval_table_weave = True
 
         return dict(result.history_value)
 

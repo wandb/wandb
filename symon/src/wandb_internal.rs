@@ -259,7 +259,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 81
+/// Next ID: 83
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
@@ -495,6 +495,12 @@ pub struct Feature {
     /// Consuming GPU metrics from a DCGM exporter
     #[prost(bool, tag = "80")]
     pub dcgm_exporter: bool,
+    /// User logged a Weave-backed EvalTable via run.log()
+    #[prost(bool, tag = "81")]
+    pub eval_table_weave: bool,
+    /// User logged a CES-backed EvalTable via run.log()
+    #[prost(bool, tag = "82")]
+    pub eval_table_ces: bool,
 }
 /// Next ID: 19
 #[allow(clippy::all)]
