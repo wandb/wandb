@@ -210,7 +210,14 @@ def load_credentials(
         credentials_file: The path to the credentials file.
         host: The W&B server the login is for.
     """
-    contents = _read_file(credentials_file)
+    return _parse_credentials(_read_file(credentials_file), host)
+
+
+def _parse_credentials(
+    contents: dict[str, Any],
+    host: HostUrl,
+) -> TokenSet | None:
+    """Extracts the stored browser login for a host from parsed file contents."""
     entry = _user_credentials(contents).get(host.url)
     if not isinstance(entry, dict):
         return None
@@ -243,8 +250,10 @@ def save_credentials(
     credentials_file: pathlib.Path,
     host: HostUrl,
     tokens: TokenSet,
-) -> None:
-    """Stores a browser login, leaving every other entry in the file alone.
+) -> TokenSet | None:
+    """Stores a browser login and returns the one it replaced, if any.
+
+    Every other entry in the file is left alone.
 
     Args:
         credentials_file: The path to the credentials file.
@@ -252,8 +261,10 @@ def save_credentials(
         tokens: The tokens to store.
     """
     contents = _read_file(credentials_file, strict=True)
+    existing = _parse_credentials(contents, host)
     _user_credentials(contents)[host.url] = tokens.to_json()
     _write_file(credentials_file, contents)
+    return existing
 
 
 def clear_credentials(
@@ -269,7 +280,7 @@ def clear_credentials(
         host: The W&B server the login is for.
     """
     contents = _read_file(credentials_file, strict=True)
-    existing = load_credentials(credentials_file, host)
+    existing = _parse_credentials(contents, host)
     if _user_credentials(contents).pop(host.url, None) is not None:
         _write_file(credentials_file, contents)
     return existing

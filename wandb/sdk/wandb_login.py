@@ -50,12 +50,13 @@ def login(
     authenticated, then the session key is used for verification (if verify
     is True) and the .netrc file is not updated.
 
-    If none of the above is true, then this gets the API key from the first of:
+    If none of the above is true, then this gets credentials from the first of:
 
     - The WANDB_API_KEY environment variable
-    - The api_key setting in a system or workspace settings file
+    - A stored browser login
     - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
       NETRC environment variable)
+    - The api_key setting in a system or workspace settings file
     - An interactive prompt, if available and `prompt` is True
 
     Args:
@@ -69,8 +70,8 @@ def login(
             prompt. This can be used as a failsafe if an interactive prompt
             is incorrectly shown in a non-interactive environment.
         verify: Verify the credentials with the W&B server and raise an
-            AuthenticationError on failure. This works for API keys as well
-            as identity tokens.
+            AuthenticationError on failure. This works for API keys, browser
+            logins, and identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
         prompt: Whether to ask for an API key interactively when none is
             configured. If False, this returns False and leaves the session
@@ -265,6 +266,9 @@ def _use_explicit_key(
             )
         except wbauth.WriteNetrcError as e:
             wandb.termwarn(str(e))
+        else:
+            # A browser login outranks .netrc, so it would hide the saved API key.
+            wbauth.clear_browser_login(host=auth.host)
 
     return auth
 
@@ -321,8 +325,8 @@ def _verify_login(
 ) -> None:
     """Check the credentials with the server they are for.
 
-    The verification request is made by wandb-core, which supports both
-    API keys and identity token files (federated identity).
+    The verification request is made by wandb-core, which supports API keys,
+    identity token files (federated identity), and browser logins.
 
     Args:
         auth: The credentials to verify.

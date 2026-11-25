@@ -202,9 +202,9 @@ class ServiceApi:
         """Verify credentials with the W&B server and identify their account.
 
         The credentials come from the settings this object was created with:
-        an API key, or an identity token file when using federated identity.
-        wandb-core authenticates to the W&B backend and asks it who the
-        credentials belong to.
+        an API key, an identity token file when using federated identity, or
+        a stored browser login. wandb-core authenticates to the W&B backend
+        and asks it who the credentials belong to.
 
         Args:
             timeout: Optional timeout in seconds for waiting on wandb-core.
@@ -234,10 +234,10 @@ class ServiceApi:
     ) -> str | None:
         """Fetch the access token for the session credentials, if any.
 
-        A token exists only when using federated identity, in which case
-        wandb-core exchanges the identity token configured in the settings
-        for an access token, caching it in the credentials file and
-        refreshing it when it is at or near expiration.
+        A token exists when using federated identity or a browser login.
+        wandb-core exchanges the configured identity token, or refreshes the
+        stored browser login, for an access token, caching it in the
+        credentials file and refreshing it when it is at or near expiration.
 
         Args:
             timeout: Optional timeout in seconds for waiting on wandb-core.
@@ -245,15 +245,15 @@ class ServiceApi:
 
         Returns:
             The access token, or None when the settings do not use
-            token-based credentials. When not using federated identity,
-            this returns None without a service round-trip.
+            token-based credentials. When using an API key, this returns
+            None without a service round-trip.
 
         Raises:
             WandbApiFailedError: If the token exchange fails or the request
                 fails for any other reason, including timeouts while waiting
                 on wandb-core and transport errors.
         """
-        if not self._settings.identity_token_file:
+        if self._settings.api_key and not self._settings.identity_token_file:
             return None
 
         req = ApiRequest(

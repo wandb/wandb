@@ -1,12 +1,15 @@
 __all__ = (
     "Auth",
     "AuthApiKey",
+    "AuthBrowserLogin",
     "AuthIdentityTokenFile",
     "HostUrl",
     "session_credentials",
     "authenticate_session",
     "unauthenticate_session",
     "use_explicit_auth",
+    "clear_browser_login",
+    "revoke_browser_login",
     "set_auth_settings",
     "check_api_key",
     "prompt_and_save_api_key",
@@ -15,9 +18,11 @@ __all__ = (
     "WriteNetrcError",
 )
 
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile
+from .auth import Auth, AuthApiKey, AuthBrowserLogin, AuthIdentityTokenFile
 from .authenticate import (
     authenticate_session,
+    clear_browser_login,
+    revoke_browser_login,
     session_credentials,
     unauthenticate_session,
     use_explicit_auth,
