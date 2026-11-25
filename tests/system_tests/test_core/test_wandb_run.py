@@ -506,6 +506,16 @@ def test_step__raises_in_shared_mode():
             _ = run.step
 
 
+@pytest.mark.usefixtures("user")
+def test_log__no_step_in_shared_mode(wandb_backend_spy):
+    with wandb.init(mode="shared") as run:
+        run.log({"x": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert set(history[0].keys()) == {"x", "_runtime", "_timestamp"}
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="Requires POSIX SIGTERM")
 def test_sigterm_shuts_down_core_with_an_unfinished_run(tmp_path, wandb_backend_spy):
     port_file = tmp_path / "core-port.txt"
