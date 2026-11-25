@@ -38,6 +38,8 @@ func TestUpdateTelemetry_BeforeInit(t *testing.T) {
 		})
 
 	runHandle.UpdateTelemetry(fakeTelemetryRecord())
+	finishInit := runHandle.WillInit()
+	defer finishInit()
 	require.NoError(t, runHandle.Init(upserter))
 	upserter.Finish()
 
@@ -56,6 +58,8 @@ func TestUpdateTelemetry_AfterInit(t *testing.T) {
 			GraphqlClientOrNil: mockGQL,
 		})
 
+	finishInit := runHandle.WillInit()
+	defer finishInit()
 	require.NoError(t, runHandle.Init(upserter))
 	runHandle.UpdateTelemetry(fakeTelemetryRecord())
 	upserter.Finish()
@@ -66,6 +70,8 @@ func TestUpdateTelemetry_AfterInit(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	runHandle := runhandle.New()
+	finishInit := runHandle.WillInit()
+	defer finishInit()
 	expectedUpserter := runupsertertest.NewOfflineUpserter(t)
 
 	require.NoError(t, runHandle.Init(expectedUpserter))
@@ -75,8 +81,19 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, expectedUpserter, upserter)
 }
 
+func TestInit_BeforeWillInit_Fails(t *testing.T) {
+	runHandle := runhandle.New()
+	expectedUpserter := runupsertertest.NewOfflineUpserter(t)
+
+	err := runHandle.Init(expectedUpserter)
+
+	assert.ErrorContains(t, err, "did not call WillInit")
+}
+
 func TestInit_Twice_Fails(t *testing.T) {
 	runHandle := runhandle.New()
+	finishInit := runHandle.WillInit()
+	defer finishInit()
 	upserter := runupsertertest.NewOfflineUpserter(t)
 
 	require.NoError(t, runHandle.Init(upserter))
@@ -88,15 +105,18 @@ func TestInit_Twice_Fails(t *testing.T) {
 func TestInit_Nil_Fails(t *testing.T) {
 	runHandle := runhandle.New()
 
-	assert.Error(t, runHandle.Init(nil))
+	assert.ErrorContains(t, runHandle.Init(nil), "nil upserter")
 }
 
-func TestFailInit(t *testing.T) {
+func TestWillInit(t *testing.T) {
 	runHandle := runhandle.New()
+	assert.False(t, runHandle.BeganInit())
 
-	runHandle.FailInit()
+	finishInit := runHandle.WillInit()
+	finishInit()
 	upserter, err := runHandle.Upserter()
 
+	assert.True(t, runHandle.BeganInit())
 	assert.Nil(t, upserter)
 	assert.ErrorContains(t, err, "run failed to initialize")
 }

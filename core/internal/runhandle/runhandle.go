@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	errInitFailed  = errors.New("runhandle: run failed to initialize")
-	errInitialized = errors.New("runhandle: run already initialized")
-	errNotReady    = errors.New("runhandle: run not yet initialized")
+	errDidNotBeginInit = errors.New("runhandle: did not call WillInit")
+	errInitFailed      = errors.New("runhandle: run failed to initialize")
+	errInitialized     = errors.New("runhandle: run already initialized")
+	errNotReady        = errors.New("runhandle: run not yet initialized")
 )
 
 // RunHandle contains objects that are initialized after the first RunRecord.
@@ -31,6 +32,9 @@ type RunHandle struct {
 	//
 	// It is nil before the run is successfully initialized.
 	upserter *runupserter.RunUpserter
+
+	// beganInitializing returns true if WillInit() was called.
+	beganInitializing bool
 
 	// initFailed is true if the run failed to initialize.
 	initFailed bool
@@ -54,6 +58,16 @@ type RunHandle struct {
 
 func New() *RunHandle {
 	return &RunHandle{ready: make(chan struct{})}
+}
+
+// BeganInit returns true if the run began initializing.
+//
+// Code that expects to run after initialization has started can check this
+// before waiting for ReadyOrFailed.
+func (h *RunHandle) BeganInit() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.beganInitializing
 }
 
 // ReadyOrFailed returns a channel that's closed after the run has either
@@ -84,9 +98,26 @@ func (h *RunHandle) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 	proto.Merge(h.unsentTelemetry, telemetry)
 }
 
+// WillInit promises that initialization will happen.
+//
+// After this, BeganInit() returns true.
+//
+// It returns a callback that should be invoked in a defer call.
+// If the callback runs before Init(), the initialization is considered failed.
+func (h *RunHandle) WillInit() (finishInit func()) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.beganInitializing = true
+
+	return func() {
+		_ = h.initOrFail(nil)
+	}
+}
+
 // Init sets the run upserter, marking the run initialized.
 //
-// It is an error to call this more than once or after FailInit.
+// It is an error to call this before WillInit(), after the WillInit() callback,
+// or more than once.
 func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
 	if upserter == nil {
 		return errors.New("runhandle: called Init with nil upserter")
@@ -95,16 +126,13 @@ func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
 	return h.initOrFail(upserter)
 }
 
-// FailInit marks the run as having failed to initialize.
-//
-// It does nothing if the run has already been initialized.
-func (h *RunHandle) FailInit() {
-	_ = h.initOrFail(nil)
-}
-
 func (h *RunHandle) initOrFail(upserter *runupserter.RunUpserter) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if !h.beganInitializing {
+		return errDidNotBeginInit
+	}
 
 	select {
 	case <-h.ready:

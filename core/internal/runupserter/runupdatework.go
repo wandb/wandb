@@ -25,14 +25,17 @@ const (
 // RunHandle is the same as runhandle.RunHandle, created to avoid
 // a reference cycle.
 type RunHandle interface {
+	// WillInit promises that initialization will happen.
+	//
+	// It returns a callback that should be invoked in a defer call.
+	// If the callback runs before Init(), the initialization is considered failed.
+	WillInit() (finishInit func())
+
 	// Init is called when a new run is created successfully.
 	//
 	// It is called from the Sender goroutine and only if GetRunUpserter returns
 	// nil.
 	Init(upserter *RunUpserter) error
-
-	// FailInit is called when initialization fails.
-	FailInit()
 
 	// Upserter returns the run set by a previous call to SetRunUpserter.
 	//
@@ -105,6 +108,9 @@ func (w *RunUpdateWork) updateRun(run *RunUpserter) {
 
 // initRun creates a run for the first time.
 func (w *RunUpdateWork) initRun(request *runwork.Request) {
+	finishInit := w.RunHandle.WillInit()
+	defer finishInit()
+
 	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
@@ -119,8 +125,6 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 	})
 
 	if err != nil {
-		w.RunHandle.FailInit()
-
 		w.Logger.Error("runupserter: failed to init run", "error", err)
 		respondRunUpdate(request, runInitErrorResult(err))
 		return
