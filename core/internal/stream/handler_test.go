@@ -25,13 +25,10 @@ func makeHandler(
 	t *testing.T,
 	inChan chan runwork.Work,
 	commit string,
-	skipDerivedSummary bool,
 ) *stream.Handler {
 	t.Helper()
 
-	return makeHandlerWithSettings(t, inChan, commit, &spb.Settings{
-		XServerSideDerivedSummary: wrapperspb.Bool(skipDerivedSummary),
-	})
+	return makeHandlerWithSettings(t, inChan, commit, &spb.Settings{})
 }
 
 func makeHandlerWithSettings(
@@ -43,11 +40,9 @@ func makeHandlerWithSettings(
 ) *stream.Handler {
 	t.Helper()
 
-	s := settings.From(settingsProto)
-
 	handlerFactory := stream.HandlerFactory{
 		Logger:          observabilitytest.NewTestLogger(t),
-		Settings:        s,
+		Settings:        settings.From(settingsProto),
 		TerminalPrinter: observability.NewPrinter(0),
 		Commit:          stream.GitCommitHash(commit),
 		RunHandle:       runhandle.New(),
@@ -70,11 +65,12 @@ func makeHandlerWithSettings(
 }
 
 type data struct {
-	items    map[string]string
-	step     int64
-	flush    bool
-	stepNil  bool
-	flushNil bool
+	isSummary bool
+	items     map[string]string
+	step      int64
+	flush     bool
+	stepNil   bool
+	flushNil  bool
 }
 
 func makeFlushRecord() *spb.Record {
@@ -124,29 +120,6 @@ func makePartialHistoryRecord(d data) *spb.Record {
 	return record
 }
 
-func makeHistoryRecord(d data) *spb.Record {
-	items := []*spb.HistoryItem{}
-	for k, v := range d.items {
-		items = append(items, &spb.HistoryItem{
-			NestedKey: strings.Split(k, "."),
-			ValueJson: v,
-		})
-	}
-	history := &spb.HistoryRecord{
-		Item: items,
-		Step: &spb.HistoryStep{Num: d.step},
-	}
-	record := &spb.Record{
-		RecordType: &spb.Record_History{
-			History: history,
-		},
-		Control: &spb.Control{
-			MailboxSlot: "junk",
-		},
-	}
-	return record
-}
-
 func makeOutput(record *spb.Record) data {
 	switch x := record.GetRecordType().(type) {
 	case *spb.Record_History:
@@ -162,31 +135,11 @@ func makeOutput(record *spb.Record) data {
 			items: items,
 			step:  history.Step.Num,
 		}
+	case *spb.Record_Summary:
+		return data{isSummary: true}
 	default:
 		return data{}
 	}
-}
-
-func makeSummaryRecord(d data) *spb.Record {
-	items := []*spb.SummaryItem{}
-	for k, v := range d.items {
-		items = append(items, &spb.SummaryItem{
-			NestedKey: strings.Split(k, "."),
-			ValueJson: v,
-		})
-	}
-	summary := &spb.SummaryRecord{
-		Update: items,
-	}
-	record := &spb.Record{
-		RecordType: &spb.Record_Summary{
-			Summary: summary,
-		},
-		Control: &spb.Control{
-			MailboxSlot: "junk",
-		},
-	}
-	return record
 }
 
 func makeExitRecord() *spb.Record {
@@ -226,6 +179,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -233,6 +187,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key2": "3",
@@ -261,6 +216,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -290,6 +246,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -297,6 +254,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key2": "3",
@@ -325,6 +283,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -358,6 +317,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -365,6 +325,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key2": "3",
@@ -397,6 +358,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -430,6 +392,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -437,6 +400,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key2": "3",
@@ -469,6 +433,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -498,6 +463,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -505,6 +471,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key2": "3",
@@ -538,6 +505,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
@@ -545,6 +513,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -573,12 +542,14 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -606,6 +577,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -633,12 +605,14 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
 					},
 					step: 1,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -666,6 +640,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -693,12 +668,14 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "1",
 					},
 					step: 0,
 				},
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -726,6 +703,7 @@ func TestHandlePartialHistory(t *testing.T) {
 				},
 			},
 			expected: []data{
+				{isSummary: true}, {isSummary: true},
 				{
 					items: map[string]string{
 						"key1": "2",
@@ -740,7 +718,7 @@ func TestHandlePartialHistory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
 
-			handler := makeHandler(t, inChan, "" /*commit*/, true /*skipDerivedSummary*/)
+			handler := makeHandler(t, inChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -785,8 +763,6 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
 			handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
 				XHistoryValueEncoding: wrapperspb.String(test.encoding),
-				// skip summary records so we only get a history record
-				XServerSideDerivedSummary: wrapperspb.Bool(true),
 			})
 
 			inChan <- runwork.NoRequest(runwork.WorkRecord{Record: makePartialHistoryRecord(data{
@@ -795,6 +771,8 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 				flush: true,
 			})})
 
+			<-handler.OutChan() // runtime summary record
+			<-handler.OutChan() // summary record
 			record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 			history := record.GetHistory()
 			require.NotNil(t, history)
@@ -823,120 +801,12 @@ func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
 	}
 }
 
-func TestHandleHistory(t *testing.T) {
-	testCases := []testCase{
-		{
-			name: "IncreaseStep",
-			input: []data{
-				{
-					items: map[string]string{
-						"key1": "1",
-						"key2": "2",
-					},
-					step: 0,
-				},
-				{
-					items: map[string]string{
-						"key2": "3",
-					},
-					step: 1,
-				},
-				{
-					step:  1,
-					flush: true,
-				},
-			},
-			expected: []data{
-				{
-					items: map[string]string{
-						"key1":     "1",
-						"key2":     "2",
-						"_step":    "0",
-						"_runtime": "0.000000",
-					},
-					step: 0,
-				},
-				{
-					items: map[string]string{
-						"key2":     "3",
-						"_step":    "1",
-						"_runtime": "0.000000",
-					},
-					step: 1,
-				},
-			},
-		},
-		// { // TODO: mock out time
-		// 	name: "Timestamp",
-		// 	input: []data{
-		// 		{
-		// 			items: map[string]string{
-		// 				"key1":       "1",
-		// 				"key2":       "2",
-		// 				"_timestamp": "1.257894e+09",
-		// 			},
-		// 			step: 0,
-		// 		},
-		// 	},
-		// 	expected: []data{
-		// 		{
-		// 			items: map[string]string{
-		// 				"key1":     "1",
-		// 				"key2":     "2",
-		// 				"_runtime": "63393490800.000000",
-		// 				"_step":    "0",
-		// 			},
-		// 			step: 0,
-		// 		},
-		// 		{
-		// 			flush: true,
-		// 		},
-		// 	},
-		// },
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan runwork.Work, stream.BufferSize)
-
-			handler := makeHandler(t, inChan, "" /*commit*/, true /*skipDerivedSummary*/)
-
-			for _, d := range tc.input {
-				record := makeHistoryRecord(d)
-				inChan <- runwork.NoRequest(
-					runwork.WorkRecord{Record: record},
-				)
-			}
-
-			inChan <- runwork.NoRequest(
-				runwork.WorkRecord{Record: makeFlushRecord()},
-			)
-
-			for _, d := range tc.expected {
-				record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
-				actual := makeOutput(record)
-				if actual.step != d.step {
-					t.Errorf("expected step %v, got %v", d.step, actual.step)
-				}
-				for k, v := range actual.items {
-					if d.items[k] != v {
-						t.Errorf("expected %v, got %v", v, actual.items[k])
-					}
-				}
-				if d.flush != actual.flush {
-					t.Errorf("expected %v, got %v", d.flush, d.flush)
-				}
-			}
-		})
-	}
-
-}
-
 func TestHandleHeader(t *testing.T) {
 	inChan := make(chan runwork.Work, 1)
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	handler := makeHandler(t, inChan, sha, true /*skipDerivedSummary*/)
+	handler := makeHandler(t, inChan, sha)
 
 	record := &spb.Record{
 		RecordType: &spb.Record_Header{
@@ -954,115 +824,4 @@ func TestHandleHeader(t *testing.T) {
 		record.GetHeader().GetVersionInfo().GetProducer(),
 		"wrong version info",
 	)
-}
-
-func TestHandleDerivedSummary(t *testing.T) {
-	testCases := []struct {
-		name                   string
-		skipDerivedSummary     bool
-		records                []*spb.Record
-		expectedHistoryRecords int
-		expectedSummaryRecords int
-		expectedExitRecords    int
-	}{
-		{
-			name:               "SkipDerivedSummaryForHistory",
-			skipDerivedSummary: true,
-			records: []*spb.Record{
-				makePartialHistoryRecord(data{
-					items: map[string]string{
-						"metric1": "42.0",
-					},
-					step:  1,
-					flush: true,
-				}),
-				makeExitRecord(),
-			},
-			expectedHistoryRecords: 1,
-			expectedSummaryRecords: 0,
-			expectedExitRecords:    1,
-		},
-		{
-			name:               "ComputeDerivedSummaryForHistory",
-			skipDerivedSummary: false,
-			records: []*spb.Record{
-				makePartialHistoryRecord(data{
-					items: map[string]string{
-						"metric1": "42.0",
-					},
-					step:  1,
-					flush: true,
-				}),
-				makeExitRecord(),
-			},
-			expectedHistoryRecords: 1,
-			// We expect 2 summary records from the partial history record
-			// (run timing information + derived summary) and another summary
-			// record from the exit record.
-			expectedSummaryRecords: 3,
-			expectedExitRecords:    1,
-		},
-		{
-			name:               "SkipDerivedSummaryForSummary",
-			skipDerivedSummary: true,
-			records: []*spb.Record{
-				makeSummaryRecord(data{
-					items: map[string]string{
-						"metric1": "42.0",
-					},
-				}),
-				makeExitRecord(),
-			},
-			expectedHistoryRecords: 0,
-			// We expect a summary record with the run timing information
-			// from the exit record and the summary record from the input.
-			expectedSummaryRecords: 1,
-			expectedExitRecords:    1,
-		},
-		{
-			name:               "ComputeDerivedSummaryForSummary",
-			skipDerivedSummary: false,
-			records: []*spb.Record{
-				makeSummaryRecord(data{
-					items: map[string]string{
-						"metric1": "42.0",
-					},
-				}),
-				makeExitRecord(),
-			},
-			expectedHistoryRecords: 0,
-			// We expect one summary record from the input (run timing information)
-			// and another summary record from the exit record.
-			expectedSummaryRecords: 2,
-			expectedExitRecords:    1,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan runwork.Work, 1)
-
-			handler := makeHandler(t, inChan, "" /*commit*/, tc.skipDerivedSummary)
-
-			for _, record := range tc.records {
-				inChan <- runwork.NoRequest(runwork.WorkRecord{Record: record})
-			}
-
-			seenSummaryRecords := 0
-			for range tc.expectedSummaryRecords + tc.expectedHistoryRecords + tc.expectedExitRecords {
-				work := <-handler.OutChan()
-				record := work.WorkImpl.(runwork.WorkRecord).Record
-				if _, ok := record.GetRecordType().(*spb.Record_Summary); ok {
-					seenSummaryRecords++
-				}
-			}
-
-			assert.Equal(
-				t,
-				tc.expectedSummaryRecords,
-				seenSummaryRecords,
-				"wrong number of summary records",
-			)
-		})
-	}
 }

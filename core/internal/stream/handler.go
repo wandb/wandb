@@ -748,10 +748,7 @@ func (h *Handler) handleExit(
 
 	relativeTimeMs := h.runHandle.RelativeTime().Milliseconds()
 	exit.RelativeTimeMs = &relativeTimeMs
-
-	if !h.settings.IsEnableServerSideDerivedSummary() {
-		h.updateRunTiming()
-	}
+	h.updateRunTiming()
 
 	// Stop generating system statistics events.
 	h.systemMonitor.Finish()
@@ -1147,11 +1144,9 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
-	// Update the summary if server-side derived summaries are disabled.
-	if !h.settings.IsEnableServerSideDerivedSummary() {
-		h.updateRunTiming()
-		h.updateSummary()
-	}
+	// Update the run summary.
+	h.updateRunTiming()
+	h.updateSummary()
 
 	emitStart := time.Now()
 	items, err := h.partialHistory.ToRecords(

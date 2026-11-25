@@ -86,11 +86,6 @@ func NewGraphQLClient(
 		extraHeaders.Set("X-WANDB-USE-ASYNC-FILESTREAM", "true")
 		extraHeaders.Set("X-WANDB-CLIENT-ID", string(clientID))
 	}
-	// When enabled, this header instructs the backend to compute the derived summary
-	// using history updates, instead of relying on the SDK to calculate and send it.
-	if s.IsEnableServerSideDerivedSummary() {
-		extraHeaders.Set("X-WANDB-SERVER-SIDE-DERIVED-SUMMARY", "true")
-	}
 
 	return api.NewGQLClient(
 		baseURL,
@@ -122,9 +117,6 @@ func NewFileStream(
 	if s.IsSharedMode() {
 		fileStreamHeaders.Set("X-WANDB-USE-ASYNC-FILESTREAM", "true")
 		fileStreamHeaders.Set("X-WANDB-ASYNC-CLIENT-ID", string(clientID))
-	}
-	if s.IsEnableServerSideDerivedSummary() {
-		fileStreamHeaders.Set("X-WANDB-SERVER-SIDE-DERIVED-SUMMARY", "true")
 	}
 
 	opts := api.ClientOptions{

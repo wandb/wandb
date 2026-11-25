@@ -934,8 +934,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		})
 	}
 
-	if !s.settings.IsSharedMode() &&
-		!s.settings.IsEnableServerSideDerivedSummary() {
+	if !s.settings.IsSharedMode() {
 		s.updateSummaryStep(step)
 	}
 }
