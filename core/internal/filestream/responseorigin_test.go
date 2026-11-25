@@ -153,6 +153,44 @@ func TestRetryPolicy_CancelledContextStops(t *testing.T) {
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
+// Backoff caps the wait only right after an unmarked 404, and only at the
+// time left before the deadline. Other waits, like Retry-After on a 503,
+// are unchanged.
+func TestBackoff_CapsWaitAfterUnmarkedNotFound(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := withRule(t, time.Hour)
+		withRetryAfter := func(
+			ctx context.Context,
+			status int,
+			marked bool,
+		) *http.Response {
+			resp := response(status, marked)
+			resp.Header.Set("Retry-After", "7200")
+			resp.Request, _ = http.NewRequestWithContext(
+				ctx, http.MethodPost, "http://test/", http.NoBody)
+			return resp
+		}
+		backoff := func(resp *http.Response) time.Duration {
+			return Backoff(time.Second, time.Minute, 0, resp)
+		}
+
+		notFound := withRetryAfter(ctx, 404, false)
+		_, _ = RetryPolicy(ctx, notFound, nil)
+		time.Sleep(45 * time.Minute)
+		afterNotFound := backoff(notFound)
+
+		unavailable := withRetryAfter(ctx, 503, false)
+		_, _ = RetryPolicy(ctx, unavailable, nil)
+		afterUnavailable := backoff(unavailable)
+
+		withoutRule := backoff(withRetryAfter(t.Context(), 404, false))
+
+		assert.Equal(t, 15*time.Minute, afterNotFound)
+		assert.Equal(t, 2*time.Hour, afterUnavailable)
+		assert.Equal(t, 2*time.Hour, withoutRule)
+	})
+}
+
 // ---------------------------------------------------------------------------
 // End-to-end acceptance tests
 // ---------------------------------------------------------------------------
@@ -184,6 +222,9 @@ type originTestServer struct {
 
 	// steps is the _step of every history row accepted with a 2xx.
 	steps []int64
+
+	// retryAfter is the Retry-After header for every response, if not empty.
+	retryAfter string
 
 	server *httptest.Server
 }
@@ -217,15 +258,26 @@ func (s *originTestServer) handle(w http.ResponseWriter, r *http.Request) {
 			s.steps = append(s.steps, row.Step)
 		}
 	}
+	retryAfter := s.retryAfter
 	s.mu.Unlock()
 
 	if next.marked {
 		w.Header().Set(api.ServerHeader, api.ServerHeaderValue)
 	}
+	if retryAfter != "" {
+		w.Header().Set("Retry-After", retryAfter)
+	}
 	w.WriteHeader(next.status)
 	if next.status/100 == 2 {
 		_, _ = w.Write([]byte("{}"))
 	}
+}
+
+// setRetryAfter sets the Retry-After header for every later response.
+func (s *originTestServer) setRetryAfter(value string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.retryAfter = value
 }
 
 // then appends responses to the script.
@@ -264,6 +316,9 @@ type originTestOptions struct {
 
 	// retryWait is the wait between retries.
 	retryWait time.Duration
+
+	// retryPolicy replaces RetryPolicy if set.
+	retryPolicy func(context.Context, *http.Response, error) (bool, error)
 }
 
 // startOriginTestFileStream starts a filestream that talks to the server
@@ -279,8 +334,14 @@ func startOriginTestFileStream(
 	baseURL, err := url.Parse(s.server.URL)
 	require.NoError(t, err)
 
+	retryPolicy := opts.retryPolicy
+	if retryPolicy == nil {
+		retryPolicy = RetryPolicy
+	}
+
 	client := api.NewClient(api.ClientOptions{
-		RetryPolicy:     RetryPolicy,
+		RetryPolicy:     retryPolicy,
+		Backoff:         Backoff,
 		RetryMax:        10000,
 		RetryWaitMin:    opts.retryWait,
 		RetryWaitMax:    opts.retryWait,
@@ -406,18 +467,59 @@ func TestResponseOrigin_UnmarkedNotFoundPastDeadline_Stops(t *testing.T) {
 	assertFatalErrorPrinted(t, printer)
 }
 
+// A Retry-After longer than the time left doesn't keep a request waiting
+// past the deadline: the next attempt comes at the deadline, and another
+// header-less 404 then stops uploads.
+func TestResponseOrigin_LongRetryAfter_StopsAtDeadline(t *testing.T) {
+	s := newOriginTestServer(t, unmarkedNotFound)
+	opts := defaultOriginOptions()
+	opts.deadline = 200 * time.Millisecond
+	fs, printer := startWithMarkedSuccess(t, t.Context(), s, opts)
+
+	s.setRetryAfter("3600")
+	start := time.Now()
+	logStep(fs, 1)
+	requireDead(t, fs)
+	fs.FinishWithoutExit()
+
+	assert.GreaterOrEqual(t, time.Since(start), opts.deadline)
+	assert.Equal(t, 2, s.count(http.StatusNotFound))
+	assert.Equal(t, []int64{0}, s.acceptedSteps())
+	assertFatalErrorPrinted(t, printer)
+}
+
 // Acceptance test 4: shutdown or cancellation during the retry wait ends it.
 func TestResponseOrigin_CancelDuringRetryWait_EndsWait(t *testing.T) {
 	s := newOriginTestServer(t, unmarkedNotFound)
 	ctx, cancel := context.WithCancel(t.Context())
 	opts := defaultOriginOptions()
 	opts.retryWait = time.Hour // the only way out is cancellation
+
+	// Signal once the client has the 404 and decided to retry it, so that
+	// the cancellation below lands in the retry wait, not in the request.
+	retrying := make(chan struct{}, 1)
+	opts.retryPolicy = func(
+		ctx context.Context,
+		resp *http.Response,
+		err error,
+	) (bool, error) {
+		retry, err := RetryPolicy(ctx, resp, err)
+		if retry && resp != nil && resp.StatusCode == http.StatusNotFound {
+			select {
+			case retrying <- struct{}{}:
+			default:
+			}
+		}
+		return retry, err
+	}
 	fs, _ := startWithMarkedSuccess(t, ctx, s, opts)
 
 	logStep(fs, 1)
-	require.Eventually(t,
-		func() bool { return s.count(http.StatusNotFound) == 1 },
-		5*time.Second, time.Millisecond)
+	select {
+	case <-retrying:
+	case <-time.After(5 * time.Second):
+		t.Fatal("filestream did not retry the 404")
+	}
 	cancel()
 
 	finished := make(chan struct{})

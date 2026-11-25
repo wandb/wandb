@@ -101,6 +101,11 @@ func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
 	}
 
 	fp.boolFeatures = make(map[spb.ServerFeature]bool)
+
+	// Verify even if a bad entry below stops the loop, since the features
+	// before it are kept.
+	defer fp.lockedVerifyResponseOriginHeader(featuresResponseMarked)
+
 	for _, f := range resp.ServerInfo.Features {
 		if f == nil {
 			fp.logger.Error("featurechecker: nil feature in response")
@@ -113,8 +118,6 @@ func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
 			fp.boolFeatures[feature] = f.IsEnabled
 		}
 	}
-
-	fp.lockedVerifyResponseOriginHeader(featuresResponseMarked)
 }
 
 // lockedVerifyResponseOriginHeader turns off RESPONSE_ORIGIN_HEADER if the

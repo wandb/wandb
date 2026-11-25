@@ -62,6 +62,12 @@ func TestResponseOriginHeader(t *testing.T) {
 	const notListed = `[
 		{"name": "FILESTREAM_GZIP", "isEnabled": true}
 	]`
+	// A null entry stops reading the list but keeps the features before it.
+	const cutShort = `[
+		{"name": "FILESTREAM_GZIP", "isEnabled": true},
+		{"name": "RESPONSE_ORIGIN_HEADER", "isEnabled": true},
+		null
+	]`
 
 	testCases := []struct {
 		name     string
@@ -74,6 +80,8 @@ func TestResponseOriginHeader(t *testing.T) {
 		{"turned off by the server's gate", disabled, true, false},
 		{"old server without the feature", notListed, true, false},
 		{"old server, unmarked", notListed, false, false},
+		{"list cut short, marked", cutShort, true, true},
+		{"list cut short, unmarked", cutShort, false, false},
 	}
 
 	for _, tc := range testCases {

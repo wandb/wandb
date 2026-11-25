@@ -71,6 +71,11 @@ type ClientOptions struct {
 	// (HTTP status code >=500).
 	RetryPolicy retryablehttp.CheckRetry
 
+	// Function that returns how long to wait before a retry.
+	//
+	// If nil, clients.ExponentialBackoffWithJitter is used.
+	Backoff retryablehttp.Backoff
+
 	// Timeout for HTTP requests.
 	//
 	// This is the time to wait for an individual HTTP request to complete
@@ -124,13 +129,16 @@ func NewClient(opts ClientOptions) RetryableClient {
 	if opts.RetryPolicy == nil {
 		opts.RetryPolicy = retryablehttp.DefaultRetryPolicy
 	}
+	if opts.Backoff == nil {
+		opts.Backoff = clients.ExponentialBackoffWithJitter
+	}
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 
 	retryableHTTP := retryablehttp.NewClient()
 	retryableHTTP.HTTPClient.Transport = newRoundTripper(opts)
-	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
+	retryableHTTP.Backoff = opts.Backoff
 	retryableHTTP.RetryMax = opts.RetryMax
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
