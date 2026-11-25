@@ -138,8 +138,17 @@ func (fp *FeatureProvider) lockedVerifyResponseOriginHeader(
 			" response lacked the header; treating the feature as off",
 		"header", api.ServerHeader,
 	)
+	// Counts clients behind something, like a proxy, that strips the header.
+	fp.logger.RecordTelemetry(
+		eventResponseOriginHeaderUnverified,
+		map[string]string{"header": api.ServerHeader},
+	)
 	fp.boolFeatures[feature] = false
 }
+
+// eventResponseOriginHeaderUnverified is a telemetry event for a server that
+// lists RESPONSE_ORIGIN_HEADER whose features response lacked the header.
+const eventResponseOriginHeaderUnverified = "featurechecker_response_origin_header_unverified"
 
 // Enabled returns whether a named feature is enabled.
 //

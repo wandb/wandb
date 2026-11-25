@@ -61,6 +61,9 @@ type unmarked404Retry struct {
 	//
 	// It is zero if the last response was not an unmarked 404.
 	streakStart time.Time
+
+	// streakLength is the number of unmarked 404s in the current run.
+	streakLength int
 }
 
 // withUnmarked404Retry returns a context in which RetryPolicy retries
@@ -95,15 +98,7 @@ func (s *unmarked404Retry) shouldRetry(
 		!api.HasServerHeader(resp)
 
 	if !isUnmarked404 {
-		if !s.streakStart.IsZero() && resp != nil &&
-			resp.StatusCode == http.StatusNotFound {
-			s.logger.Warn(
-				"filestream: got a 404 from the server after 404s from"+
-					" something in front of it; stopping",
-				"after", time.Since(s.streakStart))
-		}
-
-		s.streakStart = time.Time{}
+		s.endStreak(resp)
 		return false
 	}
 
@@ -111,24 +106,38 @@ func (s *unmarked404Retry) shouldRetry(
 		return false
 	}
 
+	s.streakLength++
 	if s.streakStart.IsZero() {
 		s.streakStart = time.Now()
-		s.logger.Warn(
-			"filestream: got a 404 without the server's response-origin"+
-				" header, likely from a load balancer or proxy; retrying",
-			"header", api.ServerHeader,
-			"deadline", s.deadline)
+		s.recordRetryStarted()
 		return true
 	}
 
-	if elapsed := time.Since(s.streakStart); elapsed >= s.deadline {
-		s.logger.Error(
-			"filestream: 404s without the server's response-origin header"+
-				" lasted past the deadline; stopping",
-			"elapsed", elapsed,
-			"deadline", s.deadline)
+	if time.Since(s.streakStart) >= s.deadline {
+		s.recordDeadlineExceeded()
 		return false
 	}
 
 	return true
+}
+
+// endStreak ends the current run of unmarked 404s, if any, because the
+// request got a different response.
+//
+// A nil response means a transport error, which the default policy retries.
+func (s *unmarked404Retry) endStreak(resp *http.Response) {
+	if s.streakStart.IsZero() {
+		return
+	}
+
+	switch {
+	case resp == nil:
+	case resp.StatusCode >= 200 && resp.StatusCode <= 299:
+		s.recordRecovered()
+	case resp.StatusCode == http.StatusNotFound:
+		s.recordStoppedByServer()
+	}
+
+	s.streakStart = time.Time{}
+	s.streakLength = 0
 }

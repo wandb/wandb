@@ -264,6 +264,9 @@ type originTestOptions struct {
 
 	// retryWait is the wait between retries.
 	retryWait time.Duration
+
+	// logger is the filestream's logger, or nil for a test logger.
+	logger *observability.CoreLogger
 }
 
 // startOriginTestFileStream starts a filestream that talks to the server
@@ -292,11 +295,16 @@ func startOriginTestFileStream(
 		features[spb.ServerFeature_RESPONSE_ORIGIN_HEADER] = true
 	}
 
+	logger := opts.logger
+	if logger == nil {
+		logger = observabilitytest.NewTestLogger(t)
+	}
+
 	printer := observability.NewPrinter(10)
 	factory := &FileStreamFactory{
 		BaseURL:         baseURL,
 		FeatureProvider: featurechecker.NewPreloaded(features),
-		Logger:          observabilitytest.NewTestLogger(t),
+		Logger:          logger,
 		Printer:         printer,
 		Settings:        settings.From(&spb.Settings{}),
 	}
