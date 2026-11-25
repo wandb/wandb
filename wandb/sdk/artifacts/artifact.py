@@ -1081,7 +1081,7 @@ class Artifact:
         from ._alias_paginator import MembershipAliasesPaginator
 
         if (service_api := self._service_api) is None:
-            raise RuntimeError("Client not initialized for artifact mutations")
+            raise RuntimeError("Client not initialized for artifact queries")
 
         collection = self.name.split(":")[0]
         paginator = MembershipAliasesPaginator(
