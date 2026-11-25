@@ -129,6 +129,29 @@ def test_history_follows_pages(tmp_path):
     assert first.limit == second.limit > 0
 
 
+def test_history_dataframes(tmp_path):
+    pl = pytest.importorskip("polars")
+    service_api = mock.MagicMock()
+    service_api.send_api_request.return_value = apb.ApiResponse(
+        read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
+            rows=b'{"_step":0,"loss":1.0}\n{"_step":1,"loss":NaN,"acc":0.5}\n'
+        )
+    )
+    history = LocalRun(service_api, info=_info(tmp_path)).history()
+
+    pandas_df = history.to_pandas()
+    assert list(pandas_df.columns) == ["_step", "loss", "acc"]
+    assert pandas_df["acc"].isna().tolist() == [True, False]
+
+    polars_df = history.to_polars()
+    assert polars_df.schema == {
+        "_step": pl.Int64,
+        "loss": pl.Float64,
+        "acc": pl.Float64,
+    }
+    assert polars_df["acc"].to_list() == [None, 0.5]
+
+
 def test_console_logs(tmp_path):
     service_api = mock.MagicMock()
     service_api.send_api_request.return_value = apb.ApiResponse(
