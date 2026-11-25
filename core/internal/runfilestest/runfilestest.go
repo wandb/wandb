@@ -60,6 +60,8 @@ func WithTestDefaults(t *testing.T, params Params) runfiles.Uploader {
 
 	if params.RunHandle == nil {
 		params.RunHandle = runhandle.New()
+		finishInit := params.RunHandle.WillInit()
+		defer finishInit()
 		err := params.RunHandle.Init(runupsertertest.NewOfflineUpserter(t))
 		require.NoError(t, err)
 	}

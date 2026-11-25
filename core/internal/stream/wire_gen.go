@@ -97,7 +97,6 @@ func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResou
 		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
-	historyStepTracker := NewHistoryStepTracker(coreLogger, runHandle)
 	senderFactory := &SenderFactory{
 		BaseURL:                 wbBaseURL,
 		ClientID:                clientID,
@@ -116,7 +115,6 @@ func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResou
 		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
-		HistoryStepTracker:      historyStepTracker,
 		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{

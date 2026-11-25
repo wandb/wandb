@@ -1,20 +1,17 @@
 package stream
 
 import (
-	"fmt"
-
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runupserter"
 )
 
 var stepKey = pathtree.PathOf("_step")
 
 // HistoryStepTracker assigns increasing _step values to history rows.
 type HistoryStepTracker struct {
-	logger    *observability.CoreLogger
-	runHandle *runhandle.RunHandle
+	logger *observability.CoreLogger
 
 	// nextStep is the minimum step for the next history row.
 	nextStep    int64
@@ -23,25 +20,19 @@ type HistoryStepTracker struct {
 
 func NewHistoryStepTracker(
 	logger *observability.CoreLogger,
-	runHandle *runhandle.RunHandle,
 ) *HistoryStepTracker {
 	return &HistoryStepTracker{
-		logger:    logger,
-		runHandle: runHandle,
+		logger: logger,
 	}
 }
 
 // ApplyHistoryStep ensures there is a valid "_step" metric, at least one
 // larger than for the previous row.
-//
-// err is non-nil when the run is not initialized; the caller must skip
-// the history row.
 func (t *HistoryStepTracker) ApplyHistoryStep(
+	upserter *runupserter.RunUpserter,
 	history *runhistory.RunHistory,
-) (int64, error) {
-	if err := t.ensureInit(); err != nil {
-		return 0, err
-	}
+) int64 {
+	t.maybeInit(upserter)
 
 	step, exists := history.GetInt(stepKey)
 
@@ -53,7 +44,7 @@ func (t *HistoryStepTracker) ApplyHistoryStep(
 
 	history.SetInt(stepKey, step)
 	t.advancePast(step)
-	return step, nil
+	return step
 }
 
 func (t *HistoryStepTracker) clampStep(step int64) int64 {
@@ -68,17 +59,13 @@ func (t *HistoryStepTracker) clampStep(step int64) int64 {
 	return t.nextStep
 }
 
-func (t *HistoryStepTracker) ensureInit() error {
+func (t *HistoryStepTracker) maybeInit(upserter *runupserter.RunUpserter) {
 	if t.initialized {
-		return nil
+		return
 	}
-	upserter, err := t.runHandle.Upserter()
-	if err != nil {
-		return fmt.Errorf("historystep: %w", err)
-	}
+
 	t.nextStep = upserter.StartingStep()
 	t.initialized = true
-	return nil
 }
 
 func (t *HistoryStepTracker) advancePast(step int64) {
