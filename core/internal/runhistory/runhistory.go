@@ -155,6 +155,13 @@ func (rh *RunHistory) IsEmpty() bool {
 	return rh.metrics.IsEmpty()
 }
 
+// ForEachTopLevel visits each top-level key in lexical order. A leaf is
+// passed as-is and a subtree as a copied map[string]any. Leaf values,
+// arrays included, are shared and must not be mutated.
+func (rh *RunHistory) ForEachTopLevel(fn func(key string, value any)) {
+	rh.metrics.ForEachTopLevel(fn)
+}
+
 // Contains returns whether there is a value for the metric.
 func (rh *RunHistory) Contains(path pathtree.TreePath) bool {
 	// TODO: should this work for non-leaf values?

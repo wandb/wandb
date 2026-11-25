@@ -455,3 +455,15 @@ func TestSetFromRecord_TypedEmptyKey(t *testing.T) {
 
 	assert.ErrorContains(t, err, "empty history item key")
 }
+
+func TestForEachTopLevel_LeafOnlyAllocations(t *testing.T) {
+	rh := runhistory.New()
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{Key: "b", ValueJson: "1"}))
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{Key: "a", ValueJson: "2"}))
+
+	allocations := testing.AllocsPerRun(100, func() {
+		rh.ForEachTopLevel(func(_ string, _ any) {})
+	})
+
+	assert.LessOrEqual(t, allocations, 1.0)
+}

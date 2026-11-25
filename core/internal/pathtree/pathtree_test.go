@@ -8,6 +8,34 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 )
 
+func TestForEachTopLevel(t *testing.T) {
+	tree := pathtree.New[any]()
+	tree.Set(pathtree.PathOf("z"), nil)
+	tree.Set(pathtree.PathOf("a", "b", "c"), int64(1))
+	tree.Set(pathtree.PathOf("a.b"), "literal")
+	var keys []string
+	values := make(map[string]any)
+	tree.ForEachTopLevel(func(key string, value any) {
+		keys = append(keys, key)
+		values[key] = value
+	})
+	assert.Equal(t, []string{"a", "a.b", "z"}, keys)
+	assert.Equal(t, map[string]any{
+		"a":   map[string]any{"b": map[string]any{"c": int64(1)}},
+		"a.b": "literal", "z": nil,
+	}, values)
+	values["a"].(map[string]any)["b"].(map[string]any)["c"] = int64(2)
+	value, exists := tree.GetLeaf(pathtree.PathOf("a", "b", "c"))
+	assert.True(t, exists)
+	assert.Equal(t, int64(1), value)
+}
+
+func TestForEachTopLevelEmpty(t *testing.T) {
+	pathtree.New[int]().ForEachTopLevel(func(string, any) {
+		t.Fatal("empty tree yielded a node")
+	})
+}
+
 func TestSet_NewNode(t *testing.T) {
 	tree := pathtree.New[int]()
 
