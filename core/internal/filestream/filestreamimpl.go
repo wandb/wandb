@@ -164,17 +164,8 @@ func (fs *fileStream) send(
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
 
-	reqCtx := op.Context(fs.beforeRunEndCtx)
-	if fs.shouldRetryUnmarked404s() {
-		reqCtx = withUnmarked404Retry(
-			reqCtx,
-			fs.unmarked404RetryDeadline,
-			fs.logger,
-		)
-	}
-
 	req, err := retryablehttp.NewRequestWithContext(
-		reqCtx,
+		fs.requestContext(op),
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),
 		bytes.NewReader(requestBody),
@@ -257,6 +248,21 @@ func (fs *fileStream) send(
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
+}
+
+// requestContext returns the context for a filestream request tracked by op.
+//
+// The context lets RetryPolicy retry 404s that lack the server's
+// response-origin header if shouldRetryUnmarked404s allows it.
+func (fs *fileStream) requestContext(
+	op *wboperation.WandbOperation,
+) context.Context {
+	ctx := op.Context(fs.beforeRunEndCtx)
+	if !fs.shouldRetryUnmarked404s() {
+		return ctx
+	}
+
+	return withUnmarked404Retry(ctx, fs.unmarked404RetryDeadline, fs.logger)
 }
 
 // shouldRetryUnmarked404s reports whether the next request should retry 404s
