@@ -329,7 +329,7 @@ class WandbBackendSnapshot:
 
         return dict(run._file_stream_files.get("output.log", {}))
 
-    def summary(self, *, run_id: str) -> Any:
+    def summary(self, *, run_id: str) -> dict[str, Any]:
         """Returns the summary for the run as a JSON object.
 
         Args:

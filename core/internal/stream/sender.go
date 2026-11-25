@@ -21,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/metricruntime"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -667,9 +668,15 @@ func (s *Sender) finishRunSync(
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
-	// Upload the run's finalized summary and config.
+	// Finalize and upload the run's summary and config.
 	s.mu.Lock()
 	if upserterOrNil != nil {
+		// Set the final _runtime summary.
+		s.updateSummary(
+			metricruntime.SetInSummary(
+				runsummary.NoUpdates(),
+				metricruntime.FromExitRecord(upserterOrNil, exitRecord)))
+
 		s.uploadSummaryFile()
 		upserterOrNil.Finish()
 		s.uploadConfigFile(upserterOrNil)
@@ -921,9 +928,15 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 
 	s.runHistorySampler.SampleNext(history)
 
-	var step int64
+	summaryUpdates := runsummary.NoUpdates()
+
+	runtime := metricruntime.FromHistoryRecord(upserter, history, record)
+	metricruntime.SetInHistory(history, runtime)
+	metricruntime.SetInSummary(summaryUpdates, runtime)
+
 	if !s.settings.IsSharedMode() {
-		step = s.stepTracker.ApplyHistoryStep(upserter, history)
+		step := s.stepTracker.ApplyHistoryStep(upserter, history)
+		summaryUpdates.Set(stepMetric, step)
 	}
 
 	if s.fileStream != nil {
@@ -934,18 +947,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		})
 	}
 
-	if !s.settings.IsSharedMode() {
-		s.updateSummaryStep(step)
-	}
-}
-
-func (s *Sender) updateSummaryStep(step int64) {
-	updates := runsummary.NoUpdates().Set(stepMetric, step)
-
-	updates.Apply(s.runSummary)
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
-	}
+	s.updateSummary(summaryUpdates)
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
@@ -962,8 +964,18 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 		)
 		// Continue, partial success is possible.
 	}
-	updates.Ignore(stepMetric) // Always use the step from history records.
 
+	// Always ignore the step and runtime summaries. The step can be derived
+	// from history records, and the runtime from history and exit records.
+	updates.Ignore(stepMetric)
+	metricruntime.IgnoreInSummary(updates)
+
+	s.updateSummary(updates)
+}
+
+// updateSummary applies updates to the run summary and streams them to
+// the backend if we are online.
+func (s *Sender) updateSummary(updates *runsummary.Updates) {
 	updates.Apply(s.runSummary)
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})

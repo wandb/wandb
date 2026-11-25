@@ -197,6 +197,7 @@ func (h *RunHandle) RelativeTime() time.Duration {
 // Runtime returns the `_runtime` metric for the run.
 //
 // This may be incorrect until the run has been initialized.
+// It is invalid for offline resumed runs.
 func (h *RunHandle) Runtime() time.Duration {
 	h.mu.Lock()
 	defer h.mu.Unlock()
