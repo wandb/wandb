@@ -302,7 +302,9 @@ def test_publish_partial_history_dual_write_mixed_row(mock_run, record_q):
         "int": 1,
         "float": 1.0,
         "null": None,
-        "nested": {"array": [False, 2**53 + 1]},
+        "inf": float("inf"),
+        "-inf": float("-inf"),
+        "nested": {"array": [False, 2**53 + 1, float("inf")]},
     }
 
     run.log(values)
@@ -312,6 +314,8 @@ def test_publish_partial_history_dual_write_mixed_row(mock_run, record_q):
         ("int", "integer"),
         ("float", "number"),
         ("null", "none"),
+        ("inf", "number"),
+        ("-inf", "number"),
         ("nested", "json"),
     ):
         item = pb.HistoryItem.FromString(items[key].SerializeToString())
