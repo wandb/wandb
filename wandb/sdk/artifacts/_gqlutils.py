@@ -217,13 +217,21 @@ def link_artifact_gql_options(
     omit_fields = omit_artifact_fields(service_api)
     omit_variables = {"includeAliases"}
 
-    if service_api.feature_enabled(
+    if not service_api.feature_enabled(
         ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
     ):
+        omit_fields.add("artifactMembership")
+        return omit_fields, omit_variables
+
+    if service_api.feature_enabled(
+        ServerFeature.ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION
+    ):
+        # The membership's aliases are fetched on first access to
+        # `Artifact.aliases`, so omit the unbounded field here.
+        omit_fields.add("aliases")
+    else:
         omit_variables.discard("includeAliases")
         gql_vars["includeAliases"] = False
-    else:
-        omit_fields.add("artifactMembership")
 
     return omit_fields, omit_variables
 

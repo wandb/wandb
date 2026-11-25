@@ -2712,9 +2712,7 @@ class Artifact:
         # Newer server versions can return artifactMembership directly in the response
         if (result := data.result) and (membership := result.artifact_membership):
             return self._from_membership(
-                membership,
-                target=target,
-                service_api=self._get_service_api(),
+                membership, target=target, service_api=self._get_service_api()
             )
 
         # Old behavior, which requires re-fetching the linked artifact to return it
