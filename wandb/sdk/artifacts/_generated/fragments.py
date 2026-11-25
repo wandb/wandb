@@ -9,7 +9,11 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
-from .enums import ArtifactDigestAlgorithm, ArtifactState
+from .enums import (
+    ArtifactDigestAlgorithm,
+    ArtifactState,
+    RegistryHuggingFaceImportState,
+)
 
 
 class ArtifactAliasFragment(GQLResult):
@@ -242,6 +246,64 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 
+class RegistryHuggingFaceImportFragment(GQLResult):
+    typename__: Typename[Literal["RegistryHuggingFaceImport"]] = (
+        "RegistryHuggingFaceImport"
+    )
+    id: GQLId
+    state: RegistryHuggingFaceImportState
+    phase: str | None
+    error_code: str | None = Field(alias="errorCode")
+    error_message: str | None = Field(alias="errorMessage")
+    stats: str | None
+    created_at: str = Field(alias="createdAt")
+    terminal_at: str | None = Field(alias="terminalAt")
+    hf_repo_id: str = Field(alias="hfRepoId")
+    hf_requested_revision: str = Field(alias="hfRequestedRevision")
+    hf_resolved_revision: str | None = Field(alias="hfResolvedRevision")
+    entity: RegistryHuggingFaceImportFragmentEntity | None
+    project: RegistryHuggingFaceImportFragmentProject | None
+    registry_project: RegistryHuggingFaceImportFragmentRegistryProject | None = Field(
+        alias="registryProject"
+    )
+    registry_collection_name: str | None = Field(alias="registryCollectionName")
+    artifact: RegistryHuggingFaceImportFragmentArtifact | None
+    artifact_ref: str | None = Field(alias="artifactRef")
+    registry_ref: str | None = Field(alias="registryRef")
+    events: RegistryHuggingFaceImportFragmentEvents
+
+
+class RegistryHuggingFaceImportFragmentEntity(GQLResult):
+    name: str
+
+
+class RegistryHuggingFaceImportFragmentProject(GQLResult):
+    name: str
+
+
+class RegistryHuggingFaceImportFragmentRegistryProject(GQLResult):
+    name: str
+
+
+class RegistryHuggingFaceImportFragmentArtifact(GQLResult):
+    id: GQLId
+
+
+class RegistryHuggingFaceImportFragmentEvents(GQLResult):
+    edges: list[RegistryHuggingFaceImportFragmentEventsEdges]
+
+
+class RegistryHuggingFaceImportFragmentEventsEdges(GQLResult):
+    node: RegistryHuggingFaceImportFragmentEventsEdgesNode
+
+
+class RegistryHuggingFaceImportFragmentEventsEdgesNode(GQLResult):
+    id: GQLId
+    time: str
+    name: str
+    message: str | None
+
+
 class RegistryRoleFragment(GQLResult):
     name: str
 
@@ -315,6 +377,7 @@ OrgInfoFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
 RegistryFragment.model_rebuild()
+RegistryHuggingFaceImportFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
 RunInfoFragment.model_rebuild()
 TeamMemberFragment.model_rebuild()

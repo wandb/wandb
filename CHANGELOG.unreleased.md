@@ -17,3 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - `wandb.Api().artifact(...)` now defers fetching an artifact's collection membership aliases until `Artifact.aliases` is accessed, then fetches them in 1,000-alias pages (@ibindlish in https://github.com/wandb/wandb/pull/13183)
+
+### Added
+
+- `Registry.import_from_huggingface()` imports a Hugging Face model repo into a registry collection server-side, with `Api.check_huggingface_source()`, `Api.huggingface_import()`, and `Api.huggingface_imports()` to check, monitor, and list imports. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/13352)
