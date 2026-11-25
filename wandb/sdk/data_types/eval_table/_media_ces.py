@@ -513,12 +513,9 @@ def _overlay_class_labels(
     image_classes: Classes | None,
 ) -> dict[int | str, str] | None:
     if isinstance(media, ImageMask):
-        # Path-backed and artifact-rehydrated masks never set _val, so image.py
-        # guards it with hasattr for the same reason.
-        # TODO: Read class labels through an ImageMask accessor instead.
-        value = getattr(media, "_val", None)
-        if isinstance(value, dict) and isinstance(value.get("class_labels"), dict):
-            return value["class_labels"]
+        if media._class_labels is not None:
+            return media._class_labels
+        # Path-backed and artifact-rehydrated masks carry no labels of their own.
         return _image_class_labels(image_classes)
     if isinstance(media, BoundingBoxes2D):
         return _box_class_labels(media, image_classes)

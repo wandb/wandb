@@ -513,6 +513,19 @@ def test_image_mask_accepts_in_range_values(dtype):
     assert np.array_equal(np.array(Image.open(image_mask._path)), mask.astype(np.uint8))
 
 
+def test_path_backed_image_mask_registers_no_class_labels(mock_run, tmp_path):
+    mask_path = tmp_path / "mask.png"
+    Image.fromarray(np.zeros((2, 2), dtype=np.uint8)).save(mask_path)
+    image_mask = ImageMask({"path": str(mask_path)}, key="predictions")
+    run = mock_run()
+    run._add_singleton = mock.MagicMock()
+
+    image_mask.bind_to_run(run, "images", 0)
+
+    assert image_mask._class_labels is None
+    run._add_singleton.assert_not_called()
+
+
 def test_image_numpy_pytorch_equal():
     img = np.random.randint(0, 256, size=[4, 4, 3]).astype(np.uint8)
     torch_img = torch.from_numpy(img.transpose(2, 0, 1))
