@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import platform
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -296,6 +297,29 @@ def test_media_binds_to_explicit_run_path(run_factory, tmp_path):
     assert image._run is run
     assert image._path == destination
     assert Path(destination).read_bytes() == source.read_bytes()
+    run._publish_file.assert_called_once_with(logical_path)
+
+
+@pytest.mark.skipif(platform.system() == "Windows", reason="symlinks need privileges")
+def test_media_links_to_run_path_when_media_symlinks_are_allowed(mock_run, tmp_path):
+    run = mock_run(
+        settings={
+            "root_dir": str(tmp_path / "run"),
+            "mode": "online",
+            "allow_media_symlink": True,
+        }
+    )
+    run._publish_file = MagicMock()
+    source = _png(tmp_path)
+    image = wandb.Image(source)
+    logical_path = os.path.join("media", "eval_tables", "images", "custom.png")
+
+    _media_ces._place_media_file_in_run(image, run, logical_path)
+
+    destination = Path(run.dir, logical_path)
+    assert destination.is_symlink()
+    assert destination.resolve() == source.resolve()
+    assert image._path == str(destination)
     run._publish_file.assert_called_once_with(logical_path)
 
 
