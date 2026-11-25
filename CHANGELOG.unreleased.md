@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- `wandb.Api().artifact(...)` now defers fetching an artifact's collection membership aliases until `Artifact.aliases` is accessed, then fetches them in 1,000-alias pages (@ibindlish in https://github.com/wandb/wandb/pull/13183)
+
 ### Fixed
 
 - A metric defined with `step_sync` and a `step_metric` that starts with a dot now gets the latest logged value of that step. The dot is part of the first key, so `.foo` is the logged key `.foo`, and `.foo.bar` is the key `bar` nested in `.foo` (@geoffhardy in https://github.com/wandb/wandb/pull/13445)

@@ -115,6 +115,9 @@ const (
 	ServerFeature_ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD ServerFeature = 39
 	// Indicates that the server supports automation event SANDBOX_STATE.
 	ServerFeature_AUTOMATION_EVENT_SANDBOX_STATE ServerFeature = 40
+	// Indicates that the server supports paginating
+	// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+	ServerFeature_ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION ServerFeature = 41
 )
 
 // Enum value maps for ServerFeature.
@@ -160,6 +163,7 @@ var (
 		38: "EVAL_TABLES_CES",
 		39: "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD",
 		40: "AUTOMATION_EVENT_SANDBOX_STATE",
+		41: "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -202,6 +206,7 @@ var (
 		"EVAL_TABLES_CES":                                      38,
 		"ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD":              39,
 		"AUTOMATION_EVENT_SANDBOX_STATE":                       40,
+		"ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION":               41,
 	}
 )
 
@@ -1732,7 +1737,13 @@ func (x *BranchPoint) GetMetric() string {
 // updated (like `entity` and `project`, which are determined through a query
 // if not given).
 type RunRecord struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A unique ID for this run segment.
+	//
+	// This is essentially a unique ID for a transaction log. If a run consists
+	// of multiple resumed segments, each segment has a different ID. This is
+	// empty in older transaction logs.
+	SegmentId    string                 `protobuf:"bytes,25,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	RunId        string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	Entity       string                 `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
 	Project      string                 `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
@@ -1794,6 +1805,13 @@ func (x *RunRecord) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RunRecord.ProtoReflect.Descriptor instead.
 func (*RunRecord) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RunRecord) GetSegmentId() string {
+	if x != nil {
+		return x.SegmentId
+	}
+	return ""
 }
 
 func (x *RunRecord) GetRunId() string {
@@ -2146,11 +2164,25 @@ type RunExitRecord struct {
 	//
 	// This is used in "shared" mode by secondary nodes. Only the primary node
 	// for a run sets its completion state.
-	NotComplete   bool         `protobuf:"varint,3,opt,name=not_complete,json=notComplete,proto3" json:"not_complete,omitempty"`
-	Runtime       int32        `protobuf:"varint,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	NotComplete bool `protobuf:"varint,3,opt,name=not_complete,json=notComplete,proto3" json:"not_complete,omitempty"`
+	// The total duration of the run in seconds.
+	//
+	// This is deprecated because it cannot be computed for offline resumed runs.
+	// The relative_time_ms should be used instead.
+	//
+	// This field is set only by older SDKs, and read only by newer SDKs.
+	// It is thus kept only for compatibility and can be removed when
+	// transaction log version 0 is unsupported.
+	Runtime int32 `protobuf:"varint,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	// The duration of the run segment in milliseconds.
+	//
+	// In other words, this is relative to the start of the .wandb file (if one
+	// exists). In a resumed run, this is different from the "runtime", which is
+	// the time from the start of the run.
+	RelativeTimeMs *int64       `protobuf:"varint,4,opt,name=relative_time_ms,json=relativeTimeMs,proto3,oneof" json:"relative_time_ms,omitempty"`
+	XInfo          *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RunExitRecord) Reset() {
@@ -2200,6 +2232,13 @@ func (x *RunExitRecord) GetNotComplete() bool {
 func (x *RunExitRecord) GetRuntime() int32 {
 	if x != nil {
 		return x.Runtime
+	}
+	return 0
+}
+
+func (x *RunExitRecord) GetRelativeTimeMs() int64 {
+	if x != nil && x.RelativeTimeMs != nil {
+		return *x.RelativeTimeMs
 	}
 	return 0
 }
@@ -11388,6 +11427,9 @@ type EnvironmentRecord struct {
 	//
 	// This ID distinguishes this writer's metadata from that of other writers
 	// that may be contributing to the same run.
+	//
+	// Deprecated in favor of RunRecord.segment_id. For compatibility with past
+	// SDK versions, both fields are set to the same value.
 	WriterId      string       `protobuf:"bytes,199,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -12115,8 +12157,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\vBranchPoint\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xf9\x06\n" +
-	"\tRunRecord\x12\x15\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\x98\a\n" +
+	"\tRunRecord\x12\x1d\n" +
+	"\n" +
+	"segment_id\x18\x19 \x01(\tR\tsegmentId\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x16\n" +
 	"\x06entity\x18\x02 \x01(\tR\x06entity\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x124\n" +
@@ -12159,12 +12203,14 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rCOMMUNICATION\x10\x01\x12\x12\n" +
 	"\x0eAUTHENTICATION\x10\x02\x12\t\n" +
 	"\x05USAGE\x10\x03\x12\x0f\n" +
-	"\vUNSUPPORTED\x10\x04\"\x9c\x01\n" +
+	"\vUNSUPPORTED\x10\x04\"\xe0\x01\n" +
 	"\rRunExitRecord\x12\x1b\n" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12!\n" +
 	"\fnot_complete\x18\x03 \x01(\bR\vnotComplete\x12\x18\n" +
-	"\aruntime\x18\x02 \x01(\x05R\aruntime\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\",\n" +
+	"\aruntime\x18\x02 \x01(\x05R\aruntime\x12-\n" +
+	"\x10relative_time_ms\x18\x04 \x01(\x03H\x00R\x0erelativeTimeMs\x88\x01\x01\x121\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04InfoB\x13\n" +
+	"\x11_relative_time_ms\",\n" +
 	"\rRunExitResult\x12\x1b\n" +
 	"\ttimed_out\x18\x01 \x01(\bR\btimedOut\"H\n" +
 	"\x13RunPreemptingRecord\x121\n" +
@@ -12925,7 +12971,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xa0\v\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xcc\v\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12968,7 +13014,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x16AUTOMATION_ACTION_ARIA\x10%\x12\x13\n" +
 	"\x0fEVAL_TABLES_CES\x10&\x12+\n" +
 	"'ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD\x10'\x12\"\n" +
-	"\x1eAUTOMATION_EVENT_SANDBOX_STATE\x10(\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x1eAUTOMATION_EVENT_SANDBOX_STATE\x10(\x12*\n" +
+	"&ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION\x10)\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
@@ -13452,6 +13499,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Result_ConfigResult)(nil),
 		(*Result_Response)(nil),
 	}
+	file_wandb_proto_wandb_internal_proto_msgTypes[12].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[19].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[20].OneofWrappers = []any{
 		(*HistoryItem_None)(nil),
