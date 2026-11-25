@@ -238,6 +238,9 @@ func (fs *fileStream) prepareRequest(
 	if useGzip {
 		req.Header.Set("Content-Encoding", "gzip")
 	}
+	if fs.segmentID != "" {
+		req.Header.Set("X-Wandb-Segment-ID", fs.segmentID)
+	}
 
 	report.UncompressedBytes = len(jsonData)
 	report.CompressedBytes = len(requestBody)

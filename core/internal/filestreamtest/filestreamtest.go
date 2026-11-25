@@ -56,6 +56,7 @@ func (fs *FakeFileStream) Start(
 	entity string,
 	project string,
 	runID string,
+	segmentID string,
 	offsetMap filestream.FileStreamOffsetMap,
 ) {
 }
