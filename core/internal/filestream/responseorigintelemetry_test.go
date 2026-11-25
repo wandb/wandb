@@ -148,8 +148,10 @@ func TestLogs_RestartedStreak_LogsWarningAgain(t *testing.T) {
 	_, _ = RetryPolicy(ctx, response(http.StatusNotFound, false), nil)
 	_, _ = RetryPolicy(ctx, response(http.StatusNotFound, false), nil)
 
-	assert.Equal(t, 1, strings.Count(logs.String(), "likely from a load balancer or proxy; retrying"))
-	assert.Equal(t, 1, strings.Count(logs.String(), "resumed after a different response"))
+	assert.Equal(t, 1, strings.Count(
+		logs.String(), "likely from a load balancer or proxy; retrying"))
+	assert.Equal(t, 1, strings.Count(
+		logs.String(), "resumed after a different response"))
 }
 
 func TestTelemetry_MarkedNotFound_RecordsStoppedByServer(t *testing.T) {
