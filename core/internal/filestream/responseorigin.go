@@ -47,6 +47,38 @@ func RetryPolicy(
 	return clients.RetryMostFailures(ctx, resp, err)
 }
 
+// Backoff is the retry backoff for filestream requests.
+//
+// It is clients.ExponentialBackoffWithJitter, except that after a 404 that
+// RetryPolicy retries for lacking the response-origin header, the wait ends
+// by that rule's deadline. Without this, a long Retry-After on such a 404
+// would keep the request waiting past the deadline, and finishing a run
+// waits for it. If the next attempt gets another such 404, RetryPolicy
+// stops.
+func Backoff(
+	minimum, maximum time.Duration,
+	attemptNum int,
+	resp *http.Response,
+) time.Duration {
+	wait := clients.ExponentialBackoffWithJitter(
+		minimum,
+		maximum,
+		attemptNum,
+		resp,
+	)
+
+	if resp == nil || resp.Request == nil {
+		return wait
+	}
+
+	ctx := resp.Request.Context()
+	if state, ok := ctx.Value(unmarked404RetryKey{}).(*unmarked404Retry); ok {
+		return state.capWait(wait)
+	}
+
+	return wait
+}
+
 type unmarked404RetryKey struct{}
 
 // unmarked404Retry tracks the 404s without the response-origin header that a
@@ -106,6 +138,17 @@ func withUnmarked404Retry(
 			deferred: deferred,
 		},
 	)
+}
+
+// capWait shortens a retry wait so that it ends by the deadline of the
+// current run of unmarked 404s, if the last response was one.
+func (s *unmarked404Retry) capWait(wait time.Duration) time.Duration {
+	if s.streakStart.IsZero() {
+		return wait
+	}
+
+	remaining := s.deadline - time.Since(s.streakStart)
+	return max(0, min(wait, remaining))
 }
 
 // shouldRetry reports whether to retry a response because it is an
