@@ -99,7 +99,9 @@ func makeSenderWithFileStream(
 			"run1",
 			runupserter.RunUpserterParams{Settings: settings},
 		)
+		finishInit := runHandle.WillInit()
 		assert.NoError(t, runHandle.Init(upserter))
+		finishInit()
 	}
 
 	senderFactory := stream.SenderFactory{
@@ -118,7 +120,6 @@ func makeSenderWithFileStream(
 		Peeker:                  &observability.Peeker{},
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
-		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
 	}
 	if len(stats) > 0 {
 		senderFactory.Stats = stats[0]
