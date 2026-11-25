@@ -1522,9 +1522,6 @@ def init(  # noqa: C901
                 _monkeypatch_tensorboard()
                 init_telemetry.feature.tensorboard_sync = True
 
-            if run_settings.x_server_side_derived_summary:
-                init_telemetry.feature.server_side_derived_summary = True
-
             run = wi.init(run_settings, run_config, run_printer)
 
             # Set up automatic Weave integration if Weave is already imported

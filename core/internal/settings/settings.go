@@ -537,10 +537,6 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
-func (s *Settings) IsEnableServerSideDerivedSummary() bool {
-	return s.Proto.XServerSideDerivedSummary.GetValue()
-}
-
 // Determines whether to save internal wandb files and metadata.
 //
 // In a distributed setting, this is useful for avoiding file overwrites from secondary processes

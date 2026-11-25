@@ -95,10 +95,12 @@ func TestHandlePartialHistory_EmitHistoryReadCounts(t *testing.T) {
 			in := make(chan runwork.Work, stream.BufferSize)
 			handler := makeHandlerWithSettings(t, in, "", &spb.Settings{
 				XHistoryValueEncoding: wrapperspb.String("json,typed"),
-				// skip summary records so we only get a history record
-				XServerSideDerivedSummary: wrapperspb.Bool(true),
 			}, stats)
 			in <- runwork.NoRequest(runwork.WorkRecord{Record: partialHistoryRecord(testCase.items...)})
+
+			<-handler.OutChan() // runtime summary record
+			<-handler.OutChan() // summary record
+
 			got := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 			require.NotNil(t, got.GetHistory())
 			require.NoError(t, proxy.Shutdown(context.Background()))
