@@ -155,11 +155,10 @@ func (rh *RunHistory) IsEmpty() bool {
 	return rh.metrics.IsEmpty()
 }
 
-// ForEachTopLevel visits each top-level key in lexical order until fn
-// returns false. A leaf is passed as-is and a subtree as a copied
-// map[string]any. Leaf values, arrays included, are shared and must not
-// be mutated.
-func (rh *RunHistory) ForEachTopLevel(fn func(key string, value any) bool) {
+// ForEachTopLevel visits each top-level key in lexical order. A leaf is
+// passed as-is and a subtree as a copied map[string]any. Leaf values,
+// arrays included, are shared and must not be mutated.
+func (rh *RunHistory) ForEachTopLevel(fn func(key string, value any)) {
 	rh.metrics.ForEachTopLevel(fn)
 }
 
