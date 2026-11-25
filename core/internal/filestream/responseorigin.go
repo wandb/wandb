@@ -63,6 +63,9 @@ type unmarked404Retry struct {
 	deadline time.Duration
 	logger   *observability.CoreLogger
 
+	// deferred holds telemetry to record when the filestream finishes.
+	deferred *deferredTelemetry
+
 	// streakStart is when the current unbroken run of unmarked 404s began.
 	//
 	// It is zero if the last response was not an unmarked 404.
@@ -86,15 +89,22 @@ type unmarked404Retry struct {
 //
 // The deadline is measured from the first such 404 in an unbroken run of
 // them. Any other response, like a success or a 503, ends the run.
+//
+// Telemetry that must wait for the filestream to finish goes to deferred.
 func withUnmarked404Retry(
 	ctx context.Context,
 	deadline time.Duration,
 	logger *observability.CoreLogger,
+	deferred *deferredTelemetry,
 ) context.Context {
 	return context.WithValue(
 		ctx,
 		unmarked404RetryKey{},
-		&unmarked404Retry{deadline: deadline, logger: logger},
+		&unmarked404Retry{
+			deadline: deadline,
+			logger:   logger,
+			deferred: deferred,
+		},
 	)
 }
 
@@ -124,12 +134,8 @@ func (s *unmarked404Retry) shouldRetry(
 
 	s.streakLength++
 	s.retriedCount++
-	if s.firstRetryAt.IsZero() {
-		s.firstRetryAt = time.Now()
-		s.recordRetryStarted()
-	}
 	if s.streakStart.IsZero() {
-		s.streakStart = time.Now()
+		s.startStreak()
 		return true
 	}
 
@@ -139,6 +145,18 @@ func (s *unmarked404Retry) shouldRetry(
 	}
 
 	return true
+}
+
+// startStreak starts a run of unmarked 404s, which starts the deadline.
+func (s *unmarked404Retry) startStreak() {
+	s.streakStart = time.Now()
+
+	if s.firstRetryAt.IsZero() {
+		s.firstRetryAt = s.streakStart
+		s.logRetryStarted()
+	} else {
+		s.logStreakRestarted()
+	}
 }
 
 // endStreak ends the current run of unmarked 404s, if any, because the

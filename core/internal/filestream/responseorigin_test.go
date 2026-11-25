@@ -50,6 +50,7 @@ func withRule(t *testing.T, deadline time.Duration) context.Context {
 		t.Context(),
 		deadline,
 		observabilitytest.NewTestLogger(t),
+		&deferredTelemetry{},
 	)
 }
 
