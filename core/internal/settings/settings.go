@@ -213,6 +213,11 @@ func (s *Settings) GetAppURL() string {
 	return s.Proto.AppUrl.GetValue()
 }
 
+// The URL for the CoreWeave Evaluation Service (CES).
+func (s *Settings) GetCESBaseURL() string {
+	return s.Proto.XCesBaseUrl.GetValue()
+}
+
 // The URL for the W&B backend.
 //
 // Used for GraphQL and "filestream" operations.
