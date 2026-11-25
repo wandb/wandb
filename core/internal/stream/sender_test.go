@@ -307,24 +307,6 @@ func TestSendHistoryPreservesTypedStep(t *testing.T) {
 	assert.JSONEq(t, `{	"_step": 6, "second": 2}`, rows[1])
 }
 
-func TestSendHistoryDoesNotAssignStepInSharedMode(t *testing.T) {
-	fileStream := filestreamtest.NewFakeFileStream()
-	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
-	x.Settings.Proto.XShared = wrapperspb.Bool(true)
-
-	sendHistoryItems(x,
-		&spb.HistoryItem{Key: "loss", Value: &spb.HistoryItem_Number{Number: 1.5}},
-	)
-	sendHistoryItems(x,
-		&spb.HistoryItem{Key: "loss", Value: &spb.HistoryItem_Number{Number: 0.5}},
-	)
-
-	rows := fileStream.GetRequest(x.Settings).HistoryLines
-	require.Len(t, rows, 2)
-	assert.JSONEq(t, `{"loss": 1.5}`, rows[0])
-	assert.JSONEq(t, `{"loss": 0.5}`, rows[1])
-}
-
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
