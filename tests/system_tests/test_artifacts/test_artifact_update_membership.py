@@ -4,9 +4,9 @@
 `Artifact._assign_attrs` resolve version/aliases from the single membership
 instead of falling back to the artifact-wide `aliases` field (which fans out
 across every collection the artifact belongs to). These tests cover both
-sides of that branch: the ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD feature
-being enabled and disabled, using the real create/commit flow against the
-local test backend and stubbing only ServerFeaturesQuery and UpdateArtifact.
+sides of that branch, including the fallback when only alias pagination is
+enabled, using the real create/commit flow against the local test backend
+and stubbing only ServerFeaturesQuery and UpdateArtifact.
 """
 
 from __future__ import annotations
@@ -108,10 +108,14 @@ def _membership_fragment_dict(
     }
 
 
-@mark.parametrize("membership_on_payload", [True, False])
+@mark.parametrize(
+    ("membership_on_payload", "pagination_enabled"),
+    [(True, False), (False, False), (False, True)],
+)
 def test_update_artifact_resolves_from_membership_payload(
     user,
     membership_on_payload: bool,
+    pagination_enabled: bool,
     wandb_backend_spy: WandbBackendSpy,
 ):
     gql = wandb_backend_spy.gql
@@ -132,6 +136,10 @@ def test_update_artifact_resolves_from_membership_payload(
                             {
                                 "name": "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD",
                                 "isEnabled": membership_on_payload,
+                            },
+                            {
+                                "name": "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
+                                "isEnabled": pagination_enabled,
                             },
                         ],
                     },
@@ -201,10 +209,12 @@ def test_update_artifact_resolves_from_membership_payload(
     sent_query = update_response.requests[0].query
     if membership_on_payload:
         assert "artifactMembership" in sent_query
+        assert "$includeAliases" in sent_query
         assert artifact.version == "v5"
         assert "from-membership" in artifact.aliases
         assert "from-artifact" not in artifact.aliases
     else:
         assert "artifactMembership" not in sent_query
+        assert "$includeAliases" in sent_query
         assert artifact.version == "v1"
         assert "from-artifact" in artifact.aliases

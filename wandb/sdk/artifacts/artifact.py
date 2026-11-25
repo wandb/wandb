@@ -74,6 +74,7 @@ from ._gqlutils import (
     omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
+    update_artifact_gql_options,
 )
 from ._validators import (
     ensure_logged,
@@ -114,7 +115,11 @@ if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
     from wandb.apis.public.service_api import ServiceApi
 
-    from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from ._generated import (
+        ArtifactFragment,
+        ArtifactMembershipFragment,
+        UpdateArtifactResult,
+    )
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
 
@@ -1446,6 +1451,10 @@ class Artifact:
             self._delete_aliases(old_aliases - new_aliases, target=target)
             self._saved_aliases = copy(self.aliases)
 
+        aliases_after_save = self._aliases
+        saved_aliases_after_save = self._saved_aliases
+        version_before_update = self._version
+
         skip_update_artifact = self.is_link and self._is_source_project_read_only()
         if not skip_update_artifact:
             old_tags, new_tags = set(self._saved_tags), set(self.tags)
@@ -1467,26 +1476,78 @@ class Artifact:
             # membership instead of fanning out across every collection this
             # artifact belongs to (see Artifact.aliases vs
             # ArtifactCollectionMembership.aliases).
-            omit_fields = omit_artifact_fields(client)
-            if not client.feature_enabled(pb.ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD):
-                omit_fields.add("artifactMembership")
+            omit_fields, omit_variables = update_artifact_gql_options(
+                client, is_link=self.is_link
+            )
 
             data = client.execute_graphql(
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
                 omit_fields=omit_fields,
+                omit_variables=omit_variables or None,
             )
 
-            if not ((result := data.result) and (artifact := result.artifact)):
+            if not ((result := data.result) and result.artifact):
                 raise ValueError("Unable to parse updateArtifact response")
-            self._assign_attrs(artifact, membership=result.artifact_membership)
 
+            self._assign_update_result(
+                result,
+                aliases_omitted="aliases" in omit_fields,
+                aliases_after_save=aliases_after_save,
+                saved_aliases_after_save=saved_aliases_after_save,
+                version_before_update=version_before_update,
+            )
             self._ttl_changed = False  # Reset after updating artifact
         else:
             wandb.termwarn(
                 "Skipping non-alias updates due to insufficient permissions on the source artifact."
             )
+
+    def _assign_update_result(
+        self,
+        result: UpdateArtifactResult,
+        *,
+        aliases_omitted: bool,
+        aliases_after_save: list[str] | None,
+        saved_aliases_after_save: list[str] | None,
+        version_before_update: str | None,
+    ) -> None:
+        if self.is_link:
+            # UpdateArtifact returns the source artifact, even when this
+            # object represents a portfolio link. Refresh the source-level
+            # fields without replacing the link's version or alias state.
+            link_state = (
+                self._name,
+                self._version,
+                self._aliases,
+                self._saved_aliases,
+                self._linked_at,
+            )
+            self._assign_attrs(result.artifact)
+            (
+                self._name,
+                self._version,
+                self._aliases,
+                self._saved_aliases,
+                self._linked_at,
+            ) = link_state
+            return
+
+        self._assign_attrs(result.artifact, membership=result.artifact_membership)
+        if not aliases_omitted:
+            return
+
+        # The request omitted every `aliases` field, so whatever
+        # `_assign_attrs` resolved (possibly an empty list, if no membership
+        # came back) isn't the real alias set. Keep the known post-mutation
+        # set if the version is unchanged; otherwise fetch the aliases on the
+        # next read.
+        if self._version == version_before_update:
+            self._aliases = aliases_after_save
+            self._saved_aliases = saved_aliases_after_save
+        else:
+            self._aliases = self._saved_aliases = None
 
     def _is_source_project_read_only(self) -> bool:
         from ._gqlutils import is_project_read_only
