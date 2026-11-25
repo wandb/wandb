@@ -3,9 +3,11 @@ package featurechecker
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -78,6 +80,13 @@ func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
 		return
 	}
 
+	// Record whether the server marked this response with its origin header.
+	// See lockedVerifyResponseOriginHeader.
+	featuresResponseMarked := false
+	ctx = api.WithResponseObserver(ctx, func(resp *http.Response) {
+		featuresResponseMarked = api.HasServerHeader(resp)
+	})
+
 	resp, err := gql.ServerFeaturesQuery(ctx, fp.graphqlClient)
 	if err != nil {
 		fp.logger.Error(
@@ -104,6 +113,32 @@ func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
 			fp.boolFeatures[feature] = f.IsEnabled
 		}
 	}
+
+	fp.lockedVerifyResponseOriginHeader(featuresResponseMarked)
+}
+
+// lockedVerifyResponseOriginHeader turns off RESPONSE_ORIGIN_HEADER if the
+// server says it marks every response, but the features response itself
+// arrived without the mark.
+//
+// That happens when something between the client and the server, like a
+// proxy, strips the header. Trusting the feature then would make every
+// server response look like it came from in front of the server, so that
+// a 404 for a deleted run would be retried as if the server were unreachable.
+func (fp *FeatureProvider) lockedVerifyResponseOriginHeader(
+	featuresResponseMarked bool,
+) {
+	feature := spb.ServerFeature_RESPONSE_ORIGIN_HEADER
+	if !fp.boolFeatures[feature] || featuresResponseMarked {
+		return
+	}
+
+	fp.logger.Warn(
+		"featurechecker: server lists RESPONSE_ORIGIN_HEADER but its"+
+			" response lacked the header; treating the feature as off",
+		"header", api.ServerHeader,
+	)
+	fp.boolFeatures[feature] = false
 }
 
 // Enabled returns whether a named feature is enabled.

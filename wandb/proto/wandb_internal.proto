@@ -1773,4 +1773,11 @@ enum ServerFeature {
   // Indicates that the server supports paginating
   // ArtifactCollectionMembership's aliases via `aliasesConnection`.
   ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION = 41;
+
+  // Indicates that the server marks every API response with the
+  // `X-Wandb-Server: gorilla` header.
+  //
+  // A filestream 404 without that header then likely came from something in
+  // front of the server, like a load balancer, rather than from the server.
+  RESPONSE_ORIGIN_HEADER = 42;
 }

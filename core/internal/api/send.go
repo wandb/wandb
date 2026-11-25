@@ -31,5 +31,6 @@ func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error)
 	}
 
 	client.logFinalResponseOnError(req, resp)
+	observeResponse(req.Context(), resp)
 	return resp, nil
 }

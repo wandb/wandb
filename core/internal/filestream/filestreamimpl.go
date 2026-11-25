@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -163,8 +164,17 @@ func (fs *fileStream) send(
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
 
+	reqCtx := op.Context(fs.beforeRunEndCtx)
+	if fs.shouldRetryUnmarked404s() {
+		reqCtx = withUnmarked404Retry(
+			reqCtx,
+			fs.unmarked404RetryDeadline,
+			fs.logger,
+		)
+	}
+
 	req, err := retryablehttp.NewRequestWithContext(
-		op.Context(fs.beforeRunEndCtx),
+		reqCtx,
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),
 		bytes.NewReader(requestBody),
@@ -223,6 +233,8 @@ func (fs *fileStream) send(
 			// have the data in the request.
 			fs.logger.Info("filestream: request sent", "status", resp.Status)
 		}
+
+		fs.recordSuccessOrigin(resp)
 	}
 
 	defer func(Body io.ReadCloser) {
@@ -245,6 +257,41 @@ func (fs *fileStream) send(
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
+}
+
+// shouldRetryUnmarked404s reports whether the next request should retry 404s
+// that lack the server's response-origin header.
+//
+// That requires all of:
+//
+//   - a positive deadline
+//   - a successful request in this run that carried the header, which shows
+//     the header reaches this client
+//   - the RESPONSE_ORIGIN_HEADER server feature, which old servers don't list
+//     and which the server can turn off
+//
+// Otherwise, a 404 stops uploads as before.
+func (fs *fileStream) shouldRetryUnmarked404s() bool {
+	return fs.unmarked404RetryDeadline > 0 &&
+		fs.sawMarkedSuccess.Load() &&
+		fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx,
+			spb.ServerFeature_RESPONSE_ORIGIN_HEADER,
+		)
+}
+
+// recordSuccessOrigin records whether a successful response carried the
+// server's response-origin header.
+func (fs *fileStream) recordSuccessOrigin(resp *http.Response) {
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return
+	}
+
+	if api.HasServerHeader(resp) && !fs.sawMarkedSuccess.Swap(true) {
+		fs.logger.Info(
+			"filestream: server marks its responses with the" +
+				" response-origin header")
+	}
 }
 
 // jsonMarshalTimed calls json.Marshal() and tracks how long it takes.

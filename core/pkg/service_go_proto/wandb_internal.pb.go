@@ -118,6 +118,12 @@ const (
 	// Indicates that the server supports paginating
 	// ArtifactCollectionMembership's aliases via `aliasesConnection`.
 	ServerFeature_ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION ServerFeature = 41
+	// Indicates that the server marks every API response with the
+	// `X-Wandb-Server: gorilla` header.
+	//
+	// A filestream 404 without that header then likely came from something in
+	// front of the server, like a load balancer, rather than from the server.
+	ServerFeature_RESPONSE_ORIGIN_HEADER ServerFeature = 42
 )
 
 // Enum value maps for ServerFeature.
@@ -164,6 +170,7 @@ var (
 		39: "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD",
 		40: "AUTOMATION_EVENT_SANDBOX_STATE",
 		41: "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION",
+		42: "RESPONSE_ORIGIN_HEADER",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -207,6 +214,7 @@ var (
 		"ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD":              39,
 		"AUTOMATION_EVENT_SANDBOX_STATE":                       40,
 		"ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION":               41,
+		"RESPONSE_ORIGIN_HEADER":                               42,
 	}
 )
 
@@ -12971,7 +12979,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xcc\v\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xe8\v\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -13015,7 +13023,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fEVAL_TABLES_CES\x10&\x12+\n" +
 	"'ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD\x10'\x12\"\n" +
 	"\x1eAUTOMATION_EVENT_SANDBOX_STATE\x10(\x12*\n" +
-	"&ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION\x10)\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"&ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION\x10)\x12\x1a\n" +
+	"\x16RESPONSE_ORIGIN_HEADER\x10*\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
