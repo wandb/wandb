@@ -52,6 +52,12 @@ type unmarked404RetryKey struct{}
 // unmarked404Retry tracks the 404s without the response-origin header that a
 // single filestream request has received.
 //
+// It tracks two things separately. The streak is the current unbroken run of
+// unmarked 404s, which the deadline measures; any other response ends it. The
+// request totals cover every unmarked 404 the request retried, so the
+// request's outcome is reported even if another failure, like a 503, came
+// between those 404s and the end of the request.
+//
 // It is used by one request in one goroutine, so it is not lock-protected.
 type unmarked404Retry struct {
 	deadline time.Duration
@@ -64,6 +70,15 @@ type unmarked404Retry struct {
 
 	// streakLength is the number of unmarked 404s in the current run.
 	streakLength int
+
+	// firstRetryAt is when the request first retried an unmarked 404.
+	//
+	// It is zero if the request has not retried one. Other responses
+	// don't reset it.
+	firstRetryAt time.Time
+
+	// retriedCount is the number of unmarked 404s the request has received.
+	retriedCount int
 }
 
 // withUnmarked404Retry returns a context in which RetryPolicy retries
@@ -98,7 +113,8 @@ func (s *unmarked404Retry) shouldRetry(
 		!api.HasServerHeader(resp)
 
 	if !isUnmarked404 {
-		s.endStreak(resp)
+		s.endStreak()
+		s.recordOutcome(resp)
 		return false
 	}
 
@@ -107,9 +123,13 @@ func (s *unmarked404Retry) shouldRetry(
 	}
 
 	s.streakLength++
+	s.retriedCount++
+	if s.firstRetryAt.IsZero() {
+		s.firstRetryAt = time.Now()
+		s.recordRetryStarted()
+	}
 	if s.streakStart.IsZero() {
 		s.streakStart = time.Now()
-		s.recordRetryStarted()
 		return true
 	}
 
@@ -122,22 +142,27 @@ func (s *unmarked404Retry) shouldRetry(
 }
 
 // endStreak ends the current run of unmarked 404s, if any, because the
-// request got a different response.
+// request got a different response. This restarts the deadline.
+func (s *unmarked404Retry) endStreak() {
+	s.streakStart = time.Time{}
+	s.streakLength = 0
+}
+
+// recordOutcome reports how a request that retried unmarked 404s ended,
+// if resp ends it.
 //
-// A nil response means a transport error, which the default policy retries.
-func (s *unmarked404Retry) endStreak(resp *http.Response) {
-	if s.streakStart.IsZero() {
+// A success or a 404 from the server ends the request. A nil response is a
+// transport error, and other statuses are left to the default policy, which
+// retries or stops without an outcome here.
+func (s *unmarked404Retry) recordOutcome(resp *http.Response) {
+	if s.firstRetryAt.IsZero() || resp == nil {
 		return
 	}
 
 	switch {
-	case resp == nil:
 	case resp.StatusCode >= 200 && resp.StatusCode <= 299:
 		s.recordRecovered()
 	case resp.StatusCode == http.StatusNotFound:
 		s.recordStoppedByServer()
 	}
-
-	s.streakStart = time.Time{}
-	s.streakLength = 0
 }

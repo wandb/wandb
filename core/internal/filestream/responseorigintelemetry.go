@@ -16,24 +16,26 @@ import (
 // Each event is a counter and a log record. The log record carries the
 // details: how long the 404s lasted and how many there were.
 const (
-	// eventUnmarked404RetryStarted counts runs of header-less 404s that a
-	// request started retrying.
+	// eventUnmarked404RetryStarted counts requests that started retrying
+	// header-less 404s.
+	//
+	// Each such request later records at most one of the other events.
 	eventUnmarked404RetryStarted = "filestream_unmarked_404_retry_started"
 
-	// eventUnmarked404Recovered counts runs of header-less 404s that ended
-	// with a successful upload.
+	// eventUnmarked404Recovered counts requests that retried header-less 404s
+	// and then succeeded, even if other retried failures came in between.
 	eventUnmarked404Recovered = "filestream_unmarked_404_recovered"
 
-	// eventUnmarked404DeadlineExceeded counts runs of header-less 404s that
-	// outlasted the deadline, which stops uploads.
+	// eventUnmarked404DeadlineExceeded counts requests whose unbroken run of
+	// header-less 404s outlasted the deadline, which stops uploads.
 	eventUnmarked404DeadlineExceeded = "filestream_unmarked_404_deadline_exceeded"
 
-	// eventUnmarked404StoppedByServer counts runs of header-less 404s that
-	// ended with a 404 from the server itself, which stops uploads.
+	// eventUnmarked404StoppedByServer counts requests that retried header-less
+	// 404s and then got a 404 from the server itself, which stops uploads.
 	eventUnmarked404StoppedByServer = "filestream_unmarked_404_stopped_by_server"
 )
 
-// recordRetryStarted reports the first header-less 404 in a run of them.
+// recordRetryStarted reports the first header-less 404 a request retries.
 func (s *unmarked404Retry) recordRetryStarted() {
 	s.logger.Warn(
 		"filestream: got a 404 without the server's response-origin"+
@@ -47,15 +49,15 @@ func (s *unmarked404Retry) recordRetryStarted() {
 
 // recordRecovered reports a successful upload after header-less 404s.
 func (s *unmarked404Retry) recordRecovered() {
-	elapsed := time.Since(s.streakStart)
+	elapsed := time.Since(s.firstRetryAt)
 	s.logger.Info(
 		"filestream: upload succeeded after 404s without the server's"+
 			" response-origin header",
 		"after", elapsed,
-		"unmarked_404s", s.streakLength)
+		"unmarked_404s", s.retriedCount)
 	s.logger.RecordTelemetry(
 		eventUnmarked404Recovered,
-		s.streakAttributes(elapsed),
+		s.attributes(elapsed, s.retriedCount),
 	)
 }
 
@@ -70,31 +72,35 @@ func (s *unmarked404Retry) recordDeadlineExceeded() {
 		"unmarked_404s", s.streakLength)
 	s.logger.RecordTelemetry(
 		eventUnmarked404DeadlineExceeded,
-		s.streakAttributes(elapsed),
+		s.attributes(elapsed, s.streakLength),
 	)
 }
 
 // recordStoppedByServer reports a server 404 after header-less 404s.
 func (s *unmarked404Retry) recordStoppedByServer() {
-	elapsed := time.Since(s.streakStart)
+	elapsed := time.Since(s.firstRetryAt)
 	s.logger.Warn(
 		"filestream: got a 404 from the server after 404s from"+
 			" something in front of it; stopping",
 		"after", elapsed,
-		"unmarked_404s", s.streakLength)
+		"unmarked_404s", s.retriedCount)
 	s.logger.RecordTelemetry(
 		eventUnmarked404StoppedByServer,
-		s.streakAttributes(elapsed),
+		s.attributes(elapsed, s.retriedCount),
 	)
 }
 
-// streakAttributes describes the current run of header-less 404s.
-func (s *unmarked404Retry) streakAttributes(
+// attributes describes header-less 404s for an outcome event.
+//
+// Recovery and server stops count from the request's first such 404; the
+// deadline counts only the unbroken run that exceeded it.
+func (s *unmarked404Retry) attributes(
 	elapsed time.Duration,
+	count int,
 ) map[string]string {
 	return map[string]string{
 		"duration_seconds": wholeSeconds(elapsed),
-		"unmarked_404s":    strconv.Itoa(s.streakLength),
+		"unmarked_404s":    strconv.Itoa(count),
 		"deadline_seconds": wholeSeconds(s.deadline),
 	}
 }

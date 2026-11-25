@@ -123,10 +123,10 @@ func TestTelemetry_MarkedNotFound_RecordsStoppedByServer(t *testing.T) {
 	assert.Equal(t, "1", logs[eventUnmarked404StoppedByServer].Attributes["unmarked_404s"])
 }
 
-// A 503 or connection error in between ends the run of 404s without an
-// outcome: the default policy keeps retrying, and the next header-less 404
-// starts a new run.
-func TestTelemetry_OtherFailureInBetween_StartsNewRun(t *testing.T) {
+// A 503 or connection error in between restarts the deadline, but the
+// request is still one request: one start and one outcome, counting all of
+// its header-less 404s.
+func TestTelemetry_OtherFailuresInBetween_OneStartOneOutcome(t *testing.T) {
 	ctx, proxy := policyWithTelemetry(t, time.Hour)
 
 	_, _ = RetryPolicy(ctx, response(http.StatusNotFound, false), nil)
@@ -138,10 +138,10 @@ func TestTelemetry_OtherFailureInBetween_StartsNewRun(t *testing.T) {
 
 	counts, logs := recordedEvents(t, proxy)
 	assert.Equal(t, map[string]int64{
-		eventUnmarked404RetryStarted: 3,
+		eventUnmarked404RetryStarted: 1,
 		eventUnmarked404Recovered:    1,
 	}, counts)
-	assert.Equal(t, "1", logs[eventUnmarked404Recovered].Attributes["unmarked_404s"])
+	assert.Equal(t, "3", logs[eventUnmarked404Recovered].Attributes["unmarked_404s"])
 }
 
 // Without the rule, nothing is recorded, even for header-less 404s.
@@ -175,4 +175,62 @@ func TestTelemetry_EndToEnd_RecordsRecovery(t *testing.T) {
 		eventUnmarked404Recovered:    1,
 	}, counts)
 	assert.Equal(t, "3", logs[eventUnmarked404Recovered].Attributes["unmarked_404s"])
+}
+
+// A 503 between the header-less 404s and the success restarts the deadline,
+// but the request still needed the 404 retries, so its recovery counts.
+func TestTelemetry_ServerErrorBeforeSuccess_StillRecordsRecovery(t *testing.T) {
+	ctx, proxy := policyWithTelemetry(t, time.Hour)
+
+	_, _ = RetryPolicy(ctx, response(http.StatusNotFound, false), nil)
+	_, _ = RetryPolicy(ctx, response(http.StatusServiceUnavailable, true), nil)
+	_, _ = RetryPolicy(ctx, response(http.StatusOK, true), nil)
+
+	counts, logs := recordedEvents(t, proxy)
+	assert.Equal(t, map[string]int64{
+		eventUnmarked404RetryStarted: 1,
+		eventUnmarked404Recovered:    1,
+	}, counts)
+	assert.Equal(t, "1", logs[eventUnmarked404Recovered].Attributes["unmarked_404s"])
+}
+
+// Same for a server 404 that ends the request after a 503.
+func TestTelemetry_ServerErrorBeforeMarkedNotFound_StillRecordsStop(t *testing.T) {
+	ctx, proxy := policyWithTelemetry(t, time.Hour)
+
+	_, _ = RetryPolicy(ctx, response(http.StatusNotFound, false), nil)
+	_, _ = RetryPolicy(ctx, nil, io.ErrUnexpectedEOF)
+	_, _ = RetryPolicy(ctx, response(http.StatusNotFound, true), nil)
+
+	counts, _ := recordedEvents(t, proxy)
+	assert.Equal(t, map[string]int64{
+		eventUnmarked404RetryStarted:    1,
+		eventUnmarked404StoppedByServer: 1,
+	}, counts)
+}
+
+// End to end: header-less 404s, a 503, then success records one recovery,
+// and every row arrives.
+func TestTelemetry_EndToEnd_ServerErrorBeforeSuccess(t *testing.T) {
+	s := newOriginTestServer(t, markedOK)
+	logger, proxy := newTelemetryLogger(t)
+	opts := defaultOriginOptions()
+	opts.logger = logger
+	fs, _ := startWithMarkedSuccess(t, t.Context(), s, opts)
+
+	s.then(
+		unmarkedNotFound,
+		unmarkedNotFound,
+		scriptedResponse{http.StatusServiceUnavailable, true},
+	)
+	logStep(fs, 1)
+	fs.FinishWithoutExit()
+
+	counts, logs := recordedEvents(t, proxy)
+	assert.ElementsMatch(t, []int64{0, 1}, s.acceptedSteps())
+	assert.Equal(t, map[string]int64{
+		eventUnmarked404RetryStarted: 1,
+		eventUnmarked404Recovered:    1,
+	}, counts)
+	assert.Equal(t, "2", logs[eventUnmarked404Recovered].Attributes["unmarked_404s"])
 }
