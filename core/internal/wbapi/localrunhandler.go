@@ -132,6 +132,8 @@ func (h *LocalRunHandler) HandleReadLocalRunHistory(
 			Last:    int(request.GetLast()),
 			Offset:  request.GetOffset(),
 			Limit:   int(request.GetLimit()),
+
+			SystemMetrics: request.GetSystemMetrics(),
 		})
 		if err != nil {
 			return apiErrorResponse(err.Error(), 0)

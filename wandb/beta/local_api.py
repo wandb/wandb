@@ -17,6 +17,7 @@ run = api.run("abc123")
 for row in run.history(keys=["loss"], last=10):
     print(row["_step"], row["loss"])
 df = run.history().to_pandas()
+gpu = run.system_metrics(keys=["system.gpu.0.gpu"]).to_polars()
 for line in run.console_logs(last=20):
     print(line.timestamp, line.content)
 ```
@@ -311,6 +312,26 @@ class LocalRun:
             request.last = last
         return LocalHistory(self._service_api, request)
 
+    def system_metrics(
+        self, keys: list[str] | None = None, *, last: int | None = None
+    ) -> LocalHistory:
+        """Returns the run's system metrics rows, oldest first.
+
+        Every row is a dict with `_timestamp`, in seconds since the epoch, and
+        the metrics sampled then, named as in the W&B UI: `system.cpu`,
+        `system.gpu.0.gpu` and so on.
+
+        Args:
+            keys: Return only these metrics; rows with none of them are skipped.
+            last: Return only the last N matching rows.
+        """
+        request = apb.ReadLocalRunHistoryRequest(
+            wandb_file=self._wandb_file, keys=list(keys or []), system_metrics=True
+        )
+        if last is not None:
+            request.last = last
+        return LocalHistory(self._service_api, request)
+
     @normalize_exceptions
     def console_logs(self, last: int | None = None) -> list[ConsoleLogLine]:
         """Returns the run's console output, oldest first.
@@ -337,7 +358,7 @@ class LocalRun:
 
 
 class LocalHistory:
-    """Rows of a run's history, read from the run's log as they are iterated.
+    """Rows of a run's history or system metrics, read as they are iterated.
 
     Each pass over the rows reads the log again, so iterating a second time
     over a still-running run includes the rows written since.

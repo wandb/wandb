@@ -36,12 +36,17 @@ type HistoryQuery struct {
 
 	// Limit, when positive, is the most rows in a page.
 	Limit int
+
+	// SystemMetrics selects the run's system metrics, keyed by _timestamp,
+	// instead of its history. MinStep and MaxStep then do not apply.
+	SystemMetrics bool
 }
 
 // HistoryPage is one page of matching rows.
 type HistoryPage struct {
 	// Rows holds one JSON object per row, each ending in a newline. Nested
-	// keys are joined with dots; values are as logged.
+	// keys are joined with dots and system metrics are prefixed with
+	// "system.", as the W&B UI names them; values are as logged.
 	Rows []byte
 
 	// NextOffset is the Offset for the next page, or 0 when the scan is
@@ -70,11 +75,14 @@ func (r *Run) History(ctx context.Context, query HistoryQuery) (HistoryPage, err
 	}
 
 	if query.Last > 0 {
+		if query.SystemMetrics {
+			return scan.last(r.statsIndex)
+		}
 		return scan.last(r.index)
 	}
 
 	start := query.Offset
-	if start == 0 && query.MinStep != nil {
+	if start == 0 && query.MinStep != nil && !query.SystemMetrics {
 		start = r.offsetForStep(*query.MinStep)
 	}
 	if start > 0 {
@@ -123,19 +131,28 @@ func (s *historyScan) read(dst []byte, limit int, end int64) ([]byte, int, int64
 		if err != nil {
 			return dst, count, 0, err
 		}
-		history := record.GetHistory()
-		if history == nil {
-			continue
-		}
-		step := historyStep(history)
-		if s.query.MinStep != nil && step < *s.query.MinStep {
-			continue
-		}
-		if s.query.MaxStep != nil && step > *s.query.MaxStep {
-			return dst, count, 0, nil
-		}
 		var ok bool
-		if dst, ok = appendRow(dst, history, s.keys); ok {
+		if s.query.SystemMetrics {
+			stats := record.GetStats()
+			if stats == nil {
+				continue
+			}
+			dst, ok = appendStatsRow(dst, stats, s.keys)
+		} else {
+			history := record.GetHistory()
+			if history == nil {
+				continue
+			}
+			step := historyStep(history)
+			if s.query.MinStep != nil && step < *s.query.MinStep {
+				continue
+			}
+			if s.query.MaxStep != nil && step > *s.query.MaxStep {
+				return dst, count, 0, nil
+			}
+			dst, ok = appendRow(dst, history, s.keys)
+		}
+		if ok {
 			count++
 		}
 	}
@@ -203,21 +220,55 @@ func appendRow(dst []byte, history *spb.HistoryRecord, keys map[string]struct{})
 				continue
 			}
 		}
-		if len(dst) > start+1 {
-			dst = append(dst, ',')
-		}
-		dst = appendJSONString(dst, key)
-		dst = append(dst, ':')
-		if value := item.GetValueJson(); value != "" {
-			dst = append(dst, value...)
-		} else {
-			dst = append(dst, "null"...)
-		}
+		dst = appendField(dst, start, key, item.GetValueJson())
 	}
 	if !matched {
 		return dst[:start], false
 	}
 	return append(dst, '}', '\n'), true
+}
+
+// appendStatsRow appends the record's metrics as a JSON object line with
+// _timestamp in seconds and each metric under "system.". When keys is
+// non-nil, only those metrics are included, and the row is skipped (dst is
+// returned unchanged with false) if none of them is present.
+func appendStatsRow(dst []byte, stats *spb.StatsRecord, keys map[string]struct{}) ([]byte, bool) {
+	start := len(dst)
+	dst = append(dst, '{')
+	if ts := stats.GetTimestamp(); ts != nil {
+		dst = append(dst, `"_timestamp":`...)
+		dst = strconv.AppendFloat(dst,
+			float64(ts.GetSeconds())+float64(ts.GetNanos())/1e9, 'f', -1, 64)
+	}
+	matched := keys == nil
+	for _, item := range stats.GetItem() {
+		key := "system." + item.GetKey()
+		if keys != nil {
+			if _, wanted := keys[key]; !wanted {
+				continue
+			}
+			matched = true
+		}
+		dst = appendField(dst, start, key, item.GetValueJson())
+	}
+	if !matched {
+		return dst[:start], false
+	}
+	return append(dst, '}', '\n'), true
+}
+
+// appendField appends a field to the JSON object that begins at start,
+// writing null for an empty value.
+func appendField(dst []byte, start int, key, value string) []byte {
+	if len(dst) > start+1 {
+		dst = append(dst, ',')
+	}
+	dst = appendJSONString(dst, key)
+	dst = append(dst, ':')
+	if value == "" {
+		return append(dst, "null"...)
+	}
+	return append(dst, value...)
 }
 
 const hexDigits = "0123456789abcdef"
