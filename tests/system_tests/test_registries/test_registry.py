@@ -15,7 +15,6 @@ from wandb.apis.public.registries.registry import Registry
 from wandb.errors import UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
-from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from tests.fixtures.wandb_backend_spy import WandbBackendSpy
@@ -381,7 +380,7 @@ def test_rejected_rename_saves_nothing(default_organization, api: Api):
     registry_a.name = "test-b"
     registry_a.description = "changed"
 
-    with raises(WandbApiFailedError):
+    with raises(ValueError, match="Failed to save registry"):
         registry_a.save()
 
     # A rejected rename must not save the other staged changes.
@@ -397,6 +396,37 @@ def test_rejected_rename_saves_nothing(default_organization, api: Api):
 
     fetched_c = api.registry("test-c", default_organization)
     assert fetched_c.description == "changed"
+
+
+def test_failed_upsert_after_rename(
+    wandb_backend_spy: WandbBackendSpy,
+    default_organization: str,
+    make_registry: Callable[..., Registry],
+    api: Api,
+):
+    registry = make_registry(
+        organization=default_organization,
+        name="test-a",
+        visibility="organization",
+        description="original",
+    )
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertRegistry"),
+        gql.once(content={}, status=400),
+    )
+
+    registry.name = "test-b"
+    registry.description = "changed"
+
+    with raises(ValueError, match="Failed to save registry"):
+        registry.save()
+
+    # Rename succeeded on the server while staged edits remain for a retry.
+    assert api.registry("test-b", default_organization).description == "original"
+
+    registry.save()
+    assert api.registry("test-b", default_organization).description == "changed"
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
