@@ -17,7 +17,6 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/internal/runupserter"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -31,8 +30,9 @@ var (
 // in a history record.
 //
 // The `history` object is expected to have been constructed from the `record`.
+// The `startRuntime` is this run segment's initial runtime.
 func FromHistoryRecord(
-	upserter *runupserter.RunUpserter,
+	startRuntime time.Duration,
 	history *runhistory.RunHistory,
 	record *spb.HistoryRecord,
 ) time.Duration {
@@ -42,12 +42,14 @@ func FromHistoryRecord(
 		return time.Duration(runtime*1000) * time.Millisecond
 	}
 
-	return runtimeFromRelativeTimeMs(upserter, *record.RelativeTimeMs)
+	return fromRelativeTimeMs(startRuntime, *record.RelativeTimeMs)
 }
 
 // FromExitRecord returns the value of _runtime metric in an exit record.
+//
+// The `startRuntime` is this run segment's initial runtime.
 func FromExitRecord(
-	upserter *runupserter.RunUpserter,
+	startRuntime time.Duration,
 	record *spb.RunExitRecord,
 ) time.Duration {
 	// Older SDKs set the runtime field.
@@ -55,16 +57,16 @@ func FromExitRecord(
 		return time.Duration(record.Runtime) * time.Second
 	}
 
-	return runtimeFromRelativeTimeMs(upserter, *record.RelativeTimeMs)
+	return fromRelativeTimeMs(startRuntime, *record.RelativeTimeMs)
 }
 
-// runtimeFromRelativeTimeMs turns a `relative_time_ms` value into a runtime.
-func runtimeFromRelativeTimeMs(
-	upserter *runupserter.RunUpserter,
+// fromRelativeTimeMs turns a `relative_time_ms` value into a runtime.
+func fromRelativeTimeMs(
+	startRuntime time.Duration,
 	relativeTimeMs int64,
 ) time.Duration {
 	relativeTime := time.Duration(relativeTimeMs) * time.Millisecond
-	return upserter.StartRuntime() + relativeTime
+	return startRuntime + relativeTime
 }
 
 // SetInHistory sets the history value of the runtime metric.

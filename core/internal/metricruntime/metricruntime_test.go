@@ -5,55 +5,20 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/metricruntime"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/internal/runupserter"
-	"github.com/wandb/wandb/core/internal/runupsertertest"
-	"github.com/wandb/wandb/core/internal/settings"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// upserterWithStartRuntime returns an upserter whose StartRuntime
-// returns the given value by simulating a resumed run.
-func upserterWithStartRuntime(
-	t *testing.T,
-	runtime time.Duration,
-) *runupserter.RunUpserter {
-	t.Helper()
-
-	mockClient := gqlmock.NewMockClient()
-	runupsertertest.StubRunResumeStatusWithStepAndRuntime(t,
-		mockClient,
-		/*step*/ 10,
-		runtime.Seconds(),
-	)
-	runupsertertest.StubUpsertBucket(t, mockClient)
-
-	return runupsertertest.NewTestUpserter(t,
-		"test-entity",
-		"test-project",
-		"test-id",
-		runupserter.RunUpserterParams{
-			GraphqlClientOrNil: mockClient,
-			Settings: settings.From(&spb.Settings{
-				Resume: wrapperspb.String("must"),
-			}),
-		},
-	)
-}
-
 func Test_FromHistoryRecord_RelativeTime(t *testing.T) {
-	upserter := upserterWithStartRuntime(t, 1234*time.Millisecond)
 	relativeTimeMs := int64(50000)
 
 	runtime := metricruntime.FromHistoryRecord(
-		upserter,
+		1234*time.Millisecond,
 		runhistory.New(),
 		&spb.HistoryRecord{RelativeTimeMs: &relativeTimeMs},
 	)
@@ -62,12 +27,11 @@ func Test_FromHistoryRecord_RelativeTime(t *testing.T) {
 }
 
 func Test_FromHistoryRecord_NoRelativeTime(t *testing.T) {
-	upserter := upserterWithStartRuntime(t, 1234*time.Millisecond)
 	history := runhistory.New()
 	history.SetFloat(pathtree.PathOf("_runtime"), 7.5)
 
 	runtime := metricruntime.FromHistoryRecord(
-		upserter,
+		1234*time.Millisecond,
 		history,
 		&spb.HistoryRecord{},
 	)
@@ -76,11 +40,10 @@ func Test_FromHistoryRecord_NoRelativeTime(t *testing.T) {
 }
 
 func Test_FromExitRecord_RelativeTime(t *testing.T) {
-	upserter := upserterWithStartRuntime(t, 1234*time.Millisecond)
 	relativeTimeMs := int64(50000)
 
 	runtime := metricruntime.FromExitRecord(
-		upserter,
+		1234*time.Millisecond,
 		&spb.RunExitRecord{RelativeTimeMs: &relativeTimeMs},
 	)
 
@@ -88,10 +51,8 @@ func Test_FromExitRecord_RelativeTime(t *testing.T) {
 }
 
 func Test_FromExitRecord_NoRelativeTime(t *testing.T) {
-	upserter := upserterWithStartRuntime(t, 1234*time.Millisecond)
-
 	runtime := metricruntime.FromExitRecord(
-		upserter,
+		1234*time.Millisecond,
 		&spb.RunExitRecord{Runtime: 14},
 	)
 

@@ -671,11 +671,14 @@ func (s *Sender) finishRunSync(
 	// Finalize and upload the run's summary and config.
 	s.mu.Lock()
 	if upserterOrNil != nil {
-		// Set the final _runtime summary.
-		s.updateSummary(
-			metricruntime.SetInSummary(
-				runsummary.NoUpdates(),
-				metricruntime.FromExitRecord(upserterOrNil, exitRecord)))
+		// Set the final _runtime summary based on the exit record.
+		updates := metricruntime.SetInSummary(
+			runsummary.NoUpdates(),
+			metricruntime.FromExitRecord(
+				upserterOrNil.StartRuntime(),
+				exitRecord,
+			))
+		s.updateSummary(updates)
 
 		s.uploadSummaryFile()
 		upserterOrNil.Finish()
@@ -930,7 +933,11 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 
 	summaryUpdates := runsummary.NoUpdates()
 
-	runtime := metricruntime.FromHistoryRecord(upserter, history, record)
+	runtime := metricruntime.FromHistoryRecord(
+		upserter.StartRuntime(),
+		history,
+		record,
+	)
 	metricruntime.SetInHistory(history, runtime)
 	metricruntime.SetInSummary(summaryUpdates, runtime)
 
