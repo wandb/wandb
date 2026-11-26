@@ -152,6 +152,21 @@ type fileStream struct {
 	//
 	// It may be nil, in which case nothing is measured.
 	stats *filestreamstats.Stats
+
+	// sawMarkedSuccess is whether a request in this run succeeded with the
+	// server's response-origin header (api.ServerHeader).
+	//
+	// Until it does, a 404 without the header is not retried: the header may
+	// never reach this client, for example because a proxy strips it.
+	//
+	// Once it becomes true, it does not switch back to false.
+	sawMarkedSuccess atomic.Bool
+
+	// unmarked404RetryDeadline is how long a request retries 404s that lack
+	// the response-origin header. See RetryPolicy.
+	//
+	// Retrying them is off if this is not positive.
+	unmarked404RetryDeadline time.Duration
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -200,6 +215,8 @@ func (f *FileStreamFactory) New(
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
 		stats:           f.Stats,
+
+		unmarked404RetryDeadline: DefaultUnmarked404RetryDeadline,
 	}
 
 	fs.heartbeatPeriod = heartbeatPeriod

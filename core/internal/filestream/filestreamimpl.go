@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -137,7 +138,7 @@ func (fs *fileStream) send(
 
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
-	ctx := op.Context(fs.beforeRunEndCtx)
+	ctx := fs.requestContext(op)
 
 	var report filestreamstats.RequestReport
 	req, err := fs.prepareRequest(ctx, data, &report)
@@ -182,6 +183,8 @@ func (fs *fileStream) send(
 		fs.logger.Info("filestream: request sent", "status", resp.Status)
 	}
 
+	fs.recordSuccessOrigin(resp)
+
 	var res map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
@@ -195,6 +198,56 @@ func (fs *fileStream) send(
 	}
 
 	return nil
+}
+
+// requestContext returns the context for a filestream request tracked by op.
+//
+// The context lets RetryPolicy retry 404s that lack the server's
+// response-origin header if shouldRetryUnmarked404s allows it.
+func (fs *fileStream) requestContext(
+	op *wboperation.WandbOperation,
+) context.Context {
+	ctx := op.Context(fs.beforeRunEndCtx)
+	if !fs.shouldRetryUnmarked404s() {
+		return ctx
+	}
+
+	return withUnmarked404Retry(ctx, fs.unmarked404RetryDeadline, fs.logger)
+}
+
+// shouldRetryUnmarked404s reports whether the next request should retry 404s
+// that lack the server's response-origin header.
+//
+// That requires all of:
+//
+//   - a positive deadline
+//   - a successful request in this run that carried the header, which shows
+//     the header reaches this client
+//   - the RESPONSE_ORIGIN_HEADER server feature, which old servers don't list
+//     and which the server can turn off
+//
+// Otherwise, a 404 stops uploads as before.
+func (fs *fileStream) shouldRetryUnmarked404s() bool {
+	return fs.unmarked404RetryDeadline > 0 &&
+		fs.sawMarkedSuccess.Load() &&
+		fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx,
+			spb.ServerFeature_RESPONSE_ORIGIN_HEADER,
+		)
+}
+
+// recordSuccessOrigin records whether a successful response carried the
+// server's response-origin header.
+func (fs *fileStream) recordSuccessOrigin(resp *http.Response) {
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return
+	}
+
+	if api.HasServerHeader(resp) && !fs.sawMarkedSuccess.Swap(true) {
+		fs.logger.Info(
+			"filestream: server marks its responses with the" +
+				" response-origin header")
+	}
 }
 
 // prepareRequest creates the FileStream request.

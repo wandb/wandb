@@ -3291,6 +3291,12 @@ pub enum ServerFeature {
     /// Indicates that the server supports paginating
     /// ArtifactCollectionMembership's aliases via `aliasesConnection`.
     ArtifactMembershipAliasesPagination = 41,
+    /// Indicates that the server marks every API response with the
+    /// `X-Wandb-Server: gorilla` header.
+    ///
+    /// A filestream 404 without that header then likely came from something in
+    /// front of the server, like a load balancer, rather than from the server.
+    ResponseOriginHeader = 42,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3368,6 +3374,7 @@ impl ServerFeature {
             Self::ArtifactMembershipAliasesPagination => {
                 "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION"
             }
+            Self::ResponseOriginHeader => "RESPONSE_ORIGIN_HEADER",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3450,6 +3457,7 @@ impl ServerFeature {
             "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION" => {
                 Some(Self::ArtifactMembershipAliasesPagination)
             }
+            "RESPONSE_ORIGIN_HEADER" => Some(Self::ResponseOriginHeader),
             _ => None,
         }
     }

@@ -12,7 +12,6 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/httplayers"
@@ -128,7 +127,8 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
-		RetryPolicy:        clients.RetryMostFailures,
+		RetryPolicy:        filestream.RetryPolicy,
+		Backoff:            filestream.Backoff,
 		RetryMax:           filestream.DefaultRetryMax,
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
 		RetryWaitMax:       filestream.DefaultRetryWaitMax,
