@@ -50,6 +50,7 @@ func withRule(t *testing.T, deadline time.Duration) context.Context {
 		t.Context(),
 		deadline,
 		observabilitytest.NewTestLogger(t),
+		&deferredTelemetry{},
 	)
 }
 
@@ -319,6 +320,9 @@ type originTestOptions struct {
 
 	// retryPolicy replaces RetryPolicy if set.
 	retryPolicy func(context.Context, *http.Response, error) (bool, error)
+
+	// logger is the filestream's logger, or nil for a test logger.
+	logger *observability.CoreLogger
 }
 
 // startOriginTestFileStream starts a filestream that talks to the server
@@ -353,11 +357,16 @@ func startOriginTestFileStream(
 		features[spb.ServerFeature_RESPONSE_ORIGIN_HEADER] = true
 	}
 
+	logger := opts.logger
+	if logger == nil {
+		logger = observabilitytest.NewTestLogger(t)
+	}
+
 	printer := observability.NewPrinter(10)
 	factory := &FileStreamFactory{
 		BaseURL:         baseURL,
 		FeatureProvider: featurechecker.NewPreloaded(features),
-		Logger:          observabilitytest.NewTestLogger(t),
+		Logger:          logger,
 		Printer:         printer,
 		Settings:        settings.From(&spb.Settings{}),
 	}

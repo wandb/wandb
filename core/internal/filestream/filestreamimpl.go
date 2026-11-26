@@ -212,7 +212,12 @@ func (fs *fileStream) requestContext(
 		return ctx
 	}
 
-	return withUnmarked404Retry(ctx, fs.unmarked404RetryDeadline, fs.logger)
+	return withUnmarked404Retry(
+		ctx,
+		fs.unmarked404RetryDeadline,
+		fs.logger,
+		&fs.deferredTelemetry,
+	)
 }
 
 // shouldRetryUnmarked404s reports whether the next request should retry 404s

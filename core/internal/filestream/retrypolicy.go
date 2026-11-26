@@ -89,15 +89,36 @@ type unmarked404RetryKey struct{}
 // unmarked404Retry tracks the 404s without the response-origin header that a
 // single filestream request has received.
 //
+// It tracks two things separately. The streak is the current unbroken run of
+// unmarked 404s, which the deadline measures; any other response ends it. The
+// request totals cover every unmarked 404 the request retried, so the
+// request's outcome is reported even if another failure, like a 503, came
+// between those 404s and the end of the request.
+//
 // It is used by one request in one goroutine, so it is not lock-protected.
 type unmarked404Retry struct {
 	deadline time.Duration
 	logger   *observability.CoreLogger
 
+	// deferred holds telemetry to record when the filestream finishes.
+	deferred *deferredTelemetry
+
 	// streakStart is when the current unbroken run of unmarked 404s began.
 	//
 	// It is zero if the last response was not an unmarked 404.
 	streakStart time.Time
+
+	// streakLength is the number of unmarked 404s in the current run.
+	streakLength int
+
+	// firstRetryAt is when the request first retried an unmarked 404.
+	//
+	// It is zero if the request has not retried one. Other responses
+	// don't reset it.
+	firstRetryAt time.Time
+
+	// retriedCount is the number of unmarked 404s the request has received.
+	retriedCount int
 }
 
 // withUnmarked404Retry returns a context in which RetryPolicy retries
@@ -105,15 +126,22 @@ type unmarked404Retry struct {
 //
 // The deadline is measured from the first such 404 in an unbroken run of
 // them. Any other response, like a success or a 503, ends the run.
+//
+// Telemetry that must wait for the filestream to finish goes to deferred.
 func withUnmarked404Retry(
 	ctx context.Context,
 	deadline time.Duration,
 	logger *observability.CoreLogger,
+	deferred *deferredTelemetry,
 ) context.Context {
 	return context.WithValue(
 		ctx,
 		unmarked404RetryKey{},
-		&unmarked404Retry{deadline: deadline, logger: logger},
+		&unmarked404Retry{
+			deadline: deadline,
+			logger:   logger,
+			deferred: deferred,
+		},
 	)
 }
 
@@ -143,15 +171,8 @@ func (s *unmarked404Retry) shouldRetry(
 		!api.HasServerHeader(resp)
 
 	if !isUnmarked404 {
-		if !s.streakStart.IsZero() && resp != nil &&
-			resp.StatusCode == http.StatusNotFound {
-			s.logger.Warn(
-				"filestream: got a 404 from the server after 404s from"+
-					" something in front of it; stopping",
-				"after", time.Since(s.streakStart))
-		}
-
-		s.streakStart = time.Time{}
+		s.endStreak()
+		s.recordOutcome(resp)
 		return false
 	}
 
@@ -159,24 +180,55 @@ func (s *unmarked404Retry) shouldRetry(
 		return false
 	}
 
+	s.streakLength++
+	s.retriedCount++
 	if s.streakStart.IsZero() {
-		s.streakStart = time.Now()
-		s.logger.Warn(
-			"filestream: got a 404 without the server's response-origin"+
-				" header, likely from a load balancer or proxy; retrying",
-			"header", api.ServerHeader,
-			"deadline", s.deadline)
+		s.startStreak()
 		return true
 	}
 
-	if elapsed := time.Since(s.streakStart); elapsed >= s.deadline {
-		s.logger.Error(
-			"filestream: 404s without the server's response-origin header"+
-				" lasted past the deadline; stopping",
-			"elapsed", elapsed,
-			"deadline", s.deadline)
+	if time.Since(s.streakStart) >= s.deadline {
+		s.recordDeadlineExceeded()
 		return false
 	}
 
 	return true
+}
+
+// startStreak starts a run of unmarked 404s, which starts the deadline.
+func (s *unmarked404Retry) startStreak() {
+	s.streakStart = time.Now()
+
+	if s.firstRetryAt.IsZero() {
+		s.firstRetryAt = s.streakStart
+		s.logRetryStarted()
+	} else {
+		s.logStreakRestarted()
+	}
+}
+
+// endStreak ends the current run of unmarked 404s, if any, because the
+// request got a different response. This restarts the deadline.
+func (s *unmarked404Retry) endStreak() {
+	s.streakStart = time.Time{}
+	s.streakLength = 0
+}
+
+// recordOutcome reports how a request that retried unmarked 404s ended,
+// if resp ends it.
+//
+// A success or a 404 from the server ends the request. A nil response is a
+// transport error, and other statuses are left to the default policy, which
+// retries or stops without an outcome here.
+func (s *unmarked404Retry) recordOutcome(resp *http.Response) {
+	if s.firstRetryAt.IsZero() || resp == nil {
+		return
+	}
+
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode <= 299:
+		s.recordRecovered()
+	case resp.StatusCode == http.StatusNotFound:
+		s.recordStoppedByServer()
+	}
 }

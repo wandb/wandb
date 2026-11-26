@@ -167,6 +167,10 @@ type fileStream struct {
 	//
 	// Retrying them is off if this is not positive.
 	unmarked404RetryDeadline time.Duration
+
+	// deferredTelemetry is telemetry about those 404s to record once all
+	// uploads finish, in FinishWithoutExit.
+	deferredTelemetry deferredTelemetry
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -293,6 +297,7 @@ func (fs *fileStream) FinishWithoutExit() {
 
 	close(fs.processChan)
 	fs.feedbackWait.Wait()
+	fs.deferredTelemetry.flush(fs.logger)
 	fs.logger.Debug("filestream: closed")
 }
 
