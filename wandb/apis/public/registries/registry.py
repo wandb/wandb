@@ -480,14 +480,14 @@ class Registry:
         except Exception as e:
             raise ValueError(failed_msg) from e
 
-        if (result := data.upsert_model) and result.inserted:
+        if not ((result := data.upsert_model) and (registry_project := result.project)):
+            raise ValueError(failed_msg)
+
+        if result.inserted:
             # This should only trigger if `_saved_name` was modified unexpectedly.
             wandb.termlog(
                 f"Created registry {self.name!r} in organization {self.organization!r} on save"
             )
-
-        if not (result and (registry_project := result.project)):
-            raise ValueError(failed_msg)
 
         self._update_attributes(registry_project)
 
