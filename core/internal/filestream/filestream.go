@@ -71,6 +71,7 @@ type FileStream interface {
 		entity string,
 		project string,
 		runID string,
+		segmentID string,
 		offsetMap FileStreamOffsetMap,
 	)
 
@@ -97,6 +98,13 @@ type fileStream struct {
 	//
 	// This must not include the schema and hostname prefix.
 	path string
+
+	// segmentID identifies the segment of run data being uploaded.
+	//
+	// When the same data is reuploaded by syncing a .wandb file, the same
+	// ID is used. If this is the empty string, then no ID was assigned,
+	// like when syncing a .wandb file from a previous SDK version.
+	segmentID string
 
 	mu              sync.Mutex
 	isFinished      bool
@@ -232,10 +240,12 @@ func (fs *fileStream) Start(
 	entity string,
 	project string,
 	runID string,
+	segmentID string,
 	offsetMap FileStreamOffsetMap,
 ) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
 
+	fs.segmentID = segmentID
 	fs.path = fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",
 		entity,

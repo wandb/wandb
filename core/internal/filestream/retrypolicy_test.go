@@ -378,7 +378,7 @@ func startOriginTestFileStream(
 		rate.NewLimiter(rate.Inf, 1),
 	).(*fileStream)
 	fs.unmarked404RetryDeadline = opts.deadline
-	fs.Start("entity", "project", "run", nil)
+	fs.Start("entity", "project", "run", "", nil)
 
 	return fs, printer
 }
