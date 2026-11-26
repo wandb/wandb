@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import threading
 
 from wandb import env
@@ -8,7 +9,13 @@ from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
 from . import prompt, wbnetrc
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
+from .auth import (
+    Auth,
+    AuthApiKey,
+    AuthBrowserLogin,
+    AuthIdentityTokenFile,
+    AuthWithSource,
+)
 from .host_url import HostUrl
 from .settings import set_auth_settings
 
@@ -177,8 +184,9 @@ def _use_system_auth(
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables, .netrc, or global settings.
-    If no credentials are found, the session credentials are unchanged.
+    Loads credentials from environment variables, a stored browser login,
+    .netrc, or global settings. If no credentials are found, the session
+    credentials are unchanged.
 
     Args:
         host: The W&B server URL.
@@ -197,6 +205,7 @@ def _use_system_auth(
     """
     auth = (
         _try_env_auth(host=host)  #
+        or _try_browser_login_auth(host=host)
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
     if auth is None:
@@ -260,6 +269,72 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
     return None
 
 
+def _try_browser_login_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Stored browser login, if any. Above .netrc, below environment variables."""
+    credentials_file = pathlib.Path(wandb_setup.singleton().settings.credentials_file)
+    if not credentials_file.exists():
+        return None
+
+    # Loads requests and http.server, which `import wandb` must not.
+    from . import browser_login
+
+    if not browser_login.load_credentials(credentials_file, host):
+        return None
+
+    return AuthWithSource(
+        auth=AuthBrowserLogin(host=host, credentials_file=credentials_file),
+        source=str(credentials_file),
+    )
+
+
+def revoke_browser_login(
+    *,
+    host: HostUrl,
+    refresh_token: str,
+    description: str = "the previous browser login",
+) -> None:
+    """Best-effort revoke of a browser login that is no longer stored."""
+    from . import browser_login
+
+    settings = wandb_setup.singleton().settings
+    try:
+        browser_login.revoke(
+            host=host,
+            refresh_token=refresh_token,
+            verify=not settings.insecure_disable_ssl,
+        )
+    except AuthenticationError as e:
+        term.termwarn(f"Could not revoke {description} for {host}: {e}")
+
+
+def clear_browser_login(*, host: HostUrl) -> None:
+    """Drop a stored browser login so it does not outrank a saved API key.
+
+    Failing to remove or revoke it warns instead of failing the login that
+    replaced it.
+    """
+    settings = wandb_setup.singleton().settings
+    credentials_file = pathlib.Path(settings.credentials_file)
+
+    # Skip importing browser_login (and requests) when no credentials file exists.
+    if not credentials_file.exists():
+        return
+
+    from . import browser_login
+
+    try:
+        tokens = browser_login.clear_credentials(credentials_file, host)
+    except AuthenticationError as e:
+        term.termwarn(
+            f"Could not remove the browser login for {host}, which is"
+            f" used before the new API key: {e}"
+        )
+        return
+
+    if tokens is not None:
+        revoke_browser_login(host=host, refresh_token=tokens.refresh_token)
+
+
 def _use_prompted_auth(
     *,
     host: HostUrl,
@@ -296,6 +371,10 @@ def _use_prompted_auth(
         input_timeout=input_timeout,
         verify=verify,
     )
+
+    if api_key:
+        # A browser login outranks .netrc, so it would hide the saved API key.
+        clear_browser_login(host=host)
 
     with _session_auth_lock:
         if api_key:
