@@ -395,7 +395,11 @@ class Registry:
 
     @tracked
     def save(self) -> None:
-        """Save registry attributes to the backend."""
+        """Save registry attributes to the backend.
+
+        Raises:
+            ValueError: If the registry could not be saved.
+        """
         from wandb.sdk.artifacts._generated import (
             RENAME_REGISTRY_GQL,
             UPSERT_REGISTRY_GQL,
@@ -432,43 +436,28 @@ class Registry:
         upsert_input = UpsertModelInput(
             description=self.description,
             entity_name=self.entity,
-            name=old_project_name,
+            name=new_project_name,
             access=self._current.visibility.value,
             allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
             artifact_types=prepare_artifact_types_input(new_artifact_types),
         )
-        try:
-            data = self._service_api.execute_graphql(
-                UPSERT_REGISTRY_GQL,
-                variables={"input": upsert_input.model_dump()},
-                parse=UpsertRegistry.model_validate_json,
-            )
-        except Exception as e:
-            raise ValueError(failed_msg) from e
 
-        if (result := data.upsert_model) and result.inserted:
-            # This should only trigger if `_saved_name` was modified unexpectedly.
-            wandb.termlog(
-                f"Created registry {self.name!r} in organization {self.organization!r} on save"
-            )
-
-        if not (result and (registry_project := result.project)):
-            raise ValueError(failed_msg)
-
-        self._update_attributes(registry_project)
-
-        # Update the name of the registry if it has changed
+        # Rename first so a rejected rename (e.g. name already taken) does not
+        # save the other staged changes.
         if old_project_name != new_project_name:
             rename_input = RenameProjectInput(
                 entity_name=self.entity,
                 old_project_name=old_project_name,
                 new_project_name=new_project_name,
             )
-            data = self._service_api.execute_graphql(
-                RENAME_REGISTRY_GQL,
-                variables={"input": rename_input.model_dump()},
-                parse=RenameRegistry.model_validate_json,
-            )
+            try:
+                data = self._service_api.execute_graphql(
+                    RENAME_REGISTRY_GQL,
+                    variables={"input": rename_input.model_dump()},
+                    parse=RenameRegistry.model_validate_json,
+                )
+            except Exception as e:
+                raise ValueError(failed_msg) from e
             if not (
                 (result := data.rename_project) and (registry_project := result.project)
             ):
@@ -478,7 +467,29 @@ class Registry:
                 # This should only trigger if `_saved_name` was modified unexpectedly.
                 wandb.termlog(f"Created new registry {self.name!r} on save")
 
-            self._update_attributes(registry_project)
+            # Record the new saved name without overwriting `_current` so
+            # staged edits survive if the upsert below fails and is retried.
+            self._saved = RegistryData.from_fragment(registry_project)
+
+        try:
+            data = self._service_api.execute_graphql(
+                UPSERT_REGISTRY_GQL,
+                variables={"input": upsert_input.model_dump()},
+                parse=UpsertRegistry.model_validate_json,
+            )
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+
+        if not ((result := data.upsert_model) and (registry_project := result.project)):
+            raise ValueError(failed_msg)
+
+        if result.inserted:
+            # This should only trigger if `_saved_name` was modified unexpectedly.
+            wandb.termlog(
+                f"Created registry {self.name!r} in organization {self.organization!r} on save"
+            )
+
+        self._update_attributes(registry_project)
 
     def members(self) -> list[UserMember | TeamMember]:
         """Returns the current members (users and teams) of this registry."""

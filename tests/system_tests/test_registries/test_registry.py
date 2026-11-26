@@ -363,6 +363,73 @@ def test_edit_registry_name(mock_termlog, default_organization, api: Api):
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
+def test_rejected_rename_saves_nothing(default_organization, api: Api):
+    registry_a = api.create_registry(
+        organization=default_organization,
+        name="test-a",
+        visibility="organization",
+        description="original A",
+    )
+    registry_b = api.create_registry(
+        organization=default_organization,
+        name="test-b",
+        visibility="organization",
+        description="original B",
+    )
+
+    registry_a.name = "test-b"
+    registry_a.description = "changed"
+
+    with raises(ValueError, match="Failed to save registry"):
+        registry_a.save()
+
+    # A rejected rename must not save the other staged changes.
+    fetched_a = api.registry("test-a", default_organization)
+    assert fetched_a.description == "original A"
+    fetched_b = api.registry("test-b", default_organization)
+    assert fetched_b.id == registry_b.id
+    assert fetched_b.description == "original B"
+
+    # The staged changes survive the error and can still be saved.
+    registry_a.name = "test-c"
+    registry_a.save()
+
+    fetched_c = api.registry("test-c", default_organization)
+    assert fetched_c.description == "changed"
+
+
+def test_failed_upsert_after_rename(
+    wandb_backend_spy: WandbBackendSpy,
+    default_organization: str,
+    make_registry: Callable[..., Registry],
+    api: Api,
+):
+    registry = make_registry(
+        organization=default_organization,
+        name="test-a",
+        visibility="organization",
+        description="original",
+    )
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertRegistry"),
+        gql.once(content={}, status=400),
+    )
+
+    registry.name = "test-b"
+    registry.description = "changed"
+
+    with raises(ValueError, match="Failed to save registry"):
+        registry.save()
+
+    # Rename succeeded on the server while staged edits remain for a retry.
+    assert api.registry("test-b", default_organization).description == "original"
+
+    registry.save()
+    assert api.registry("test-b", default_organization).description == "changed"
+
+
+@mark.usefixtures("skip_if_server_does_not_support_create_registry")
 def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
     num_registries = 3
 
