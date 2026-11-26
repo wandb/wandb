@@ -17,6 +17,11 @@ import (
 // how long a real 404 that lost its header keeps a run retrying. It applies
 // only to these 404s; every other retried failure keeps the filestream retry
 // budget.
+//
+// The value is a judgment call, not a measured limit. A longer deadline rides
+// out longer outages, but in the bad case costs more: the filestream backoff
+// waits at most DefaultRetryWaitMax between attempts, so a run sends about
+// 120 requests in 2 hours, and finishing the run waits for the deadline.
 const DefaultUnmarked404RetryDeadline = 2 * time.Hour
 
 // RetryPolicy is the retry policy for filestream requests.
