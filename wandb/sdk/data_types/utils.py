@@ -44,19 +44,21 @@ def history_dict_to_json(
         # We should be at the top level of the History row; assume this key is set.
         step = payload["_step"]
 
+    # Build a new dict instead of mutating `payload`. The caller may still own it
+    # (e.g. the dict passed to `run.log`), so in-place replacement would corrupt it.
+    converted = {}
     # We use list here because we were still seeing cases of RuntimeError dict changed size
-    for key in list(payload):
-        val = payload[key]
+    for key, val in list(payload.items()):
         if isinstance(val, dict):
-            payload[key] = history_dict_to_json(
+            converted[key] = history_dict_to_json(
                 run, val, step=step, ignore_copy_err=ignore_copy_err
             )
         else:
-            payload[key] = val_to_json(
+            converted[key] = val_to_json(
                 run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
             )
 
-    return payload
+    return converted
 
 
 # TODO: refine this
