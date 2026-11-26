@@ -157,6 +157,13 @@ message BranchPoint {
 // updated (like `entity` and `project`, which are determined through a query
 // if not given).
 message RunRecord {
+  // A unique ID for this run segment.
+  //
+  // This is essentially a unique ID for a transaction log. If a run consists
+  // of multiple resumed segments, each segment has a different ID. This is
+  // empty in older transaction logs.
+  string segment_id = 25;
+
   string run_id = 1;
   string entity = 2;
   string project = 3;
@@ -242,7 +249,22 @@ message RunExitRecord {
   // for a run sets its completion state.
   bool not_complete = 3;
 
+  // The total duration of the run in seconds.
+  //
+  // This is deprecated because it cannot be computed for offline resumed runs.
+  // The relative_time_ms should be used instead.
+  //
+  // This field is set only by older SDKs, and read only by newer SDKs.
+  // It is thus kept only for compatibility and can be removed when
+  // transaction log version 0 is unsupported.
   int32 runtime = 2;
+
+  // The duration of the run segment in milliseconds.
+  //
+  // In other words, this is relative to the start of the .wandb file (if one
+  // exists). In a resumed run, this is different from the "runtime", which is
+  // the time from the start of the run.
+  optional int64 relative_time_ms = 4;
 
   _RecordInfo _info = 200;
 }
@@ -1558,6 +1580,9 @@ message EnvironmentRecord {
   //
   // This ID distinguishes this writer's metadata from that of other writers
   // that may be contributing to the same run.
+  //
+  // Deprecated in favor of RunRecord.segment_id. For compatibility with past
+  // SDK versions, both fields are set to the same value.
   string writer_id = 199;
 
   _RecordInfo _info = 200;
@@ -1744,4 +1769,8 @@ enum ServerFeature {
 
   // Indicates that the server supports automation event SANDBOX_STATE.
   AUTOMATION_EVENT_SANDBOX_STATE = 40;
+
+  // Indicates that the server supports paginating
+  // ArtifactCollectionMembership's aliases via `aliasesConnection`.
+  ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION = 41;
 }

@@ -192,10 +192,7 @@ func makeSummaryRecord(d data) *spb.Record {
 func makeExitRecord() *spb.Record {
 	record := &spb.Record{
 		RecordType: &spb.Record_Exit{
-			Exit: &spb.RunExitRecord{
-				ExitCode: 0,
-				Runtime:  1,
-			},
+			Exit: &spb.RunExitRecord{},
 		},
 	}
 	return record

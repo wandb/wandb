@@ -73,7 +73,6 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Settings:     settings2,
 	}
 	mailboxMailbox := mailbox.New()
-	historyStepTracker := stream.NewHistoryStepTracker(logger, runHandle)
 	senderFactory := &stream.SenderFactory{
 		BaseURL:                 wbBaseURL,
 		ClientID:                clientID,
@@ -92,7 +91,6 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
-		HistoryStepTracker:      historyStepTracker,
 		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{

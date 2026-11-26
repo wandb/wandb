@@ -18,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -95,9 +94,6 @@ type Stream struct {
 
 	// sender is the sender for the stream
 	sender *Sender
-
-	// clientID is a unique ID for the stream
-	clientID sharedmode.ClientID
 }
 
 // DebugCorePath is the absolute path to the debug-core.log file.
@@ -105,7 +101,6 @@ type DebugCorePath string
 
 // NewStream creates a new stream.
 func NewStream(
-	clientID sharedmode.ClientID,
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.FeatureProvider,
 	flowControlFactory *FlowControlFactory,
@@ -155,7 +150,6 @@ func NewStream(
 		writerFactory:      writerFactory,
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
-		clientID:           clientID,
 	}
 
 	logger.Info("stream: created new stream", "id", stream.settings.GetRunID())

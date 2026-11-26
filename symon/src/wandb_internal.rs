@@ -259,7 +259,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 81
+/// Next ID: 83
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
@@ -495,6 +495,12 @@ pub struct Feature {
     /// Consuming GPU metrics from a DCGM exporter
     #[prost(bool, tag = "80")]
     pub dcgm_exporter: bool,
+    /// User logged a Weave-backed EvalTable via run.log()
+    #[prost(bool, tag = "81")]
+    pub eval_table_weave: bool,
+    /// User logged a CES-backed EvalTable via run.log()
+    #[prost(bool, tag = "82")]
+    pub eval_table_ces: bool,
 }
 /// Next ID: 19
 #[allow(clippy::all)]
@@ -807,6 +813,13 @@ pub struct BranchPoint {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
+    /// A unique ID for this run segment.
+    ///
+    /// This is essentially a unique ID for a transaction log. If a run consists
+    /// of multiple resumed segments, each segment has a different ID. This is
+    /// empty in older transaction logs.
+    #[prost(string, tag = "25")]
+    pub segment_id: ::prost::alloc::string::String,
     #[prost(string, tag = "1")]
     pub run_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -964,8 +977,23 @@ pub struct RunExitRecord {
     /// for a run sets its completion state.
     #[prost(bool, tag = "3")]
     pub not_complete: bool,
+    /// The total duration of the run in seconds.
+    ///
+    /// This is deprecated because it cannot be computed for offline resumed runs.
+    /// The relative_time_ms should be used instead.
+    ///
+    /// This field is set only by older SDKs, and read only by newer SDKs.
+    /// It is thus kept only for compatibility and can be removed when
+    /// transaction log version 0 is unsupported.
     #[prost(int32, tag = "2")]
     pub runtime: i32,
+    /// The duration of the run segment in milliseconds.
+    ///
+    /// In other words, this is relative to the start of the .wandb file (if one
+    /// exists). In a resumed run, this is different from the "runtime", which is
+    /// the time from the start of the run.
+    #[prost(int64, optional, tag = "4")]
+    pub relative_time_ms: ::core::option::Option<i64>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -3078,6 +3106,9 @@ pub struct EnvironmentRecord {
     ///
     /// This ID distinguishes this writer's metadata from that of other writers
     /// that may be contributing to the same run.
+    ///
+    /// Deprecated in favor of RunRecord.segment_id. For compatibility with past
+    /// SDK versions, both fields are set to the same value.
     #[prost(string, tag = "199")]
     pub writer_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
@@ -3257,6 +3288,9 @@ pub enum ServerFeature {
     ArtifactMembershipOnArtifactPayload = 39,
     /// Indicates that the server supports automation event SANDBOX_STATE.
     AutomationEventSandboxState = 40,
+    /// Indicates that the server supports paginating
+    /// ArtifactCollectionMembership's aliases via `aliasesConnection`.
+    ArtifactMembershipAliasesPagination = 41,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3331,6 +3365,9 @@ impl ServerFeature {
                 "ARTIFACT_MEMBERSHIP_ON_ARTIFACT_PAYLOAD"
             }
             Self::AutomationEventSandboxState => "AUTOMATION_EVENT_SANDBOX_STATE",
+            Self::ArtifactMembershipAliasesPagination => {
+                "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3410,6 +3447,9 @@ impl ServerFeature {
                 Some(Self::ArtifactMembershipOnArtifactPayload)
             }
             "AUTOMATION_EVENT_SANDBOX_STATE" => Some(Self::AutomationEventSandboxState),
+            "ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION" => {
+                Some(Self::ArtifactMembershipAliasesPagination)
+            }
             _ => None,
         }
     }

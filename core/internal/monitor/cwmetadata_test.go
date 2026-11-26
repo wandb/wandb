@@ -93,6 +93,8 @@ func TestCoreWeaveMetadataProbeDoesNotLogCredentials(t *testing.T) {
 	})
 
 	runHandle := runhandle.New()
+	finishInit := runHandle.WillInit()
+	defer finishInit()
 	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
 
 	cwm, err := monitor.NewCoreWeaveMetadata(monitor.CoreWeaveMetadataParams{
@@ -285,6 +287,8 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			})
 
 			runHandle := runhandle.New()
+			finishInit := runHandle.WillInit()
+			defer finishInit()
 			err := runHandle.Init(runupsertertest.NewOfflineUpserter(t))
 			require.NoError(t, err)
 			cwmParams := monitor.CoreWeaveMetadataParams{

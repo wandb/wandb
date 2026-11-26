@@ -7,6 +7,7 @@ __all__ = [
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
+    "ARTIFACT_MEMBERSHIP_ALIASES_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
@@ -1072,7 +1073,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   id
   versionIndex
   createdAt
-  aliases {
+  aliases @include(if: true) {
     ...ArtifactAliasFragment
   }
   artifactCollection {
@@ -1112,6 +1113,37 @@ fragment TagFragment on Tag {
   __typename
   id
   name
+}
+"""
+
+ARTIFACT_MEMBERSHIP_ALIASES_GQL = """
+query ArtifactMembershipAliases($entity: String!, $project: String!, $name: String!, $cursor: String, $perPage: Int!) {
+  project(name: $project, entityName: $entity) {
+    artifactCollectionMembership(name: $name) {
+      aliasesConnection(after: $cursor, first: $perPage) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  id
+  alias
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -1263,7 +1295,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   id
   versionIndex
   createdAt
-  aliases {
+  aliases @include(if: true) {
     ...ArtifactAliasFragment
   }
   artifactCollection {
@@ -1371,7 +1403,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   id
   versionIndex
   createdAt
-  aliases {
+  aliases @include(if: true) {
     ...ArtifactAliasFragment
   }
   artifactCollection {
@@ -1540,7 +1572,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   id
   versionIndex
   createdAt
-  aliases {
+  aliases @include(if: true) {
     ...ArtifactAliasFragment
   }
   artifactCollection {
