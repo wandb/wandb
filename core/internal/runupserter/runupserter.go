@@ -431,6 +431,8 @@ func (upserter *RunUpserter) StartingStep() int64 {
 }
 
 // StartRuntime returns the run's initial `_runtime` metric.
+//
+// This is invalid for offline resumed runs.
 func (upserter *RunUpserter) StartRuntime() time.Duration {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()

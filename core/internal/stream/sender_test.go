@@ -193,7 +193,14 @@ func TestSendSummaryIgnoresInboundStep(t *testing.T) {
 	summary := runsummary.New()
 	request.SummaryUpdates.Apply(summary)
 	summaryMap := summary.ToNestedMaps()
-	assert.Equal(t, map[string]any{"loss": 1.23, "_step": int64(0)}, summaryMap)
+	assert.Equal(t, map[string]any{
+		"loss":     1.23,
+		"_step":    int64(0),
+		"_runtime": float64(0),
+		"_wandb": map[string]any{
+			"runtime": float64(0),
+		},
+	}, summaryMap)
 }
 
 func TestSendHistoryAppliesSteps(t *testing.T) {
@@ -210,7 +217,10 @@ func TestSendHistoryAppliesSteps(t *testing.T) {
 
 	request := fileStream.GetRequest(x.Settings)
 	require.Len(t, request.HistoryLines, 1)
-	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
+	assert.JSONEq(t,
+		`{"loss": 1.23, "_runtime": 0, "_step": 0}`,
+		request.HistoryLines[0],
+	)
 }
 
 func sendHistoryItems(x testFixtures, items ...*spb.HistoryItem) {
@@ -254,12 +264,13 @@ func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
 	rows := fileStream.GetRequest(x.Settings).HistoryLines
 	require.Len(t, rows, 1)
 	assert.JSONEq(t, `{
-		"_step": 0,
-		"null":  null,
-		"false": false,
-		"zero":  0,
-		"float": 1,
-		"empty": "",
+		"_step":    0,
+		"_runtime": 0,
+		"null":     null,
+		"false":    false,
+		"zero":     0,
+		"float":    1,
+		"empty":    "",
 		"nested": {
 			"object": {	"a": 1, "b": {"c": true}},
 			"array": [1, {"x": null}]
@@ -283,9 +294,10 @@ func TestSendHistoryPrefersTypedValues(t *testing.T) {
 	rows := fileStream.GetRequest(x.Settings).HistoryLines
 	require.Len(t, rows, 1)
 	assert.JSONEq(t, `{
-		"typed":  7,
-		"legacy": {"a": [false, 2]},
-		"_step":  0
+		"typed":    7,
+		"legacy":   {"a": [false, 2]},
+		"_step":    0,
+		"_runtime": 0
 	}`, rows[0])
 }
 
@@ -303,8 +315,8 @@ func TestSendHistoryPreservesTypedStep(t *testing.T) {
 
 	rows := fileStream.GetRequest(x.Settings).HistoryLines
 	require.Len(t, rows, 2)
-	assert.JSONEq(t, `{	"_step": 5, "first": true}`, rows[0])
-	assert.JSONEq(t, `{	"_step": 6, "second": 2}`, rows[1])
+	assert.JSONEq(t, `{"_runtime": 0, "_step": 5, "first": true}`, rows[0])
+	assert.JSONEq(t, `{"_runtime": 0, "_step": 6, "second": 2}`, rows[1])
 }
 
 // Verify that arguments are properly passed through to graphql
