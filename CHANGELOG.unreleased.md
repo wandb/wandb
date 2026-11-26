@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Fixed
+
+- `run.log()` no longer mutates nested dicts supplied by the caller (https://github.com/wandb/wandb/issues/13469)
+
 ### Changed
 
 - `wandb.Api().artifact(...)` now defers fetching an artifact's collection membership aliases until `Artifact.aliases` is accessed, then fetches them in 1,000-alias pages (@ibindlish in https://github.com/wandb/wandb/pull/13183)
