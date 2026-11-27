@@ -1,6 +1,10 @@
 package metricsbatch
 
 import (
+	"slices"
+
+	"google.golang.org/protobuf/proto"
+
 	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 )
 
@@ -10,6 +14,7 @@ import (
 type Builder struct {
 	ids   map[string]uint32
 	batch *filestreamv1.MetricsBatch
+	size  batchWireSize
 }
 
 // NewBuilder returns an empty builder for history rows.
@@ -22,6 +27,31 @@ func NewBuilder() *Builder {
 func (b *Builder) reset() {
 	b.ids = make(map[string]uint32)
 	b.batch = &filestreamv1.MetricsBatch{SeqKey: seqKey}
+	b.size = batchWireSize{unpacked: proto.Size(b.batch)}
+}
+
+// EncodedSize returns the number of bytes in the current batch's wire encoding.
+func (b *Builder) EncodedSize() int {
+	return b.size.total()
+}
+
+// EstimateAppendSize returns the exact encoded size after appending row
+// without changing the builder.
+func (b *Builder) EstimateAppendSize(row *Row) int {
+	size := b.size
+	nextID := uint32(len(b.batch.Keys))
+	// Prepared rows contain each top-level key at most once.
+	for i := range row.cells {
+		c := &row.cells[i]
+		id, exists := b.ids[c.key]
+		if !exists {
+			id = nextID
+			nextID++
+		}
+		size.addCell(c, id, !exists)
+	}
+	size.addRow(row, uint32(len(b.batch.CellKinds)+len(row.cells)))
+	return size.total()
 }
 
 // Append adds a prepared row to the batch.
@@ -29,6 +59,7 @@ func (b *Builder) reset() {
 // New keys get dictionary IDs in the order they appear.
 func (b *Builder) Append(row *Row) {
 	batch := b.batch
+	b.reserve(row)
 	for i := range row.cells {
 		c := &row.cells[i]
 		id, ok := b.ids[c.key]
@@ -39,6 +70,7 @@ func (b *Builder) Append(row *Row) {
 		}
 		batch.CellKeys = append(batch.CellKeys, id)
 		batch.CellKinds = append(batch.CellKinds, c.kind)
+		b.size.addCell(c, id, !ok)
 
 		switch c.kind {
 		case filestreamv1.MetricsBatch_KIND_FLOAT:
@@ -53,9 +85,22 @@ func (b *Builder) Append(row *Row) {
 			batch.Jsons = append(batch.Jsons, c.text)
 		}
 	}
-	batch.RowEnds = append(batch.RowEnds, uint32(len(batch.CellKinds)))
+	rowEnd := uint32(len(batch.CellKinds))
+	batch.RowEnds = append(batch.RowEnds, rowEnd)
 	batch.Seqs = append(batch.Seqs, row.step)
 	batch.HasSeq = append(batch.HasSeq, row.hasStep)
+	b.size.addRow(row, rowEnd)
+}
+
+func (b *Builder) reserve(row *Row) {
+	batch := b.batch
+	batch.CellKeys = slices.Grow(batch.CellKeys, len(row.cells))
+	batch.CellKinds = slices.Grow(batch.CellKinds, len(row.cells))
+	batch.Floats = slices.Grow(batch.Floats, row.counts[filestreamv1.MetricsBatch_KIND_FLOAT])
+	batch.Ints = slices.Grow(batch.Ints, row.counts[filestreamv1.MetricsBatch_KIND_INT])
+	batch.Bools = slices.Grow(batch.Bools, row.counts[filestreamv1.MetricsBatch_KIND_BOOL])
+	batch.Strings = slices.Grow(batch.Strings, row.counts[filestreamv1.MetricsBatch_KIND_STRING])
+	batch.Jsons = slices.Grow(batch.Jsons, row.counts[filestreamv1.MetricsBatch_KIND_JSON])
 }
 
 // Rows returns the number of rows in the current batch.

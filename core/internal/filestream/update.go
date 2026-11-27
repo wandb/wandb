@@ -22,4 +22,6 @@ type UpdateContext struct {
 	Printer *observability.Printer
 
 	Stats *filestreamstats.Stats
+
+	typedHistory bool
 }
