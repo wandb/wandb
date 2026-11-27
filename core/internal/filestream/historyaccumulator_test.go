@@ -22,18 +22,18 @@ func TestHistoryAccumulatorExactFitAndRollover(t *testing.T) {
 	oracle := metricsbatch.NewBuilder()
 	oracle.Append(first)
 	oracle.Append(second)
-	cap := proto.Size(oracle.Finish())
+	batchLimit := proto.Size(oracle.Finish())
 
-	a := newHistoryAccumulator(cap)
+	a := newHistoryAccumulator(batchLimit)
 	a.Seal()
 	require.Nil(t, a.PopSealed())
 	a.Append(first)
 	a.Append(second)
-	require.Equal(t, cap, a.open.EncodedSize())
+	require.Equal(t, batchLimit, a.open.EncodedSize())
 	require.Nil(t, a.PopSealed())
 	a.Append(third)
 	sealed := popHistoryBatchForTest(t, a)
-	require.Equal(t, cap, sealed.batchBytes)
+	require.Equal(t, batchLimit, sealed.batchBytes)
 	require.Equal(t, []int64{1, 2}, sealed.batch.Seqs)
 	require.Equal(t, []string{"overlap"}, sealed.batch.Keys)
 	require.Equal(t, []string{"a", "b"}, sealed.batch.Strings)
@@ -52,18 +52,18 @@ func TestHistoryAccumulatorExactFitAndRollover(t *testing.T) {
 }
 
 func TestHistoryAccumulatorOversizedSingleton(t *testing.T) {
-	for _, cap := range []int{8 << 20, 19 << 19} {
-		t.Run(fmt.Sprint(cap), func(t *testing.T) {
-			a := newHistoryAccumulator(cap)
+	for _, batchLimit := range []int{8 << 20, 19 << 19} {
+		t.Run(fmt.Sprint(batchLimit), func(t *testing.T) {
+			a := newHistoryAccumulator(batchLimit)
 			a.Append(&metricsbatch.Row{})
-			a.Append(historyRow(t, 1, "wide", strings.Repeat("x", cap)))
+			a.Append(historyRow(t, 1, "wide", strings.Repeat("x", batchLimit)))
 			head := popHistoryBatchForTest(t, a)
 			require.Equal(t, []uint32{0}, head.batch.RowEnds)
 			require.Equal(t, []bool{false}, head.batch.HasSeq)
 			oversized := popHistoryBatchForTest(t, a)
-			require.Greater(t, oversized.batchBytes, cap)
+			require.Greater(t, oversized.batchBytes, batchLimit)
 			require.Equal(t, []int64{1}, oversized.batch.Seqs)
-			require.Len(t, oversized.batch.Strings[0], cap)
+			require.Len(t, oversized.batch.Strings[0], batchLimit)
 			a.Append(historyRow(t, 2, "small", "tail"))
 			a.Seal()
 			tail := popHistoryBatchForTest(t, a)
