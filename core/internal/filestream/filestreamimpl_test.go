@@ -208,23 +208,7 @@ func TestSendProtobufHistory(t *testing.T) {
 
 			require.Len(t, requests, 2)
 			for i, request := range requests {
-				assert.Equal(t, http.MethodPost, request.Method)
-				assert.Equal(t, "/files/entity/project/run/file_stream", request.URL.Path)
-				assert.Equal(t, protoContentType, request.Header.Get("Content-Type"))
-				body := request.Body
-				if useGzip {
-					assert.Equal(t, "gzip", request.Header.Get("Content-Encoding"))
-					reader, err := gzip.NewReader(bytes.NewReader(body))
-					require.NoError(t, err)
-					body, err = io.ReadAll(reader)
-					require.NoError(t, err)
-					require.NoError(t, reader.Close())
-				} else {
-					assert.Empty(t, request.Header.Get("Content-Encoding"))
-				}
-
-				upload := &filestreamv1.FileStreamUpload{}
-				require.NoError(t, proto.Unmarshal(body, upload))
+				upload := decodeProtobufRequest(t, request, useGzip)
 				if i == 1 {
 					assert.True(t, proto.Equal(&filestreamv1.FileStreamUpload{}, upload))
 					continue
@@ -244,6 +228,32 @@ func TestSendProtobufHistory(t *testing.T) {
 			}
 		})
 	}
+}
+
+func decodeProtobufRequest(
+	t *testing.T,
+	request apitest.RequestCopy,
+	useGzip bool,
+) *filestreamv1.FileStreamUpload {
+	t.Helper()
+	assert.Equal(t, http.MethodPost, request.Method)
+	assert.Equal(t, "/files/entity/project/run/file_stream", request.URL.Path)
+	assert.Equal(t, protoContentType, request.Header.Get("Content-Type"))
+	body := request.Body
+	if useGzip {
+		assert.Equal(t, "gzip", request.Header.Get("Content-Encoding"))
+		reader, err := gzip.NewReader(bytes.NewReader(body))
+		require.NoError(t, err)
+		body, err = io.ReadAll(reader)
+		require.NoError(t, err)
+		require.NoError(t, reader.Close())
+	} else {
+		assert.Empty(t, request.Header.Get("Content-Encoding"))
+	}
+
+	upload := &filestreamv1.FileStreamUpload{}
+	require.NoError(t, proto.Unmarshal(body, upload))
+	return upload
 }
 
 func TestMarshalRejectsInvalidTypedHistory(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -204,19 +205,7 @@ func (fs *fileStream) send(
 			resp,
 		)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
-		// If we reach here, that means all retries were exhausted. This could
-		// mean, for instance, that the user's internet connection broke.
-		defer resp.Body.Close()
-		if contentType == protoContentType {
-			return fmt.Errorf("filestream: failed to upload: %v url=%v", resp.Status, req.URL)
-		}
-		details, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return fmt.Errorf(
-			"filestream: failed to upload: %v url=%v: %s",
-			resp.Status,
-			req.URL,
-			string(details),
-		)
+		return uploadResponseError(resp, req.URL, contentType)
 
 	default:
 		if shouldLogStartAndEnd {
@@ -226,18 +215,40 @@ func (fs *fileStream) send(
 		}
 	}
 
-	defer func(Body io.ReadCloser) {
-		if err = Body.Close(); err != nil {
+	fs.receiveFeedback(resp.Body, contentType, feedbackChan)
+	return nil
+}
+
+func uploadResponseError(resp *http.Response, requestURL *url.URL, contentType string) error {
+	defer resp.Body.Close()
+	if contentType == protoContentType {
+		return fmt.Errorf("filestream: failed to upload: %v url=%v", resp.Status, requestURL)
+	}
+	details, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+	return fmt.Errorf(
+		"filestream: failed to upload: %v url=%v: %s",
+		resp.Status,
+		requestURL,
+		details,
+	)
+}
+
+func (fs *fileStream) receiveFeedback(
+	body io.ReadCloser,
+	contentType string,
+	feedbackChan chan<- map[string]any,
+) {
+	defer func() {
+		if err := body.Close(); err != nil {
 			fs.logger.CaptureError(
 				"filestream",
 				fmt.Errorf("filestream: error closing response body: %v", err),
 			)
 		}
-	}(resp.Body)
+	}()
 
-	var res map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&res)
-	if err != nil {
+	var res map[string]any
+	if err := json.NewDecoder(body).Decode(&res); err != nil {
 		fs.logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: json decode error: %v", err),
@@ -247,7 +258,6 @@ func (fs *fileStream) send(
 	if contentType != protoContentType {
 		fs.logger.Debug("filestream: post response", "response", res)
 	}
-	return nil
 }
 
 // marshalTimed encodes a request and tracks how long it takes.
