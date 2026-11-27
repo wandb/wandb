@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import inspect
 import json
 import operator
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, get_overloads
 
 import pytest
 from hypothesis import given
@@ -16,7 +17,13 @@ from wandb.automations import (
     MetricZScoreFilter,
     RunEvent,
 )
-from wandb.automations._run_metric_filters import Agg, ChangeDir, MetricAgg, MetricVal
+from wandb.automations._run_metric_filters import (
+    Agg,
+    BaseMetricOperand,
+    ChangeDir,
+    MetricAgg,
+    MetricVal,
+)
 from wandb.automations._run_state_filters import ReportedRunState
 from wandb.automations.events import StateFilter
 
@@ -772,3 +779,22 @@ def test_declarative_state_filter_on_multiple_invalid_states(states: list[Any]):
     """Check that a `StateFilter` on multiple invalid states raises a ValueError."""
     with raises(ValueError):  # via the `.in_()` method
         _ = RunEvent.state.in_(states)
+
+
+def test_metric_change_overloads_allow_omitted_alternative():
+    """Verify metric-change overloads default the omitted threshold to None."""
+    for method_name in ("changes_by", "increases_by", "decreases_by"):
+        method = getattr(BaseMetricOperand, method_name)
+        overloads = get_overloads(method)
+        public_sigs = [
+            inspect.signature(fn)
+            for fn in overloads
+            if "_dir" not in inspect.signature(fn).parameters
+        ]
+        assert len(public_sigs) == 2
+
+        diff_sig, frac_sig = public_sigs
+        assert diff_sig.parameters["diff"].default is inspect.Parameter.empty
+        assert diff_sig.parameters["frac"].default is None
+        assert frac_sig.parameters["diff"].default is None
+        assert frac_sig.parameters["frac"].default is inspect.Parameter.empty
