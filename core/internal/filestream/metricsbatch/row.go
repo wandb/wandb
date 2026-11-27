@@ -23,6 +23,7 @@ const seqKey = "_step"
 // to several builders.
 type Row struct {
 	cells   []cell
+	counts  [filestreamv1.MetricsBatch_KIND_JSON + 1]int
 	step    int64
 	hasStep bool
 }
@@ -58,6 +59,7 @@ func Prepare(rh *runhistory.RunHistory) (*Row, error) {
 			return
 		}
 		row.cells = append(row.cells, c)
+		row.counts[c.kind]++
 	})
 	return row, errors.Join(errs...)
 }

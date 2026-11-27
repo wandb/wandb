@@ -3,6 +3,7 @@ package filestream
 import (
 	"maps"
 
+	"github.com/wandb/wandb/core/internal/filestream/metricsbatch"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
@@ -16,6 +17,8 @@ type FileStreamRequest struct {
 	//
 	// Each line is a JSON object mapping metric names to values.
 	HistoryLines []string
+
+	typedHistoryRows []*metricsbatch.Row
 
 	// EventsLines is a list of lines to append to the run's system metrics.
 	//

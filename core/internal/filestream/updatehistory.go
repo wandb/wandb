@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/filestream/metricsbatch"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/runhistory"
 )
@@ -16,6 +17,11 @@ type HistoryUpdate struct {
 }
 
 func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
+	if ctx.typedHistory {
+		u.applyTyped(ctx)
+		return nil
+	}
+
 	applyTime := time.Now()
 
 	line, err := u.Row.ToExtendedJSON()
@@ -63,4 +69,22 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 	}
 
 	return nil
+}
+
+func (u *HistoryUpdate) applyTyped(ctx UpdateContext) {
+	start := time.Now()
+	row, err := metricsbatch.Prepare(u.Row)
+	ctx.Stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentUploadRender,
+		filestreamstats.StreamHistory,
+		time.Since(start),
+	)
+	if err != nil {
+		ctx.Logger.CaptureWarn("filestream: partially prepared typed history row", "error", err)
+	}
+	ctx.MakeRequest(&FileStreamRequest{
+		typedHistoryRows: []*metricsbatch.Row{row},
+	})
+	ctx.Stats.AddRow(u.Cells)
 }
