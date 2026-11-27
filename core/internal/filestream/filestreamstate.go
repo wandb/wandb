@@ -77,16 +77,9 @@ func (s *FileStreamState) merge(request, next *FileStreamRequest) {
 // IsAtSizeLimit returns true if the next JSON chunk of the request could
 // contain more than around maxBytes of data.
 func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
-	approxSize := 0
-
-	if history := request.typedHistory; history.hasMore() {
-		if len(history.sealed) > 0 {
-			return true
-		}
-		approxSize = history.openBudgetBytes()
-		if approxSize >= history.maxHistoryBytes {
-			return true
-		}
+	approxSize, historyReady := request.typedHistory.sizeHint()
+	if historyReady {
+		return true
 	}
 
 	for _, line := range request.HistoryLines {

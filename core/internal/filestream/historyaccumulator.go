@@ -55,6 +55,17 @@ func (a *historyAccumulator) hasMore() bool {
 	return a != nil && (len(a.sealed) > 0 || a.open.Rows() > 0)
 }
 
+func (a *historyAccumulator) sizeHint() (int, bool) {
+	if a == nil {
+		return 0, false
+	}
+	if len(a.sealed) > 0 {
+		return 0, true
+	}
+	bytes := a.openBudgetBytes()
+	return bytes, bytes > 0 && bytes >= a.maxHistoryBytes
+}
+
 func (a *historyAccumulator) openBudgetBytes() int {
 	if a.open.Rows() == 0 {
 		return 0
