@@ -106,7 +106,9 @@ class Html(BatchableMedia):
             parts = ["", self.html]
         parts.insert(
             1,
-            '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />',
+            '<meta charset="utf-8">'
+            '<base target="_blank">'
+            '<link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />',
         )
         self.html = join.join(parts).strip()
 
