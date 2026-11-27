@@ -242,3 +242,28 @@ def test_multi_net(user):
         graph2 = graphs[1]._to_graph_json()
         assert len(graph1["nodes"]) == 5
         assert len(graph2["nodes"]) == 5
+
+
+def test_torch_watch_gradient_hooks_are_marked_unserializable(user):
+    pytest.importorskip("torch")
+    import warnings
+
+    from torch.utils.hooks import warn_if_has_hooks
+
+    run = wandb.init()
+    model = EmbModelWrapper()
+
+    run.watch(model, log="gradients", log_freq=1)
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        for param in model.parameters():
+            warn_if_has_hooks(param)
+
+    assert not [
+        warning
+        for warning in record
+        if "on tensor will not be serialized" in str(warning.message)
+    ]
+
+    run.finish()
