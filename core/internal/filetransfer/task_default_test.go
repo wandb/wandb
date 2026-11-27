@@ -32,3 +32,14 @@ func TestParseHeaders(t *testing.T) {
 		assert.ErrorContains(t, err, `["no-colon" "also bad"]`)
 	})
 }
+
+func TestDefaultUploadTask_RequiresAzureUploadUsesBackendHeader(t *testing.T) {
+	task := &filetransfer.DefaultUploadTask{
+		Url: "https://account.blob.core.windows.net/container/blob?user-delegation-sas",
+		Headers: http.Header{
+			"X-Ms-Blob-Type": {"BlockBlob"},
+		},
+	}
+
+	assert.True(t, task.RequiresAzureUpload())
+}
