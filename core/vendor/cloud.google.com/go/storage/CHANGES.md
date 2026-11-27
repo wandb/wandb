@@ -1,6 +1,20 @@
 # Changes
 
 
+## [1.71.1](https://github.com/googleapis/google-cloud-go/compare/storage/v1.71.0...storage/v1.71.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **storage:** Classify error.type from structured errors and normalize server.address ([#20797](https://github.com/googleapis/google-cloud-go/issues/20797)) ([0a11639](https://github.com/googleapis/google-cloud-go/commit/0a116399f83abcf8eb7213799f67efd32a7cee49))
+* **storage:** Confine DownloadDirectory with os.Root and reject escaping/absolute symlinks ([#20935](https://github.com/googleapis/google-cloud-go/issues/20935)) ([c4cb507](https://github.com/googleapis/google-cloud-go/commit/c4cb507dadadc93987e9cf902f04029e8d3cce33))
+* **storage:** Fix part naming, generation pinning, and encryption key handling in parallel uploads and Composer ([#20936](https://github.com/googleapis/google-cloud-go/issues/20936)) ([76b4a6f](https://github.com/googleapis/google-cloud-go/commit/76b4a6fcac72ffd7b10298dc63e2b940ccb3a971))
+* **storage:** Forward universe domain and credentials to Cloud Monitoring exporters ([#20988](https://github.com/googleapis/google-cloud-go/issues/20988)) ([ce24462](https://github.com/googleapis/google-cloud-go/commit/ce24462174504007d41d7c37f992aca1300fe477))
+* **storage:** Honor maxAttempts and RetryNever in HTTP writer ([#20153](https://github.com/googleapis/google-cloud-go/issues/20153)) ([db5e482](https://github.com/googleapis/google-cloud-go/commit/db5e4824a41c1f626f7304fb078714c96a2e4936))
+* **storage:** Honor universe domain in SignedURL, GenerateSignedPostPolicyV4, and default SignBlob ([#20984](https://github.com/googleapis/google-cloud-go/issues/20984)) ([7ead707](https://github.com/googleapis/google-cloud-go/commit/7ead707db866e37fc46796b9cc500f032f0beade))
+* **storage:** Refine auth refresh, stall duration, and gRPC DNS lookup metrics ([#20798](https://github.com/googleapis/google-cloud-go/issues/20798)) ([ceca8c9](https://github.com/googleapis/google-cloud-go/commit/ceca8c9739f7d1c12233c05e42400504b7a6e16a))
+* **storage:** Set DoesNotExist precondition on PCU intermediate composes ([#20950](https://github.com/googleapis/google-cloud-go/issues/20950)) ([85499e5](https://github.com/googleapis/google-cloud-go/commit/85499e5f032845ccd552499434b8f522ccb974a6))
+
 ## [1.71.0](https://github.com/googleapis/google-cloud-go/compare/storage/v1.70.0...storage/v1.71.0) (2026-11-14)
 
 

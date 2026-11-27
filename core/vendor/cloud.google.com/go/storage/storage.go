@@ -121,6 +121,10 @@ type Client struct {
 	scheme string
 	// xmlHost is the default host used for XML requests.
 	xmlHost string
+	// universeDomain is the resolved universe domain configured for this client.
+	universeDomain string
+	// customHTTPClient reports whether the caller supplied option.WithHTTPClient.
+	customHTTPClient bool
 	// May be nil.
 	creds *auth.Credentials
 	retry *retryConfig
@@ -158,6 +162,12 @@ func (c Client) credsJSON() ([]byte, bool) {
 // package. You may also use options defined in this package, such as [WithJSONReads].
 func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error) {
 	var creds *auth.Credentials
+	ur, err := internaloption.NewUnsafeResolver(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("storage: %w", err)
+	}
+	universeDomain := ur.ResolvedUniverseDomain()
+	customHTTPClient := ur.ResolvedHTTPClientIsCustom()
 
 	// In general, it is recommended to use raw.NewService instead of htransport.NewClient
 	// since raw.NewService configures the correct default endpoints when initializing the
@@ -172,19 +182,20 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 
 		opts = append(opts, internaloption.WithDefaultEndpointTemplate("https://storage.UNIVERSE_DOMAIN/storage/v1/"),
 			internaloption.WithDefaultMTLSEndpoint("https://storage.mtls.googleapis.com/storage/v1/"),
-			internaloption.WithDefaultUniverseDomain("googleapis.com"),
+			internaloption.WithDefaultUniverseDomain(defaultUniverseDomain),
 			internaloption.EnableNewAuthLibrary(),
 		)
 
 		// Don't error out here. The user may have passed in their own HTTP
 		// client which does not auth with ADC or other common conventions.
-		c, err := internaloption.AuthCreds(ctx, opts)
-		if err == nil && c != nil {
-			// Clone so that credential wrapping in newHTTPStorageClient never
-			// mutates caller-owned credentials passed via WithAuthCredentials.
-			clone := *c
-			creds = &clone
-			opts = append(opts, option.WithAuthCredentials(creds))
+		if res, rErr := internaloption.NewUnsafeResolver(opts...); rErr == nil && !res.ResolvedWithAPIKeyIsCustom() {
+			if c, err := internaloption.AuthCreds(ctx, opts); err == nil && c != nil {
+				// Clone so that credential wrapping in newHTTPStorageClient never
+				// mutates caller-owned credentials passed via WithAuthCredentials.
+				clone := *c
+				creds = &clone
+				opts = append(opts, option.WithAuthCredentials(creds))
+			}
 		}
 	} else {
 		var hostURL *url.URL
@@ -219,7 +230,10 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 		return nil, fmt.Errorf("dialing: %w", err)
 	}
 	// RawService should be created with the chosen endpoint to take account of user override.
-	// Preserve other user-supplied options as well.
+	// Preserve other user-supplied options as well. Capture pre-transport options
+	// before appending internal WithHTTPClient(hc) so monitoringClientOptions only
+	// disables Cloud Monitoring export when the caller supplied WithHTTPClient.
+	monitoringSourceOpts := opts[:len(opts):len(opts)]
 	opts = append(opts, option.WithEndpoint(ep), option.WithHTTPClient(hc))
 	rawService, err := raw.NewService(ctx, opts...)
 	if err != nil {
@@ -231,7 +245,7 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 		return nil, fmt.Errorf("supplied endpoint %q is not valid: %w", ep, err)
 	}
 
-	tc, err := newHTTPStorageClient(ctx, withClientOptions(opts...))
+	tc, err := newHTTPStorageClient(ctx, withClientOptions(opts...), withMonitoringSourceOptions(monitoringSourceOpts...))
 	if err != nil {
 		return nil, fmt.Errorf("storage: %w", err)
 	}
@@ -246,13 +260,15 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 	}
 
 	c := &Client{
-		hc:        hc,
-		raw:       rawService,
-		scheme:    u.Scheme,
-		xmlHost:   u.Host,
-		creds:     creds,
-		tc:        tcWrapped,
-		rpcSystem: rpcSystemHTTP,
+		hc:               hc,
+		raw:              rawService,
+		scheme:           u.Scheme,
+		xmlHost:          u.Host,
+		universeDomain:   universeDomain,
+		customHTTPClient: customHTTPClient,
+		creds:            creds,
+		tc:               tcWrapped,
+		rpcSystem:        rpcSystemHTTP,
 	}
 	if isACOEnabled() {
 		c.bucketMetadataCache = newBucketMetadataCache(defaultBucketMetadataCacheLimit, c.tc)
@@ -403,6 +419,18 @@ type bucketBoundHostname struct {
 	hostname string
 }
 
+const (
+	defaultUniverseDomain = "googleapis.com"
+	universeDomainEnvVar  = "GOOGLE_CLOUD_UNIVERSE_DOMAIN"
+)
+
+func defaultUniverseDomainFromEnv() string {
+	if ud := os.Getenv(universeDomainEnvVar); ud != "" {
+		return ud
+	}
+	return defaultUniverseDomain
+}
+
 func (s pathStyle) host(hostname, bucket string) string {
 	if hostname != "" {
 		return stripScheme(hostname)
@@ -412,7 +440,7 @@ func (s pathStyle) host(hostname, bucket string) string {
 		return stripScheme(host)
 	}
 
-	return "storage.googleapis.com"
+	return "storage." + defaultUniverseDomainFromEnv()
 }
 
 func (s virtualHostedStyle) host(hostname, bucket string) string {
@@ -424,7 +452,7 @@ func (s virtualHostedStyle) host(hostname, bucket string) string {
 		return bucket + "." + stripScheme(host)
 	}
 
-	return bucket + ".storage.googleapis.com"
+	return bucket + ".storage." + defaultUniverseDomainFromEnv()
 }
 
 func (s bucketBoundHostname) host(_, bucket string) string {
@@ -450,14 +478,17 @@ func (s bucketBoundHostname) path(bucket, object string) string {
 // PathStyle is the default style, and will generate a URL of the form
 // "{host-name}/{bucket-name}/{object-name}". By default, {host-name} is
 // storage.googleapis.com, but setting an endpoint on the storage Client or
-// through STORAGE_EMULATOR_HOST overrides this. Setting Hostname on
+// through STORAGE_EMULATOR_HOST overrides this. If GOOGLE_CLOUD_UNIVERSE_DOMAIN
+// is set, the default host is storage.{universe-domain}. Setting Hostname on
 // SignedURLOptions or PostPolicyV4Options overrides everything else.
 func PathStyle() URLStyle {
 	return pathStyle{}
 }
 
 // VirtualHostedStyle generates a URL relative to the bucket's virtual
-// hostname, e.g. "{bucket-name}.storage.googleapis.com/{object-name}".
+// hostname, e.g. "{bucket-name}.storage.googleapis.com/{object-name}". If
+// GOOGLE_CLOUD_UNIVERSE_DOMAIN is set, the default host is
+// storage.{universe-domain}.
 func VirtualHostedStyle() URLStyle {
 	return virtualHostedStyle{}
 }

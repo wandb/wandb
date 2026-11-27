@@ -817,7 +817,7 @@ func (m *multiRangeDownloaderManager) openAndInitializeSession(ctx context.Conte
 		}
 	}, func(stallTimeout time.Duration) {
 		target := stripPort(metricsStateFromContext(ctx).getTarget())
-		m.client.metrics.recordStallDuration(ctx, stallTimeout, "ReadObject", "grpc", target)
+		m.client.metrics.recordStallDuration(ctx, stallTimeout, rpcBidiReadObject, "grpc", target)
 		if result.decoder != nil {
 			result.decoder.databufs.Free()
 		}

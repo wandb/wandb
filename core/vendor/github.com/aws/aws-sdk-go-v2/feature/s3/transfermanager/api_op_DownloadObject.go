@@ -793,8 +793,16 @@ func (d *downloader) tryDownloadChunk(ctx context.Context, params *s3.GetObjectI
 		if err != nil {
 			return nil, err
 		}
-		// don't validate first chunk since object size is unknown when getting that
-		if reqStart != 0 && (reqStart != respStart || reqEnd != respEnd) {
+		// S3 truncates a requested range at EOF.
+		expectedEnd := reqEnd
+		if respEnd < reqEnd {
+			_, totalStr, _ := strings.Cut(aws.ToString(out.ContentRange), "/")
+			if total, err := strconv.ParseInt(totalStr, 10, 64); err == nil && respEnd == total-1 {
+				expectedEnd = respEnd
+			}
+		}
+		// Don't validate the initial zero-start chunk before the size is known.
+		if reqStart != 0 && (reqStart != respStart || expectedEnd != respEnd) {
 			return nil, fmt.Errorf("range mismatch between request %d-%d and response %d-%d", reqStart, reqEnd, respStart, respEnd)
 		}
 	}
@@ -835,14 +843,13 @@ func (d *downloader) tryDownloadChunk(ctx context.Context, params *s3.GetObjectI
 // does not include a Content-Range. Meaning the object was not chunked. This
 // occurs when the full file fits within the PartSize directive.
 func (d *downloader) setTotalBytes(resp *s3.GetObjectOutput) {
-	if d.totalBytes >= 0 {
-		return
-	}
-
 	if resp.ContentRange == nil {
 		// ContentRange is nil when the full file contents is provided, and
 		// is not chunked. Use ContentLength instead.
-		d.totalBytes = aws.ToInt64(resp.ContentLength)
+		length := aws.ToInt64(resp.ContentLength)
+		if d.totalBytes < 0 || length < d.totalBytes {
+			d.totalBytes = length
+		}
 	} else {
 		parts := strings.Split(*resp.ContentRange, "/")
 		totalStr := parts[len(parts)-1]
@@ -852,7 +859,10 @@ func (d *downloader) setTotalBytes(resp *s3.GetObjectOutput) {
 			return
 		}
 
-		d.totalBytes = total
+		// Preserve a shorter requested range, but never schedule past EOF.
+		if d.totalBytes < 0 || total < d.totalBytes {
+			d.totalBytes = total
+		}
 	}
 }
 

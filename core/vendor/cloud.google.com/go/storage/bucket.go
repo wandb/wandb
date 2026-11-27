@@ -332,13 +332,20 @@ func (b *BucketHandle) defaultSignBytesFunc(email string) func([]byte) ([]byte, 
 
 		opts := []option.ClientOption{option.WithHTTPClient(b.c.hc)}
 
-		if b.c.creds != nil {
-			universeDomain, err := b.c.creds.UniverseDomain(ctx)
+		universeDomain := b.c.universeDomain
+		if universeDomain == "" {
+			universeDomain = defaultUniverseDomainFromEnv()
+		}
+		if b.c.creds != nil && !b.c.customHTTPClient {
+			credUniverseDomain, err := b.c.creds.UniverseDomain(ctx)
 			if err != nil {
 				return nil, err
 			}
-			opts = append(opts, option.WithUniverseDomain(universeDomain))
+			if credUniverseDomain != "" && credUniverseDomain != universeDomain {
+				return nil, fmt.Errorf("storage: configured universe domain %q does not match credentials universe domain %q", universeDomain, credUniverseDomain)
+			}
 		}
+		opts = append(opts, option.WithUniverseDomain(universeDomain))
 
 		// It's ok to recreate this service per call since we pass in the http client,
 		// circumventing the cost of recreating the auth/transport layer

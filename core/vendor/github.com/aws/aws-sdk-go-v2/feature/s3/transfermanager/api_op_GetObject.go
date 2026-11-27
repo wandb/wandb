@@ -682,10 +682,15 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 
 		total := aws.ToInt64(out.ContentLength)
 		if rng := aws.ToString(g.in.Range); rng != "" {
-			r.pos, total, err = getReqRange(rng)
-			total++
+			var rangeEnd int64
+			r.pos, rangeEnd, err = getReqRange(rng)
 			if err != nil {
 				return nil, err
+			}
+			// A range may extend past EOF; only schedule the available bytes.
+			total = min(rangeEnd, total-1) + 1
+			if r.pos >= total {
+				return nil, &errInvalidRange{max: aws.ToInt64(out.ContentLength) - 1}
 			}
 		}
 

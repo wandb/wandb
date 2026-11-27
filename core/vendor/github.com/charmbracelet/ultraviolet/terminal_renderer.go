@@ -502,6 +502,54 @@ func cellEqual(a, b *Cell) bool {
 	return a.Equal(b)
 }
 
+// asciiContent holds the content of every one-byte ASCII cell, so the model of
+// the screen keeps those, nearly every cell of a frame, without allocating.
+var asciiContent = func() (t [utf8.RuneSelf]string) {
+	var all [utf8.RuneSelf]byte
+	for i := range all {
+		all[i] = byte(i)
+	}
+	s := string(all[:])
+	for i := range t {
+		t[i] = s[i : i+1]
+	}
+	return t
+}()
+
+// ownContent returns s in memory of its own. A cell drawn from a styled string
+// holds a substring of the whole frame, so a cell of the model of the screen
+// that kept it would keep that frame alive for as long as the screen shows the
+// cell.
+func ownContent(s string) string {
+	if len(s) == 1 && s[0] < utf8.RuneSelf {
+		return asciiContent[s[0]]
+	}
+	return strings.Clone(s)
+}
+
+// adoptCells copies src into dst, a line of the model of the screen, giving
+// each cell whose content changed a copy of its own (see [ownContent]). A cell
+// whose content is unchanged keeps the copy it has.
+func adoptCells(dst, src Line) {
+	for i := range min(len(dst), len(src)) {
+		content := dst[i].Content
+		dst[i] = src[i]
+		if content != dst[i].Content {
+			content = ownContent(dst[i].Content)
+		}
+		dst[i].Content = content
+	}
+}
+
+// adoptCell sets cell x of l, a line of the model of the screen, to c, with
+// its content copied as [adoptCells] does.
+func adoptCell(l Line, x int, c *Cell) {
+	l.Set(x, c)
+	if x >= 0 && x < len(l) {
+		l[x].Content = ownContent(l[x].Content)
+	}
+}
+
 // putCell draws a cell at the current cursor position.
 //
 // The lower right corner is written with autowrap off, since a pending wrap
@@ -774,7 +822,7 @@ func (s *TerminalRenderer) clearToEnd(newbuf *RenderBuffer, blank *Cell, force b
 			if j >= 0 {
 				c := curline.At(j)
 				if !cellEqual(c, blank) {
-					curline.Set(j, blank)
+					adoptCell(curline, j, blank)
 					force = true
 				}
 			}
@@ -926,7 +974,7 @@ func (s *TerminalRenderer) repaintLine(newbuf *RenderBuffer, y int) {
 	// would let a later frame skip the cell, and a resize that widens the line
 	// would leave the half-glyph on screen forever.
 	if len(oldLine) == len(newLine) {
-		copy(oldLine, newLine)
+		adoptCells(oldLine, newLine)
 		for x := clipped; x < width && x < len(oldLine); x++ {
 			oldLine[x] = Cell{}
 		}
@@ -998,7 +1046,7 @@ func (s *TerminalRenderer) transformLine(newbuf *RenderBuffer, y int) {
 				}
 
 				for firstCell < nFirstCell {
-					oldLine.Set(firstCell, blank)
+					adoptCell(oldLine, firstCell, blank)
 					firstCell++
 				}
 			}
@@ -1027,9 +1075,9 @@ func (s *TerminalRenderer) transformLine(newbuf *RenderBuffer, y int) {
 			s.move(newbuf, firstCell, y)
 			s.putRange(newbuf, oldLine, newLine, y, firstCell, nLastCell)
 			if firstCell < len(oldLine) && firstCell < len(newLine) {
-				copy(oldLine[firstCell:], newLine[firstCell:])
+				adoptCells(oldLine[firstCell:], newLine[firstCell:])
 			} else {
-				copy(oldLine, newLine)
+				adoptCells(oldLine, newLine)
 			}
 		}
 
@@ -1139,9 +1187,9 @@ func (s *TerminalRenderer) transformLine(newbuf *RenderBuffer, y int) {
 
 	// Update the old line with the new line
 	if firstCell < len(oldLine) && firstCell < len(newLine) {
-		copy(oldLine[firstCell:], newLine[firstCell:])
+		adoptCells(oldLine[firstCell:], newLine[firstCell:])
 	} else {
-		copy(oldLine, newLine)
+		adoptCells(oldLine, newLine)
 	}
 }
 

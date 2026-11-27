@@ -90,6 +90,7 @@ type storageConfig struct {
 	metricInterval         time.Duration
 	meterProvider          *metric.MeterProvider
 	manualReader           *metric.ManualReader
+	monitoringOpts         []option.ClientOption
 	readStallTimeoutConfig *experimental.ReadStallTimeoutConfig
 	grpcBidiReads          bool
 	grpcAppendableUploads  bool

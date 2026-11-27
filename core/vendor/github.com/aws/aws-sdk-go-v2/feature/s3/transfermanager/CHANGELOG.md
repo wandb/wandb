@@ -1,3 +1,15 @@
+# v0.5.13 (2026-11-25)
+
+* **Dependency Update**: Update to smithy-go v1.28.10.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.12 (2026-11-24)
+
+* **Bug Fix**: Fix GetObject and DownloadObject failing or reporting an incorrect length when the requested byte range extends past the end of an S3 object.
+* **Bug Fix**: Preserve the abort error alongside the original upload error when an S3 multipart upload and its cleanup both fail.
+* **Bug Fix**: Quick exit GetObject body read for empty buffer so it does not cause deadlock
+* **Bug Fix**: Retry part body read failures in `GetObject` up to `PartBodyMaxRetries`, matching `DownloadObject`.
+
 # v0.5.11 (2026-11-19)
 
 * **Dependency Update**: Updated to the latest SDK module versions

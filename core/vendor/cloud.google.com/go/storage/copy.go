@@ -190,6 +190,9 @@ func (c *Composer) Run(ctx context.Context) (attrs *ObjectAttrs, err error) {
 	if err := c.dst.validate(); err != nil {
 		return nil, err
 	}
+	if c.KMSKeyName != "" && c.dst.encryptionKey != nil {
+		return nil, errors.New("storage: cannot use KMSKeyName with a customer-supplied encryption key")
+	}
 	if c.dst.gen != defaultGen {
 		return nil, fmt.Errorf("storage: generation cannot be specified on compose destination, got %v", c.dst.gen)
 	}

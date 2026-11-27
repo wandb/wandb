@@ -22,7 +22,10 @@ const (
 
 	// envOtelDebugMetrics is the environment variable that allows the user to
 	// enable advanced OpenTelemetry debug and network metrics. When set to "true",
-	// the storage client will capture additional connection metrics such as DNS, TCP, and TLS durations.
+	// the storage client will capture additional connection metrics such as DNS,
+	// TCP, and TLS durations. It is independent of
+	// GCP_STORAGE_GO_ENABLE_OTEL_METRICS: either set of metrics can be enabled
+	// without the other.
 	envOtelDebugMetrics = "GCP_STORAGE_GO_ENABLE_OTEL_DEBUG_METRICS"
 
 	// storageOtelTracingDevVar is the environment variable that enables OTel tracing.

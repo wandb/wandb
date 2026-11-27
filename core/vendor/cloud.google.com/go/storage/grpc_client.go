@@ -33,6 +33,7 @@ import (
 	gapic "cloud.google.com/go/storage/internal/apiv2"
 	"cloud.google.com/go/storage/internal/apiv2/storagepb"
 	"github.com/googleapis/gax-go/v2"
+	"golang.org/x/oauth2/google"
 
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -143,18 +144,15 @@ type grpcStorageClient struct {
 	configFeatureAttributes uint32
 }
 
-func enableClientMetrics(ctx context.Context, s *settings, config storageConfig) (*metricsContext, error) {
-	var project string
-	// TODO: use new auth client
-	c, err := transport.Creds(ctx, s.clientOption...)
-	if err == nil {
-		project = c.ProjectID
-	}
+func enableClientMetrics(ctx context.Context, project string, config storageConfig, disableExporter bool) (*metricsContext, error) {
 	metricsContext, err := newGRPCMetricContext(ctx, metricsConfig{
-		project:       project,
-		interval:      config.metricInterval,
-		manualReader:  config.manualReader,
-		meterProvider: config.meterProvider,
+		project:         project,
+		interval:        config.metricInterval,
+		customExporter:  config.metricExporter,
+		manualReader:    config.manualReader,
+		meterProvider:   config.meterProvider,
+		disableExporter: disableExporter,
+		monitoringOpts:  config.monitoringOpts,
 	},
 	)
 	if err != nil {
@@ -188,9 +186,20 @@ func newGRPCStorageClient(ctx context.Context, opts ...storageOption) (client *g
 			})))
 	}
 
-	if !config.disableClientMetrics {
+	metricsEnabled := isOtelMetricsEnabled(&config) || isOtelDebugMetricsEnabled(&config)
+	tracingEnabled := isOTelTracingDevEnabled()
+	var authCreds *auth.Credentials
+	var googleCreds *google.Credentials
+	var project string
+	var exportOK bool
+	if !config.disableClientMetrics || tracingEnabled {
+		authCreds, googleCreds, project = resolveGRPCAuthCredentials(ctx, s)
+		config.monitoringOpts, exportOK = monitoringClientOptions(s.clientOption, authCreds, googleCreds)
+	}
+
+	if !config.disableClientMetrics && (exportOK || config.meterProvider != nil || config.manualReader != nil || config.metricExporter != nil) {
 		// Do not fail client creation if enabling metrics fails.
-		if metricsContext, err := enableClientMetrics(ctx, s, config); err == nil {
+		if metricsContext, err := enableClientMetrics(ctx, project, config, !exportOK); err == nil {
 			s.metricsContext = metricsContext
 			s.clientOption = append(s.clientOption, metricsContext.clientOpts...)
 		} else {
@@ -200,12 +209,11 @@ func newGRPCStorageClient(ctx context.Context, opts ...storageOption) (client *g
 
 	var clientMetrics *clientMetrics
 	var metricsCleanup func()
-	metricsEnabled := isOtelMetricsEnabled(&config)
-	tracingEnabled := isOTelTracingDevEnabled()
 	if metricsEnabled || tracingEnabled {
-		authCreds, project := resolveGRPCAuthCredentials(ctx, s)
 		if metricsEnabled {
-			clientMetrics, metricsCleanup = initClientMetrics(ctx, project, &config)
+			if exportOK || config.meterProvider != nil || config.metricExporter != nil {
+				clientMetrics, metricsCleanup = initClientMetrics(ctx, project, &config)
+			}
 			if clientMetrics != nil {
 				authCreds = wrapAuthCredentials(authCreds, clientMetrics)
 				unaryInt, streamInt := metricsInterceptors(clientMetrics)
@@ -213,7 +221,13 @@ func newGRPCStorageClient(ctx context.Context, opts ...storageOption) (client *g
 					option.WithGRPCDialOption(grpc.WithChainUnaryInterceptor(unaryInt)),
 					option.WithGRPCDialOption(grpc.WithChainStreamInterceptor(streamInt)),
 				)
-				s.clientOption = append(s.clientOption, grpcNetworkMetricsDialOptions("storage.googleapis.com", clientMetrics)...)
+				endpoint := "storage.googleapis.com"
+				if res, err := internaloption.NewUnsafeResolver(s.clientOption...); err == nil {
+					if ep, err := res.ResolvedGRPCEndpoint(); err == nil && ep != "" {
+						endpoint = ep
+					}
+				}
+				s.clientOption = append(s.clientOption, grpcNetworkMetricsDialOptions(endpoint, clientMetrics)...)
 			}
 		}
 		if tracingEnabled {
@@ -283,21 +297,27 @@ func newGRPCStorageClient(ctx context.Context, opts ...storageOption) (client *g
 	return c, nil
 }
 
-func resolveGRPCAuthCredentials(ctx context.Context, s *settings) (*auth.Credentials, string) {
+func resolveGRPCAuthCredentials(ctx context.Context, s *settings) (*auth.Credentials, *google.Credentials, string) {
 	if res, err := internaloption.NewUnsafeResolver(s.clientOption...); err == nil {
-		if res.ResolvedGRPCConnIsCustom() || res.ResolvedWithoutAuthentication() {
-			return nil, ""
+		if res.ResolvedGRPCConnIsCustom() || res.ResolvedWithoutAuthentication() || res.ResolvedWithAPIKeyIsCustom() {
+			return nil, nil, ""
 		}
 	}
-	credsOpts := append([]option.ClientOption{option.WithScopes(gapic.DefaultAuthScopes()...)}, s.clientOption...)
+	credsOpts := append([]option.ClientOption{
+		internaloption.WithDefaultUniverseDomain("googleapis.com"),
+		internaloption.WithDefaultAudience("https://storage.googleapis.com/"),
+		internaloption.WithDefaultScopes(gapic.DefaultAuthScopes()...),
+		internaloption.EnableJwtWithScope(),
+		internaloption.EnableNewAuthLibrary(),
+	}, s.clientOption...)
 	if c, err := internaloption.AuthCreds(ctx, credsOpts); err == nil && c != nil {
 		project, _ := c.ProjectID(ctx)
-		return c, project
+		return c, nil, project
 	}
 	if c, err := transport.Creds(ctx, credsOpts...); err == nil && c != nil {
-		return nil, c.ProjectID
+		return nil, c, c.ProjectID
 	}
-	return nil, ""
+	return nil, nil, ""
 }
 
 // configureStreamingTimeouts explicitly overrides default call timeouts to 0 (unbounded)
@@ -1182,6 +1202,7 @@ func (c *grpcStorageClient) ComposeObject(ctx context.Context, req *composeObjec
 	rawReq := &storagepb.ComposeObjectRequest{
 		Destination:   dstObjPb,
 		SourceObjects: srcs,
+		KmsKey:        req.dstObject.attrs.KMSKeyName,
 	}
 	if req.deleteSourceObjects {
 		rawReq.DeleteSourceObjects = proto.Bool(true)
@@ -1466,7 +1487,7 @@ func (c *grpcStorageClient) NewRangeReader(ctx context.Context, params *newRange
 			decoder = nil
 			return executeWithReadStallTimeout(ctx, c.readStallMgr, params.bucket, openStream, func(stallTimeout time.Duration) {
 				target := stripPort(metricsStateFromContext(ctx).getTarget())
-				c.metrics.recordStallDuration(ctx, stallTimeout, "ReadObject", "grpc", target)
+				c.metrics.recordStallDuration(ctx, stallTimeout, rpcBidiReadObject, "grpc", target)
 				if decoder != nil && decoder.databufs != nil {
 					decoder.databufs.Free()
 					decoder = nil

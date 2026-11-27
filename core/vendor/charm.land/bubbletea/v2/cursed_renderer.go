@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"image/color"
 	"io"
+	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/colorprofile"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -23,6 +26,7 @@ type cursedRenderer struct {
 	lastView      *View
 	env           []string
 	term          string // the terminal type $TERM
+	resumeToken   string // the Program Resume Protocol token, see [View.ProgramResume]
 	width, height int
 	mu            sync.Mutex
 	profile       colorprofile.Profile
@@ -31,11 +35,12 @@ type cursedRenderer struct {
 	hardTabs      bool // whether to use hard tabs to optimize cursor movements
 	backspace     bool // whether to use backspace to optimize cursor movements
 	mapnl         bool
-	syncdUpdates  bool // whether to use synchronized output mode for updates
-	starting      bool // indicates whether the renderer is starting after being stopped
-	pendingErase  bool // an scr.Erase() is pending and hasn't been drained by flush yet
-	viewStale     bool // a resize occurred and we are waiting for render() to supply the new View
-	noInput       bool // whether input is disabled, in which case keyboard enhancement queries are pointless
+	syncdUpdates  bool   // whether to use synchronized output mode for updates
+	starting      bool   // indicates whether the renderer is starting after being stopped
+	pendingErase  bool   // an scr.Erase() is pending and hasn't been drained by flush yet
+	viewStale     bool   // a resize occurred and we are waiting for render() to supply the new View
+	noInput       bool   // whether input is disabled, in which case keyboard enhancement queries are pointless
+	onQuery       func() // called when a terminal query is written, see [Program.noteQuery]
 }
 
 var _ renderer = &cursedRenderer{}
@@ -45,6 +50,7 @@ func newCursedRenderer(w io.Writer, env []string, width, height int) (s *cursedR
 	s.w = w
 	s.env = env
 	s.term = uv.Environ(env).Getenv("TERM")
+	s.resumeToken = uv.Environ(env).Getenv(ansi.ProgramResumeTokenEnv)
 	s.width, s.height = width, height // This needs to happen before [cursedRenderer.reset].
 	s.cellbuf = uv.NewScreenBuffer(s.width, s.height)
 	reset(s)
@@ -165,6 +171,10 @@ func (s *cursedRenderer) start() {
 	if s.lastView.ProgramStatus != nil {
 		setProgramStatus(s, nil, s.lastView.ProgramStatus)
 	}
+	if s.lastView.ProgramResume != nil {
+		// Another program may have replaced the record while we were away.
+		setProgramResume(s, s.lastView.ProgramResume)
+	}
 	if !s.noInput {
 		// Enable modifyOtherKeys and Kitty keyboard protocol.
 		// Both can coexist; terminals ignore what they don't support.
@@ -256,7 +266,9 @@ func (s *cursedRenderer) close() (err error) {
 		}
 		// Unlike the progress bar, the program status is left in place: done
 		// and error reports should outlive the program, and terminals drop
-		// working and blocked records when the process exits.
+		// working and blocked records when the process exits. So is the
+		// resume command: a closing terminal needs it, and terminals drop it
+		// when the process exits.
 	}
 
 	if s.cellbuf.Method == ansi.GraphemeWidth {
@@ -290,6 +302,14 @@ func (s *cursedRenderer) close() (err error) {
 	return nil
 }
 
+// query writes a terminal query and reports it to onQuery.
+func (s *cursedRenderer) query(seq string) {
+	_, _ = s.scr.WriteString(seq)
+	if s.onQuery != nil {
+		s.onQuery()
+	}
+}
+
 // writeString implements renderer.
 func (s *cursedRenderer) writeString(str string) (int, error) {
 	s.mu.Lock()
@@ -303,6 +323,11 @@ func (s *cursedRenderer) flush(closing bool) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.flushLocked(closing)
+}
+
+// flushLocked is [cursedRenderer.flush] for callers that hold s.mu.
+func (s *cursedRenderer) flushLocked(closing bool) (bool, error) {
 	if !closing && s.viewStale {
 		return false, nil
 	}
@@ -462,7 +487,7 @@ func (s *cursedRenderer) flush(closing bool) (bool, error) {
 		}
 		if !closing {
 			// Request keyboard enhancements when they change
-			_, _ = s.scr.WriteString(ansi.RequestKittyKeyboard)
+			s.query(ansi.RequestKittyKeyboard)
 		}
 	}
 
@@ -491,7 +516,7 @@ func (s *cursedRenderer) flush(closing bool) (bool, error) {
 		{newColor: view.ForegroundColor, oldColor: lfg, reset: ansi.ResetForegroundColor, setter: ansi.SetForegroundColor},
 		{newColor: view.BackgroundColor, oldColor: lbg, reset: ansi.ResetBackgroundColor, setter: ansi.SetBackgroundColor},
 	} {
-		if c.newColor != c.oldColor {
+		if !colorEqual(c.newColor, c.oldColor) {
 			if c.newColor == nil {
 				// Reset the color if it was set to nil.
 				_, _ = s.scr.WriteString(c.reset)
@@ -537,6 +562,15 @@ func (s *cursedRenderer) flush(closing bool) (bool, error) {
 	}
 	if !programStatusEquals(lps, view.ProgramStatus) {
 		setProgramStatus(s, lps, view.ProgramStatus)
+	}
+
+	// Report how to resume the program if it's changed.
+	var lpr *ProgramResume
+	if s.lastView != nil {
+		lpr = s.lastView.ProgramResume
+	}
+	if !programResumeEquals(lpr, view.ProgramResume) {
+		setProgramResume(s, view.ProgramResume)
 	}
 
 	// Render and queue changes to the screen buffer.
@@ -661,6 +695,11 @@ func (s *cursedRenderer) render(v View) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Keep our own copy of the arguments, so a model that reuses its slice
+	// can't change what we last reported.
+	if pr := v.ProgramResume; pr != nil {
+		v.ProgramResume = &ProgramResume{Args: slices.Clone(pr.Args), Dir: pr.Dir}
+	}
 	s.view = v
 	s.viewStale = false
 }
@@ -809,6 +848,20 @@ func (s *cursedRenderer) insertAbove(str string) error {
 		return nil
 	}
 
+	// render only queues the latest view; the frame ticker draws it later, so
+	// a print can arrive before the view the program just returned is on the
+	// terminal. Draw that view first, so the lines go above what is actually
+	// on screen: scrolling with the old frame's geometry can move rows of the
+	// old frame into the scrollback, and a view that leaves the alt screen
+	// hasn't left it yet, so the lines would be printed on the alt screen and
+	// lost. A view that enters the alt screen is left for later: until then,
+	// the lines are still printed on the normal screen, where they persist.
+	if !s.view.AltScreen {
+		if _, err := s.flushLocked(false); err != nil {
+			return fmt.Errorf("bubbletea: error flushing before insert above: %w", err)
+		}
+	}
+
 	var sb strings.Builder
 	w, h := s.cellbuf.Width(), s.cellbuf.Height()
 	_, y := s.scr.Position()
@@ -928,12 +981,59 @@ func setProgramStatus(s *cursedRenderer, prev, cur *ProgramStatus) {
 	}
 }
 
+func programResumeEquals(a, b *ProgramResume) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Dir == b.Dir && slices.Equal(a.Args, b.Args)
+}
+
+// setProgramResume reports pr to the terminal. When pr is nil, or can't be
+// reported, the record is cleared so an outdated command isn't resumed.
+// Nothing is sent when the terminal didn't give us a token.
+func setProgramResume(s *cursedRenderer, pr *ProgramResume) {
+	if s.resumeToken == "" {
+		return
+	}
+	pid, now := os.Getpid(), time.Now()
+	var seq string
+	if pr != nil {
+		seq = ansi.SetProgramResume(s.resumeToken, pid, now, *pr)
+	}
+	if seq == "" {
+		seq = ansi.ClearProgramResume(s.resumeToken, pid, now)
+	}
+	_, _ = s.scr.WriteString(seq)
+}
+
+// reportsProgramResume implements renderer.
+func (s *cursedRenderer) reportsProgramResume() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resumeToken != "" && s.lastView != nil && s.lastView.ProgramResume != nil
+}
+
+// colorEqual reports whether two colors are equal. Colors are compared by
+// their RGBA values, which is all the terminal ever sees, rather than with ==,
+// which panics on [color.Color] implementations whose dynamic type is
+// uncomparable (e.g. a struct containing a slice). A nil color stays distinct
+// from any other color so that resetting a color still works.
+func colorEqual(a, b color.Color) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	ar, ag, ab, aa := a.RGBA()
+	br, bg, bb, ba := b.RGBA()
+	return ar == br && ag == bg && ab == bb && aa == ba
+}
+
 func viewEquals(a, b *View) bool {
 	if a == nil || b == nil {
 		return false
 	}
 
-	if !programStatusEquals(a.ProgramStatus, b.ProgramStatus) {
+	if !programStatusEquals(a.ProgramStatus, b.ProgramStatus) ||
+		!programResumeEquals(a.ProgramResume, b.ProgramResume) {
 		return false
 	}
 
@@ -943,8 +1043,8 @@ func viewEquals(a, b *View) bool {
 		a.ReportFocus != b.ReportFocus ||
 		a.MouseMode != b.MouseMode ||
 		a.WindowTitle != b.WindowTitle ||
-		a.ForegroundColor != b.ForegroundColor ||
-		a.BackgroundColor != b.BackgroundColor ||
+		!colorEqual(a.ForegroundColor, b.ForegroundColor) ||
+		!colorEqual(a.BackgroundColor, b.BackgroundColor) ||
 		a.KeyboardEnhancements != b.KeyboardEnhancements {
 		return false
 	}
@@ -957,7 +1057,7 @@ func viewEquals(a, b *View) bool {
 			a.Cursor.Y != b.Cursor.Y ||
 			a.Cursor.Shape != b.Cursor.Shape ||
 			a.Cursor.Blink != b.Cursor.Blink ||
-			a.Cursor.Color != b.Cursor.Color {
+			!colorEqual(a.Cursor.Color, b.Cursor.Color) {
 			return false
 		}
 	}

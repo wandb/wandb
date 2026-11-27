@@ -1,3 +1,9 @@
+# v1.7.28 (2026-11-25)
+
+* **Bug Fix**: Return an error when encoding an event stream message too long for its 32-bit length field instead of writing a truncated length.
+* **Bug Fix**: Validate event stream message prelude lengths when decoding.
+* **Dependency Update**: Update to smithy-go v1.28.10.
+
 # v1.7.27 (2026-11-10)
 
 * **Dependency Update**: Update to smithy-go v1.28.9.
