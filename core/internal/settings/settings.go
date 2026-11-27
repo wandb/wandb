@@ -2,6 +2,7 @@
 package settings
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -87,6 +88,20 @@ func (s *Settings) GetTransactionLogFlushInterval() time.Duration {
 // for example from different machines.
 func (s *Settings) IsSharedMode() bool {
 	return s.Proto.XShared.GetValue()
+}
+
+// FileStreamHistoryEncoding returns the normalized history upload encoding.
+func (s *Settings) FileStreamHistoryEncoding(logger *slog.Logger) string {
+	switch strings.ToLower(strings.TrimSpace(s.Proto.GetXFileStreamHistoryEncoding().GetValue())) {
+	case "proto+v1":
+		return "proto+v1"
+	case "jsonl":
+	default:
+		if s.Proto.GetXFileStreamHistoryEncoding() != nil {
+			logger.Warn("Ignoring unsupported x_file_stream_history_encoding. Using 'jsonl'.")
+		}
+	}
+	return "jsonl"
 }
 
 // IsHistoryValueEncodingTyped reports whether history records include typed values.
