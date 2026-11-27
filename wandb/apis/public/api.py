@@ -57,6 +57,7 @@ if TYPE_CHECKING:
         SlackIntegration,
         WebhookIntegration,
     )
+    from wandb.automations._generated import CreateFilterTriggerInput
     from wandb.automations._inputs import WriteAutomationsKwargs
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -2433,15 +2434,24 @@ class Api:
         )
         ```
         """
+        from wandb.automations._inputs import prepare_to_create
+
+        gql_input = prepare_to_create(obj, **kwargs)
+        return self._create_automation(gql_input, fetch_existing=fetch_existing)
+
+    def _create_automation(
+        self,
+        gql_input: CreateFilterTriggerInput,
+        *,
+        fetch_existing: bool = False,
+    ) -> Automation:
+        """Send an already prepared create request, including recovery requests."""
         from wandb.automations import Automation
         from wandb.automations._compat import (
             automation_enabled,
             omit_automation_fragments,
         )
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
-        from wandb.automations._inputs import prepare_to_create
-
-        gql_input = prepare_to_create(obj, **kwargs)
 
         if not automation_enabled(
             self._service_api,
@@ -2585,7 +2595,14 @@ class Api:
             if status == HTTPStatus.NOT_FOUND.value:
                 if create_missing:
                     wandb.termlog(f"Automation {name!r} not found. Creating it.")
-                    return self.create_automation(obj)
+                    from wandb.automations._generated import CreateFilterTriggerInput
+
+                    # Reuse resolved writable fields, including keyword overrides,
+                    # while excluding the deleted rule's server-assigned ID.
+                    create_input = CreateFilterTriggerInput.model_validate(
+                        gql_input.model_dump(exclude={"id"})
+                    )
+                    return self._create_automation(create_input)
 
                 raise ValueError(
                     f"Automation {name!r} not found. Unable to edit it."
