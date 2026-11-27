@@ -786,3 +786,25 @@ def test_history_value_encoding_in_proto():
     s = Settings(x_history_value_encoding="json,typed")
 
     assert s.to_proto().x_history_value_encoding.value == "json,typed"
+
+
+@pytest.mark.parametrize(
+    "value, expected", [("jsonl", "jsonl"), (" Proto+V1 ", "proto+v1")]
+)
+def test_file_stream_history_encoding_in_proto(value, expected):
+    s = Settings(x_file_stream_history_encoding=value)
+
+    assert s.x_file_stream_history_encoding == expected
+    assert s.to_proto().x_file_stream_history_encoding.value == expected
+
+
+def test_file_stream_history_encoding_default():
+    assert Settings().x_file_stream_history_encoding == "jsonl"
+
+
+@pytest.mark.parametrize("value", ["", "cbor", "jsonl,proto+v1"])
+def test_file_stream_history_encoding_unrecognized(value, mock_wandb_log: MockWandbLog):
+    s = Settings(x_file_stream_history_encoding=value)
+
+    assert s.x_file_stream_history_encoding == "jsonl"
+    mock_wandb_log.assert_warned("Ignoring unsupported x_file_stream_history_encoding")

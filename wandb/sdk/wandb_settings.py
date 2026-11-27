@@ -657,6 +657,15 @@ class Settings(BaseModel, validate_assignment=True):
     x_extra_http_headers: dict[str, str] | None = None
     """Additional headers to add to all outgoing HTTP requests."""
 
+    x_file_stream_history_encoding: str = "jsonl"
+    """History upload encoding: "jsonl" (default) or "proto+v1".
+
+    Protobuf uploads require server support. An unrecognized value falls back
+    to "jsonl" with a warning.
+
+    <!-- lazydoc-ignore -->
+    """
+
     x_file_stream_max_bytes: int | None = None
     """An approximate maximum request size for the filestream API.
 
@@ -1216,6 +1225,18 @@ class Settings(BaseModel, validate_assignment=True):
         if isinstance(value, str):
             return json.loads(value)
         return value
+
+    @field_validator("x_file_stream_history_encoding", mode="after")
+    @classmethod
+    def validate_file_stream_history_encoding(cls, value: str) -> str:
+        encoding = value.strip().lower()
+        if encoding not in ("jsonl", "proto+v1"):
+            wandb.termwarn(
+                "Ignoring unsupported x_file_stream_history_encoding. Using 'jsonl'.",
+                repeat=False,
+            )
+            return "jsonl"
+        return encoding
 
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
