@@ -121,8 +121,6 @@ class KanikoBuilder(AbstractBuilder):
             build_context_store (str, optional): The name of the build context store.
             secret_name (str, optional): The name of the secret to use for the registry.
             secret_key (str, optional): The key of the secret to use for the registry.
-            verify (bool, optional): Whether to verify the functionality of the builder.
-                Defaults to True.
         """
         self.environment = environment
         self.registry = registry

@@ -508,7 +508,6 @@ def link_or_copy(
     Args:
         src: Source file path (should be resolved/absolute).
         dst: Destination file path.
-        allow_symlink: Whether to attempt symlinks before hardlinks.
 
     Returns:
         The strategy that succeeded.

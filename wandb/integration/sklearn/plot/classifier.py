@@ -152,7 +152,7 @@ def confusion_matrix(
 
     Args:
         y_true: (arr) Test set labels.
-        y_probas: (arr) Test set predicted probabilities.
+        y_pred: (arr) Test set predicted labels.
         labels: (list) Named labels for target variable (y). Makes plots easier to
                        read by replacing target values with corresponding index.
                        For example if `labels=['dog', 'cat', 'owl']` all 0s are
@@ -302,7 +302,7 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):  # noqa:
         clf: (clf) Takes in a fitted classifier.
         X: (arr) Training set features.
         y: (arr) Training set labels.
-        model_name: (str) Model name. Defaults to 'Classifier'
+        clf_name: (str) Model name. Defaults to 'Classifier'
 
     Returns:
         None: To see plots, go to your W&B run page then expand the 'media' tab
