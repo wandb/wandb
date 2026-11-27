@@ -39,7 +39,8 @@ func (fs *fileStream) startProcessingUpdates(
 					requests <- req
 				},
 
-				Settings: fs.settings,
+				Settings:     fs.settings,
+				typedHistory: fs.typedHistoryEnabled,
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
