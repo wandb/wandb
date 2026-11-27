@@ -7,21 +7,21 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypedDict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 import wandb
+from wandb.sdk.artifacts._gqlutils import update_artifact_metadata
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
 from wandb.util import make_artifact_name_safe
-
-from .settings_static import SettingsStatic
 
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from wandb.apis.public import Api
     from wandb.proto.wandb_internal_pb2 import ArtifactRecord
 
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
@@ -120,7 +120,7 @@ def get_min_supported_for_source_dict(
 
 
 class JobBuilder:
-    _settings: SettingsStatic
+    _settings: wandb.Settings
     _files_dir: str
     _metadatafile_path: str | None
     _requirements_path: str | None
@@ -138,7 +138,7 @@ class JobBuilder:
 
     def __init__(
         self,
-        settings: SettingsStatic,
+        settings: wandb.Settings,
         verbose: bool = False,
         *,
         files_dir: str,
@@ -456,9 +456,8 @@ class JobBuilder:
                 "input_types": {"@wandb.config": self.input_types},
                 "output_types": self.output_types,
             }
-            api.update_artifact_metadata(
-                self._partial_source_id,
-                new_metadata,
+            update_artifact_metadata(
+                api._service_api, self._partial_source_id, new_metadata
             )
             return None
 

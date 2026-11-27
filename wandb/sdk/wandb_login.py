@@ -5,15 +5,20 @@ This authenticates your machine to log data to your account.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import click
 
 import wandb
+from wandb import env
 from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import settings_file, wbauth
+from wandb.sdk.lib import settings_file, urls, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-from ..apis import InternalApi
+if TYPE_CHECKING:
+    from wandb.apis.public.service_api import ServiceApi
 
 
 def login(
@@ -22,8 +27,9 @@ def login(
     host: str | None = None,
     force: bool | None = None,
     timeout: int | None = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """Log into W&B.
@@ -35,8 +41,9 @@ def login(
     This updates global credentials for the session (affecting all wandb usage
     in the current Python process after this call) and possibly the .netrc file.
 
-    If the identity_token_file setting is set, like through the
-    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+    If an identity token file is configured, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then it is used for the
+    session (federated identity) and no API key is read or saved.
 
     Otherwise, if an explicit API key is provided, it is used and written to
     the system .netrc file. If no key is provided, but the session is already
@@ -49,7 +56,7 @@ def login(
     - The api_key setting in a system or workspace settings file
     - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
       NETRC environment variable)
-    - An interactive prompt (if available)
+    - An interactive prompt, if available and `prompt` is True
 
     Args:
         key: The API key to use.
@@ -62,15 +69,21 @@ def login(
             prompt. This can be used as a failsafe if an interactive prompt
             is incorrectly shown in a non-interactive environment.
         verify: Verify the credentials with the W&B server and raise an
-            AuthenticationError on failure.
+            AuthenticationError on failure. This works for API keys as well
+            as identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
+        prompt: Whether to ask for an API key interactively when none is
+            configured. If False, this returns False and leaves the session
+            and settings unchanged.
 
     Returns:
-        bool: If `key` is configured.
+        True if the session has credentials after this call.
 
     Raises:
-        AuthenticationError: If `api_key` fails verification with the server.
-        UsageError: If `api_key` cannot be configured and no tty.
+        AuthenticationError: If the credentials fail verification with
+            the server.
+        UsageError: If no credentials are configured, `prompt` is True and
+            there is no terminal to ask for an API key.
     """
     if anonymous is not UNSET:
         term.termwarn(
@@ -91,12 +104,7 @@ def login(
         return False
 
     if host:
-        host = host.rstrip("/")
-
-    _update_system_settings(
-        global_settings.read_system_settings(),
-        host=host,
-    )
+        host = wbauth.HostUrl(host).url
 
     logged_in, _ = _login(
         key=key,
@@ -106,6 +114,15 @@ def login(
         timeout=timeout,
         verify=verify,
         referrer=referrer or "models",
+        prompt=prompt,
+    )
+
+    if not logged_in and not prompt:
+        return False
+
+    _update_system_settings(
+        global_settings.read_system_settings(),
+        host=host,
     )
     return logged_in
 
@@ -120,7 +137,7 @@ def _update_system_settings(
     system_settings.clear("anonymous", globally=True)
 
     if host:
-        if host == "https://api.wandb.ai":
+        if host == urls.DEFAULT_BASE_URL:
             system_settings.clear("base_url", globally=True)
         else:
             system_settings.set("base_url", host, globally=True)
@@ -140,6 +157,7 @@ def _login(
     timeout: float | None = None,
     verify: bool = False,
     referrer: str = "models",
+    prompt: bool = True,
     update_api_key: bool = True,
     _silent: bool | None = None,
 ) -> tuple[bool, str | None]:
@@ -185,6 +203,7 @@ def _login(
             settings=settings,
             update_api_key=update_api_key,
             silent=_silent,
+            verify=verify,
         )
     else:
         auth = _find_or_prompt_for_key(
@@ -194,13 +213,12 @@ def _login(
             relogin=relogin,
             referrer=referrer,
             input_timeout=timeout,
+            verify=verify,
+            prompt=prompt,
         )
 
-    if verify and isinstance(auth, wbauth.AuthApiKey):
-        _verify_login(key=auth.api_key, base_url=auth.host.url)
-
     wandb_setup.singleton().update_user_settings()
-    if not _silent:
+    if auth is not None and not _silent:
         _print_logged_in_message(settings, host=str(host_url))
 
     if auth is None:
@@ -218,6 +236,7 @@ def _use_explicit_key(
     host: wbauth.HostUrl,
     update_api_key: bool,
     silent: bool,
+    verify: bool,
 ) -> wbauth.Auth:
     """Log in with an explicit key.
 
@@ -232,6 +251,10 @@ def _use_explicit_key(
         )
 
     auth = wbauth.AuthApiKey(host=host, api_key=key)
+
+    if verify:
+        auth.verify()
+
     wbauth.use_explicit_auth(auth, source="wandb.login()")
 
     if update_api_key:
@@ -254,6 +277,8 @@ def _find_or_prompt_for_key(
     relogin: bool,
     referrer: str,
     input_timeout: float | None,
+    verify: bool,
+    prompt: bool,
 ) -> wbauth.Auth | None:
     """Log in without an explicit key.
 
@@ -271,12 +296,14 @@ def _find_or_prompt_for_key(
             referrer=referrer,
             input_timeout=input_timeout,
             relogin=relogin,
+            verify=verify,
+            prompt=prompt,
         )
 
     except TimeoutError:
         timed_out = True
 
-    if not auth:
+    if not auth and prompt:
         if timed_out:
             term.termwarn("W&B disabled due to login timeout.")
             settings.mode = "disabled"
@@ -287,30 +314,51 @@ def _find_or_prompt_for_key(
     return auth
 
 
-def _verify_login(key: str, base_url: str) -> None:
-    from requests.exceptions import ConnectionError
+def _verify_login(
+    auth: wbauth.Auth,
+    *,
+    service_api: ServiceApi | None = None,
+) -> None:
+    """Check the credentials with the server they are for.
 
-    api = InternalApi(
-        api_key=key,
-        default_settings={"base_url": base_url},
-    )
+    The verification request is made by wandb-core, which supports both
+    API keys and identity token files (federated identity).
+
+    Args:
+        auth: The credentials to verify.
+        service_api: An existing service API handle configured with the
+            given credentials to use for the request. If not given, a
+            temporary one is created from the global settings and the
+            credentials.
+
+    Raises:
+        AuthenticationError: If the server rejects the credentials or
+            cannot be reached.
+    """
+    from wandb.apis.public.service_api import ServiceApi
+
+    if service_api is None:
+        settings = wandb_setup.singleton().settings.model_copy()
+        wbauth.set_auth_settings(settings, auth)
+
+        service_api = ServiceApi(
+            settings=settings,
+            timeout=env.get_http_timeout(10),
+        )
 
     try:
-        is_api_key_valid = api.validate_api_key()
-    except ConnectionError as e:
+        service_api.authenticate()
+    except WandbApiFailedError as e:
         raise AuthenticationError(
-            f"Unable to connect to {base_url} to verify API token."
+            f"Failed to verify credentials with {auth.host}: {e}"
         ) from e
     except Exception as e:
+        # Failures to start or connect to the wandb-core service process
+        # are raised as various other exception types; keep this function's
+        # contract of raising AuthenticationError for any failure.
         raise AuthenticationError(
-            "An error occurred while verifying the API key."
+            f"An error occurred while verifying credentials with {auth.host}: {e}"
         ) from e
-
-    if not is_api_key_valid:
-        raise AuthenticationError(
-            f"API key verification failed for host {base_url}."
-            + " Make sure your API key is valid."
-        )
 
 
 def _print_logged_in_message(settings: wandb.Settings, *, host: str) -> None:

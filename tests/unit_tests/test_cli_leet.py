@@ -1,0 +1,241 @@
+from __future__ import annotations
+
+import pathlib
+
+import pytest
+from wandb.cli import cli, leet
+from wandb.errors import WandbCoreNotAvailableError
+
+_BASE_URL = "https://api.wandb.ai"
+
+
+@pytest.fixture
+def core_calls(monkeypatch) -> list[list[str]]:
+    """Stub out wandb-core and record the arguments it would be invoked with."""
+    calls: list[list[str]] = []
+
+    class _StubSettings:
+        base_url = _BASE_URL
+        _offline = False
+        _noop = False
+
+    class _StubSingleton:
+        settings = _StubSettings()
+
+    monkeypatch.setattr(leet, "get_core_path", lambda: "wandb-core")
+    monkeypatch.setattr(leet, "error_reporting_enabled", lambda: True)
+    monkeypatch.setattr(leet, "is_debug", lambda default: False)
+    monkeypatch.setattr(leet, "_run_core", lambda args, env=None: calls.append(args))
+    monkeypatch.setattr(leet.wandb_setup, "singleton", lambda: _StubSingleton())
+
+    return calls
+
+
+@pytest.fixture
+def core_unavailable(monkeypatch) -> None:
+    """Make wandb-core resolution fail as on an unsupported platform."""
+
+    def raise_unavailable() -> str:
+        raise WandbCoreNotAvailableError("wandb-core not found")
+
+    monkeypatch.setattr(leet, "get_core_path", raise_unavailable)
+
+
+@pytest.mark.parametrize("help_flag", ["--help", "-h"])
+def test_leet_help_shows_group_help(runner, core_unavailable, help_flag):
+    """Group help lists all subcommands and works without wandb-core."""
+    result = runner.invoke(cli.cli, ["leet", help_flag])
+
+    assert result.exit_code == 0
+    assert "Lightweight Experiment Exploration Tool" in result.output
+    assert "Launch the LEET TUI" in result.output
+    assert "Launch the standalone system monitor" in result.output
+    assert "Edit LEET configuration" in result.output
+    assert "Browse the raw records" in result.output
+    assert "wandb-core not found" not in result.output
+
+
+def test_leet_run_help_shows_run_command(runner):
+    result = runner.invoke(cli.cli, ["leet", "run", "--help"])
+
+    assert result.exit_code == 0
+    assert "Launch the LEET TUI" in result.output
+
+
+def test_leet_fails_cleanly_without_core(runner, core_unavailable, tmp_path):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", str(wandb_dir)])
+
+    assert result.exit_code == 1
+    assert "Error: wandb-core not found" in result.stderr
+
+
+def test_leet_defaults_to_run_command(runner, core_calls, tmp_path: pathlib.Path):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        ["wandb-core", "leet", "run", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+    ]
+
+
+@pytest.mark.parametrize("mode_attr", ["_offline", "_noop"])
+def test_leet_offline_disables_telemetry(
+    runner, core_calls, tmp_path: pathlib.Path, mode_attr: str
+):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+    setattr(leet.wandb_setup.singleton().settings, mode_attr, True)
+
+    result = runner.invoke(cli.cli, ["leet", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        ["wandb-core", "leet", "run", "--no-observability", str(wandb_dir.resolve())]
+    ]
+
+
+def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path):
+    run_dir = tmp_path / "wandb" / "run-20250101_000000-abc123"
+    run_dir.mkdir(parents=True)
+    run_file = run_dir / "run-abc123.wandb"
+    run_file.touch()
+
+    result = runner.invoke(cli.cli, ["leet", str(run_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "run",
+            "--base-url",
+            _BASE_URL,
+            "--run-file",
+            str(run_file.resolve()),
+            str((tmp_path / "wandb").resolve()),
+        ]
+    ]
+
+
+def test_leet_inspect_resolves_run_directory(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    run_dir = tmp_path / "wandb" / "run-20250101_000000-abc123"
+    run_dir.mkdir(parents=True)
+    run_file = run_dir / "run-abc123.wandb"
+    run_file.touch()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", str(run_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "inspect",
+            "--base-url",
+            _BASE_URL,
+            "--run-file",
+            str(run_file.resolve()),
+            str((tmp_path / "wandb").resolve()),
+        ]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("flags", "core_flags"),
+    [
+        (["--summary", "--json"], ["--summary", "--json"]),
+        (["-f", "--idle-timeout", "1m"], ["--follow", "--idle-timeout", "1m"]),
+    ],
+)
+def test_leet_inspect_passes_output_flags(
+    runner, core_calls, tmp_path: pathlib.Path, flags, core_flags
+):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", *flags, str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "inspect",
+            "--base-url",
+            _BASE_URL,
+            *core_flags,
+            str(wandb_dir.resolve()),
+        ]
+    ]
+
+
+def test_leet_inspect_wandb_dir_uses_latest_run(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "inspect",
+            "--base-url",
+            _BASE_URL,
+            str(wandb_dir.resolve()),
+        ]
+    ]
+
+
+def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["beta", "leet", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert "generally available as `wandb leet`" in result.stderr
+    assert core_calls == [
+        ["wandb-core", "leet", "run", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("url", "path"),
+    [
+        (
+            "https://wandb.ai/entity/project/runs/id?workspace=user",
+            "/entity/project/runs/id",
+        ),
+        (
+            "https://forge.coreweave.com/wandb/entity/project/runs/id",
+            "/entity/project/runs/id",
+        ),
+        (
+            "https://forge.coreweave.com/api/wandb/entity/project/runs/id",
+            "/entity/project/runs/id",
+        ),
+        ("https://wandb.ai/entity/project/workspace?nw=abc", "/entity/project"),
+        ("https://forge.coreweave.com/wandb/entity/project", "/entity/project"),
+    ],
+)
+def test_parse_remote_url_forge(url, path):
+    base_url = "https://api.forge.coreweave.com"
+
+    assert leet._parse_remote_url(url) == (base_url, base_url + path)
+
+
+def test_parse_remote_url_requires_entity_and_project():
+    with pytest.raises(SystemExit):
+        leet._parse_remote_url("https://wandb.ai/entity")

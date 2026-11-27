@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import Field
 
@@ -13,37 +13,38 @@ from .fragments import FileWithUrlFragment, PageInfoFragment
 
 
 class GetArtifactMembershipFileUrls(GQLResult):
-    project: Optional[GetArtifactMembershipFileUrlsProject]
+    project: GetArtifactMembershipFileUrlsProject | None
 
 
 class GetArtifactMembershipFileUrlsProject(GQLResult):
-    artifact_collection: Optional[
-        GetArtifactMembershipFileUrlsProjectArtifactCollection
-    ] = Field(alias="artifactCollection")
+    artifact_collection: (
+        GetArtifactMembershipFileUrlsProjectArtifactCollection | None
+    ) = Field(alias="artifactCollection")
 
 
 class GetArtifactMembershipFileUrlsProjectArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-    artifact_membership: Optional[
-        GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembership
-    ] = Field(alias="artifactMembership")
+    artifact_membership: (
+        GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembership | None
+    ) = Field(alias="artifactMembership")
 
 
 class GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembership(
     GQLResult
 ):
-    files: Optional[
+    files: (
         GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembershipFiles
-    ]
+        | None
+    )
 
 
 class GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembershipFiles(
     GQLResult
 ):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[
+    edges: list[
         GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembershipFilesEdges
     ]
 
@@ -51,7 +52,7 @@ class GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembershipFi
 class GetArtifactMembershipFileUrlsProjectArtifactCollectionArtifactMembershipFilesEdges(
     GQLResult
 ):
-    node: Optional[FileWithUrlFragment]
+    node: FileWithUrlFragment | None
 
 
 GetArtifactMembershipFileUrls.model_rebuild()

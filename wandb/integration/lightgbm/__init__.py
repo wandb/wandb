@@ -9,8 +9,9 @@ config.update(dict(param_list))
 lgb = lgb.train(param_list, d_train, callbacks=[wandb_callback()])
 """
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import lightgbm  # type: ignore
 from lightgbm import Booster
@@ -34,12 +35,12 @@ MAXIMIZE_METRICS = ["map", "auc", "average_precision"]
 
 
 if TYPE_CHECKING:
-    from typing import Any, NamedTuple, Union
+    from typing import Any, NamedTuple
 
     # Note: upstream lightgbm has this defined incorrectly
-    _EvalResultTuple = Union[
-        tuple[str, str, float, bool], tuple[str, str, float, bool, float]
-    ]
+    _EvalResultTuple = (
+        tuple[str, str, float, bool] | tuple[str, str, float, bool, float]
+    )
 
     class CallbackEnv(NamedTuple):
         model: Any
@@ -82,7 +83,9 @@ def _log_feature_importance(model: "Booster") -> None:
     """Log feature importance."""
     feat_imps = model.feature_importance()
     feats = model.feature_name()
-    fi_data = [[feat, feat_imp] for feat, feat_imp in zip(feats, feat_imps)]
+    fi_data = [
+        [feat, feat_imp] for feat, feat_imp in zip(feats, feat_imps, strict=True)
+    ]
     table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
     wandb.log(
         {

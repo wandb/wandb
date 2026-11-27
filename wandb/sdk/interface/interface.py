@@ -10,11 +10,20 @@ from secrets import token_hex
 from typing import TYPE_CHECKING, Any
 
 from wandb import termwarn
+from wandb.analytics import (
+    LowCardinalityAttributes,
+    TelemetryRecorder,
+    get_telemetry_recorder,
+)
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.lib import json_util as json
 from wandb.sdk.lib.filesystem import FilesDict, PolicyName
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
+from wandb.sdk.wandb_settings import (
+    HISTORY_VALUE_ENCODING_JSON,
+    HISTORY_VALUE_ENCODING_TYPED,
+)
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -27,8 +36,48 @@ from wandb.util import (
 
 from ..data_types.utils import history_dict_to_json, val_to_json
 from . import summary_record as sr
+from .history_value import set_history_value
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
+
+# Telemetry for the client half of the filestream upload pipeline.
+#
+# The metric and attribute names are shared with Go core, which owns the rest
+# of the pipeline; see core/internal/filestreamstats.
+_ENCODE_DURATION_METRIC = "wandb.filestream.encode.duration"
+_SEGMENT_CLIENT_ENCODE = "client_encode"
+_STREAM_HISTORY = "history"
+_VALUE_ENCODING_JSON = "json"
+
+# Bucket boundaries for the encode duration histogram, in microseconds.
+#
+# These must stay identical to encodeDurationBoundaries in Go core's
+# internal/filestreamstats.
+_ENCODE_DURATION_BOUNDARIES = (
+    100,
+    250,
+    500,
+    1_000,
+    2_500,
+    5_000,
+    10_000,
+    25_000,
+    50_000,
+    100_000,
+    250_000,
+    500_000,
+    1_000_000,
+    2_500_000,
+    5_000_000,
+    30_000_000,
+    60_000_000,
+    300_000_000,
+    900_000_000,
+    1_800_000_000,
+    3_600_000_000,
+    10_800_000_000,
+    36_000_000_000,
+)
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -71,6 +120,35 @@ class InterfaceBase(abc.ABC):
 
     def __init__(self) -> None:
         self._drop = False
+        self._telemetry_recorder: TelemetryRecorder | None = None
+
+    def _record_client_encode(self, seconds: float) -> None:
+        """Report how long encoding one logged map took.
+
+        The recorder is resolved once and cached: this runs on every
+        `run.log()` call, and the process-wide lookup takes a lock.
+        """
+        microseconds = seconds * 1_000_000.0
+        if self._telemetry_recorder is None:
+            self._telemetry_recorder = get_telemetry_recorder()
+            # The boundaries can only be set when the instrument is created,
+            # so declare the histogram before the first measurement.
+            self._telemetry_recorder.define_histogram(
+                _ENCODE_DURATION_METRIC,
+                "us",
+                "Time spent encoding run data for upload.",
+                _ENCODE_DURATION_BOUNDARIES,
+            )
+
+        self._telemetry_recorder.record_histogram(
+            _ENCODE_DURATION_METRIC,
+            microseconds,
+            LowCardinalityAttributes(
+                segment=_SEGMENT_CLIENT_ENCODE,
+                stream=_STREAM_HISTORY,
+                value_encoding=_VALUE_ENCODING_JSON,
+            ),
+        )
 
     @abc.abstractmethod
     async def deliver_async(
@@ -163,6 +241,7 @@ class InterfaceBase(abc.ABC):
             proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
+        proto_run.resume = run._settings.resume in ("allow", "must")
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
         if run._settings.fork_from:
@@ -361,6 +440,7 @@ class InterfaceBase(abc.ABC):
         proto_artifact.client_id = artifact._client_id
         proto_artifact.sequence_client_id = artifact._sequence_client_id
         proto_artifact.digest = artifact.digest
+        proto_artifact.digest_algorithm = artifact.digest_algorithm
         if artifact.distributed_id:
             proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:
@@ -678,6 +758,10 @@ class InterfaceBase(abc.ABC):
     def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def deliver_history_step(self) -> MailboxHandle[pb.HistoryStepResponse]:
+        """Get the W&B step number of the next `log()` call."""
+
     def publish_partial_history(
         self,
         run: Run,
@@ -687,6 +771,8 @@ class InterfaceBase(abc.ABC):
         flush: bool | None = None,
         publish_step: bool = True,
     ) -> None:
+        encode_start = time.monotonic()
+
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
@@ -695,16 +781,25 @@ class InterfaceBase(abc.ABC):
         if "_timestamp" not in data:
             data["_timestamp"] = time.time()
 
+        encoding = run._settings.x_history_value_encoding.split(",")
+        json_form = HISTORY_VALUE_ENCODING_JSON in encoding
+        typed_form = HISTORY_VALUE_ENCODING_TYPED in encoding
+
         partial_history = pb.PartialHistoryRequest()
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)
+            set_history_value(item, v, json_form=json_form, typed_form=typed_form)
 
         if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush
+
+        # Measured before the hand-off, so the interval is the encode alone
+        # and excludes serializing and writing the record to core.
+        self._record_client_encode(time.monotonic() - encode_start)
+
         self._publish_partial_history(partial_history)
 
     @abc.abstractmethod
@@ -794,6 +889,24 @@ class InterfaceBase(abc.ABC):
     def _publish_output_raw(
         self,
         outdata: pb.OutputRawRecord,
+        *,
+        nowait: bool,
+    ) -> None:
+        raise NotImplementedError
+
+    def publish_output_logger(
+        self,
+        line: str,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        o = pb.OutputLoggerRecord(line=line)
+        self._publish_output_logger(o, nowait=nowait)
+
+    @abc.abstractmethod
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
         *,
         nowait: bool,
     ) -> None:
@@ -952,16 +1065,6 @@ class InterfaceBase(abc.ABC):
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run_start(self, run: Run) -> MailboxHandle[pb.Result]:
-        run_start = pb.RunStartRequest(run=self._make_run(run))
-        return self._deliver_run_start(run_start)
-
-    @abc.abstractmethod
-    def _deliver_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_attach(self, attach_id: str) -> MailboxHandle[pb.Result]:
         attach = pb.AttachRequest(attach_id=attach_id)
         return self._deliver_attach(attach)
@@ -973,17 +1076,6 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_stop_status(self) -> MailboxHandle[pb.Result]:
-        status = pb.StopStatusRequest()
-        return self._deliver_stop_status(status)
-
-    @abc.abstractmethod
-    def _deliver_stop_status(
-        self,
-        status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_network_status(self) -> MailboxHandle[pb.Result]:
         status = pb.NetworkStatusRequest()
         return self._deliver_network_status(status)
@@ -992,16 +1084,6 @@ class InterfaceBase(abc.ABC):
     def _deliver_network_status(
         self,
         status: pb.NetworkStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_internal_messages(self) -> MailboxHandle[pb.Result]:
-        internal_message = pb.InternalMessagesRequest()
-        return self._deliver_internal_messages(internal_message)
-
-    @abc.abstractmethod
-    def _deliver_internal_messages(
-        self, internal_message: pb.InternalMessagesRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 

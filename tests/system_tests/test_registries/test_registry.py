@@ -1,19 +1,27 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Callable
+import json
+from collections.abc import Callable, Generator
+from itertools import islice, product
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import wandb
 from pytest import fixture, mark, param, raises
-from wandb import Api, Artifact
+from wandb import Api, Artifact, CommError
 from wandb._strutils import b64decode_ascii
+from wandb.apis.public.registries._utils import advanced_search_enabled
 from wandb.apis.public.registries.registry import Registry
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+from wandb.errors import UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
+
+if TYPE_CHECKING:
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 @fixture
-def default_organization(user_in_orgs_factory) -> Iterator[str]:
+def default_organization(user_in_orgs_factory) -> Generator[str]:
     """Provides the name of the single default organization."""
     user_in_orgs = user_in_orgs_factory()
     yield user_in_orgs.organization_names[0]
@@ -215,24 +223,18 @@ def test_infer_organization_from_create_load(default_organization, api: Api):
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
 def test_input_invalid_organizations(default_organization, api: Api):
     """Tests that invalid organization inputs raise errors."""
-    bad_org_name = f"{default_organization}_wrong_organization"
+    invalid = f"{default_organization}_wrong_organization"
 
     registry_name = "test"
-    with raises(
-        ValueError,
-        match=f"Organization entity for {bad_org_name!r} not found.",
-    ):
+    with raises(CommError, match=rf"(?i)organization.*{invalid!r}.*not found"):
         api.create_registry(
             name=registry_name,
             visibility="organization",
-            organization=bad_org_name,
+            organization=invalid,
         )
 
-    with raises(
-        ValueError,
-        match=f"Organization entity for {bad_org_name!r} not found.",
-    ):
-        api.registry(registry_name, f"{default_organization}_wrong_organization")
+    with raises(CommError, match=rf"(?i)organization.*{invalid!r}.*not found"):
+        api.registry(registry_name, organization=invalid)
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
@@ -399,6 +401,79 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
         assert registry.full_name == f"{REGISTRY_PREFIX}test-{i}"
         assert registry.visibility == "organization"
 
+    # `order` sorts server-side rather than relying on the Python sort above.
+    expected_asc_names = ["test-0", "test-1", "test-2"]
+    expected_desc_names = expected_asc_names[::-1]
+
+    ascending = [r.name for r in api.registries(organization=org, order="name")]
+    descending = [r.name for r in api.registries(organization=org, order="-name")]
+    assert ascending == expected_asc_names
+    assert descending == expected_desc_names
+
+
+@fixture
+def enable_advanced_search(wandb_backend_spy: WandbBackendSpy) -> None:
+    """Simulate feature flags that signal advanced registry search features are enabled."""
+    gql = wandb_backend_spy.gql
+    features = (
+        pb.ServerFeature.Name(pb.ARTIFACT_REGISTRY_SEARCH),
+        pb.ServerFeature.Name(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.Constant(
+            content={
+                "data": {
+                    "serverInfo": {
+                        "features": [{"name": f, "isEnabled": True} for f in features]
+                    }
+                }
+            }
+        ),
+    )
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(
+            operation="FetchAdvancedRegistryFeatures",
+            variables={"organization": "advanced-org"},
+        ),
+        gql.Constant(
+            content={
+                "data": {
+                    "organization": {
+                        "advancedRegistryFeatures": {"advancedSearch": True}
+                    }
+                }
+            }
+        ),
+    )
+
+
+@mark.usefixtures(enable_advanced_search.__name__)
+def test_advanced_feature_response_selects_version_filter_fields(api: Api):
+    versions = (
+        api.registries(organization="advanced-org", filter={"id": "registry-id"})
+        .collections(filter={"collection_id": "collection-id"})
+        .versions(filter={"created_at": "2026-08-10"})
+    )
+
+    assert json.loads(versions.variables["registryFilter"]) == {
+        "project_id": "registry-id"
+    }
+    assert json.loads(versions.variables["collectionFilter"]) == {
+        "artifact_collection_id": "collection-id"
+    }
+    assert json.loads(versions.variables["artifactFilter"]) == {
+        "artifact_created_at": "2026-08-10"
+    }
+
+
+@mark.usefixtures(enable_advanced_search.__name__)
+def test_advanced_feature_response_selects_version_order_field(api: Api):
+    versions = api.registries(organization="advanced-org").versions(order="created_at")
+
+    assert versions.variables["order"] == "+artifact_created_at"
+
 
 @fixture
 def source_artifacts(team: str):
@@ -430,9 +505,7 @@ def test_registries_collections(
         filter={"name": target_registry.full_name},
     )
 
-    all_collection_names = [
-        collection.name for collection in registries.collections(per_page=1)
-    ]
+    all_collection_names = [c.name for c in registries.collections(per_page=1)]
     paged_collections = registries.collections(per_page=1)
     first_page_name = next(paged_collections).name
     saved_cursor = paged_collections.cursor
@@ -440,12 +513,10 @@ def test_registries_collections(
     assert saved_cursor is not None
 
     remaining_names_via_registry = [
-        collection.name
-        for collection in target_registry.collections(per_page=1, start=saved_cursor)
+        c.name for c in target_registry.collections(per_page=1, start=saved_cursor)
     ]
     remaining_names_via_search = [
-        collection.name
-        for collection in registries.collections(per_page=1, start=saved_cursor)
+        c.name for c in registries.collections(per_page=1, start=saved_cursor)
     ]
 
     assert remaining_names_via_search == remaining_names_via_registry
@@ -455,9 +526,283 @@ def test_registries_collections(
     assert len(collections) == len(source_artifacts)
 
     # Check that we have the correct registry collections
-    for i, collection in enumerate(collections):
-        assert collection.name == f"reg-collection-{i}"
-        assert collection.type == "test-type"
+    expected_ordered_names = [f"reg-collection-{i}" for i in range(len(collections))]
+    assert [c.name for c in collections] == expected_ordered_names
+    assert [c.type for c in collections] == ["test-type"] * len(collections)
+
+    # `order` sorts server-side rather than relying on the Python sort above.
+    expected_asc_names = expected_ordered_names
+    expected_desc_names = expected_ordered_names[::-1]
+
+    ascending = [c.name for c in registries.collections(order="name")]
+    descending = [c.name for c in registries.collections(order="-name")]
+    assert ascending == expected_asc_names
+    assert descending == expected_desc_names
+
+    # `order` is also honored when accessed directly from a single Registry.
+    asc_via_registry = [c.name for c in target_registry.collections(order="name")]
+    desc_via_registry = [c.name for c in target_registry.collections(order="-name")]
+    assert asc_via_registry == expected_asc_names
+    assert desc_via_registry == expected_desc_names
+
+
+def test_registries_versions_respects_collection_order(
+    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+):
+    # Each version linked to a different registry collection
+    for i, artifact in enumerate(source_artifacts):
+        artifact.link(f"{org}/{target_registry.full_name}/reg-collection-{i}")
+
+    registries = api.registries(
+        organization=org,
+        filter={"name": target_registry.full_name},
+    )
+
+    expected_asc = [f"reg-collection-{i}:v0" for i in range(len(source_artifacts))]
+    expected_desc = expected_asc[::-1]
+
+    asc_versions = [
+        version.name for version in registries.collections(order="name").versions()
+    ]
+    desc_versions = [
+        version.name for version in registries.collections(order="-name").versions()
+    ]
+
+    assert asc_versions == expected_asc
+    assert desc_versions == expected_desc
+
+
+def test_registries_versions_respects_registry_order(
+    org: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+    source_artifacts: list[Artifact],
+):
+    for i, artifact in enumerate(source_artifacts):
+        registry = make_registry(
+            organization=org,
+            name=f"order-test-reg-{i}",
+            visibility="organization",
+        )
+        artifact.link(f"{org}/{registry.full_name}/reg-collection-{i}")
+
+    registries_filter = {"name": {"$contains": "order-test-reg-"}}
+
+    expected_asc = [f"order-test-reg-{i}" for i in range(len(source_artifacts))]
+    expected_desc = expected_asc[::-1]
+
+    asc_versions = [
+        (remove_registry_prefix(v.project), v.name)
+        for v in api.registries(
+            organization=org, filter=registries_filter, order="name"
+        ).versions()
+    ]
+    desc_versions = [
+        (remove_registry_prefix(v.project), v.name)
+        for v in api.registries(
+            organization=org, filter=registries_filter, order="-name"
+        ).versions()
+    ]
+
+    assert [registry for registry, _ in asc_versions] == expected_asc
+    assert [registry for registry, _ in desc_versions] == expected_desc
+    assert [name for _, name in asc_versions] == [
+        f"reg-collection-{i}:v0" for i in range(len(source_artifacts))
+    ]
+    assert [name for _, name in desc_versions] == [
+        f"reg-collection-{i}:v0" for i in reversed(range(len(source_artifacts)))
+    ]
+
+
+def test_registries_versions_respects_registry_and_collection_order(
+    org: str,
+    team: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+):
+    with wandb.init(entity=team) as run:
+        artifacts = [
+            run.log_artifact(Artifact(f"order-test-artifact-{i}", type="test-type"))
+            for i in range(4)
+        ]
+
+    for registry_idx in range(2):
+        registry = make_registry(
+            organization=org,
+            name=f"order-test-dual-{registry_idx}",
+            visibility="organization",
+        )
+        for collection_idx in range(2):
+            artifact_idx = registry_idx * 2 + collection_idx
+            artifacts[artifact_idx].link(
+                f"{org}/{registry.full_name}/reg-collection-{collection_idx}"
+            )
+
+    expected = [
+        (f"order-test-dual-{registry_idx}", f"reg-collection-{collection_idx}:v0")
+        for registry_idx, collection_idx in product(range(2), range(2))
+    ]
+
+    registries = api.registries(
+        organization=org,
+        filter={"name": {"$contains": "order-test-dual-"}},
+        order="name",
+    )
+    actual = [
+        (remove_registry_prefix(version.project), version.name)
+        for version in registries.collections(order="name").versions()
+    ]
+
+    assert actual == expected
+
+
+def test_registries_collections_respects_registry_and_collection_order(
+    org: str,
+    team: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+):
+    with wandb.init(entity=team) as run:
+        artifacts = [
+            run.log_artifact(
+                Artifact(f"order-test-coll-artifact-{i}", type="test-type")
+            )
+            for i in range(4)
+        ]
+
+    for registry_idx in range(2):
+        registry = make_registry(
+            organization=org,
+            name=f"order-test-coll-dual-{registry_idx}",
+            visibility="organization",
+        )
+        for collection_idx in range(2):
+            artifact_idx = registry_idx * 2 + collection_idx
+            artifacts[artifact_idx].link(
+                f"{org}/{registry.full_name}/reg-collection-{collection_idx}"
+            )
+
+    registries_filter = {"name": {"$contains": "order-test-coll-dual-"}}
+
+    expected = [
+        (f"order-test-coll-dual-{registry_idx}", f"reg-collection-{collection_idx}")
+        for registry_idx, collection_idx in product(range(2), range(2))
+    ]
+
+    # With registry order: collections follow registry order, then collection order.
+    registries_ordered = api.registries(
+        organization=org,
+        filter=registries_filter,
+        order="name",
+    )
+    actual = [
+        (remove_registry_prefix(c.project), c.name)
+        for c in registries_ordered.collections(order="name")
+    ]
+    assert actual == expected
+
+    # Without registry order: a single collections query; only collection order applies.
+    registries_unordered = api.registries(organization=org, filter=registries_filter)
+
+    collections = [
+        (remove_registry_prefix(c.project), c.name)
+        for c in registries_unordered.collections(order="name")
+    ]
+    assert [name for _, name in collections] == [
+        "reg-collection-0",
+        "reg-collection-0",
+        "reg-collection-1",
+        "reg-collection-1",
+    ]
+    assert sorted(collections) == sorted(expected)
+
+
+def test_registries_ordered_pagination_across_pages(
+    org: str,
+    team: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+):
+    """Ordered chained queries must keep advancing across pages, not re-read the first.
+
+    With a small per_page, the grouped paginator fetches multiple pages while a child
+    paginator is still mid-iteration. If items are pulled in a way that restarts the
+    child on each page (by calling ``iter()`` on it), the child re-reads its first page
+    forever, yielding duplicates and never terminating. Iterate at per_page=1 over more
+    than one page and assert exact ordered results with no duplicates.
+    """
+    # 2 registries x 2 collections x 1 version, so at per_page=1 each child group spans
+    # multiple page fetches and stays current across them.
+    with wandb.init(entity=team) as run:
+        artifacts = [
+            run.log_artifact(Artifact(f"paginate-artifact-{i}", type="test-type"))
+            for i in range(4)
+        ]
+
+    for registry_idx in range(2):
+        registry = make_registry(
+            organization=org,
+            name=f"paginate-order-{registry_idx}",
+            visibility="organization",
+        )
+        for collection_idx in range(2):
+            artifact_idx = registry_idx * 2 + collection_idx
+            artifacts[artifact_idx].link(
+                f"{org}/{registry.full_name}/reg-collection-{collection_idx}"
+            )
+
+    registries_kwargs = dict(
+        organization=org,
+        filter={"name": {"$contains": "paginate-order-"}},
+        order="name",
+    )
+
+    expected_collections = [
+        (f"paginate-order-{registry_idx}", f"reg-collection-{collection_idx}")
+        for registry_idx, collection_idx in product(range(2), range(2))
+    ]
+    expected_versions = [
+        (registry_name, f"{collection_name}:v0")
+        for registry_name, collection_name in expected_collections
+    ]
+
+    # Cap each pull just past the expected count so a regression (which never
+    # terminates) fails on length here instead of hanging until the test timeout.
+    limit = len(expected_versions) + 1
+
+    # registries(order) -> collections(order)
+    actual_collections = [
+        (remove_registry_prefix(c.project), c.name)
+        for c in islice(
+            api.registries(**registries_kwargs).collections(order="name", per_page=1),
+            limit,
+        )
+    ]
+    assert actual_collections == expected_collections
+
+    # registries(order) -> collections(order) -> versions
+    actual_versions_by_collection = [
+        (remove_registry_prefix(v.project), v.name)
+        for v in islice(
+            api.registries(**registries_kwargs)
+            .collections(order="name", per_page=1)
+            .versions(per_page=1),
+            limit,
+        )
+    ]
+    assert actual_versions_by_collection == expected_versions
+
+    # registries(order) -> versions. Version order *within* a registry isn't guaranteed,
+    # so assert the registry grouping order plus a complete, duplicate-free set.
+    actual_versions_by_registry = [
+        (remove_registry_prefix(v.project), v.name)
+        for v in islice(api.registries(**registries_kwargs).versions(per_page=1), limit)
+    ]
+    assert len(actual_versions_by_registry) == len(expected_versions)
+    assert sorted(actual_versions_by_registry) == sorted(expected_versions)
+    assert [reg for reg, _ in actual_versions_by_registry] == [
+        reg for reg, _ in expected_versions
+    ]
 
 
 def test_registries_versions(
@@ -494,6 +839,13 @@ def test_registries_versions(
 
     assert remaining_names_via_search == remaining_names_via_registry
     assert all_version_names == [first_page_name, *remaining_names_via_search]
+
+    if not advanced_search_enabled(api._service_api, org):
+        with raises(
+            UnsupportedError,
+            match="Ordering registry versions is not supported for this organization.",
+        ):
+            registries.versions(order="created_at")
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)

@@ -24,7 +24,7 @@ func TestExtraHeaders_AddsMissingHeaders(t *testing.T) {
 	require.NoError(t, err)
 	req.Header = nil
 
-	wrapped := httplayers.ExtraHeaders(newHeader(map[string]string{
+	wrapped := httplayers.DefaultHeaders(newHeader(map[string]string{
 		"X-EXTRA-HEADER": "extra-header-value",
 	})).WrapHTTP(func(req *http.Request) (*http.Response, error) {
 		assert.Equal(t, "extra-header-value", req.Header.Get("X-EXTRA-HEADER"))
@@ -41,7 +41,7 @@ func TestExtraHeaders_PreservesExistingHeaders(t *testing.T) {
 	req.Header.Set("Authorization", "request-authorization")
 	req.Header.Set("NOT-CASE-SENSITIVE", "request-value")
 
-	wrapped := httplayers.ExtraHeaders(newHeader(map[string]string{
+	wrapped := httplayers.DefaultHeaders(newHeader(map[string]string{
 		"Authorization":      "extra-authorization-value",
 		"X-EXTRA-HEADER":     "extra-header-value",
 		"not-case-sensitive": "extra-value",

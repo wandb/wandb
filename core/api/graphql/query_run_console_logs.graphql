@@ -1,0 +1,68 @@
+# Reads the last N lines of a run's console log.
+#
+# This intentionally omits the useImprovedPagination argument: a plain
+# `logLines(last: N)` returns the same lines — the tail, in ascending line
+# order — from both the legacy resolver and the improved one (server 0.77+),
+# so a tail works against every supported server version.
+query RunConsoleLogTail(
+    $entity: String!
+    $project: String!
+    $runName: String!
+    $last: Int!
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $runName) {
+            logLineCount
+            logLines(last: $last) {
+                edges {
+                    node {
+                        number
+                        timestamp
+                        level
+                        label
+                        line
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Reads one page of a run's console log in ascending line order.
+#
+# useImprovedPagination is required for spec-compliant forward pagination:
+# without it, the legacy resolver ignores `first` and repurposes `after` as
+# a backwards offset from the end of the log. The argument exists on server
+# 0.77+; older servers reject this document during validation.
+query RunConsoleLogPage(
+    $entity: String!
+    $project: String!
+    $runName: String!
+    $first: Int
+    $after: String
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $runName) {
+            logLineCount
+            logLines(
+                first: $first
+                after: $after
+                useImprovedPagination: true
+            ) {
+                edges {
+                    node {
+                        number
+                        timestamp
+                        level
+                        label
+                        line
+                    }
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+            }
+        }
+    }
+}

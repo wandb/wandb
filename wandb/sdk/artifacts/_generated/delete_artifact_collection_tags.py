@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class DeleteArtifactCollectionTags(GQLResult):
-    result: Optional[DeleteArtifactCollectionTagsResult]
+    result: DeleteArtifactCollectionTagsResult | None
 
 
 class DeleteArtifactCollectionTagsResult(GQLResult):

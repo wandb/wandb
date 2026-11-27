@@ -11,12 +11,19 @@ from wandb.automations import (
     EventType,
     NewAutomation,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
+    OnUnlinkArtifact,
+    RegistryScope,
     RunEvent,
+    ScopeType,
 )
-from wandb.automations._utils import (
+from wandb.automations._inputs import (
     INVALID_INPUT_ACTIONS,
     INVALID_INPUT_EVENTS,
     prepare_to_create,
@@ -74,6 +81,20 @@ class TestPrepareToCreate:
         gql_input_via_obj_and_kwargs = prepare_to_create(orig_obj, **attrs)
 
         assert expected_gql_input == gql_input_via_obj_and_kwargs
+
+    def test_registry_scoped_artifact_event(self, registry, do_nothing):
+        event = OnLinkArtifact(
+            scope=registry,
+            filter=ArtifactEvent.alias == "prod",
+        )
+
+        assert isinstance(event.scope, RegistryScope)
+        assert event.scope.is_registry is True
+
+        prepared = prepare_to_create(event >> do_nothing, name="test-automation")
+        prepared_vars = prepared.model_dump()
+        assert prepared_vars["scopeType"] == ScopeType.PROJECT.value
+        assert prepared_vars["scopeID"] == registry.id
 
     @mark.parametrize("invalid_event_type", INVALID_INPUT_EVENTS)
     def test_prepare_to_create_rejects_excluded_event_types(
@@ -205,7 +226,12 @@ class TestPrepareToCreate:
         [
             EventType.CREATE_ARTIFACT,
             EventType.ADD_ARTIFACT_ALIAS,
+            EventType.ADD_ARTIFACT_TAG,
+            EventType.ADD_COLLECTION_TAG,
             EventType.LINK_ARTIFACT,
+            EventType.REMOVE_ARTIFACT_TAG,
+            EventType.REMOVE_COLLECTION_TAG,
+            EventType.UNLINK_ARTIFACT,
         ],
         indirect=True,
     )
@@ -259,28 +285,27 @@ class TestPrepareToCreate:
             },
         }
 
+    @mark.parametrize("action_type", [ActionType.ARIA], indirect=True)
+    def test_action_payload_for_aria_actions(self, input_action, action_config_dict):
+        assert action_config_dict == {
+            "ariaActionInput": {"prompt": input_action.prompt},
+        }
+
 
 class TestPrepareToUpdate:
     """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""
 
-    MUTATION_EVENT_TYPES = [
-        EventType.ADD_ARTIFACT_ALIAS,
-        EventType.LINK_ARTIFACT,
-        EventType.CREATE_ARTIFACT,
-    ]
-
-    MUTATION_EVENT_TYPE_TO_CLASS = {
+    MUTATION_EVENT_CLASSES: dict[EventType, type[InputEvent]] = {
+        EventType.CREATE_ARTIFACT: OnCreateArtifact,
         EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
         EventType.LINK_ARTIFACT: OnLinkArtifact,
-        EventType.CREATE_ARTIFACT: OnCreateArtifact,
+        EventType.UNLINK_ARTIFACT: OnUnlinkArtifact,
+        EventType.ADD_ARTIFACT_TAG: OnAddArtifactTag,
+        EventType.REMOVE_ARTIFACT_TAG: OnRemoveArtifactTag,
+        EventType.ADD_COLLECTION_TAG: OnAddCollectionTag,
+        EventType.REMOVE_COLLECTION_TAG: OnRemoveCollectionTag,
     }
 
-    @mark.parametrize(
-        "mutation_event_type",
-        MUTATION_EVENT_TYPES,
-        indirect=True,
-        ids=lambda x: f"event={x.value}",
-    )
     def test_update_event_preserves_mutation_filter(
         self,
         saved_automation: Automation,
@@ -288,7 +313,7 @@ class TestPrepareToUpdate:
         artifact_collection,
     ):
         """Updating an automation with a new InputEvent must preserve the event filter."""
-        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[mutation_event_type]
+        event_cls = self.MUTATION_EVENT_CLASSES[mutation_event_type]
         new_event = event_cls(
             scope=artifact_collection,
             filter=ArtifactEvent.alias == "prod",
@@ -300,12 +325,6 @@ class TestPrepareToUpdate:
         assert event_filter != {"$and": []}
         assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "prod"}}]}]}
 
-    @mark.parametrize(
-        "mutation_event_type",
-        MUTATION_EVENT_TYPES,
-        indirect=True,
-        ids=lambda x: f"event={x.value}",
-    )
     def test_update_without_event_preserves_existing_filter(
         self,
         saved_automation: Automation,
@@ -317,12 +336,6 @@ class TestPrepareToUpdate:
         assert event_filter != {"$and": []}
         assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}
 
-    @mark.parametrize(
-        "mutation_event_type",
-        MUTATION_EVENT_TYPES,
-        indirect=True,
-        ids=lambda x: f"event={x.value}",
-    )
     def test_update_name_only_preserves_filter(
         self,
         saved_automation: Automation,
@@ -342,6 +355,14 @@ class TestPrepareToUpdate:
         EventType.RUN_METRIC_THRESHOLD: lambda scope: OnRunMetric(
             scope=scope,
             filter=RunEvent.metric("my-metric").avg(5).gt(0),
+        ),
+        EventType.RUN_METRIC_CHANGE: lambda scope: OnRunMetric(
+            scope=scope,
+            filter=RunEvent.metric("my-metric").avg(5).increases_by(diff=123.45),
+        ),
+        EventType.RUN_METRIC_ZSCORE: lambda scope: OnRunMetric(
+            scope=scope,
+            filter=RunEvent.metric("my-metric").zscore(5).gt(3),
         ),
         EventType.RUN_STATE: lambda scope: OnRunState(
             scope=scope,

@@ -20,7 +20,7 @@ def roc_curve(
     classes_to_plot: list[numbers.Number] | None = None,
     title: str = "ROC Curve",
     split_table: bool = False,
-) -> CustomChart:
+) -> CustomChart | None:
     """Constructs Receiver Operating Characteristic (ROC) curve chart.
 
     Args:

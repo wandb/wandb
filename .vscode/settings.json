@@ -24,16 +24,15 @@
     "editor.tabSize": 4
   },
   "rust-analyzer.linkedProjects": [
-    "./xpu/Cargo.toml",
+    "./symon/Cargo.toml",
     "./experimental/rust-sdk/Cargo.toml",
     "./experimental/rust-sdk/examples/basic/Cargo.toml",
     "./parquet-rust-wrapper/Cargo.toml",
-    "./wandb/vendor/wandb_orjson/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": false,
   "python.analysis.typeCheckingMode": "off",
   "go.testFlags": [
-      "-race",
-      "-covermode=atomic"
+    "-race",
+    "-covermode=atomic"
   ]
 }

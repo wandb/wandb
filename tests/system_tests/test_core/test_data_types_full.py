@@ -155,42 +155,6 @@ def test_log_with_back_slash_windows(user):
             run.log({r"train\image": wb_image})
 
 
-def test_image_array_old_wandb(
-    wandb_backend_spy,
-    monkeypatch,
-    mock_wandb_log,
-):
-    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
-
-    with wandb.init() as run:
-        wb_image = [wandb.Image(np.zeros((28, 28))) for i in range(5)]
-        run.log({"logged_images": wb_image})
-
-    mock_wandb_log.assert_warned("Unable to log image array filenames.")
-
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert "filenames" not in summary["logged_images"]
-
-
-def test_image_array_old_wandb_mp_warning(
-    user,
-    monkeypatch,
-    mock_wandb_log,
-):
-    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
-
-    with wandb.init() as run:
-        wb_image = [wandb.Image(np.zeros((28, 28))) for _ in range(5)]
-        run._init_pid += 1
-        run.log({"logged_images": wb_image})
-
-    mock_wandb_log.assert_warned(
-        "Attempting to log a sequence of Image objects from multiple processes"
-        " might result in data loss. Please upgrade your wandb server"
-    )
-
-
 @pytest.mark.parametrize(
     (
         "create_media",

@@ -194,21 +194,17 @@ func (s *FileStreamState) popSummary(
 			s.RunSummary = runsummary.New()
 		}
 
-		err := request.SummaryUpdates.Apply(s.RunSummary)
+		request.SummaryUpdates.Apply(s.RunSummary)
 		request.SummaryUpdates = nil
-
-		if err != nil {
-			// A partial success is possible, so we log and continue.
-			logger.CaptureError(
-				fmt.Errorf("filestream: error applying summary updates: %v", err))
-		}
 
 		summaryJSON, err := s.RunSummary.Serialize()
 		if err != nil {
 			// On error, we don't modify UnsentSummary so that we still upload
 			// a previous successfully-serialized value.
 			logger.CaptureError(
-				fmt.Errorf("filestream: failed to serialize summary: %v", err))
+				"filestream",
+				fmt.Errorf("filestream: failed to serialize summary: %v", err),
+			)
 		} else {
 			s.UnsentSummary = string(summaryJSON)
 			s.LastRunSummarySize = len(summaryJSON)
@@ -297,10 +293,10 @@ type requestJSONBuilder struct {
 	ApproxSizeBytes, MaxSizeBytes int
 	HasMore                       bool
 
-	HistoryChunk      offsetAndContent
-	EventsChunk       offsetAndContent
-	SummaryChunk      offsetAndContent
-	ConsoleLinesChunk offsetAndContent
+	HistoryChunk      OffsetAndContent
+	EventsChunk       OffsetAndContent
+	SummaryChunk      OffsetAndContent
+	ConsoleLinesChunk OffsetAndContent
 
 	Uploaded   []string
 	Preempting bool
@@ -325,7 +321,7 @@ func (b *requestJSONBuilder) TryAddSize(n int) bool {
 // Build returns the JSON value to upload.
 func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 	json := &FileStreamRequestJSON{}
-	json.Files = make(map[string]offsetAndContent)
+	json.Files = make(map[string]OffsetAndContent)
 
 	if len(x.HistoryChunk.Content) > 0 {
 		json.Files[HistoryFileName] = x.HistoryChunk

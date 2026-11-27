@@ -49,6 +49,9 @@ func newUploadBatcher(
 
 // Add adds files to the next upload batch, scheduling one if necessary.
 func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
+	if len(runPaths) == 0 {
+		return
+	}
 	if b.delay == 0 {
 		b.upload(runPaths)
 		return

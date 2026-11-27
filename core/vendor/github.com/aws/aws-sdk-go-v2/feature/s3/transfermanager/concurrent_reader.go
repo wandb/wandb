@@ -1,0 +1,475 @@
+package transfermanager
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"sync"
+	"sync/atomic"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+)
+
+// concurrentReader receives object parts from working goroutines, composes those chunks in order and read
+// to user's buffer. ConcurrentReader limits the max number of chunks it could receive and read at the same
+// time so getter won't send following parts' request to s3 until user reads all current chunks, which avoids
+// too much memory consumption when caching large object parts
+type concurrentReader struct {
+	ch      chan outChunk
+	buf     map[int32]*outChunk
+	options Options
+	in      *GetObjectInput
+	getType types.GetObjectType
+
+	bufferThreshold  int64
+	pos              int64
+	partsCount       int32
+	capacity         int32
+	sectionParts     int32
+	sendCount        int32
+	receiveCount     int32
+	readCount        int32
+	consecutiveIndex int32 // the sequential idx marking the next consecutive part being read
+	buffered         int64
+	totalBytes       int64
+	index            int32
+	done             bool
+	written          int64
+	partSize         int64
+	invocations      int32
+	etag             *string
+
+	ctx context.Context
+	m   sync.Mutex
+	wg  sync.WaitGroup
+
+	err error
+}
+
+// Read implements io.Reader to compose object parts in order and read to p.
+// It will receive up to r.capacity chunks, read them to p if any chunk index
+// fits into p scope, otherwise it will buffer those chunks and read them in
+// following calls
+func (r *concurrentReader) Read(p []byte) (int, error) {
+	if err := r.getErr(); err != nil && err != io.EOF {
+		return 0, err
+	}
+
+	clientOptions := []func(*s3.Options){
+		func(o *s3.Options) {
+			o.APIOptions = append(o.APIOptions,
+				middleware.AddSDKAgentKeyValue(middleware.FeatureMetadata, userAgentKey, goModuleVersion),
+				addFeatureUserAgent,
+			)
+		}}
+
+	var written int
+	var err error
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		written, err = r.read(p)
+		if err != nil {
+			r.setErr(err)
+		}
+		r.setDone(true)
+	}()
+
+	ch := make(chan getChunk, r.options.Concurrency)
+	for i := 0; i < r.options.Concurrency; i++ {
+		r.wg.Add(1)
+		go r.downloadPart(r.ctx, ch, clientOptions...)
+	}
+
+	for r.index < r.partsCount {
+		if r.getErr() != nil || r.getDone() {
+			break
+		}
+
+		if r.index == atomic.LoadInt32(&r.capacity) {
+			continue
+		}
+
+		if r.options.GetObjectType == types.GetObjectParts {
+			ch <- getChunk{part: r.index + 1, index: r.index}
+		} else {
+			ch <- getChunk{withRange: r.byteRange(), index: r.index}
+			r.pos += r.partSize
+		}
+
+		r.index++
+	}
+
+	close(ch)
+	r.wg.Wait()
+
+	if e := r.getErr(); e != nil && e != io.EOF {
+		close(r.ch)
+	}
+	wg.Wait()
+
+	r.written += int64(written)
+	r.done = false
+	r.invocations++
+	return written, r.getErr()
+}
+
+func (r *concurrentReader) downloadPart(ctx context.Context, ch chan getChunk, clientOptions ...func(*s3.Options)) {
+	defer r.wg.Done()
+	for {
+		chunk, ok := <-ch
+		if !ok {
+			break
+		}
+		if r.getErr() != nil {
+			continue
+		}
+		_, err := r.downloadChunk(ctx, chunk, clientOptions...)
+		if err != nil {
+			r.setErr(err)
+		}
+	}
+}
+
+// downloadChunk downloads the chunk from s3
+func (r *concurrentReader) downloadChunk(ctx context.Context, chunk getChunk, clientOptions ...func(*s3.Options)) (*GetObjectOutput, error) {
+	params := r.in.mapGetObjectInput(!r.options.DisableChecksumValidation)
+	if chunk.part != 0 {
+		params.PartNumber = aws.Int32(chunk.part)
+	}
+	if chunk.withRange != "" {
+		params.Range = aws.String(chunk.withRange)
+	}
+	if params.VersionId == nil {
+		params.IfMatch = r.etag
+	}
+
+	out, err := r.options.S3.GetObject(ctx, params, clientOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	respStart := int64(-1)
+	respEnd := int64(-1)
+	if out.ContentRange != nil {
+		respStart, respEnd, err = getRespRange(aws.ToString(out.ContentRange))
+		if err != nil {
+			return nil, err
+		}
+		if params.Range != nil {
+			reqStart, reqEnd, err := getReqRange(aws.ToString(params.Range))
+			if err != nil {
+				return nil, err
+			}
+			// don't validate first chunk since object size is unknown when getting that
+			if reqStart != 0 && (reqStart != respStart || reqEnd != respEnd) {
+				return nil, fmt.Errorf("range mismatch between request %d-%d and response %d-%d", reqStart, reqEnd, respStart, respEnd)
+			}
+		}
+	}
+
+	defer out.Body.Close()
+	buf, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	r.ch <- outChunk{body: bytes.NewReader(buf), index: chunk.index, length: aws.ToInt64(out.ContentLength), rangeStart: respStart, rangeEnd: respEnd}
+
+	output := &GetObjectOutput{}
+	output.mapFromGetObjectOutput(out, params.ChecksumMode)
+	return output, err
+}
+
+// byteRange returns an HTTP Byte-Range header value that should be used by the
+// client to request a chunk range.
+func (r *concurrentReader) byteRange() string {
+	return fmt.Sprintf("bytes=%d-%d", r.pos, min(r.totalBytes-1, r.pos+r.partSize-1))
+}
+
+type getChunk struct {
+	part      int32
+	withRange string
+
+	index int32
+}
+
+type outChunk struct {
+	body  io.Reader
+	index int32
+
+	rangeStart int64
+	rangeEnd   int64
+	length     int64
+	cur        int64
+}
+
+func (r *concurrentReader) read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	if r.getType == types.GetObjectParts {
+		return r.partRead(p)
+	}
+
+	return r.rangeRead(p)
+}
+
+func (r *concurrentReader) partRead(p []byte) (int, error) {
+	var written int
+
+	for i := r.consecutiveIndex; i < atomic.LoadInt32(&r.capacity); i++ {
+		if e := r.getErr(); e != nil && e != io.EOF {
+			r.clean()
+			return written, r.getErr()
+		}
+
+		if written >= len(p) {
+			// don't return yet, parts already dispatched up to capacity may
+			// still be downloading or sitting in r.ch, and the received loop
+			// below is what drains them
+			break
+		}
+
+		c, ok := r.buf[i]
+		if !ok {
+			// possible unequal parts' sizes can break all offset read for part GET,
+			// must break and wait for next consecutive part
+			break
+		}
+
+		//if e, a := r.pos-r.offset-r.written, written; e != a {
+		if c.rangeStart >= 0 {
+			if es, as := int64(written), c.rangeStart+c.cur-r.written; es != as {
+				r.setErr(fmt.Errorf("range mismatch between computed start position %d and actual start position %d for part %d in p", es, as, c.index+1))
+				r.clean()
+				return 0, r.getErr()
+			}
+			if ee, ae := int64(written)+c.length-c.cur, c.rangeEnd-r.written+1; ee != ae {
+				r.setErr(fmt.Errorf("range mismatch between computed end position %d and actual end position %d for part %d in p", ee, ae, c.index+1))
+				r.clean()
+				return 0, r.getErr()
+			}
+		}
+
+		n, err := c.body.Read(p[written:])
+		c.cur += int64(n)
+		written += n
+		if err != nil && err != io.EOF {
+			r.setErr(err)
+			r.clean()
+			return written, r.getErr()
+		}
+		if c.cur >= c.length {
+			r.consecutiveIndex++
+			r.readCount++
+			delete(r.buf, i)
+			r.buffered -= c.length
+
+			if r.readCount >= r.partsCount {
+				r.setErr(io.EOF)
+			}
+			r.maybeGrowCapacity()
+		}
+	}
+
+	for r.receiveCount < atomic.LoadInt32(&r.capacity) {
+		if e := r.getErr(); e != nil && e != io.EOF {
+			r.clean()
+			return written, e
+		}
+
+		oc, ok := <-r.ch
+		if !ok {
+			break
+		}
+		r.receiveCount++
+
+		// only directly feed into p if this is the next neighbor part
+		if oc.index == r.consecutiveIndex && written < len(p) {
+			if oc.rangeStart >= 0 {
+				if es, as := int64(written), oc.rangeStart-r.written; es != as {
+					r.setErr(fmt.Errorf("range mismatch between computed start position %d and actual start position %d for part %d in p", es, as, oc.index+1))
+					r.clean()
+					return 0, r.getErr()
+				}
+				if ee, ae := int64(written)+oc.length, oc.rangeEnd-r.written+1; ee != ae {
+					r.setErr(fmt.Errorf("range mismatch between computed end position %d and actual end position %d for part %d in p", ee, ae, oc.index+1))
+					r.clean()
+					return 0, r.getErr()
+				}
+			}
+			n, err := oc.body.Read(p[written:])
+			oc.cur += int64(n)
+			written += n
+			if err != nil && err != io.EOF {
+				r.setErr(err)
+				r.clean()
+				return written, r.getErr()
+			}
+		}
+
+		if oc.cur < oc.length {
+			r.buf[oc.index] = &oc
+			r.buffered += oc.length
+		} else {
+			r.readCount++
+			r.consecutiveIndex++
+			// Bound memory by throttling how many parts we dispatch (via capacity),
+			// never by abandoning parts already in flight. partRead must drain every
+			// dispatched part; otherwise a download producer blocks forever on a full
+			// r.ch and hangs Read's r.wg.Wait().
+			r.maybeGrowCapacity()
+			if r.readCount >= r.partsCount {
+				r.setErr(io.EOF)
+			}
+		}
+	}
+
+	return written, r.getErr()
+}
+
+// maybeGrowCapacity advances the dispatch ceiling (capacity) to request more
+// parts while the estimated in-memory footprint stays under bufferThreshold. It
+// always keeps the next part to be read dispatched so the stream makes progress
+// even when a single part is larger than the whole budget. capacity only grows
+// and never exceeds partsCount, so partRead always drains every dispatched part
+// (receiveCount reaches capacity), which keeps download producers from blocking
+// on a full r.ch.
+func (r *concurrentReader) maybeGrowCapacity() {
+	c := atomic.LoadInt32(&r.capacity)
+	if c >= r.partsCount {
+		return
+	}
+	// committed = buffered (received, not yet consumed) + an estimate for parts
+	// dispatched but not yet received, using the first part's size per part.
+	committed := r.buffered + int64(c-r.receiveCount)*r.partSize
+	if c <= r.consecutiveIndex || committed < r.bufferThreshold {
+		atomic.StoreInt32(&r.capacity, c+1)
+	}
+}
+
+func (r *concurrentReader) rangeRead(p []byte) (int, error) {
+	var written int
+
+	partSize := r.partSize
+	minIndex := int32(r.written / partSize)
+	maxIndex := min(int32((r.written+int64(len(p))-1)/partSize), atomic.LoadInt32(&r.capacity)-1)
+	for i := minIndex; i <= maxIndex; i++ {
+		if e := r.getErr(); e != nil && e != io.EOF {
+			r.clean()
+			return written, r.getErr()
+		}
+
+		c, ok := r.buf[i]
+		if ok {
+			index := int64(i)*partSize + c.cur - r.written
+			n, err := c.body.Read(p[index:])
+			c.cur += int64(n)
+			written += n
+			if err != nil && err != io.EOF {
+				r.setErr(err)
+				r.clean()
+				return written, r.getErr()
+			}
+			if c.cur >= c.length {
+				r.readCount++
+				delete(r.buf, i)
+				if r.readCount == atomic.LoadInt32(&r.capacity) {
+					capacity := min(atomic.LoadInt32(&r.capacity)+r.sectionParts, r.partsCount)
+					atomic.StoreInt32(&r.capacity, capacity)
+				}
+				if r.readCount >= r.partsCount {
+					r.setErr(io.EOF)
+				}
+			}
+		}
+	}
+
+	for r.receiveCount < atomic.LoadInt32(&r.capacity) {
+		if e := r.getErr(); e != nil && e != io.EOF {
+			r.clean()
+			return written, e
+		}
+
+		oc, ok := <-r.ch
+		if !ok {
+			break
+		}
+
+		r.receiveCount++
+
+		index := r.partSize*int64(oc.index) - r.written
+
+		if index < int64(len(p)) {
+			n, err := oc.body.Read(p[index:])
+			oc.cur += int64(n)
+			written += n
+			if err != nil && err != io.EOF {
+				r.setErr(err)
+				r.clean()
+				return written, r.getErr()
+			}
+		}
+		if oc.cur < oc.length {
+			r.buf[oc.index] = &oc
+		} else {
+			r.readCount++
+			if r.readCount == atomic.LoadInt32(&r.capacity) {
+				capacity := min(atomic.LoadInt32(&r.capacity)+r.sectionParts, r.partsCount)
+				atomic.StoreInt32(&r.capacity, capacity)
+			}
+			if r.readCount >= r.partsCount {
+				r.setErr(io.EOF)
+			}
+		}
+	}
+
+	return written, r.getErr()
+}
+
+func (r *concurrentReader) setDone(done bool) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	r.done = done
+}
+
+func (r *concurrentReader) getDone() bool {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.done
+}
+
+func (r *concurrentReader) setErr(err error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if r.err == nil {
+		r.err = err
+	}
+}
+
+func (r *concurrentReader) getErr() error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.err
+}
+
+func (r *concurrentReader) clean() {
+	r.buf = nil
+	for {
+		_, ok := <-r.ch
+		if !ok {
+			break
+		}
+	}
+}

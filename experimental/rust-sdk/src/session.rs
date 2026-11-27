@@ -3,7 +3,6 @@ use std::io;
 use std::io::Result;
 use std::net::TcpStream;
 
-use sentry;
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
@@ -42,10 +41,6 @@ pub fn get_core_address() -> String {
     if let Ok(port) = port {
         format!("127.0.0.1:{}", port)
     } else {
-        sentry::capture_error(&io::Error::new(
-            io::ErrorKind::Other,
-            "Couldn't get port from launcher...",
-        ));
         tracing::error!("Couldn't get port from launcher...");
         panic!();
     }
@@ -61,10 +56,6 @@ impl SessionInner {
 
             return stream;
         } else {
-            sentry::capture_error(&io::Error::new(
-                io::ErrorKind::Other,
-                "Couldn't connect to server...",
-            ));
             tracing::error!("Couldn't connect to server...");
             panic!();
         }

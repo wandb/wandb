@@ -200,6 +200,105 @@ lexes strings:
         end: 34
         value: "unicode \u1234\u5678\u90AB\uCDEF"
 
+  - name: unicode surrogate pair
+    input: '"\uD83D\uDE00"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\U0001F600"
+
+  - name: unicode surrogate pair between text
+    input: '"a\uD83D\uDE00b"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 16
+        value: "a\U0001F600b"
+
+  - name: unicode lone leading surrogate
+    input: '"\uD83Da"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 9
+        value: "\uFFFDa"
+
+  - name: unicode lone trailing surrogate
+    input: '"\uDE00\uD83D"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\uFFFD\uFFFD"
+
+  - name: unicode two trailing surrogates
+    input: '"\uDE00\uDE00"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\uFFFD\uFFFD"
+
+  - name: unicode leading surrogate before a non-surrogate escape
+    input: '"\uD83D\u0041"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "\uFFFDA"
+
+  - name: braced unicode
+    input: '"\u{1F600}"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 11
+        value: "\U0001F600"
+
+  - name: braced unicode between text
+    input: '"a\u{41}b"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 10
+        value: "aAb"
+
+  - name: braced unicode with leading zeros
+    input: '"\u{0000041}"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 13
+        value: "A"
+
+  - name: braced unicode of the largest code point
+    input: '"\u{10FFFF}"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 12
+        value: "\U0010FFFF"
+
+  - name: braced unicode with eight digits
+    input: '"\u{00000041}"'
+    tokens:
+      -
+        kind: STRING
+        start: 0
+        end: 14
+        value: "A"
+
 lex reports useful string errors:
   - name: unterminated
     input: '"'
@@ -230,6 +329,12 @@ lex reports useful string errors:
     error:
       message: 'Invalid character within String: "\u0000".'
       locations: [{ line: 1, column: 19 }]
+
+  - name: control character codepoint reported in hex
+    input: "\"contains \u000e sub char\""
+    error:
+      message: 'Invalid character within String: "\u000e".'
+      locations: [{ line: 1, column: 11 }]
 
   - name: unterminated newline
     input: "\"multi\nline\""
@@ -283,6 +388,60 @@ lex reports useful string errors:
     input: '"bad \uXXXF esc"'
     error:
       message: 'Invalid character escape sequence: \uXXXF.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape without digits
+    input: '"bad \u{} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{}.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape above the largest code point
+    input: '"bad \u{110000} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{110000}.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape of eight digits above the largest code point
+    input: '"bad \u{12345678} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{12345678}.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape of eight digits that fill a rune
+    input: '"bad \u{FFFFFFFF} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{FFFFFFFF}.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape that would overflow
+    input: '"bad \u{100000041} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{100000041.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape with more than eight leading zeros
+    input: '"bad \u{000000041} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{000000041.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape of a surrogate
+    input: '"bad \u{D800} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{D800}.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape with a character that is not a hex digit
+    input: '"bad \u{12G4} esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{12.'
+      locations: [{ line: 1, column: 7 }]
+
+  - name: braced escape without a closing brace
+    input: '"bad \u{1F600 esc"'
+    error:
+      message: 'Invalid character escape sequence: \u{1F600.'
       locations: [{ line: 1, column: 7 }]
 
 lexes block strings:

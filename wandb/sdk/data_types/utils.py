@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import datetime
 import logging
-import os
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import TYPE_CHECKING, Union, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import wandb
 from wandb import util
@@ -13,7 +12,6 @@ from wandb import util
 from ..internal import incremental_table_util
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
-from .image import _server_accepts_image_filenames
 from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -23,15 +21,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    ValToJsonType = Union[
-        dict,
-        "WBValue",
-        Sequence["WBValue"],
-        "plotly.Figure",
-        "matplotlib.artist.Artist",
-        "pd.DataFrame",
-        object,
-    ]
+    ValToJsonType: TypeAlias = (
+        dict
+        | WBValue
+        | Sequence[WBValue]
+        | plotly.Figure
+        | matplotlib.artist.Artist
+        | pd.DataFrame
+        | object
+    )
 
 
 def history_dict_to_json(
@@ -68,7 +66,7 @@ def val_to_json(
     val: ValToJsonType,
     namespace: str | int | None = None,
     ignore_copy_err: bool | None = None,
-) -> Sequence | dict:
+) -> Any:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
         raise ValueError(
@@ -80,11 +78,13 @@ def val_to_json(
     if isinstance(val, (int, float, str, bool)):
         # These are already JSON-serializable,
         # no need to do the expensive checks below.
-        return converted  # type: ignore[return-value]
+        return converted
 
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
+        if TYPE_CHECKING:
+            val = cast("pd.DataFrame", val)
         val = wandb.Table(dataframe=val)
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
@@ -104,28 +104,13 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            if _server_accepts_image_filenames(run):
-                for item in items:
-                    item.bind_to_run(
-                        run=run,
-                        key=key,
-                        step=namespace,
-                        ignore_copy_err=ignore_copy_err,
-                    )
-            else:
-                for i, item in enumerate(items):
-                    item.bind_to_run(
-                        run=run,
-                        key=key,
-                        step=namespace,
-                        id_=i,
-                        ignore_copy_err=ignore_copy_err,
-                    )
-                if run._attach_id and run._init_pid != os.getpid():
-                    wandb.termwarn(
-                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple processes might result in data loss. Please upgrade your wandb server",
-                        repeat=False,
-                    )
+            for item in items:
+                item.bind_to_run(
+                    run=run,
+                    key=key,
+                    step=namespace,
+                    ignore_copy_err=ignore_copy_err,
+                )
 
             return items[0].seq_to_json(items, run, key, namespace)
         else:
@@ -168,7 +153,7 @@ def val_to_json(
             val._last_logged_idx = len(val.data) - 1
         return res
 
-    return converted  # type: ignore
+    return converted
 
 
 def _log_table_artifact(val: Media, key: str, run: LocalRun) -> None:
@@ -208,7 +193,7 @@ def _log_table_artifact(val: Media, key: str, run: LocalRun) -> None:
 def _prune_max_seq(seq: Sequence[BatchableMedia]) -> Sequence[BatchableMedia]:
     # If media type has a max respect it
     items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # ty: ignore[unsupported-operator]
         logging.warning(
             f"Only {seq[0].MAX_ITEMS} {seq[0].__class__.__name__} will be uploaded."
         )

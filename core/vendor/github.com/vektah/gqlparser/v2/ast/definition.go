@@ -32,7 +32,13 @@ type Definition struct {
 	EnumValues  EnumValueList // enum
 
 	Position *Position `dump:"-" json:"-"`
-	BuiltIn  bool      `dump:"-"`
+	// TypePositions holds the source position of each Types entry (a union's
+	// member types), parallel to Types. The parser populates it so that
+	// validation can point at the offending member; when populated its length
+	// equals len(Types). It is empty for definitions built programmatically, in
+	// which case validators fall back to the definition's own Position.
+	TypePositions []*Position `dump:"-" json:"-"`
+	BuiltIn       bool        `dump:"-"`
 
 	BeforeDescriptionComment *CommentGroup
 	AfterDescriptionComment  *CommentGroup
@@ -94,10 +100,13 @@ type EnumValueDefinition struct {
 	AfterDescriptionComment  *CommentGroup
 }
 
+// DirectiveDefinition is a directive definition. Directive extensions are also
+// represented by this same struct, with only a name and directives.
 type DirectiveDefinition struct {
 	Description  string
 	Name         string
 	Arguments    ArgumentDefinitionList
+	Directives   DirectiveList
 	Locations    []DirectiveLocation
 	IsRepeatable bool
 	Position     *Position `dump:"-" json:"-"`

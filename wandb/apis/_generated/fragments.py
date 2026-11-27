@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import Field
 
@@ -14,25 +14,25 @@ class AgentFragment(GQLResult):
     id: GQLId
     name: str
     host: str
-    state: Optional[str]
+    state: str | None
     total_runs: int = Field(alias="totalRuns")
     created_at: str = Field(alias="createdAt")
-    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
+    heartbeat_at: str | None = Field(alias="heartbeatAt")
 
 
 class ApiKeyFragment(GQLResult):
     id: GQLId
     name: str
-    description: Optional[str]
+    description: str | None
 
 
 class CreatedProjectFragment(GQLResult):
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")
-    description: Optional[str]
-    access: Optional[str]
-    views: Optional[str]
+    description: str | None
+    access: str | None
+    views: str | None
 
 
 class LegacySweepFragment(GQLResult):
@@ -40,67 +40,67 @@ class LegacySweepFragment(GQLResult):
     id: GQLId
     name: str
     state: str
-    best_loss: Optional[float] = Field(alias="bestLoss")
+    best_loss: float | None = Field(alias="bestLoss")
     config: str
 
 
 class LightweightRunFragment(GQLResult):
     id: GQLId
-    tags: Optional[List[str]]
+    tags: list[str] | None
     name: str
-    display_name: Optional[str] = Field(alias="displayName")
-    sweep_name: Optional[str] = Field(alias="sweepName")
-    state: Optional[str]
-    group: Optional[str]
-    job_type: Optional[str] = Field(alias="jobType")
-    commit: Optional[str]
-    read_only: Optional[bool] = Field(alias="readOnly")
+    display_name: str | None = Field(alias="displayName")
+    sweep_name: str | None = Field(alias="sweepName")
+    state: str | None
+    group: str | None
+    job_type: str | None = Field(alias="jobType")
+    commit: str | None
+    read_only: bool | None = Field(alias="readOnly")
     created_at: str = Field(alias="createdAt")
-    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
-    description: Optional[str]
-    notes: Optional[str]
-    history_line_count: Optional[int] = Field(alias="historyLineCount")
-    user: Optional[LightweightRunFragmentUser]
+    heartbeat_at: str | None = Field(alias="heartbeatAt")
+    description: str | None
+    notes: str | None
+    history_line_count: int | None = Field(alias="historyLineCount")
+    user: LightweightRunFragmentUser | None
 
 
 class LightweightRunFragmentUser(GQLResult):
     name: str
-    username: Optional[str]
+    username: str | None
 
 
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
-    end_cursor: Optional[str] = Field(alias="endCursor")
+    end_cursor: str | None = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
 class UserFragment(GQLResult):
     id: GQLId
     name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
-    flags: Optional[str]
-    entity: Optional[str]
-    deleted_at: Optional[str] = Field(alias="deletedAt")
-    api_keys: Optional[UserFragmentApiKeys] = Field(alias="apiKeys")
-    teams: Optional[UserFragmentTeams]
+    username: str | None
+    email: str | None
+    admin: bool | None
+    flags: str | None
+    entity: str | None
+    deleted_at: str | None = Field(alias="deletedAt")
+    api_keys: UserFragmentApiKeys | None = Field(alias="apiKeys")
+    teams: UserFragmentTeams | None
 
 
 class UserFragmentApiKeys(GQLResult):
-    edges: List[UserFragmentApiKeysEdges]
+    edges: list[UserFragmentApiKeysEdges]
 
 
 class UserFragmentApiKeysEdges(GQLResult):
-    node: Optional[ApiKeyFragment]
+    node: ApiKeyFragment | None
 
 
 class UserFragmentTeams(GQLResult):
-    edges: List[UserFragmentTeamsEdges]
+    edges: list[UserFragmentTeamsEdges]
 
 
 class UserFragmentTeamsEdges(GQLResult):
-    node: Optional[UserFragmentTeamsEdgesNode]
+    node: UserFragmentTeamsEdgesNode | None
 
 
 class UserFragmentTeamsEdgesNode(GQLResult):
@@ -114,31 +114,31 @@ class ProjectFragment(GQLResult):
     entity_name: str = Field(alias="entityName")
     created_at: str = Field(alias="createdAt")
     is_benchmark: bool = Field(alias="isBenchmark")
-    user: Optional[UserFragment]
+    user: UserFragment | None
 
 
 class SweepFragment(GQLResult):
     typename__: Typename[Literal["Sweep"]] = "Sweep"
     id: GQLId
     name: str
-    display_name: Optional[str] = Field(alias="displayName")
+    display_name: str | None = Field(alias="displayName")
     method: str
     state: str
-    description: Optional[str]
-    best_loss: Optional[float] = Field(alias="bestLoss")
+    description: str | None
+    best_loss: float | None = Field(alias="bestLoss")
     config: str
     created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
+    updated_at: str | None = Field(alias="updatedAt")
     run_count: int = Field(alias="runCount")
-    run_count_expected: Optional[int] = Field(alias="runCountExpected")
+    run_count_expected: int | None = Field(alias="runCountExpected")
 
 
 class UserInfoFragment(GQLResult):
     id: GQLId
     name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
+    username: str | None
+    email: str | None
+    admin: bool | None
 
 
 AgentFragment.model_rebuild()
@@ -146,16 +146,8 @@ ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
 LightweightRunFragment.model_rebuild()
-LightweightRunFragmentUser.model_rebuild()
 PageInfoFragment.model_rebuild()
 UserFragment.model_rebuild()
-UserFragmentApiKeys.model_rebuild()
-UserFragmentApiKeysEdges.model_rebuild()
-ApiKeyFragment.model_rebuild()
-UserFragmentTeams.model_rebuild()
-UserFragmentTeamsEdges.model_rebuild()
-UserFragmentTeamsEdgesNode.model_rebuild()
 ProjectFragment.model_rebuild()
-UserFragment.model_rebuild()
 SweepFragment.model_rebuild()
 UserInfoFragment.model_rebuild()

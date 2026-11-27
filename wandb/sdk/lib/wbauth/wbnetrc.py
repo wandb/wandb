@@ -8,6 +8,7 @@ import shlex
 from urllib.parse import urlsplit
 
 from wandb.errors import term
+from wandb.sdk.lib import urls
 
 from .auth import AuthApiKey, AuthWithSource
 from .host_url import HostUrl
@@ -75,7 +76,10 @@ def read_netrc_auth_with_source(*, host: HostUrl) -> AuthWithSource | None:
 
     if not (netloc := urlsplit(host.url).netloc):
         return None
-    if not (creds := netrc_file.authenticators(netloc)):
+    creds = netrc_file.authenticators(netloc)
+    if not creds and (upstream := urls.forge_upstream_url(host.url)) != host.url:
+        creds = netrc_file.authenticators(urlsplit(upstream).netloc)
+    if not creds:
         return None
 
     _, _, password = creds
@@ -120,10 +124,9 @@ def _update_netrc(
     #
     # The .netrc file format allows using quotes in the same way
     # as in sh syntax; the built-in netrc library also uses shlex.
-    machine = shlex.quote(machine)
-    password = shlex.quote(password)
+    quoted_machine = shlex.quote(machine)
+    quoted_password = shlex.quote(password)
 
-    machine_line = f"machine {machine}"
     orig_lines = []
     try:
         orig_lines = path.read_text().splitlines()
@@ -138,20 +141,23 @@ def _update_netrc(
     new_lines: list[str] = []
 
     # Copy over the original lines, minus the machine section we're updating.
-    skip = 0
+    in_old_entry = False
     for line in orig_lines:
-        if machine_line in line:
-            skip = 2
-        elif skip > 0:
-            skip -= 1
-        else:
+        tokens = _split_netrc_line(line)
+
+        if tokens[:2] == ["machine", machine]:
+            in_old_entry = True
+        elif tokens and tokens[0] in ("machine", "default"):
+            in_old_entry = False
+
+        if not in_old_entry:
             new_lines.append(line)
 
     new_lines.extend(
         [
-            f"machine {machine}",
+            f"machine {quoted_machine}",
             "  login user",
-            f"  password {password}",
+            f"  password {quoted_password}",
             "",  # End with a blank line, by convention.
         ]
     )
@@ -163,6 +169,18 @@ def _update_netrc(
         # Include the original error message because the stack trace
         # will not be shown to the user.
         raise WriteNetrcError(f"Unable to write {path}: {e}") from e
+
+
+def _split_netrc_line(line: str) -> list[str]:
+    """Returns the .netrc tokens in a line.
+
+    Falls back to splitting on whitespace if the line uses quotes incorrectly,
+    since a malformed file must not prevent writing an API key.
+    """
+    try:
+        return shlex.split(line)
+    except ValueError:
+        return line.split()
 
 
 def _write_text(path: pathlib.Path, text: str) -> None:

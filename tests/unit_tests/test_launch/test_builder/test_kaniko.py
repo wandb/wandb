@@ -449,13 +449,11 @@ async def test_build_image_success(
     elastic_container_registry,
     runner,
     mock_boto3,
-    test_settings,
+    test_api,
     capsys,
     tmp_path,
 ):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings(), load_settings=False
-    )
+    api = test_api
     monkeypatch.setattr(
         wandb.sdk.launch._project_spec.LaunchProject, "build_required", lambda x: True
     )

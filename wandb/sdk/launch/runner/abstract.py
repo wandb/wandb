@@ -9,16 +9,17 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
-from wandb.apis.internal import Api
 from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -79,27 +80,6 @@ class AbstractRun(ABC):
     async def get_logs(self) -> str | None:
         """Return the logs associated with the run."""
 
-    def _run_cmd(
-        self, cmd: list[str], output_only: bool | None = False
-    ) -> subprocess.Popen[bytes] | bytes | None:
-        """Run the command and returns a popen object or the stdout of the command.
-
-        Arguments:
-        cmd: The command to run
-        output_only: If true just return the stdout bytes
-        """
-        try:
-            env = os.environ
-            popen = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE)
-            if output_only:
-                popen.wait()
-                if popen.stdout is not None:
-                    return popen.stdout.read()
-            return popen
-        except subprocess.CalledProcessError as e:
-            wandb.termerror(f"Command failed: {e}")
-            return None
-
     @abstractmethod
     async def wait(self) -> bool:
         """Wait for the run to finish, returning True if the run succeeded and false otherwise.
@@ -137,7 +117,7 @@ class AbstractRunner(ABC):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
     ) -> None:
         self._api = api

@@ -18,8 +18,13 @@ type KeyValueList []KeyValuePair
 func (kvl KeyValueList) StepValue() int64 {
 	for _, kv := range kvl {
 		if kv.Key == StepKey {
-			if v, ok := kv.Value.(int64); ok {
+			switch v := kv.Value.(type) {
+			case int64:
 				return v
+			case uint64:
+				return int64(v)
+			case float64:
+				return int64(v)
 			}
 		}
 	}

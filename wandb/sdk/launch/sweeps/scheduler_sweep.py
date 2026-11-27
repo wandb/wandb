@@ -7,8 +7,8 @@ from pprint import pformat as pf
 from typing import Any
 
 import wandb
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps.scheduler import LOG_PREFIX, RunState, Scheduler, SweepRun
+from wandb.sdk.sweeps import SweepNotFoundError
 
 _logger = logging.getLogger(__name__)
 
@@ -71,11 +71,11 @@ class SweepScheduler(Scheduler):
                 _run_states[run_id] = True
 
         _logger.debug(f"Sending states: \n{pf(_run_states)}\n")
+        from wandb.apis.public.sweeps import _agent_heartbeat
+
         try:
-            commands: list[dict[str, Any]] = self._api.agent_heartbeat(
-                agent_id=self._workers[worker_id].agent_id,
-                metrics={},
-                run_states=_run_states,
+            commands = _agent_heartbeat(
+                self._api, self._workers[worker_id].agent_id, {}, _run_states
             )
         except SweepNotFoundError:
             wandb.termerror(

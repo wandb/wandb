@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -37,11 +38,13 @@ func (v *ArtifactAliasInput) GetArtifactCollectionName() string { return v.Artif
 type ArtifactDigestAlgorithm string
 
 const (
-	ArtifactDigestAlgorithmManifestMd5 ArtifactDigestAlgorithm = "MANIFEST_MD5"
+	ArtifactDigestAlgorithmManifestMd5    ArtifactDigestAlgorithm = "MANIFEST_MD5"
+	ArtifactDigestAlgorithmManifestXxh128 ArtifactDigestAlgorithm = "MANIFEST_XXH128"
 )
 
 var AllArtifactDigestAlgorithm = []ArtifactDigestAlgorithm{
 	ArtifactDigestAlgorithmManifestMd5,
+	ArtifactDigestAlgorithmManifestXxh128,
 }
 
 // ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
@@ -438,6 +441,7 @@ func (v *CreateArtifactCreateArtifactCreateArtifactPayload) __premarshalJSON() (
 type CreateArtifactFileSpecInput struct {
 	ArtifactID         string             `json:"artifactID"`
 	ArtifactManifestID *string            `json:"artifactManifestID"`
+	Digest             *string            `json:"digest,omitempty"`
 	Md5                string             `json:"md5"`
 	Mimetype           *string            `json:"mimetype"`
 	Name               string             `json:"name"`
@@ -449,6 +453,9 @@ func (v *CreateArtifactFileSpecInput) GetArtifactID() string { return v.Artifact
 
 // GetArtifactManifestID returns CreateArtifactFileSpecInput.ArtifactManifestID, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFileSpecInput) GetArtifactManifestID() *string { return v.ArtifactManifestID }
+
+// GetDigest returns CreateArtifactFileSpecInput.Digest, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFileSpecInput) GetDigest() *string { return v.Digest }
 
 // GetMd5 returns CreateArtifactFileSpecInput.Md5, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFileSpecInput) GetMd5() string { return v.Md5 }
@@ -569,6 +576,33 @@ func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFi
 func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart) GetUploadUrl() string {
 	return v.UploadUrl
 }
+
+type CreateArtifactFilesInput struct {
+	ArtifactFiles    []CreateArtifactFileSpecInput `json:"artifactFiles"`
+	ClientMutationId *string                       `json:"clientMutationId"`
+	CloudRegionID    *string                       `json:"cloudRegionID"`
+	DigestAlgorithm  *ArtifactDigestAlgorithm      `json:"digestAlgorithm,omitempty"`
+	StorageLayout    ArtifactStorageLayout         `json:"storageLayout"`
+}
+
+// GetArtifactFiles returns CreateArtifactFilesInput.ArtifactFiles, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetArtifactFiles() []CreateArtifactFileSpecInput {
+	return v.ArtifactFiles
+}
+
+// GetClientMutationId returns CreateArtifactFilesInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetClientMutationId() *string { return v.ClientMutationId }
+
+// GetCloudRegionID returns CreateArtifactFilesInput.CloudRegionID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetCloudRegionID() *string { return v.CloudRegionID }
+
+// GetDigestAlgorithm returns CreateArtifactFilesInput.DigestAlgorithm, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetDigestAlgorithm() *ArtifactDigestAlgorithm {
+	return v.DigestAlgorithm
+}
+
+// GetStorageLayout returns CreateArtifactFilesInput.StorageLayout, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetStorageLayout() ArtifactStorageLayout { return v.StorageLayout }
 
 // CreateArtifactFilesResponse is returned by CreateArtifactFiles on success.
 type CreateArtifactFilesResponse struct {
@@ -735,6 +769,62 @@ func (v *CreateArtifactResponse) GetCreateArtifact() *CreateArtifactCreateArtifa
 	return v.CreateArtifact
 }
 
+// CreateCustomChartCreateCustomChartCreateCustomChartPayload includes the requested fields of the GraphQL type CreateCustomChartPayload.
+type CreateCustomChartCreateCustomChartCreateCustomChartPayload struct {
+	Chart CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart `json:"chart"`
+}
+
+// GetChart returns CreateCustomChartCreateCustomChartCreateCustomChartPayload.Chart, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartCreateCustomChartCreateCustomChartPayload) GetChart() CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart {
+	return v.Chart
+}
+
+// CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart includes the requested fields of the GraphQL type CustomChart.
+type CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart struct {
+	Id string `json:"id"`
+}
+
+// GetId returns CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart.Id, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart) GetId() string {
+	return v.Id
+}
+
+// CreateCustomChartResponse is returned by CreateCustomChart on success.
+type CreateCustomChartResponse struct {
+	CreateCustomChart *CreateCustomChartCreateCustomChartCreateCustomChartPayload `json:"createCustomChart"`
+}
+
+// GetCreateCustomChart returns CreateCustomChartResponse.CreateCustomChart, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartResponse) GetCreateCustomChart() *CreateCustomChartCreateCustomChartCreateCustomChartPayload {
+	return v.CreateCustomChart
+}
+
+// CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload includes the requested fields of the GraphQL type CreateDefaultResourceConfigPayload.
+type CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload struct {
+	DefaultResourceConfigID string `json:"defaultResourceConfigID"`
+	Success                 bool   `json:"success"`
+}
+
+// GetDefaultResourceConfigID returns CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload.DefaultResourceConfigID, and is useful for accessing the field via an interface.
+func (v *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload) GetDefaultResourceConfigID() string {
+	return v.DefaultResourceConfigID
+}
+
+// GetSuccess returns CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload.Success, and is useful for accessing the field via an interface.
+func (v *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload) GetSuccess() bool {
+	return v.Success
+}
+
+// CreateDefaultResourceConfigResponse is returned by CreateDefaultResourceConfig on success.
+type CreateDefaultResourceConfigResponse struct {
+	CreateDefaultResourceConfig *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload `json:"createDefaultResourceConfig"`
+}
+
+// GetCreateDefaultResourceConfig returns CreateDefaultResourceConfigResponse.CreateDefaultResourceConfig, and is useful for accessing the field via an interface.
+func (v *CreateDefaultResourceConfigResponse) GetCreateDefaultResourceConfig() *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload {
+	return v.CreateDefaultResourceConfig
+}
+
 // CreateRunFilesCreateRunFilesCreateRunFilesPayload includes the requested fields of the GraphQL type CreateRunFilesPayload.
 type CreateRunFilesCreateRunFilesCreateRunFilesPayload struct {
 	RunID         string                                                       `json:"runID"`
@@ -777,6 +867,28 @@ type CreateRunFilesResponse struct {
 // GetCreateRunFiles returns CreateRunFilesResponse.CreateRunFiles, and is useful for accessing the field via an interface.
 func (v *CreateRunFilesResponse) GetCreateRunFiles() *CreateRunFilesCreateRunFilesCreateRunFilesPayload {
 	return v.CreateRunFiles
+}
+
+// CreateRunQueueCreateRunQueueCreateRunQueuePayload includes the requested fields of the GraphQL type CreateRunQueuePayload.
+type CreateRunQueueCreateRunQueueCreateRunQueuePayload struct {
+	Success *bool   `json:"success"`
+	QueueID *string `json:"queueID"`
+}
+
+// GetSuccess returns CreateRunQueueCreateRunQueueCreateRunQueuePayload.Success, and is useful for accessing the field via an interface.
+func (v *CreateRunQueueCreateRunQueueCreateRunQueuePayload) GetSuccess() *bool { return v.Success }
+
+// GetQueueID returns CreateRunQueueCreateRunQueueCreateRunQueuePayload.QueueID, and is useful for accessing the field via an interface.
+func (v *CreateRunQueueCreateRunQueueCreateRunQueuePayload) GetQueueID() *string { return v.QueueID }
+
+// CreateRunQueueResponse is returned by CreateRunQueue on success.
+type CreateRunQueueResponse struct {
+	CreateRunQueue *CreateRunQueueCreateRunQueueCreateRunQueuePayload `json:"createRunQueue"`
+}
+
+// GetCreateRunQueue returns CreateRunQueueResponse.CreateRunQueue, and is useful for accessing the field via an interface.
+func (v *CreateRunQueueResponse) GetCreateRunQueue() *CreateRunQueueCreateRunQueueCreateRunQueuePayload {
+	return v.CreateRunQueue
 }
 
 // CreatedArtifact includes the GraphQL fields of CreateArtifactPayload requested by the fragment CreatedArtifact.
@@ -822,6 +934,225 @@ type CreatedArtifactArtifactArtifactSequenceLatestArtifact struct {
 
 // GetId returns CreatedArtifactArtifactArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreatedArtifactArtifactArtifactSequenceLatestArtifact) GetId() string { return v.Id }
+
+// EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload includes the requested fields of the GraphQL type EnqueueSweepRunPayload.
+type EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload struct {
+	Id             *string `json:"id"`
+	RunQueueItemId *string `json:"runQueueItemId"`
+}
+
+// GetId returns EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload.Id, and is useful for accessing the field via an interface.
+func (v *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload) GetId() *string { return v.Id }
+
+// GetRunQueueItemId returns EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload.RunQueueItemId, and is useful for accessing the field via an interface.
+func (v *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload) GetRunQueueItemId() *string {
+	return v.RunQueueItemId
+}
+
+// EnqueueSweepRunResponse is returned by EnqueueSweepRun on success.
+type EnqueueSweepRunResponse struct {
+	EnqueueSweepRun *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload `json:"enqueueSweepRun"`
+}
+
+// GetEnqueueSweepRun returns EnqueueSweepRunResponse.EnqueueSweepRun, and is useful for accessing the field via an interface.
+func (v *EnqueueSweepRunResponse) GetEnqueueSweepRun() *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload {
+	return v.EnqueueSweepRun
+}
+
+// FetchArtifactDigestAlgorithmProject includes the requested fields of the GraphQL type Project.
+type FetchArtifactDigestAlgorithmProject struct {
+	ArtifactType *FetchArtifactDigestAlgorithmProjectArtifactType `json:"artifactType"`
+}
+
+// GetArtifactType returns FetchArtifactDigestAlgorithmProject.ArtifactType, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProject) GetArtifactType() *FetchArtifactDigestAlgorithmProjectArtifactType {
+	return v.ArtifactType
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactType includes the requested fields of the GraphQL type ArtifactType.
+type FetchArtifactDigestAlgorithmProjectArtifactType struct {
+	ArtifactCollection *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection `json:"-"`
+}
+
+// GetArtifactCollection returns FetchArtifactDigestAlgorithmProjectArtifactType.ArtifactCollection, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) GetArtifactCollection() *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection {
+	return v.ArtifactCollection
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*FetchArtifactDigestAlgorithmProjectArtifactType
+		ArtifactCollection json.RawMessage `json:"artifactCollection"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.FetchArtifactDigestAlgorithmProjectArtifactType = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.ArtifactCollection
+		src := firstPass.ArtifactCollection
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection)
+			err = __unmarshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal FetchArtifactDigestAlgorithmProjectArtifactType.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalFetchArtifactDigestAlgorithmProjectArtifactType struct {
+	ArtifactCollection json.RawMessage `json:"artifactCollection"`
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) __premarshalJSON() (*__premarshalFetchArtifactDigestAlgorithmProjectArtifactType, error) {
+	var retval __premarshalFetchArtifactDigestAlgorithmProjectArtifactType
+
+	{
+
+		dst := &retval.ArtifactCollection
+		src := v.ArtifactCollection
+		if src != nil {
+			var err error
+			*dst, err = __marshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal FetchArtifactDigestAlgorithmProjectArtifactType.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return &retval, nil
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection includes the requested fields of the GraphQL interface ArtifactCollection.
+//
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection is implemented by the following types:
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
+type FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection interface {
+	implementsGraphQLInterfaceFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio) implementsGraphQLInterfaceFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection() {
+}
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence) implementsGraphQLInterfaceFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection() {
+}
+
+func __unmarshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(b []byte, v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "ArtifactPortfolio":
+		*v = new(FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio)
+		return json.Unmarshal(b, *v)
+	case "ArtifactSequence":
+		*v = new(FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing ArtifactCollection.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio:
+		typename = "ArtifactPortfolio"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio
+		}{typename, v}
+		return json.Marshal(result)
+	case *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence:
+		typename = "ArtifactSequence"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection: "%T"`, v)
+	}
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio includes the requested fields of the GraphQL type ArtifactPortfolio.
+type FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio.Typename, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio) GetTypename() *string {
+	return v.Typename
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence struct {
+	Typename        *string                 `json:"__typename"`
+	DigestAlgorithm ArtifactDigestAlgorithm `json:"digestAlgorithm"`
+}
+
+// GetTypename returns FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence.Typename, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence) GetTypename() *string {
+	return v.Typename
+}
+
+// GetDigestAlgorithm returns FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence.DigestAlgorithm, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence) GetDigestAlgorithm() ArtifactDigestAlgorithm {
+	return v.DigestAlgorithm
+}
+
+// FetchArtifactDigestAlgorithmResponse is returned by FetchArtifactDigestAlgorithm on success.
+type FetchArtifactDigestAlgorithmResponse struct {
+	Project *FetchArtifactDigestAlgorithmProject `json:"project"`
+}
+
+// GetProject returns FetchArtifactDigestAlgorithmResponse.Project, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmResponse) GetProject() *FetchArtifactDigestAlgorithmProject {
+	return v.Project
+}
 
 // FetchOrgEntityFromEntityEntity includes the requested fields of the GraphQL type Entity.
 type FetchOrgEntityFromEntityEntity struct {
@@ -889,6 +1220,34 @@ type HistoryPageResponse struct {
 // GetProject returns HistoryPageResponse.Project, and is useful for accessing the field via an interface.
 func (v *HistoryPageResponse) GetProject() *HistoryPageProject { return v.Project }
 
+// LeetRun includes the GraphQL fields of Run requested by the fragment LeetRun.
+type LeetRun struct {
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName"`
+	State       string   `json:"state"`
+	Notes       string   `json:"notes"`
+	Tags        []string `json:"tags"`
+	Config      string   `json:"config"`
+}
+
+// GetName returns LeetRun.Name, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetName() string { return v.Name }
+
+// GetDisplayName returns LeetRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetDisplayName() string { return v.DisplayName }
+
+// GetState returns LeetRun.State, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetState() string { return v.State }
+
+// GetNotes returns LeetRun.Notes, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetNotes() string { return v.Notes }
+
+// GetTags returns LeetRun.Tags, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetTags() []string { return v.Tags }
+
+// GetConfig returns LeetRun.Config, and is useful for accessing the field via an interface.
+func (v *LeetRun) GetConfig() string { return v.Config }
+
 // LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
 type LinkArtifactLinkArtifactLinkArtifactPayload struct {
 	VersionIndex *int `json:"versionIndex"`
@@ -905,6 +1264,26 @@ type LinkArtifactResponse struct {
 // GetLinkArtifact returns LinkArtifactResponse.LinkArtifact, and is useful for accessing the field via an interface.
 func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkArtifactPayload {
 	return v.LinkArtifact
+}
+
+// MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload includes the requested fields of the GraphQL type MarkRunFilesUploadedPayload.
+type MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload struct {
+	Success bool `json:"success"`
+}
+
+// GetSuccess returns MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload.Success, and is useful for accessing the field via an interface.
+func (v *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload) GetSuccess() bool {
+	return v.Success
+}
+
+// MarkRunFilesUploadedResponse is returned by MarkRunFilesUploaded on success.
+type MarkRunFilesUploadedResponse struct {
+	MarkRunFilesUploaded *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload `json:"markRunFilesUploaded"`
+}
+
+// GetMarkRunFilesUploaded returns MarkRunFilesUploadedResponse.MarkRunFilesUploaded, and is useful for accessing the field via an interface.
+func (v *MarkRunFilesUploadedResponse) GetMarkRunFilesUploaded() *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload {
+	return v.MarkRunFilesUploaded
 }
 
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
@@ -925,6 +1304,38 @@ type NotifyScriptableRunAlertResponse struct {
 // GetNotifyScriptableRunAlert returns NotifyScriptableRunAlertResponse.NotifyScriptableRunAlert, and is useful for accessing the field via an interface.
 func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload {
 	return v.NotifyScriptableRunAlert
+}
+
+// OrgFeatureFlagsOrganization includes the requested fields of the GraphQL type Organization.
+type OrgFeatureFlagsOrganization struct {
+	FeatureFlags []*OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag `json:"featureFlags"`
+}
+
+// GetFeatureFlags returns OrgFeatureFlagsOrganization.FeatureFlags, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsOrganization) GetFeatureFlags() []*OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag {
+	return v.FeatureFlags
+}
+
+// OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag includes the requested fields of the GraphQL type FeatureFlag.
+type OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag struct {
+	RampKey   string `json:"rampKey"`
+	IsEnabled bool   `json:"isEnabled"`
+}
+
+// GetRampKey returns OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag.RampKey, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag) GetRampKey() string { return v.RampKey }
+
+// GetIsEnabled returns OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag.IsEnabled, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag) GetIsEnabled() bool { return v.IsEnabled }
+
+// OrgFeatureFlagsResponse is returned by OrgFeatureFlags on success.
+type OrgFeatureFlagsResponse struct {
+	Organization *OrgFeatureFlagsOrganization `json:"organization"`
+}
+
+// GetOrganization returns OrgFeatureFlagsResponse.Organization, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsResponse) GetOrganization() *OrgFeatureFlagsOrganization {
+	return v.Organization
 }
 
 // OrganizationCoreWeaveOrganizationIDEntity includes the requested fields of the GraphQL type Entity.
@@ -956,6 +1367,296 @@ type OrganizationCoreWeaveOrganizationIDResponse struct {
 func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationCoreWeaveOrganizationIDEntity {
 	return v.Entity
 }
+
+// QueryProjectRunsProject includes the requested fields of the GraphQL type Project.
+type QueryProjectRunsProject struct {
+	Runs *QueryProjectRunsProjectRunsRunConnection `json:"runs"`
+}
+
+// GetRuns returns QueryProjectRunsProject.Runs, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProject) GetRuns() *QueryProjectRunsProjectRunsRunConnection { return v.Runs }
+
+// QueryProjectRunsProjectRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
+type QueryProjectRunsProjectRunsRunConnection struct {
+	Edges    []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge `json:"edges"`
+	PageInfo QueryProjectRunsProjectRunsRunConnectionPageInfo       `json:"pageInfo"`
+}
+
+// GetEdges returns QueryProjectRunsProjectRunsRunConnection.Edges, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnection) GetEdges() []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns QueryProjectRunsProjectRunsRunConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnection) GetPageInfo() QueryProjectRunsProjectRunsRunConnectionPageInfo {
+	return v.PageInfo
+}
+
+// QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge includes the requested fields of the GraphQL type RunEdge.
+type QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge struct {
+	Node QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun `json:"node"`
+}
+
+// GetNode returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge.Node, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge) GetNode() QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun {
+	return v.Node
+}
+
+// QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun includes the requested fields of the GraphQL type Run.
+type QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun struct {
+	LeetRun `json:"-"`
+}
+
+// GetName returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Name, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetName() string {
+	return v.LeetRun.Name
+}
+
+// GetDisplayName returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetDisplayName() string {
+	return v.LeetRun.DisplayName
+}
+
+// GetState returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.State, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetState() string {
+	return v.LeetRun.State
+}
+
+// GetNotes returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Notes, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetNotes() string {
+	return v.LeetRun.Notes
+}
+
+// GetTags returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Tags, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetTags() []string {
+	return v.LeetRun.Tags
+}
+
+// GetConfig returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Config, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetConfig() string {
+	return v.LeetRun.Config
+}
+
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.LeetRun)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun struct {
+	Name string `json:"name"`
+
+	DisplayName string `json:"displayName"`
+
+	State string `json:"state"`
+
+	Notes string `json:"notes"`
+
+	Tags []string `json:"tags"`
+
+	Config string `json:"config"`
+}
+
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) __premarshalJSON() (*__premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun, error) {
+	var retval __premarshalQueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun
+
+	retval.Name = v.LeetRun.Name
+	retval.DisplayName = v.LeetRun.DisplayName
+	retval.State = v.LeetRun.State
+	retval.Notes = v.LeetRun.Notes
+	retval.Tags = v.LeetRun.Tags
+	retval.Config = v.LeetRun.Config
+	return &retval, nil
+}
+
+// QueryProjectRunsProjectRunsRunConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type QueryProjectRunsProjectRunsRunConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns QueryProjectRunsProjectRunsRunConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionPageInfo) GetEndCursor() *string { return v.EndCursor }
+
+// GetHasNextPage returns QueryProjectRunsProjectRunsRunConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// QueryProjectRunsResponse is returned by QueryProjectRuns on success.
+type QueryProjectRunsResponse struct {
+	Project *QueryProjectRunsProject `json:"project"`
+}
+
+// GetProject returns QueryProjectRunsResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsResponse) GetProject() *QueryProjectRunsProject { return v.Project }
+
+// QueryRunBucketedHistoryProject includes the requested fields of the GraphQL type Project.
+type QueryRunBucketedHistoryProject struct {
+	Run *QueryRunBucketedHistoryProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunBucketedHistoryProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryProject) GetRun() *QueryRunBucketedHistoryProjectRun { return v.Run }
+
+// QueryRunBucketedHistoryProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunBucketedHistoryProjectRun struct {
+	BucketedHistory []interface{} `json:"bucketedHistory"`
+}
+
+// GetBucketedHistory returns QueryRunBucketedHistoryProjectRun.BucketedHistory, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryProjectRun) GetBucketedHistory() []interface{} {
+	return v.BucketedHistory
+}
+
+// QueryRunBucketedHistoryResponse is returned by QueryRunBucketedHistory on success.
+type QueryRunBucketedHistoryResponse struct {
+	Project *QueryRunBucketedHistoryProject `json:"project"`
+}
+
+// GetProject returns QueryRunBucketedHistoryResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryResponse) GetProject() *QueryRunBucketedHistoryProject {
+	return v.Project
+}
+
+// QueryRunInfoProject includes the requested fields of the GraphQL type Project.
+type QueryRunInfoProject struct {
+	Run *QueryRunInfoProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunInfoProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
+
+// QueryRunInfoProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunInfoProjectRun struct {
+	LeetRun        `json:"-"`
+	SummaryMetrics string `json:"summaryMetrics"`
+	SystemMetrics  string `json:"systemMetrics"`
+}
+
+// GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSummaryMetrics() string { return v.SummaryMetrics }
+
+// GetSystemMetrics returns QueryRunInfoProjectRun.SystemMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSystemMetrics() string { return v.SystemMetrics }
+
+// GetName returns QueryRunInfoProjectRun.Name, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetName() string { return v.LeetRun.Name }
+
+// GetDisplayName returns QueryRunInfoProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetDisplayName() string { return v.LeetRun.DisplayName }
+
+// GetState returns QueryRunInfoProjectRun.State, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetState() string { return v.LeetRun.State }
+
+// GetNotes returns QueryRunInfoProjectRun.Notes, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetNotes() string { return v.LeetRun.Notes }
+
+// GetTags returns QueryRunInfoProjectRun.Tags, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetTags() []string { return v.LeetRun.Tags }
+
+// GetConfig returns QueryRunInfoProjectRun.Config, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetConfig() string { return v.LeetRun.Config }
+
+func (v *QueryRunInfoProjectRun) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*QueryRunInfoProjectRun
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.QueryRunInfoProjectRun = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.LeetRun)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalQueryRunInfoProjectRun struct {
+	SummaryMetrics string `json:"summaryMetrics"`
+
+	SystemMetrics string `json:"systemMetrics"`
+
+	Name string `json:"name"`
+
+	DisplayName string `json:"displayName"`
+
+	State string `json:"state"`
+
+	Notes string `json:"notes"`
+
+	Tags []string `json:"tags"`
+
+	Config string `json:"config"`
+}
+
+func (v *QueryRunInfoProjectRun) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *QueryRunInfoProjectRun) __premarshalJSON() (*__premarshalQueryRunInfoProjectRun, error) {
+	var retval __premarshalQueryRunInfoProjectRun
+
+	retval.SummaryMetrics = v.SummaryMetrics
+	retval.SystemMetrics = v.SystemMetrics
+	retval.Name = v.LeetRun.Name
+	retval.DisplayName = v.LeetRun.DisplayName
+	retval.State = v.LeetRun.State
+	retval.Notes = v.LeetRun.Notes
+	retval.Tags = v.LeetRun.Tags
+	retval.Config = v.LeetRun.Config
+	return &retval, nil
+}
+
+// QueryRunInfoResponse is returned by QueryRunInfo on success.
+type QueryRunInfoResponse struct {
+	Project *QueryRunInfoProject `json:"project"`
+}
+
+// GetProject returns QueryRunInfoResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoResponse) GetProject() *QueryRunInfoProject { return v.Project }
 
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
@@ -1045,6 +1746,196 @@ func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() stri
 // GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
 func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
 
+// RunConsoleLogPageProject includes the requested fields of the GraphQL type Project.
+type RunConsoleLogPageProject struct {
+	Run *RunConsoleLogPageProjectRun `json:"run"`
+}
+
+// GetRun returns RunConsoleLogPageProject.Run, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProject) GetRun() *RunConsoleLogPageProjectRun { return v.Run }
+
+// RunConsoleLogPageProjectRun includes the requested fields of the GraphQL type Run.
+type RunConsoleLogPageProjectRun struct {
+	LogLineCount *int                                                  `json:"logLineCount"`
+	LogLines     *RunConsoleLogPageProjectRunLogLinesLogLineConnection `json:"logLines"`
+}
+
+// GetLogLineCount returns RunConsoleLogPageProjectRun.LogLineCount, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRun) GetLogLineCount() *int { return v.LogLineCount }
+
+// GetLogLines returns RunConsoleLogPageProjectRun.LogLines, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRun) GetLogLines() *RunConsoleLogPageProjectRunLogLinesLogLineConnection {
+	return v.LogLines
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnection includes the requested fields of the GraphQL type LogLineConnection.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnection struct {
+	Edges    []RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge `json:"edges"`
+	PageInfo RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo           `json:"pageInfo"`
+}
+
+// GetEdges returns RunConsoleLogPageProjectRunLogLinesLogLineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnection) GetEdges() []RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns RunConsoleLogPageProjectRunLogLinesLogLineConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnection) GetPageInfo() RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo {
+	return v.PageInfo
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge includes the requested fields of the GraphQL type LogLineEdge.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge struct {
+	Node RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
+}
+
+// GetNode returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Node, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetNode() RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine {
+	return v.Node
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
+	Number    *int    `json:"number"`
+	Timestamp *string `json:"timestamp"`
+	Level     *string `json:"level"`
+	Label     *string `json:"label"`
+	Line      *string `json:"line"`
+}
+
+// GetNumber returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Number, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetNumber() *int {
+	return v.Number
+}
+
+// GetTimestamp returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Timestamp, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetTimestamp() *string {
+	return v.Timestamp
+}
+
+// GetLevel returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Level, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLevel() *string {
+	return v.Level
+}
+
+// GetLabel returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Label, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLabel() *string {
+	return v.Label
+}
+
+// GetLine returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Line, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLine() *string {
+	return v.Line
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// GetHasNextPage returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// RunConsoleLogPageResponse is returned by RunConsoleLogPage on success.
+type RunConsoleLogPageResponse struct {
+	Project *RunConsoleLogPageProject `json:"project"`
+}
+
+// GetProject returns RunConsoleLogPageResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageResponse) GetProject() *RunConsoleLogPageProject { return v.Project }
+
+// RunConsoleLogTailProject includes the requested fields of the GraphQL type Project.
+type RunConsoleLogTailProject struct {
+	Run *RunConsoleLogTailProjectRun `json:"run"`
+}
+
+// GetRun returns RunConsoleLogTailProject.Run, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProject) GetRun() *RunConsoleLogTailProjectRun { return v.Run }
+
+// RunConsoleLogTailProjectRun includes the requested fields of the GraphQL type Run.
+type RunConsoleLogTailProjectRun struct {
+	LogLineCount *int                                                  `json:"logLineCount"`
+	LogLines     *RunConsoleLogTailProjectRunLogLinesLogLineConnection `json:"logLines"`
+}
+
+// GetLogLineCount returns RunConsoleLogTailProjectRun.LogLineCount, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRun) GetLogLineCount() *int { return v.LogLineCount }
+
+// GetLogLines returns RunConsoleLogTailProjectRun.LogLines, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRun) GetLogLines() *RunConsoleLogTailProjectRunLogLinesLogLineConnection {
+	return v.LogLines
+}
+
+// RunConsoleLogTailProjectRunLogLinesLogLineConnection includes the requested fields of the GraphQL type LogLineConnection.
+type RunConsoleLogTailProjectRunLogLinesLogLineConnection struct {
+	Edges []RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge `json:"edges"`
+}
+
+// GetEdges returns RunConsoleLogTailProjectRunLogLinesLogLineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnection) GetEdges() []RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge {
+	return v.Edges
+}
+
+// RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge includes the requested fields of the GraphQL type LogLineEdge.
+type RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge struct {
+	Node RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
+}
+
+// GetNode returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Node, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetNode() RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine {
+	return v.Node
+}
+
+// RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
+type RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
+	Number    *int    `json:"number"`
+	Timestamp *string `json:"timestamp"`
+	Level     *string `json:"level"`
+	Label     *string `json:"label"`
+	Line      *string `json:"line"`
+}
+
+// GetNumber returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Number, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetNumber() *int {
+	return v.Number
+}
+
+// GetTimestamp returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Timestamp, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetTimestamp() *string {
+	return v.Timestamp
+}
+
+// GetLevel returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Level, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLevel() *string {
+	return v.Level
+}
+
+// GetLabel returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Label, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLabel() *string {
+	return v.Label
+}
+
+// GetLine returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Line, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLine() *string {
+	return v.Line
+}
+
+// RunConsoleLogTailResponse is returned by RunConsoleLogTail on success.
+type RunConsoleLogTailResponse struct {
+	Project *RunConsoleLogTailProject `json:"project"`
+}
+
+// GetProject returns RunConsoleLogTailResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailResponse) GetProject() *RunConsoleLogTailProject { return v.Project }
+
 // RunParquetHistoryProject includes the requested fields of the GraphQL type Project.
 type RunParquetHistoryProject struct {
 	Run *RunParquetHistoryProjectRun `json:"run"`
@@ -1082,6 +1973,30 @@ type RunParquetHistoryResponse struct {
 
 // GetProject returns RunParquetHistoryResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunParquetHistoryResponse) GetProject() *RunParquetHistoryProject { return v.Project }
+
+type RunQueueAccessType string
+
+const (
+	RunQueueAccessTypeProject RunQueueAccessType = "PROJECT"
+	RunQueueAccessTypeUser    RunQueueAccessType = "USER"
+)
+
+var AllRunQueueAccessType = []RunQueueAccessType{
+	RunQueueAccessTypeProject,
+	RunQueueAccessTypeUser,
+}
+
+type RunQueuePrioritizationMode string
+
+const (
+	RunQueuePrioritizationModeDisabled RunQueuePrioritizationMode = "DISABLED"
+	RunQueuePrioritizationModeV0       RunQueuePrioritizationMode = "V0"
+)
+
+var AllRunQueuePrioritizationMode = []RunQueuePrioritizationMode{
+	RunQueuePrioritizationModeDisabled,
+	RunQueuePrioritizationModeV0,
+}
 
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
@@ -1180,6 +2095,34 @@ type RunResumeStatusResponse struct {
 
 // GetModel returns RunResumeStatusResponse.Model, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusResponse) GetModel() *RunResumeStatusModelProject { return v.Model }
+
+// RunStateProject includes the requested fields of the GraphQL type Project.
+type RunStateProject struct {
+	Run *RunStateProjectRun `json:"run"`
+}
+
+// GetRun returns RunStateProject.Run, and is useful for accessing the field via an interface.
+func (v *RunStateProject) GetRun() *RunStateProjectRun { return v.Run }
+
+// RunStateProjectRun includes the requested fields of the GraphQL type Run.
+type RunStateProjectRun struct {
+	Id    string  `json:"id"`
+	State *string `json:"state"`
+}
+
+// GetId returns RunStateProjectRun.Id, and is useful for accessing the field via an interface.
+func (v *RunStateProjectRun) GetId() string { return v.Id }
+
+// GetState returns RunStateProjectRun.State, and is useful for accessing the field via an interface.
+func (v *RunStateProjectRun) GetState() *string { return v.State }
+
+// RunStateResponse is returned by RunState on success.
+type RunStateResponse struct {
+	Project *RunStateProject `json:"project"`
+}
+
+// GetProject returns RunStateResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunStateResponse) GetProject() *RunStateProject { return v.Project }
 
 // RunStoppedStatusProject includes the requested fields of the GraphQL type Project.
 type RunStoppedStatusProject struct {
@@ -1302,6 +2245,305 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetLatestVersionString() st
 func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceString() string {
 	return v.VersionOnThisInstanceString
 }
+
+// StopRunResponse is returned by StopRun on success.
+type StopRunResponse struct {
+	StopRun *StopRunStopRunStopRunPayload `json:"stopRun"`
+}
+
+// GetStopRun returns StopRunResponse.StopRun, and is useful for accessing the field via an interface.
+func (v *StopRunResponse) GetStopRun() *StopRunStopRunStopRunPayload { return v.StopRun }
+
+// StopRunStopRunStopRunPayload includes the requested fields of the GraphQL type StopRunPayload.
+type StopRunStopRunStopRunPayload struct {
+	Success bool `json:"success"`
+}
+
+// GetSuccess returns StopRunStopRunStopRunPayload.Success, and is useful for accessing the field via an interface.
+func (v *StopRunStopRunStopRunPayload) GetSuccess() bool { return v.Success }
+
+// SweepConfigProject includes the requested fields of the GraphQL type Project.
+type SweepConfigProject struct {
+	Sweep *SweepConfigProjectSweep `json:"sweep"`
+}
+
+// GetSweep returns SweepConfigProject.Sweep, and is useful for accessing the field via an interface.
+func (v *SweepConfigProject) GetSweep() *SweepConfigProjectSweep { return v.Sweep }
+
+// SweepConfigProjectSweep includes the requested fields of the GraphQL type Sweep.
+type SweepConfigProjectSweep struct {
+	Id                string  `json:"id"`
+	State             string  `json:"state"`
+	Config            string  `json:"config"`
+	DisplayName       *string `json:"displayName"`
+	ControllerRunName string  `json:"controllerRunName"`
+}
+
+// GetId returns SweepConfigProjectSweep.Id, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetId() string { return v.Id }
+
+// GetState returns SweepConfigProjectSweep.State, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetState() string { return v.State }
+
+// GetConfig returns SweepConfigProjectSweep.Config, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetConfig() string { return v.Config }
+
+// GetDisplayName returns SweepConfigProjectSweep.DisplayName, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetDisplayName() *string { return v.DisplayName }
+
+// GetControllerRunName returns SweepConfigProjectSweep.ControllerRunName, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetControllerRunName() string { return v.ControllerRunName }
+
+// SweepConfigResponse is returned by SweepConfig on success.
+type SweepConfigResponse struct {
+	Project *SweepConfigProject `json:"project"`
+}
+
+// GetProject returns SweepConfigResponse.Project, and is useful for accessing the field via an interface.
+func (v *SweepConfigResponse) GetProject() *SweepConfigProject { return v.Project }
+
+// Shared by SweepRunsWithHistory and SweepWatchedRuns, which fetch the
+// same per-run fields for different sets of runs.
+type SweepPollRuns struct {
+	PageInfo SweepPollRunsPageInfo       `json:"pageInfo"`
+	Edges    []SweepPollRunsEdgesRunEdge `json:"edges"`
+}
+
+// GetPageInfo returns SweepPollRuns.PageInfo, and is useful for accessing the field via an interface.
+func (v *SweepPollRuns) GetPageInfo() SweepPollRunsPageInfo { return v.PageInfo }
+
+// GetEdges returns SweepPollRuns.Edges, and is useful for accessing the field via an interface.
+func (v *SweepPollRuns) GetEdges() []SweepPollRunsEdgesRunEdge { return v.Edges }
+
+// SweepPollRunsEdgesRunEdge includes the requested fields of the GraphQL type RunEdge.
+type SweepPollRunsEdgesRunEdge struct {
+	Node SweepPollRunsEdgesRunEdgeNodeRun `json:"node"`
+}
+
+// GetNode returns SweepPollRunsEdgesRunEdge.Node, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdge) GetNode() SweepPollRunsEdgesRunEdgeNodeRun { return v.Node }
+
+// SweepPollRunsEdgesRunEdgeNodeRun includes the requested fields of the GraphQL type Run.
+type SweepPollRunsEdgesRunEdgeNodeRun struct {
+	Id             string        `json:"id"`
+	Name           string        `json:"name"`
+	State          *string       `json:"state"`
+	Config         *string       `json:"config"`
+	SummaryMetrics *string       `json:"summaryMetrics"`
+	SampledHistory []interface{} `json:"sampledHistory"`
+}
+
+// GetId returns SweepPollRunsEdgesRunEdgeNodeRun.Id, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdgeNodeRun) GetId() string { return v.Id }
+
+// GetName returns SweepPollRunsEdgesRunEdgeNodeRun.Name, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdgeNodeRun) GetName() string { return v.Name }
+
+// GetState returns SweepPollRunsEdgesRunEdgeNodeRun.State, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdgeNodeRun) GetState() *string { return v.State }
+
+// GetConfig returns SweepPollRunsEdgesRunEdgeNodeRun.Config, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdgeNodeRun) GetConfig() *string { return v.Config }
+
+// GetSummaryMetrics returns SweepPollRunsEdgesRunEdgeNodeRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdgeNodeRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// GetSampledHistory returns SweepPollRunsEdgesRunEdgeNodeRun.SampledHistory, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsEdgesRunEdgeNodeRun) GetSampledHistory() []interface{} { return v.SampledHistory }
+
+// SweepPollRunsPageInfo includes the requested fields of the GraphQL type PageInfo.
+type SweepPollRunsPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns SweepPollRunsPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsPageInfo) GetHasNextPage() bool { return v.HasNextPage }
+
+// GetEndCursor returns SweepPollRunsPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *SweepPollRunsPageInfo) GetEndCursor() *string { return v.EndCursor }
+
+// SweepRunsWithHistoryProject includes the requested fields of the GraphQL type Project.
+type SweepRunsWithHistoryProject struct {
+	Sweep *SweepRunsWithHistoryProjectSweep `json:"sweep"`
+}
+
+// GetSweep returns SweepRunsWithHistoryProject.Sweep, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProject) GetSweep() *SweepRunsWithHistoryProjectSweep { return v.Sweep }
+
+// SweepRunsWithHistoryProjectSweep includes the requested fields of the GraphQL type Sweep.
+type SweepRunsWithHistoryProjectSweep struct {
+	State string                                            `json:"state"`
+	Runs  SweepRunsWithHistoryProjectSweepRunsRunConnection `json:"runs"`
+}
+
+// GetState returns SweepRunsWithHistoryProjectSweep.State, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweep) GetState() string { return v.State }
+
+// GetRuns returns SweepRunsWithHistoryProjectSweep.Runs, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweep) GetRuns() SweepRunsWithHistoryProjectSweepRunsRunConnection {
+	return v.Runs
+}
+
+// SweepRunsWithHistoryProjectSweepRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
+type SweepRunsWithHistoryProjectSweepRunsRunConnection struct {
+	SweepPollRuns `json:"-"`
+}
+
+// GetPageInfo returns SweepRunsWithHistoryProjectSweepRunsRunConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) GetPageInfo() SweepPollRunsPageInfo {
+	return v.SweepPollRuns.PageInfo
+}
+
+// GetEdges returns SweepRunsWithHistoryProjectSweepRunsRunConnection.Edges, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) GetEdges() []SweepPollRunsEdgesRunEdge {
+	return v.SweepPollRuns.Edges
+}
+
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*SweepRunsWithHistoryProjectSweepRunsRunConnection
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.SweepRunsWithHistoryProjectSweepRunsRunConnection = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.SweepPollRuns)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalSweepRunsWithHistoryProjectSweepRunsRunConnection struct {
+	PageInfo SweepPollRunsPageInfo `json:"pageInfo"`
+
+	Edges []SweepPollRunsEdgesRunEdge `json:"edges"`
+}
+
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) __premarshalJSON() (*__premarshalSweepRunsWithHistoryProjectSweepRunsRunConnection, error) {
+	var retval __premarshalSweepRunsWithHistoryProjectSweepRunsRunConnection
+
+	retval.PageInfo = v.SweepPollRuns.PageInfo
+	retval.Edges = v.SweepPollRuns.Edges
+	return &retval, nil
+}
+
+// SweepRunsWithHistoryResponse is returned by SweepRunsWithHistory on success.
+type SweepRunsWithHistoryResponse struct {
+	Project *SweepRunsWithHistoryProject `json:"project"`
+}
+
+// GetProject returns SweepRunsWithHistoryResponse.Project, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryResponse) GetProject() *SweepRunsWithHistoryProject { return v.Project }
+
+// SweepWatchedRunsProject includes the requested fields of the GraphQL type Project.
+type SweepWatchedRunsProject struct {
+	Sweep *SweepWatchedRunsProjectSweep             `json:"sweep"`
+	Runs  *SweepWatchedRunsProjectRunsRunConnection `json:"runs"`
+}
+
+// GetSweep returns SweepWatchedRunsProject.Sweep, and is useful for accessing the field via an interface.
+func (v *SweepWatchedRunsProject) GetSweep() *SweepWatchedRunsProjectSweep { return v.Sweep }
+
+// GetRuns returns SweepWatchedRunsProject.Runs, and is useful for accessing the field via an interface.
+func (v *SweepWatchedRunsProject) GetRuns() *SweepWatchedRunsProjectRunsRunConnection { return v.Runs }
+
+// SweepWatchedRunsProjectRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
+type SweepWatchedRunsProjectRunsRunConnection struct {
+	SweepPollRuns `json:"-"`
+}
+
+// GetPageInfo returns SweepWatchedRunsProjectRunsRunConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *SweepWatchedRunsProjectRunsRunConnection) GetPageInfo() SweepPollRunsPageInfo {
+	return v.SweepPollRuns.PageInfo
+}
+
+// GetEdges returns SweepWatchedRunsProjectRunsRunConnection.Edges, and is useful for accessing the field via an interface.
+func (v *SweepWatchedRunsProjectRunsRunConnection) GetEdges() []SweepPollRunsEdgesRunEdge {
+	return v.SweepPollRuns.Edges
+}
+
+func (v *SweepWatchedRunsProjectRunsRunConnection) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*SweepWatchedRunsProjectRunsRunConnection
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.SweepWatchedRunsProjectRunsRunConnection = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.SweepPollRuns)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalSweepWatchedRunsProjectRunsRunConnection struct {
+	PageInfo SweepPollRunsPageInfo `json:"pageInfo"`
+
+	Edges []SweepPollRunsEdgesRunEdge `json:"edges"`
+}
+
+func (v *SweepWatchedRunsProjectRunsRunConnection) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *SweepWatchedRunsProjectRunsRunConnection) __premarshalJSON() (*__premarshalSweepWatchedRunsProjectRunsRunConnection, error) {
+	var retval __premarshalSweepWatchedRunsProjectRunsRunConnection
+
+	retval.PageInfo = v.SweepPollRuns.PageInfo
+	retval.Edges = v.SweepPollRuns.Edges
+	return &retval, nil
+}
+
+// SweepWatchedRunsProjectSweep includes the requested fields of the GraphQL type Sweep.
+type SweepWatchedRunsProjectSweep struct {
+	State string `json:"state"`
+}
+
+// GetState returns SweepWatchedRunsProjectSweep.State, and is useful for accessing the field via an interface.
+func (v *SweepWatchedRunsProjectSweep) GetState() string { return v.State }
+
+// SweepWatchedRunsResponse is returned by SweepWatchedRuns on success.
+type SweepWatchedRunsResponse struct {
+	Project *SweepWatchedRunsProject `json:"project"`
+}
+
+// GetProject returns SweepWatchedRunsResponse.Project, and is useful for accessing the field via an interface.
+func (v *SweepWatchedRunsResponse) GetProject() *SweepWatchedRunsProject { return v.Project }
 
 type TagInput struct {
 	Attributes      *string `json:"attributes"`
@@ -1519,6 +2761,58 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetN
 	return v.Name
 }
 
+// UpsertRunQueueResponse is returned by UpsertRunQueue on success.
+type UpsertRunQueueResponse struct {
+	UpsertRunQueue *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload `json:"upsertRunQueue"`
+}
+
+// GetUpsertRunQueue returns UpsertRunQueueResponse.UpsertRunQueue, and is useful for accessing the field via an interface.
+func (v *UpsertRunQueueResponse) GetUpsertRunQueue() *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload {
+	return v.UpsertRunQueue
+}
+
+// UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload includes the requested fields of the GraphQL type UpsertRunQueuePayload.
+type UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload struct {
+	Success                      *bool    `json:"success"`
+	ConfigSchemaValidationErrors []string `json:"configSchemaValidationErrors"`
+}
+
+// GetSuccess returns UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload.Success, and is useful for accessing the field via an interface.
+func (v *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload) GetSuccess() *bool { return v.Success }
+
+// GetConfigSchemaValidationErrors returns UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload.ConfigSchemaValidationErrors, and is useful for accessing the field via an interface.
+func (v *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload) GetConfigSchemaValidationErrors() []string {
+	return v.ConfigSchemaValidationErrors
+}
+
+// UpsertSweepStateResponse is returned by UpsertSweepState on success.
+type UpsertSweepStateResponse struct {
+	UpsertSweep *UpsertSweepStateUpsertSweepUpsertSweepPayload `json:"upsertSweep"`
+}
+
+// GetUpsertSweep returns UpsertSweepStateResponse.UpsertSweep, and is useful for accessing the field via an interface.
+func (v *UpsertSweepStateResponse) GetUpsertSweep() *UpsertSweepStateUpsertSweepUpsertSweepPayload {
+	return v.UpsertSweep
+}
+
+// UpsertSweepStateUpsertSweepUpsertSweepPayload includes the requested fields of the GraphQL type UpsertSweepPayload.
+type UpsertSweepStateUpsertSweepUpsertSweepPayload struct {
+	Sweep *UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep `json:"sweep"`
+}
+
+// GetSweep returns UpsertSweepStateUpsertSweepUpsertSweepPayload.Sweep, and is useful for accessing the field via an interface.
+func (v *UpsertSweepStateUpsertSweepUpsertSweepPayload) GetSweep() *UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep {
+	return v.Sweep
+}
+
+// UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep includes the requested fields of the GraphQL type Sweep.
+type UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep struct {
+	State string `json:"state"`
+}
+
+// GetState returns UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep.State, and is useful for accessing the field via an interface.
+func (v *UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep) GetState() string { return v.State }
+
 type UseArtifactInput struct {
 	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
 	ArtifactID          string  `json:"artifactID"`
@@ -1592,10 +2886,12 @@ func (v *ViewerResponse) GetViewer() *ViewerViewerUser { return v.Viewer }
 
 // ViewerViewerUser includes the requested fields of the GraphQL type User.
 type ViewerViewerUser struct {
-	Id     string                                 `json:"id"`
-	Entity *string                                `json:"entity"`
-	Flags  *string                                `json:"flags"`
-	Teams  *ViewerViewerUserTeamsEntityConnection `json:"teams"`
+	Id       string                                 `json:"id"`
+	Entity   *string                                `json:"entity"`
+	Username *string                                `json:"username"`
+	Email    *string                                `json:"email"`
+	Flags    *string                                `json:"flags"`
+	Teams    *ViewerViewerUserTeamsEntityConnection `json:"teams"`
 }
 
 // GetId returns ViewerViewerUser.Id, and is useful for accessing the field via an interface.
@@ -1603,6 +2899,12 @@ func (v *ViewerViewerUser) GetId() string { return v.Id }
 
 // GetEntity returns ViewerViewerUser.Entity, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetEntity() *string { return v.Entity }
+
+// GetUsername returns ViewerViewerUser.Username, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetUsername() *string { return v.Username }
+
+// GetEmail returns ViewerViewerUser.Email, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetEmail() *string { return v.Email }
 
 // GetFlags returns ViewerViewerUser.Flags, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetFlags() *string { return v.Flags }
@@ -1639,6 +2941,22 @@ type ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity struct {
 func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName() string {
 	return v.Name
 }
+
+// XXHashDigestsEnabledEntity includes the requested fields of the GraphQL type Entity.
+type XXHashDigestsEnabledEntity struct {
+	XxhashDigestsEnabled bool `json:"xxhashDigestsEnabled"`
+}
+
+// GetXxhashDigestsEnabled returns XXHashDigestsEnabledEntity.XxhashDigestsEnabled, and is useful for accessing the field via an interface.
+func (v *XXHashDigestsEnabledEntity) GetXxhashDigestsEnabled() bool { return v.XxhashDigestsEnabled }
+
+// XXHashDigestsEnabledResponse is returned by XXHashDigestsEnabled on success.
+type XXHashDigestsEnabledResponse struct {
+	Entity *XXHashDigestsEnabledEntity `json:"entity"`
+}
+
+// GetEntity returns XXHashDigestsEnabledResponse.Entity, and is useful for accessing the field via an interface.
+func (v *XXHashDigestsEnabledResponse) GetEntity() *XXHashDigestsEnabledEntity { return v.Entity }
 
 // __ArtifactFileURLsByManifestEntriesInput is used internally by genqlient
 type __ArtifactFileURLsByManifestEntriesInput struct {
@@ -1738,17 +3056,11 @@ func (v *__CompleteMultipartUploadArtifactInput) GetUploadID() string { return v
 
 // __CreateArtifactFilesInput is used internally by genqlient
 type __CreateArtifactFilesInput struct {
-	ArtifactFiles []CreateArtifactFileSpecInput `json:"artifactFiles"`
-	StorageLayout ArtifactStorageLayout         `json:"storageLayout"`
+	Input CreateArtifactFilesInput `json:"input"`
 }
 
-// GetArtifactFiles returns __CreateArtifactFilesInput.ArtifactFiles, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactFilesInput) GetArtifactFiles() []CreateArtifactFileSpecInput {
-	return v.ArtifactFiles
-}
-
-// GetStorageLayout returns __CreateArtifactFilesInput.StorageLayout, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactFilesInput) GetStorageLayout() ArtifactStorageLayout { return v.StorageLayout }
+// GetInput returns __CreateArtifactFilesInput.Input, and is useful for accessing the field via an interface.
+func (v *__CreateArtifactFilesInput) GetInput() CreateArtifactFilesInput { return v.Input }
 
 // __CreateArtifactInput is used internally by genqlient
 type __CreateArtifactInput struct {
@@ -1798,6 +3110,56 @@ func (v *__CreateArtifactManifestInput) GetManifestType() ArtifactManifestType {
 // GetIncludeUpload returns __CreateArtifactManifestInput.IncludeUpload, and is useful for accessing the field via an interface.
 func (v *__CreateArtifactManifestInput) GetIncludeUpload() bool { return v.IncludeUpload }
 
+// __CreateCustomChartInput is used internally by genqlient
+type __CreateCustomChartInput struct {
+	Entity      string `json:"entity"`
+	ChartName   string `json:"chartName"`
+	DisplayName string `json:"displayName"`
+	ChartType   string `json:"chartType"`
+	Access      string `json:"access"`
+	Spec        string `json:"spec"`
+}
+
+// GetEntity returns __CreateCustomChartInput.Entity, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetEntity() string { return v.Entity }
+
+// GetChartName returns __CreateCustomChartInput.ChartName, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetChartName() string { return v.ChartName }
+
+// GetDisplayName returns __CreateCustomChartInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetDisplayName() string { return v.DisplayName }
+
+// GetChartType returns __CreateCustomChartInput.ChartType, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetChartType() string { return v.ChartType }
+
+// GetAccess returns __CreateCustomChartInput.Access, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetAccess() string { return v.Access }
+
+// GetSpec returns __CreateCustomChartInput.Spec, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetSpec() string { return v.Spec }
+
+// __CreateDefaultResourceConfigInput is used internally by genqlient
+type __CreateDefaultResourceConfigInput struct {
+	EntityName        string  `json:"entityName"`
+	Resource          string  `json:"resource"`
+	Config            string  `json:"config"`
+	TemplateVariables *string `json:"templateVariables"`
+}
+
+// GetEntityName returns __CreateDefaultResourceConfigInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetEntityName() string { return v.EntityName }
+
+// GetResource returns __CreateDefaultResourceConfigInput.Resource, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetResource() string { return v.Resource }
+
+// GetConfig returns __CreateDefaultResourceConfigInput.Config, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetConfig() string { return v.Config }
+
+// GetTemplateVariables returns __CreateDefaultResourceConfigInput.TemplateVariables, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetTemplateVariables() *string {
+	return v.TemplateVariables
+}
+
 // __CreateRunFilesInput is used internally by genqlient
 type __CreateRunFilesInput struct {
 	Entity  string   `json:"entity"`
@@ -1817,6 +3179,76 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
+
+// __CreateRunQueueInput is used internally by genqlient
+type __CreateRunQueueInput struct {
+	Entity                  string                      `json:"entity"`
+	Project                 string                      `json:"project"`
+	QueueName               string                      `json:"queueName"`
+	Access                  RunQueueAccessType          `json:"access"`
+	PrioritizationMode      *RunQueuePrioritizationMode `json:"prioritizationMode"`
+	DefaultResourceConfigID *string                     `json:"defaultResourceConfigID"`
+}
+
+// GetEntity returns __CreateRunQueueInput.Entity, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __CreateRunQueueInput.Project, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetProject() string { return v.Project }
+
+// GetQueueName returns __CreateRunQueueInput.QueueName, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetQueueName() string { return v.QueueName }
+
+// GetAccess returns __CreateRunQueueInput.Access, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetAccess() RunQueueAccessType { return v.Access }
+
+// GetPrioritizationMode returns __CreateRunQueueInput.PrioritizationMode, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetPrioritizationMode() *RunQueuePrioritizationMode {
+	return v.PrioritizationMode
+}
+
+// GetDefaultResourceConfigID returns __CreateRunQueueInput.DefaultResourceConfigID, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetDefaultResourceConfigID() *string {
+	return v.DefaultResourceConfigID
+}
+
+// __EnqueueSweepRunInput is used internally by genqlient
+type __EnqueueSweepRunInput struct {
+	Id          string  `json:"id"`
+	Config      string  `json:"config"`
+	DisplayName *string `json:"displayName"`
+}
+
+// GetId returns __EnqueueSweepRunInput.Id, and is useful for accessing the field via an interface.
+func (v *__EnqueueSweepRunInput) GetId() string { return v.Id }
+
+// GetConfig returns __EnqueueSweepRunInput.Config, and is useful for accessing the field via an interface.
+func (v *__EnqueueSweepRunInput) GetConfig() string { return v.Config }
+
+// GetDisplayName returns __EnqueueSweepRunInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *__EnqueueSweepRunInput) GetDisplayName() *string { return v.DisplayName }
+
+// __FetchArtifactDigestAlgorithmInput is used internally by genqlient
+type __FetchArtifactDigestAlgorithmInput struct {
+	EntityName             string `json:"entityName"`
+	ProjectName            string `json:"projectName"`
+	ArtifactTypeName       string `json:"artifactTypeName"`
+	ArtifactCollectionName string `json:"artifactCollectionName"`
+}
+
+// GetEntityName returns __FetchArtifactDigestAlgorithmInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __FetchArtifactDigestAlgorithmInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetProjectName() string { return v.ProjectName }
+
+// GetArtifactTypeName returns __FetchArtifactDigestAlgorithmInput.ArtifactTypeName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetArtifactTypeName() string { return v.ArtifactTypeName }
+
+// GetArtifactCollectionName returns __FetchArtifactDigestAlgorithmInput.ArtifactCollectionName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetArtifactCollectionName() string {
+	return v.ArtifactCollectionName
+}
 
 // __FetchOrgEntityFromEntityInput is used internally by genqlient
 type __FetchOrgEntityFromEntityInput struct {
@@ -1882,6 +3314,26 @@ func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
 // GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
 func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
 
+// __MarkRunFilesUploadedInput is used internally by genqlient
+type __MarkRunFilesUploadedInput struct {
+	Entity  string   `json:"entity"`
+	Project string   `json:"project"`
+	Run     string   `json:"run"`
+	Files   []string `json:"files"`
+}
+
+// GetEntity returns __MarkRunFilesUploadedInput.Entity, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __MarkRunFilesUploadedInput.Project, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetProject() string { return v.Project }
+
+// GetRun returns __MarkRunFilesUploadedInput.Run, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetRun() string { return v.Run }
+
+// GetFiles returns __MarkRunFilesUploadedInput.Files, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetFiles() []string { return v.Files }
+
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
 	EntityName   string         `json:"entityName"`
@@ -1914,6 +3366,14 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __OrgFeatureFlagsInput is used internally by genqlient
+type __OrgFeatureFlagsInput struct {
+	Org string `json:"org"`
+}
+
+// GetOrg returns __OrgFeatureFlagsInput.Org, and is useful for accessing the field via an interface.
+func (v *__OrgFeatureFlagsInput) GetOrg() string { return v.Org }
+
 // __OrganizationCoreWeaveOrganizationIDInput is used internally by genqlient
 type __OrganizationCoreWeaveOrganizationIDInput struct {
 	EntityName string `json:"entityName"`
@@ -1921,6 +3381,66 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
+
+// __QueryProjectRunsInput is used internally by genqlient
+type __QueryProjectRunsInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	First   *int    `json:"first"`
+	Order   *string `json:"order"`
+	Cursor  *string `json:"cursor"`
+}
+
+// GetEntity returns __QueryProjectRunsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryProjectRunsInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetProject() string { return v.Project }
+
+// GetFirst returns __QueryProjectRunsInput.First, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetFirst() *int { return v.First }
+
+// GetOrder returns __QueryProjectRunsInput.Order, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetOrder() *string { return v.Order }
+
+// GetCursor returns __QueryProjectRunsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetCursor() *string { return v.Cursor }
+
+// __QueryRunBucketedHistoryInput is used internally by genqlient
+type __QueryRunBucketedHistoryInput struct {
+	Entity  string   `json:"entity"`
+	Project string   `json:"project"`
+	Run     string   `json:"run"`
+	Specs   []string `json:"specs"`
+}
+
+// GetEntity returns __QueryRunBucketedHistoryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunBucketedHistoryInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunBucketedHistoryInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetRun() string { return v.Run }
+
+// GetSpecs returns __QueryRunBucketedHistoryInput.Specs, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetSpecs() []string { return v.Specs }
+
+// __QueryRunInfoInput is used internally by genqlient
+type __QueryRunInfoInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __QueryRunInfoInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunInfoInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunInfoInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetRun() string { return v.Run }
 
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
@@ -1945,6 +3465,50 @@ func (v *__RewindRunInput) GetMetricName() string { return v.MetricName }
 
 // GetMetricValue returns __RewindRunInput.MetricValue, and is useful for accessing the field via an interface.
 func (v *__RewindRunInput) GetMetricValue() float64 { return v.MetricValue }
+
+// __RunConsoleLogPageInput is used internally by genqlient
+type __RunConsoleLogPageInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	RunName string  `json:"runName"`
+	First   *int    `json:"first"`
+	After   *string `json:"after"`
+}
+
+// GetEntity returns __RunConsoleLogPageInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunConsoleLogPageInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetProject() string { return v.Project }
+
+// GetRunName returns __RunConsoleLogPageInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetRunName() string { return v.RunName }
+
+// GetFirst returns __RunConsoleLogPageInput.First, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetFirst() *int { return v.First }
+
+// GetAfter returns __RunConsoleLogPageInput.After, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetAfter() *string { return v.After }
+
+// __RunConsoleLogTailInput is used internally by genqlient
+type __RunConsoleLogTailInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	RunName string `json:"runName"`
+	Last    int    `json:"last"`
+}
+
+// GetEntity returns __RunConsoleLogTailInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunConsoleLogTailInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetProject() string { return v.Project }
+
+// GetRunName returns __RunConsoleLogTailInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetRunName() string { return v.RunName }
+
+// GetLast returns __RunConsoleLogTailInput.Last, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetLast() int { return v.Last }
 
 // __RunParquetHistoryInput is used internally by genqlient
 type __RunParquetHistoryInput struct {
@@ -1982,6 +3546,22 @@ func (v *__RunResumeStatusInput) GetEntity() *string { return v.Entity }
 // GetName returns __RunResumeStatusInput.Name, and is useful for accessing the field via an interface.
 func (v *__RunResumeStatusInput) GetName() string { return v.Name }
 
+// __RunStateInput is used internally by genqlient
+type __RunStateInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __RunStateInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunStateInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunStateInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunStateInput) GetProject() string { return v.Project }
+
+// GetRun returns __RunStateInput.Run, and is useful for accessing the field via an interface.
+func (v *__RunStateInput) GetRun() string { return v.Run }
+
 // __RunStoppedStatusInput is used internally by genqlient
 type __RunStoppedStatusInput struct {
 	EntityName  *string `json:"entityName"`
@@ -2017,6 +3597,90 @@ func (v *__SampledHistoryPageInput) GetRun() string { return v.Run }
 
 // GetSpec returns __SampledHistoryPageInput.Spec, and is useful for accessing the field via an interface.
 func (v *__SampledHistoryPageInput) GetSpec() string { return v.Spec }
+
+// __StopRunInput is used internally by genqlient
+type __StopRunInput struct {
+	Id string `json:"id"`
+}
+
+// GetId returns __StopRunInput.Id, and is useful for accessing the field via an interface.
+func (v *__StopRunInput) GetId() string { return v.Id }
+
+// __SweepConfigInput is used internally by genqlient
+type __SweepConfigInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Sweep   string `json:"sweep"`
+}
+
+// GetEntity returns __SweepConfigInput.Entity, and is useful for accessing the field via an interface.
+func (v *__SweepConfigInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __SweepConfigInput.Project, and is useful for accessing the field via an interface.
+func (v *__SweepConfigInput) GetProject() string { return v.Project }
+
+// GetSweep returns __SweepConfigInput.Sweep, and is useful for accessing the field via an interface.
+func (v *__SweepConfigInput) GetSweep() string { return v.Sweep }
+
+// __SweepRunsWithHistoryInput is used internally by genqlient
+type __SweepRunsWithHistoryInput struct {
+	Entity       string   `json:"entity"`
+	Project      string   `json:"project"`
+	Sweep        string   `json:"sweep"`
+	First        int      `json:"first"`
+	Cursor       *string  `json:"cursor"`
+	HistorySpecs []string `json:"historySpecs"`
+}
+
+// GetEntity returns __SweepRunsWithHistoryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __SweepRunsWithHistoryInput.Project, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetProject() string { return v.Project }
+
+// GetSweep returns __SweepRunsWithHistoryInput.Sweep, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetSweep() string { return v.Sweep }
+
+// GetFirst returns __SweepRunsWithHistoryInput.First, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetFirst() int { return v.First }
+
+// GetCursor returns __SweepRunsWithHistoryInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetCursor() *string { return v.Cursor }
+
+// GetHistorySpecs returns __SweepRunsWithHistoryInput.HistorySpecs, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetHistorySpecs() []string { return v.HistorySpecs }
+
+// __SweepWatchedRunsInput is used internally by genqlient
+type __SweepWatchedRunsInput struct {
+	Entity       string   `json:"entity"`
+	Project      string   `json:"project"`
+	Sweep        string   `json:"sweep"`
+	Filters      string   `json:"filters"`
+	First        int      `json:"first"`
+	Cursor       *string  `json:"cursor"`
+	HistorySpecs []string `json:"historySpecs"`
+}
+
+// GetEntity returns __SweepWatchedRunsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __SweepWatchedRunsInput.Project, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetProject() string { return v.Project }
+
+// GetSweep returns __SweepWatchedRunsInput.Sweep, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetSweep() string { return v.Sweep }
+
+// GetFilters returns __SweepWatchedRunsInput.Filters, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetFilters() string { return v.Filters }
+
+// GetFirst returns __SweepWatchedRunsInput.First, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetFirst() int { return v.First }
+
+// GetCursor returns __SweepWatchedRunsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetCursor() *string { return v.Cursor }
+
+// GetHistorySpecs returns __SweepWatchedRunsInput.HistorySpecs, and is useful for accessing the field via an interface.
+func (v *__SweepWatchedRunsInput) GetHistorySpecs() []string { return v.HistorySpecs }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -2130,6 +3794,60 @@ func (v *__UpsertBucketInput) GetTags() []string { return v.Tags }
 // GetSummaryMetrics returns __UpsertBucketInput.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetrics }
 
+// __UpsertRunQueueInput is used internally by genqlient
+type __UpsertRunQueueInput struct {
+	EntityName         string                      `json:"entityName"`
+	ProjectName        string                      `json:"projectName"`
+	QueueName          string                      `json:"queueName"`
+	ResourceType       string                      `json:"resourceType"`
+	ResourceConfig     string                      `json:"resourceConfig"`
+	TemplateVariables  *string                     `json:"templateVariables"`
+	PrioritizationMode *RunQueuePrioritizationMode `json:"prioritizationMode"`
+	ExternalLinks      *string                     `json:"externalLinks"`
+	ClientMutationId   *string                     `json:"clientMutationId"`
+}
+
+// GetEntityName returns __UpsertRunQueueInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __UpsertRunQueueInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetProjectName() string { return v.ProjectName }
+
+// GetQueueName returns __UpsertRunQueueInput.QueueName, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetQueueName() string { return v.QueueName }
+
+// GetResourceType returns __UpsertRunQueueInput.ResourceType, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetResourceType() string { return v.ResourceType }
+
+// GetResourceConfig returns __UpsertRunQueueInput.ResourceConfig, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetResourceConfig() string { return v.ResourceConfig }
+
+// GetTemplateVariables returns __UpsertRunQueueInput.TemplateVariables, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetTemplateVariables() *string { return v.TemplateVariables }
+
+// GetPrioritizationMode returns __UpsertRunQueueInput.PrioritizationMode, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetPrioritizationMode() *RunQueuePrioritizationMode {
+	return v.PrioritizationMode
+}
+
+// GetExternalLinks returns __UpsertRunQueueInput.ExternalLinks, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetExternalLinks() *string { return v.ExternalLinks }
+
+// GetClientMutationId returns __UpsertRunQueueInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetClientMutationId() *string { return v.ClientMutationId }
+
+// __UpsertSweepStateInput is used internally by genqlient
+type __UpsertSweepStateInput struct {
+	Id    string `json:"id"`
+	State string `json:"state"`
+}
+
+// GetId returns __UpsertSweepStateInput.Id, and is useful for accessing the field via an interface.
+func (v *__UpsertSweepStateInput) GetId() string { return v.Id }
+
+// GetState returns __UpsertSweepStateInput.State, and is useful for accessing the field via an interface.
+func (v *__UpsertSweepStateInput) GetState() string { return v.State }
+
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
 	Input UseArtifactInput `json:"input"`
@@ -2137,6 +3855,14 @@ type __UseArtifactInput struct {
 
 // GetInput returns __UseArtifactInput.Input, and is useful for accessing the field via an interface.
 func (v *__UseArtifactInput) GetInput() UseArtifactInput { return v.Input }
+
+// __XXHashDigestsEnabledInput is used internally by genqlient
+type __XXHashDigestsEnabledInput struct {
+	EntityName string `json:"entityName"`
+}
+
+// GetEntityName returns __XXHashDigestsEnabledInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__XXHashDigestsEnabledInput) GetEntityName() string { return v.EntityName }
 
 // The query executed by ArtifactFileURLs.
 const ArtifactFileURLs_Operation = `
@@ -2441,8 +4167,8 @@ func CreateArtifact(
 
 // The mutation executed by CreateArtifactFiles.
 const CreateArtifactFiles_Operation = `
-mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $storageLayout: ArtifactStorageLayout!) {
-	createArtifactFiles(input: {artifactFiles:$artifactFiles,storageLayout:$storageLayout}) {
+mutation CreateArtifactFiles ($input: CreateArtifactFilesInput!) {
+	createArtifactFiles(input: $input) {
 		files {
 			edges {
 				node {
@@ -2469,15 +4195,13 @@ mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $
 func CreateArtifactFiles(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	artifactFiles []CreateArtifactFileSpecInput,
-	storageLayout ArtifactStorageLayout,
+	input CreateArtifactFilesInput,
 ) (data_ *CreateArtifactFilesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifactFiles",
 		Query:  CreateArtifactFiles_Operation,
 		Variables: &__CreateArtifactFilesInput{
-			ArtifactFiles: artifactFiles,
-			StorageLayout: storageLayout,
+			Input: input,
 		},
 	}
 
@@ -2550,6 +4274,93 @@ func CreateArtifactManifest(
 	return data_, err_
 }
 
+// The mutation executed by CreateCustomChart.
+const CreateCustomChart_Operation = `
+mutation CreateCustomChart ($entity: String!, $chartName: String!, $displayName: String!, $chartType: String!, $access: String!, $spec: JSONString!) {
+	createCustomChart(input: {entity:$entity,name:$chartName,displayName:$displayName,type:$chartType,access:$access,spec:$spec}) {
+		chart {
+			id
+		}
+	}
+}
+`
+
+func CreateCustomChart(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	chartName string,
+	displayName string,
+	chartType string,
+	access string,
+	spec string,
+) (data_ *CreateCustomChartResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateCustomChart",
+		Query:  CreateCustomChart_Operation,
+		Variables: &__CreateCustomChartInput{
+			Entity:      entity,
+			ChartName:   chartName,
+			DisplayName: displayName,
+			ChartType:   chartType,
+			Access:      access,
+			Spec:        spec,
+		},
+	}
+
+	data_ = &CreateCustomChartResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by CreateDefaultResourceConfig.
+const CreateDefaultResourceConfig_Operation = `
+mutation CreateDefaultResourceConfig ($entityName: String!, $resource: String!, $config: JSONString!, $templateVariables: JSONString) {
+	createDefaultResourceConfig(input: {entityName:$entityName,resource:$resource,config:$config,templateVariables:$templateVariables}) {
+		defaultResourceConfigID
+		success
+	}
+}
+`
+
+func CreateDefaultResourceConfig(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+	resource string,
+	config string,
+	templateVariables *string,
+) (data_ *CreateDefaultResourceConfigResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateDefaultResourceConfig",
+		Query:  CreateDefaultResourceConfig_Operation,
+		Variables: &__CreateDefaultResourceConfigInput{
+			EntityName:        entityName,
+			Resource:          resource,
+			Config:            config,
+			TemplateVariables: templateVariables,
+		},
+	}
+
+	data_ = &CreateDefaultResourceConfigResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by CreateRunFiles.
 const CreateRunFiles_Operation = `
 mutation CreateRunFiles ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
@@ -2584,6 +4395,141 @@ func CreateRunFiles(
 	}
 
 	data_ = &CreateRunFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by CreateRunQueue.
+const CreateRunQueue_Operation = `
+mutation CreateRunQueue ($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $prioritizationMode: RunQueuePrioritizationMode, $defaultResourceConfigID: ID) {
+	createRunQueue(input: {entityName:$entity,projectName:$project,queueName:$queueName,access:$access,prioritizationMode:$prioritizationMode,defaultResourceConfigID:$defaultResourceConfigID}) {
+		success
+		queueID
+	}
+}
+`
+
+func CreateRunQueue(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	queueName string,
+	access RunQueueAccessType,
+	prioritizationMode *RunQueuePrioritizationMode,
+	defaultResourceConfigID *string,
+) (data_ *CreateRunQueueResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateRunQueue",
+		Query:  CreateRunQueue_Operation,
+		Variables: &__CreateRunQueueInput{
+			Entity:                  entity,
+			Project:                 project,
+			QueueName:               queueName,
+			Access:                  access,
+			PrioritizationMode:      prioritizationMode,
+			DefaultResourceConfigID: defaultResourceConfigID,
+		},
+	}
+
+	data_ = &CreateRunQueueResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by EnqueueSweepRun.
+const EnqueueSweepRun_Operation = `
+mutation EnqueueSweepRun ($id: ID!, $config: JSONString!, $displayName: String) {
+	enqueueSweepRun(input: {id:$id,config:$config,displayName:$displayName}) {
+		id
+		runQueueItemId
+	}
+}
+`
+
+// The returned id names a run that is guaranteed to appear in the
+// sweep as pending; the scheduler sets no display name. The arguments
+// mirror the public API's EnqueueSweepRun operation in
+// wandb/apis/public/sweeps.py.
+func EnqueueSweepRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	config string,
+	displayName *string,
+) (data_ *EnqueueSweepRunResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "EnqueueSweepRun",
+		Query:  EnqueueSweepRun_Operation,
+		Variables: &__EnqueueSweepRunInput{
+			Id:          id,
+			Config:      config,
+			DisplayName: displayName,
+		},
+	}
+
+	data_ = &EnqueueSweepRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by FetchArtifactDigestAlgorithm.
+const FetchArtifactDigestAlgorithm_Operation = `
+query FetchArtifactDigestAlgorithm ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!) {
+	project(name: $projectName, entityName: $entityName) {
+		artifactType(name: $artifactTypeName) {
+			artifactCollection(name: $artifactCollectionName) {
+				__typename
+				... on ArtifactSequence {
+					digestAlgorithm
+				}
+			}
+		}
+	}
+}
+`
+
+func FetchArtifactDigestAlgorithm(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+	projectName string,
+	artifactTypeName string,
+	artifactCollectionName string,
+) (data_ *FetchArtifactDigestAlgorithmResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "FetchArtifactDigestAlgorithm",
+		Query:  FetchArtifactDigestAlgorithm_Operation,
+		Variables: &__FetchArtifactDigestAlgorithmInput{
+			EntityName:             entityName,
+			ProjectName:            projectName,
+			ArtifactTypeName:       artifactTypeName,
+			ArtifactCollectionName: artifactCollectionName,
+		},
+	}
+
+	data_ = &FetchArtifactDigestAlgorithmResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -2724,6 +4670,46 @@ func LinkArtifact(
 	return data_, err_
 }
 
+// The mutation executed by MarkRunFilesUploaded.
+const MarkRunFilesUploaded_Operation = `
+mutation MarkRunFilesUploaded ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+	markRunFilesUploaded(input: {entityName:$entity,projectName:$project,runName:$run,files:$files}) {
+		success
+	}
+}
+`
+
+func MarkRunFilesUploaded(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	files []string,
+) (data_ *MarkRunFilesUploadedResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "MarkRunFilesUploaded",
+		Query:  MarkRunFilesUploaded_Operation,
+		Variables: &__MarkRunFilesUploadedInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Files:   files,
+		},
+	}
+
+	data_ = &MarkRunFilesUploadedResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by NotifyScriptableRunAlert.
 const NotifyScriptableRunAlert_Operation = `
 mutation NotifyScriptableRunAlert ($entityName: String!, $projectName: String!, $runName: String!, $title: String!, $text: String!, $severity: AlertSeverity = INFO, $waitDuration: Duration) {
@@ -2770,6 +4756,44 @@ func NotifyScriptableRunAlert(
 	return data_, err_
 }
 
+// The query executed by OrgFeatureFlags.
+const OrgFeatureFlags_Operation = `
+query OrgFeatureFlags ($org: String!) {
+	organization(name: $org) {
+		featureFlags(rampIDType: OrgName) {
+			rampKey
+			isEnabled
+		}
+	}
+}
+`
+
+// Fetches organization-level feature flags and legacy ramps.
+func OrgFeatureFlags(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	org string,
+) (data_ *OrgFeatureFlagsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "OrgFeatureFlags",
+		Query:  OrgFeatureFlags_Operation,
+		Variables: &__OrgFeatureFlagsInput{
+			Org: org,
+		},
+	}
+
+	data_ = &OrgFeatureFlagsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by OrganizationCoreWeaveOrganizationID.
 const OrganizationCoreWeaveOrganizationID_Operation = `
 query OrganizationCoreWeaveOrganizationID ($entityName: String!) {
@@ -2795,6 +4819,158 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryProjectRuns.
+const QueryProjectRuns_Operation = `
+query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order: String, $cursor: String) {
+	project(name: $project, entityName: $entity) {
+		runs(first: $first, order: $order, after: $cursor) {
+			edges {
+				node {
+					... LeetRun
+				}
+			}
+			pageInfo {
+				endCursor
+				hasNextPage
+			}
+		}
+	}
+}
+fragment LeetRun on Run {
+	name
+	displayName
+	state
+	notes
+	tags
+	config
+}
+`
+
+func QueryProjectRuns(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	first *int,
+	order *string,
+	cursor *string,
+) (data_ *QueryProjectRunsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryProjectRuns",
+		Query:  QueryProjectRuns_Operation,
+		Variables: &__QueryProjectRunsInput{
+			Entity:  entity,
+			Project: project,
+			First:   first,
+			Order:   order,
+			Cursor:  cursor,
+		},
+	}
+
+	data_ = &QueryProjectRunsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunBucketedHistory.
+const QueryRunBucketedHistory_Operation = `
+query QueryRunBucketedHistory ($entity: String!, $project: String!, $run: String!, $specs: [JSONString!]!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			bucketedHistory(specs: $specs)
+		}
+	}
+}
+`
+
+func QueryRunBucketedHistory(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	specs []string,
+) (data_ *QueryRunBucketedHistoryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunBucketedHistory",
+		Query:  QueryRunBucketedHistory_Operation,
+		Variables: &__QueryRunBucketedHistoryInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Specs:   specs,
+		},
+	}
+
+	data_ = &QueryRunBucketedHistoryResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunInfo.
+const QueryRunInfo_Operation = `
+query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			... LeetRun
+			summaryMetrics
+			systemMetrics
+		}
+	}
+}
+fragment LeetRun on Run {
+	name
+	displayName
+	state
+	notes
+	tags
+	config
+}
+`
+
+func QueryRunInfo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *QueryRunInfoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunInfo",
+		Query:  QueryRunInfo_Operation,
+		Variables: &__QueryRunInfoInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &QueryRunInfoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -2853,6 +5029,130 @@ func RewindRun(
 	}
 
 	data_ = &RewindRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunConsoleLogPage.
+const RunConsoleLogPage_Operation = `
+query RunConsoleLogPage ($entity: String!, $project: String!, $runName: String!, $first: Int, $after: String) {
+	project(name: $project, entityName: $entity) {
+		run(name: $runName) {
+			logLineCount
+			logLines(first: $first, after: $after, useImprovedPagination: true) {
+				edges {
+					node {
+						number
+						timestamp
+						level
+						label
+						line
+					}
+				}
+				pageInfo {
+					endCursor
+					hasNextPage
+				}
+			}
+		}
+	}
+}
+`
+
+// Reads one page of a run's console log in ascending line order.
+//
+// useImprovedPagination is required for spec-compliant forward pagination:
+// without it, the legacy resolver ignores `first` and repurposes `after` as
+// a backwards offset from the end of the log. The argument exists on server
+// 0.77+; older servers reject this document during validation.
+func RunConsoleLogPage(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	runName string,
+	first *int,
+	after *string,
+) (data_ *RunConsoleLogPageResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunConsoleLogPage",
+		Query:  RunConsoleLogPage_Operation,
+		Variables: &__RunConsoleLogPageInput{
+			Entity:  entity,
+			Project: project,
+			RunName: runName,
+			First:   first,
+			After:   after,
+		},
+	}
+
+	data_ = &RunConsoleLogPageResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunConsoleLogTail.
+const RunConsoleLogTail_Operation = `
+query RunConsoleLogTail ($entity: String!, $project: String!, $runName: String!, $last: Int!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $runName) {
+			logLineCount
+			logLines(last: $last) {
+				edges {
+					node {
+						number
+						timestamp
+						level
+						label
+						line
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+// Reads the last N lines of a run's console log.
+//
+// This intentionally omits the useImprovedPagination argument: a plain
+// `logLines(last: N)` returns the same lines — the tail, in ascending line
+// order — from both the legacy resolver and the improved one (server 0.77+),
+// so a tail works against every supported server version.
+func RunConsoleLogTail(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	runName string,
+	last int,
+) (data_ *RunConsoleLogTailResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunConsoleLogTail",
+		Query:  RunConsoleLogTail_Operation,
+		Variables: &__RunConsoleLogTailInput{
+			Entity:  entity,
+			Project: project,
+			RunName: runName,
+			Last:    last,
+		},
+	}
+
+	data_ = &RunConsoleLogTailResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -2956,6 +5256,49 @@ func RunResumeStatus(
 	}
 
 	data_ = &RunResumeStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunState.
+const RunState_Operation = `
+query RunState ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			id
+			state
+		}
+	}
+}
+`
+
+// Confirms a tracked run still exists before it is reaped as deleted.
+// The run listing lags writes; this read is strongly consistent.
+func RunState(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *RunStateResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunState",
+		Query:  RunState_Operation,
+		Variables: &__RunStateInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &RunStateResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -3108,6 +5451,218 @@ func ServerInfo(
 	}
 
 	data_ = &ServerInfoResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by StopRun.
+const StopRun_Operation = `
+mutation StopRun ($id: ID!) {
+	stopRun(input: {id:$id}) {
+		success
+	}
+}
+`
+
+func StopRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+) (data_ *StopRunResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "StopRun",
+		Query:  StopRun_Operation,
+		Variables: &__StopRunInput{
+			Id: id,
+		},
+	}
+
+	data_ = &StopRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by SweepConfig.
+const SweepConfig_Operation = `
+query SweepConfig ($entity: String!, $project: String!, $sweep: String!) {
+	project(name: $project, entityName: $entity) {
+		sweep(sweepName: $sweep) {
+			id
+			state
+			config
+			displayName
+			controllerRunName
+		}
+	}
+}
+`
+
+func SweepConfig(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	sweep string,
+) (data_ *SweepConfigResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "SweepConfig",
+		Query:  SweepConfig_Operation,
+		Variables: &__SweepConfigInput{
+			Entity:  entity,
+			Project: project,
+			Sweep:   sweep,
+		},
+	}
+
+	data_ = &SweepConfigResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by SweepRunsWithHistory.
+const SweepRunsWithHistory_Operation = `
+query SweepRunsWithHistory ($entity: String!, $project: String!, $sweep: String!, $first: Int!, $cursor: String, $historySpecs: [JSONString!]!) {
+	project(name: $project, entityName: $entity) {
+		sweep(sweepName: $sweep) {
+			state
+			runs(first: $first, after: $cursor) {
+				... SweepPollRuns
+			}
+		}
+	}
+}
+fragment SweepPollRuns on RunConnection {
+	pageInfo {
+		hasNextPage
+		endCursor
+	}
+	edges {
+		node {
+			id
+			name
+			state
+			config
+			summaryMetrics
+			sampledHistory(specs: $historySpecs)
+		}
+	}
+}
+`
+
+func SweepRunsWithHistory(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	sweep string,
+	first int,
+	cursor *string,
+	historySpecs []string,
+) (data_ *SweepRunsWithHistoryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "SweepRunsWithHistory",
+		Query:  SweepRunsWithHistory_Operation,
+		Variables: &__SweepRunsWithHistoryInput{
+			Entity:       entity,
+			Project:      project,
+			Sweep:        sweep,
+			First:        first,
+			Cursor:       cursor,
+			HistorySpecs: historySpecs,
+		},
+	}
+
+	data_ = &SweepRunsWithHistoryResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by SweepWatchedRuns.
+const SweepWatchedRuns_Operation = `
+query SweepWatchedRuns ($entity: String!, $project: String!, $sweep: String!, $filters: JSONString!, $first: Int!, $cursor: String, $historySpecs: [JSONString!]!) {
+	project(name: $project, entityName: $entity) {
+		sweep(sweepName: $sweep) {
+			state
+		}
+		runs(filters: $filters, first: $first, after: $cursor) {
+			... SweepPollRuns
+		}
+	}
+}
+fragment SweepPollRuns on RunConnection {
+	pageInfo {
+		hasNextPage
+		endCursor
+	}
+	edges {
+		node {
+			id
+			name
+			state
+			config
+			summaryMetrics
+			sampledHistory(specs: $historySpecs)
+		}
+	}
+}
+`
+
+// Fetches the sweep's state together with just the runs the scheduler is
+// still watching, selected by name; the whole sweep is far larger.
+func SweepWatchedRuns(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	sweep string,
+	filters string,
+	first int,
+	cursor *string,
+	historySpecs []string,
+) (data_ *SweepWatchedRunsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "SweepWatchedRuns",
+		Query:  SweepWatchedRuns_Operation,
+		Variables: &__SweepWatchedRunsInput{
+			Entity:       entity,
+			Project:      project,
+			Sweep:        sweep,
+			Filters:      filters,
+			First:        first,
+			Cursor:       cursor,
+			HistorySpecs: historySpecs,
+		},
+	}
+
+	data_ = &SweepWatchedRunsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -3291,6 +5846,95 @@ func UpsertBucket(
 	return data_, err_
 }
 
+// The mutation executed by UpsertRunQueue.
+const UpsertRunQueue_Operation = `
+mutation UpsertRunQueue ($entityName: String!, $projectName: String!, $queueName: String!, $resourceType: String!, $resourceConfig: JSONString!, $templateVariables: JSONString, $prioritizationMode: RunQueuePrioritizationMode, $externalLinks: JSONString, $clientMutationId: String) {
+	upsertRunQueue(input: {entityName:$entityName,projectName:$projectName,queueName:$queueName,resourceType:$resourceType,resourceConfig:$resourceConfig,templateVariables:$templateVariables,prioritizationMode:$prioritizationMode,externalLinks:$externalLinks,clientMutationId:$clientMutationId}) {
+		success
+		configSchemaValidationErrors
+	}
+}
+`
+
+func UpsertRunQueue(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+	projectName string,
+	queueName string,
+	resourceType string,
+	resourceConfig string,
+	templateVariables *string,
+	prioritizationMode *RunQueuePrioritizationMode,
+	externalLinks *string,
+	clientMutationId *string,
+) (data_ *UpsertRunQueueResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "UpsertRunQueue",
+		Query:  UpsertRunQueue_Operation,
+		Variables: &__UpsertRunQueueInput{
+			EntityName:         entityName,
+			ProjectName:        projectName,
+			QueueName:          queueName,
+			ResourceType:       resourceType,
+			ResourceConfig:     resourceConfig,
+			TemplateVariables:  templateVariables,
+			PrioritizationMode: prioritizationMode,
+			ExternalLinks:      externalLinks,
+			ClientMutationId:   clientMutationId,
+		},
+	}
+
+	data_ = &UpsertRunQueueResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by UpsertSweepState.
+const UpsertSweepState_Operation = `
+mutation UpsertSweepState ($id: ID!, $state: String!) {
+	upsertSweep(input: {id:$id,state:$state}) {
+		sweep {
+			state
+		}
+	}
+}
+`
+
+func UpsertSweepState(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	state string,
+) (data_ *UpsertSweepStateResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "UpsertSweepState",
+		Query:  UpsertSweepState_Operation,
+		Variables: &__UpsertSweepStateInput{
+			Id:    id,
+			State: state,
+		},
+	}
+
+	data_ = &UpsertSweepStateResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by UseArtifact.
 const UseArtifact_Operation = `
 mutation UseArtifact ($input: UseArtifactInput!) {
@@ -3334,6 +5978,8 @@ query Viewer {
 	viewer {
 		id
 		entity
+		username
+		email
 		flags
 		teams {
 			edges {
@@ -3356,6 +6002,40 @@ func Viewer(
 	}
 
 	data_ = &ViewerResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by XXHashDigestsEnabled.
+const XXHashDigestsEnabled_Operation = `
+query XXHashDigestsEnabled ($entityName: String!) {
+	entity(name: $entityName) {
+		xxhashDigestsEnabled
+	}
+}
+`
+
+func XXHashDigestsEnabled(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+) (data_ *XXHashDigestsEnabledResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "XXHashDigestsEnabled",
+		Query:  XXHashDigestsEnabled_Operation,
+		Variables: &__XXHashDigestsEnabledInput{
+			EntityName: entityName,
+		},
+	}
+
+	data_ = &XXHashDigestsEnabledResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

@@ -18,7 +18,7 @@ import contextlib
 import contextvars
 import logging
 import pathlib
-from collections.abc import Iterator
+from collections.abc import Generator
 
 
 class _NotRunSpecific:
@@ -70,7 +70,7 @@ def configure_wandb_logger() -> None:
 
 
 @contextlib.contextmanager
-def log_to_run(run_id: str | None) -> Iterator[None]:
+def log_to_run(run_id: str | None) -> Generator[None]:
     """Direct all wandb log messages to the given run.
 
     Args:
@@ -91,7 +91,7 @@ def log_to_run(run_id: str | None) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def log_to_all_runs() -> Iterator[None]:
+def log_to_all_runs() -> Generator[None]:
     """Direct wandb log messages to all runs.
 
     Unlike `log_to_run(None)`, this indicates an intentional choice.

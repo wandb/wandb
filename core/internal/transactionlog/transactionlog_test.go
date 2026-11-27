@@ -2,6 +2,7 @@ package transactionlog_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,17 +23,24 @@ func emptyWandbFile(t *testing.T) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
 	return path
 }
 
+func assertUnsupportedVersion(t *testing.T, err error) {
+	t.Helper()
+	assert.ErrorContains(t, err,
+		"a newer wandb version is required to read this file",
+	)
+}
+
 func Test_ReadAfterWrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
 	require.NoError(t, writer.Close())
@@ -50,7 +58,7 @@ func Test_OpenWriter_FileExists(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte{}, 0o666))
 
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 
 	assert.Nil(t, writer)
 	assert.ErrorIs(t, err, os.ErrExist)
@@ -58,7 +66,7 @@ func Test_OpenWriter_FileExists(t *testing.T) {
 
 func Test_Write_AlreadyClosed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	require.NoError(t, writer.Close())
@@ -74,17 +82,6 @@ func Test_OpenReader_NoFile(t *testing.T) {
 
 	assert.Nil(t, reader)
 	assert.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func Test_OpenReader_BadHeader(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run.wandb")
-	require.NoError(t, os.WriteFile(path, []byte{1, 2, 3, 4, 5, 6, 7}, 0o666))
-
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
-	require.NoError(t, err)
-
-	_, err = reader.Read()
-	assert.ErrorContains(t, err, "bad header")
 }
 
 func Test_Read_AlreadyClosed(t *testing.T) {
@@ -113,7 +110,7 @@ func Test_Read_EOF(t *testing.T) {
 func Test_Read_SkipsCorruptData(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	// The first 7 bytes of the first block are the W&B header.
@@ -159,7 +156,7 @@ func Test_Read_SkipsCorruptData(t *testing.T) {
 func Test_ResetLastRead(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
 	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
@@ -184,11 +181,42 @@ func Test_ResetLastRead(t *testing.T) {
 	}
 }
 
+func Test_NextRecordOffset_SeekRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	writer, err := transactionlog.OpenWriter(path, 0)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 15}))
+	require.NoError(t, writer.Close())
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	// Capture each record's offset before reading it.
+	offsets := make([]int64, 3)
+	for i := range offsets {
+		offsets[i] = reader.NextRecordOffset()
+		_, err := reader.Read()
+		require.NoError(t, err)
+	}
+
+	// Seeking to a captured offset re-reads the same record.
+	for _, i := range []int{2, 0, 1} {
+		require.NoError(t, reader.SeekRecord(offsets[i]))
+		record, err := reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, 13+i, record.GetNum())
+	}
+}
+
 func Test_EOF(t *testing.T) {
 	// Test that EOF and ErrUnexpectedEOF errors are correctly wrapped.
 
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	writer, err := transactionlog.OpenWriter(path)
+	writer, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -239,7 +267,7 @@ func Test_EOF(t *testing.T) {
 	})
 }
 
-func Test_ReadVerifiesHeader(t *testing.T) {
+func Test_Read_VerifiesHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte("invalid header"), 0o644))
 
@@ -251,11 +279,50 @@ func Test_ReadVerifiesHeader(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid W&B identifier")
 }
 
-func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
+func Test_Read_UnsupportedNewVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	// The file version is the 0x02 byte at the end.
+	require.NoError(t, os.WriteFile(path, []byte(":W&B\xE1\xBE\x02"), 0o644))
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	_, err = reader.Read()
+	reader.Close()
+
+	assertUnsupportedVersion(t, err)
+}
+
+func Test_OpenWriter_UnsupportedVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	w, err := transactionlog.OpenWriter(path, 2)
+
+	assert.Nil(t, w)
+	assertUnsupportedVersion(t, err)
+	assert.NoFileExists(t, path)
+}
+
+func Test_OpenWriter_WritesVersion(t *testing.T) {
+
+	for _, version := range []uint8{0, 1} {
+		t.Run(string(version), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), fmt.Sprintf("run.wandb.%d", version))
+			w, err := transactionlog.OpenWriter(path, version)
+			require.NoError(t, err)
+			require.NoError(t, w.Close())
+
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, append([]byte(":W&B\xE1\xBE"), version), data)
+		})
+	}
+}
+
+func Test_ReadAfterSeek_VerifiesHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
 	// Write an invalid 32KiB block followed by a valid empty chunk.
-	// The first 32KiB should be ignored after seeking past them.
+	// A seek must not bypass the invalid header.
 	data := make([]byte, 32*1024+7)
 	for i := range 32 * 1024 {
 		data[i] = byte(i % 256)
@@ -275,6 +342,7 @@ func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
 	require.NoError(t, reader.SeekRecord(32*1024))
 	record, err := reader.Read()
 
-	assert.NoError(t, err)
-	assert.EqualExportedValues(t, &spb.Record{}, record)
+	assert.ErrorContains(t, err, "invalid W&B identifier")
+	assert.Nil(t, record)
+	assert.EqualValues(t, 32*1024, reader.NextRecordOffset())
 }

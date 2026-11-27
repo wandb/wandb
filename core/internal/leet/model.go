@@ -20,6 +20,7 @@ const (
 	viewModeWorkspace
 	viewModeRun
 	viewModeSymon
+	viewModeInspect
 )
 
 // latestRunLinkName is the conventional symlink name that wandb creates to
@@ -45,11 +46,20 @@ type Model struct {
 	// workspace mode and created on-demand when they press Enter on a run.
 	run *Run
 
+	// inspector is the raw record view for the run's .wandb file. It is
+	// created on-demand when the user presses "i" in single-run view and
+	// destroyed on Esc.
+	inspector *Inspector
+
 	// width and height cache the latest terminal dimensions for layout.
 	width, height int
 
 	// help is the full-screen help overlay, shared across both modes.
 	help *HelpModel
+
+	// workspaceStarted reports whether the workspace has started discovering
+	// runs. A remote run opened by its URL defers it until the user leaves.
+	workspaceStarted bool
 
 	// shouldRestart is the restart flag.
 	shouldRestart bool
@@ -62,14 +72,14 @@ type Model struct {
 }
 
 type ModelParams struct {
-	// WandbDir is the path to the wandb directory (typically "./wandb")
-	// that contains run directories and the "latest-run" symlink.
-	WandbDir string
+	// Backend is where the workspace finds runs: a wandb directory (typically
+	// "./wandb") or a W&B project. Nil means no wandb directory.
+	Backend WorkspaceBackend
 
-	// RunFile, if non-empty, LEET launches directly into the single-run
-	// view for the specified .wandb file. When empty, LEET starts in
-	// Config.StartupMode.
-	RunFile string
+	// RunParams contains information about the run to load.
+	//
+	// When RunParams is nil, LEET starts in Config.StartupMode.
+	RunParams *RunParams
 
 	Config *ConfigManager
 	Logger *observability.CoreLogger
@@ -79,37 +89,42 @@ type ModelParams struct {
 //
 // Startup behavior depends on the combination of RunFile and Config.StartupMode:
 //
-//   - RunFile is set → start in single-run view for that file.
-//   - RunFile is empty + StartupModeSingleRunLatest → resolve the "latest-run"
+//   - RunParams is set → start in single-run view for that run.
+//   - RunParams is nil + StartupModeSingleRunLatest → resolve the "latest-run"
 //     symlink and start in single-run view.
-//   - RunFile is empty + StartupModeWorkspaceLatest (default) → start in
-//     workspace view; the workspace will auto-select the latest run once
-//     the directory poll completes.
+//   - RunParams is nil + StartupModeWorkspaceLatest (default) → start in
+//     workspace view; once the directory poll completes, the workspace
+//     selects the runs selected last time and the latest run if it is new.
 func NewModel(params ModelParams) *Model {
 	if params.Config == nil {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
-	if params.RunFile == "" && params.Config.StartupMode() == StartupModeSingleRunLatest {
-		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
+	if params.Backend == nil {
+		params.Backend = NewLocalWorkspaceBackend("", params.Logger)
+	}
+
+	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
+		latest, err := wandbFileFromLatestRunLink(localWandbDir(params.Backend))
 		if err != nil {
 			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
 		}
 		if latest != "" {
-			params.RunFile = latest
+			params.RunParams = &RunParams{RunFile: latest}
 		}
 	}
 
 	m := &Model{
 		mode:      viewModeWorkspace,
-		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
+		workspace: NewWorkspace(params.Backend, params.Config, params.Logger),
 		help:      NewHelp(),
 		config:    params.Config,
 		logger:    params.Logger,
 	}
 
-	if params.RunFile != "" {
-		m.run = NewRun(params.RunFile, params.Config, params.Logger)
+	if params.RunParams != nil {
+		m.run = NewRun(params.RunParams, params.Config, params.Logger)
+		m.run.attachFilters(m.workspace.dirState)
 		m.mode = viewModeRun
 	}
 
@@ -118,17 +133,14 @@ func NewModel(params ModelParams) *Model {
 
 // Init returns the initial commands for the top-level model.
 //
-// The workspace is always initialized (directory polling, heartbeat listener)
-// regardless of the starting mode. If starting in single-run mode, the run's
-// reader and watcher commands are also started.
+// The workspace is started unless LEET opens a remote run by its URL.
+// If starting in single-run mode, the run's reader and watcher commands are
+// also started.
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 
-	// Workspace always exists; initialize its long‑running commands.
-	if m.workspace != nil {
-		if cmd := m.workspace.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+	if m.run == nil || !m.run.IsRemote() {
+		cmds = append(cmds, m.startWorkspace())
 	}
 
 	if m.mode == viewModeRun && m.run != nil {
@@ -149,6 +161,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
 		SetDarkBackground(bgMsg.IsDark())
+		SetTerminalBackground(bgMsg)
 	}
 
 	if handled, cmd := m.handleHelp(msg); handled {
@@ -159,13 +172,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Snapshot before sub-models consume the key — a filter's Enter
-	// exits filter mode, so checking after would miss it.
+	// Snapshot before sub-models consume the key — a filter's Enter exits
+	// filter mode and the run's Esc clears pane focus, so checking after
+	// would miss them.
 	awaitingInput := m.isAwaitingUserInput()
+	runHadPaneFocus := m.mode == viewModeRun && m.run != nil && m.run.HasPaneFocus()
+	inspectorHadFocus := m.mode == viewModeInspect &&
+		m.inspector != nil && m.inspector.CapturesEscape()
 
 	cmds := m.updateSubComponents(msg)
 
-	if cmd := m.handleModeSwitch(msg, awaitingInput); cmd != nil {
+	if cmd := m.handleModeSwitch(
+		msg, awaitingInput, runHadPaneFocus, inspectorHadFocus); cmd != nil {
 		return m, cmd
 	}
 
@@ -191,16 +209,38 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 		if _, cmd := m.run.Update(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case viewModeInspect:
+		// Keep the underlying run and workspace streaming in the background
+		// so the run view is current when the user returns.
+		if !isUserInputMsg(msg) {
+			if cmd := m.workspace.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if m.run != nil {
+				if _, cmd := m.run.Update(msg); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+		}
+		if m.inspector != nil {
+			if _, cmd := m.inspector.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
 	}
 	return cmds
 }
 
-// handleModeSwitch checks for Enter/Esc and transitions between views.
+// handleModeSwitch checks for Enter/Esc/i and transitions between views.
 //
-// awaitingInput must be snapshotted before sub-components process the
-// message, because an Enter in filter mode exits the filter and would
-// otherwise fall through to a view switch.
-func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput bool) tea.Cmd {
+// awaitingInput, runHadPaneFocus and inspectorHadFocus must be snapshotted
+// before sub-components process the message: an Enter in filter mode exits
+// the filter, and an Esc with a focused pane clears that focus. Either would
+// otherwise fall through to a view switch on the same key press.
+func (m *Model) handleModeSwitch(
+	msg tea.Msg,
+	awaitingInput, runHadPaneFocus, inspectorHadFocus bool,
+) tea.Cmd {
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil
@@ -214,10 +254,19 @@ func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput bool) tea.Cmd {
 			return m.enterRunView()
 		}
 	case viewModeRun:
-		runCapturesEsc := m.run != nil && m.run.MediaFullscreen()
+		runCapturesEsc := runHadPaneFocus ||
+			(m.run != nil && m.run.MediaFullscreen())
 		if keyMsg.Code == tea.KeyEsc &&
 			!awaitingInput && !runCapturesEsc {
 			return m.exitRunView()
+		}
+		if keyMsg.Code == 'i' && !awaitingInput {
+			return m.enterInspectView()
+		}
+	case viewModeInspect:
+		if keyMsg.Code == tea.KeyEsc &&
+			!awaitingInput && !inspectorHadFocus {
+			return m.exitInspectView()
 		}
 	}
 	return nil
@@ -237,6 +286,8 @@ func (m *Model) View() tea.View {
 			vs = m.workspace.View().Content
 		case viewModeRun:
 			vs = m.run.View().Content
+		case viewModeInspect:
+			vs = m.inspector.View().Content
 		}
 	}
 
@@ -254,6 +305,32 @@ func (m *Model) ShouldRestart() bool {
 	return m.shouldRestart
 }
 
+// Cleanup releases resources held by the model's sub-views: file watchers,
+// heartbeat timers, and open .wandb readers.
+//
+// Safe to call multiple times. Called after the program exits, e.g. before
+// a full restart.
+func (m *Model) Cleanup() {
+	if m.inspector != nil {
+		m.inspector.Cleanup()
+	}
+	if m.run != nil {
+		m.run.Cleanup()
+	}
+	if m.workspace != nil {
+		m.workspace.Cleanup()
+	}
+}
+
+// startWorkspace starts the workspace's long-running commands once.
+func (m *Model) startWorkspace() tea.Cmd {
+	if m.workspaceStarted {
+		return nil
+	}
+	m.workspaceStarted = true
+	return m.workspace.Init()
+}
+
 // --------------------------------------------------------------------
 // Input state helpers
 // --------------------------------------------------------------------
@@ -269,9 +346,11 @@ func (m *Model) isAwaitingUserInput() bool {
 	}
 	switch m.mode {
 	case viewModeWorkspace:
-		return m.workspace.IsFiltering()
+		return m.workspace.isAwaitingUserInput()
 	case viewModeRun:
 		return m.run.IsFiltering()
+	case viewModeInspect:
+		return m.inspector != nil && m.inspector.IsFiltering()
 	default:
 		return false
 	}
@@ -356,12 +435,13 @@ func (m *Model) renderHelpScreen() string {
 
 // enterRunView switches to single-run view for the selected run.
 func (m *Model) enterRunView() tea.Cmd {
-	wandbFile := m.workspace.SelectedRunWandbFile()
-	if wandbFile == "" {
+	runParams := m.workspace.SelectedRunParams()
+	if runParams == nil {
 		return nil
 	}
 
-	m.run = NewRun(wandbFile, m.config, m.logger)
+	m.run = NewRun(runParams, m.config, m.logger)
+	m.run.attachFilters(m.workspace.dirState)
 	m.mode = viewModeRun
 
 	// Share the workspace's media store so data persists across transitions.
@@ -383,6 +463,39 @@ func (m *Model) enterRunView() tea.Cmd {
 	)
 }
 
+// enterInspectView opens the record inspector for the current run's
+// .wandb file. Remote runs have no local file and are not inspectable.
+func (m *Model) enterInspectView() tea.Cmd {
+	if m.run == nil || m.run.RunFile() == "" {
+		return nil
+	}
+
+	m.inspector = NewInspector(InspectorParams{
+		RunFile: m.run.RunFile(),
+		Config:  m.config,
+		Logger:  m.logger,
+	})
+	m.mode = viewModeInspect
+
+	return tea.Batch(
+		m.inspector.Init(),
+		func() tea.Msg {
+			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+		},
+	)
+}
+
+// exitInspectView returns to the single-run view.
+func (m *Model) exitInspectView() tea.Cmd {
+	if m.inspector != nil {
+		m.inspector.Cleanup()
+		m.inspector = nil
+	}
+
+	m.mode = viewModeRun
+	return nil
+}
+
 // exitRunView returns to the workspace view.
 func (m *Model) exitRunView() tea.Cmd {
 	if m.run != nil {
@@ -398,7 +511,7 @@ func (m *Model) exitRunView() tea.Cmd {
 	}
 
 	m.mode = viewModeWorkspace
-	return nil
+	return m.startWorkspace()
 }
 
 // --------------------------------------------------------------------
@@ -430,6 +543,24 @@ func runWandbFile(wandbDir, runDir string) string {
 		return ""
 	}
 	return filepath.Join(wandbDir, runDir, "run-"+runID+".wandb")
+}
+
+// resolveWandbFile returns the .wandb file to open: the explicit runFile
+// when non-empty, otherwise the latest run in wandbDir (the same
+// resolution used when starting LEET in single-run mode).
+func resolveWandbFile(runFile, wandbDir string) (string, error) {
+	if runFile != "" {
+		return runFile, nil
+	}
+
+	latest, err := wandbFileFromLatestRunLink(wandbDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to find the latest run in %q: %w", wandbDir, err)
+	}
+	if latest == "" {
+		return "", fmt.Errorf("no latest run found in %q", wandbDir)
+	}
+	return latest, nil
 }
 
 func wandbFileFromLatestRunLink(wandbDir string) (string, error) {

@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import SweepFragment
 
 
 class GetSweep(GQLResult):
-    project: Optional[GetSweepProject]
+    project: GetSweepProject | None
 
 
 class GetSweepProject(GQLResult):
-    sweep: Optional[SweepFragment]
+    sweep: SweepFragment | None
 
 
 GetSweep.model_rebuild()

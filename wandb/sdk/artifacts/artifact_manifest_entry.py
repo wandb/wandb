@@ -1,6 +1,6 @@
 """Artifact manifest entry."""
 
-# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# Keep older-style type annotations in this legacy model.
 # ruff: noqa: UP006, UP007, UP035, UP045
 
 from __future__ import annotations
@@ -14,24 +14,26 @@ from os.path import getsize
 from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
-from pydantic import Field, NonNegativeInt
+from pydantic import Field, NonNegativeInt, field_validator, model_validator
 from typing_extensions import Self
 
-from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
-    B64MD5,
+    B64Digest,
     ETag,
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
+    xxh128_file_b64,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
 from ._models.base_model import ArtifactsBase
+from ._validators import validate_fspath
 
 if TYPE_CHECKING:
     from .artifact import Artifact
@@ -41,6 +43,18 @@ logger = logging.getLogger(__name__)
 
 
 _WB_ARTIFACT_SCHEME: Final[str] = "wandb-artifact"
+
+
+# Consts for tracking digest algorithm in an entry's extra field.
+# Only non-MD5 entries are tagged; untagged entries are interpreted as MD5.
+DIGEST_ALGORITHM_EXTRA_KEY: Final[str] = "alg"
+DIGEST_ALGORITHM_TO_STR: Final[Dict[ArtifactDigestAlgorithm, str]] = {
+    ArtifactDigestAlgorithm.MANIFEST_MD5: "MD5",
+    ArtifactDigestAlgorithm.MANIFEST_XXH128: "XXH128",
+}
+_STR_TO_DIGEST_ALGORITHM: Final[Dict[str, ArtifactDigestAlgorithm]] = {
+    v: k for k, v in DIGEST_ALGORITHM_TO_STR.items()
+}
 
 
 def _checksum_cache_path(file_path: str) -> str:
@@ -93,7 +107,7 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     path: LogicalPath
 
-    digest: Union[B64MD5, ETag, URIStr, FilePathStr]
+    digest: Union[B64Digest, ETag, URIStr, FilePathStr]
     ref: Union[URIStr, FilePathStr, None] = None
     birth_artifact_id: Annotated[Optional[str], Field(alias="birthArtifactID")] = None
     size: Optional[NonNegativeInt] = None
@@ -111,9 +125,8 @@ class ArtifactManifestEntry(ArtifactsBase):
     def _validate_path(cls, v: Any) -> LogicalPath:
         """Coerce `path` to a LogicalPath.
 
-        LogicalPath does not implement its own pydantic validator, and adding
-        one for both pydantic V1 and V2 would add excessive boilerplate. Until
-        we drop V1 support, coerce to LogicalPath in this field validator.
+        LogicalPath does not implement its own pydantic validator, so coerce
+        to LogicalPath in this field validator.
         """
         return LogicalPath(v)
 
@@ -154,6 +167,15 @@ class ArtifactManifestEntry(ArtifactsBase):
             raise NotImplementedError
         return self._parent_artifact
 
+    def digest_algorithm(self) -> ArtifactDigestAlgorithm:
+        """The digest algorithm used to hash this entry's file."""
+        alg = self.extra.get(DIGEST_ALGORITHM_EXTRA_KEY)
+        if isinstance(alg, str):
+            return _STR_TO_DIGEST_ALGORITHM.get(
+                alg, ArtifactDigestAlgorithm.MANIFEST_MD5
+            )
+        return ArtifactDigestAlgorithm.MANIFEST_MD5
+
     def download(
         self,
         root: str | None = None,
@@ -171,7 +193,7 @@ class ArtifactManifestEntry(ArtifactsBase):
         """
         artifact = self.parent_artifact()
         rootdir = artifact._add_download_root(root)
-        dest_path = os.path.join(rootdir, self.path)
+        dest_path = validate_fspath(rootdir, self.path)
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
@@ -183,12 +205,15 @@ class ArtifactManifestEntry(ArtifactsBase):
 
         # Fallback to computing/caching the checksum hash
         try:
-            md5_hash = md5_file_b64(dest_path)
+            if self.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                existing_hash = xxh128_file_b64(dest_path)
+            else:
+                existing_hash = md5_file_b64(dest_path)
         except (FileNotFoundError, IsADirectoryError):
             logger.debug(f"unable to find {dest_path!r}, skip searching for file")
         else:
-            _write_cached_checksum(dest_path, md5_hash)
-            if self.digest == md5_hash:
+            _write_cached_checksum(dest_path, existing_hash)
+            if self.digest == existing_hash:
                 return FilePathStr(dest_path)
 
         # Override the target cache path IF we're skipping the cache.

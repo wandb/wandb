@@ -3,10 +3,8 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
-
-import pytz
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -67,7 +65,7 @@ class HuggingFacePipelineRequestResponseResolver:
                 if model is None:
                     return None
                 model_alias = model.name_or_path
-                timestamp = datetime.now(pytz.utc)
+                timestamp = datetime.now(timezone.utc)
 
                 input_data, response = self._transform_task_specific_data(
                     task, input_data, response
@@ -154,7 +152,7 @@ class HuggingFacePipelineRequestResponseResolver:
         response = response if isinstance(response, list) else [response]
 
         formatted_data = []
-        for i_text, r_text in zip(input_data, response):
+        for i_text, r_text in zip(input_data, response, strict=False):
             # Unpack single element responses for better rendering in wandb UI when it is a task without top_k
             # top_k = 1 would unpack the response into a single element while top_k > 1 would be a list
             # this would cause the UI to not properly concatenate the tables of the same task by omitting the elements past the first

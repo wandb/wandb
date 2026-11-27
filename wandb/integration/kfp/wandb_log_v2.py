@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from functools import wraps
 from inspect import signature
-from typing import Any, Callable
+from typing import Any
 
 import kfp.dsl
 from kfp.dsl.types.type_annotations import (
@@ -169,7 +170,12 @@ class _KfpWandbLogger:
         """
         if result is not None and not run._is_finished:
             if _is_namedtuple(result):
-                run.log({f"{func_name}.{k}": v for k, v in zip(result._fields, result)})
+                run.log(
+                    {
+                        f"{func_name}.{k}": v
+                        for k, v in zip(result._fields, result, strict=True)
+                    }
+                )
             else:
                 run.log({func_name: result})
 

@@ -4,11 +4,10 @@ package sts
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/sts/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Returns a set of temporary credentials for an Amazon Web Services account or
@@ -47,7 +46,8 @@ import (
 //   - You cannot call any IAM API operations unless MFA authentication
 //     information is included in the request.
 //
-//   - You cannot call any STS API except AssumeRole or GetCallerIdentity .
+//   - You cannot call any STS API except AssumeRole , GetCallerIdentity ,
+//     GetScopedCredentials , GetWebIdentityToken , or GetDelegatedAccessToken .
 //
 // The credentials that GetSessionToken returns are based on permissions
 // associated with the IAM user whose credentials were used to call the operation.
@@ -92,6 +92,12 @@ type GetSessionTokenInput struct {
 	// Services account owners defaults to one hour.
 	DurationSeconds *int32
 
+	// The minimum size, in bytes, of the session token that STS issues for the
+	// request. STS increases the session token to at least this size, regardless of
+	// its actual content. The value must not exceed 4,096 bytes. When set to 0 or not
+	// specified, the session token size is unchanged.
+	MinimumSessionTokenSize *int32
+
 	// The identification number of the MFA device that is associated with the IAM
 	// user who is making the GetSessionToken call. Specify this value if the IAM user
 	// has a policy that requires MFA authentication. The value is either the serial
@@ -119,6 +125,27 @@ type GetSessionTokenInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetSessionTokenInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetSessionTokenRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetSessionTokenInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.DurationSeconds != nil {
+		s.WriteInt32(schemas.GetSessionTokenRequest_DurationSeconds, *v.DurationSeconds)
+	}
+	if v.MinimumSessionTokenSize != nil {
+		s.WriteInt32(schemas.GetSessionTokenRequest_MinimumSessionTokenSize, *v.MinimumSessionTokenSize)
+	}
+	if v.SerialNumber != nil {
+		s.WriteString(schemas.GetSessionTokenRequest_SerialNumber, *v.SerialNumber)
+	}
+	if v.TokenCode != nil {
+		s.WriteString(schemas.GetSessionTokenRequest_TokenCode, *v.TokenCode)
+	}
+}
+
 // Contains the response to a successful GetSessionToken request, including temporary Amazon Web
 // Services credentials that can be used to make Amazon Web Services requests.
 type GetSessionTokenOutput struct {
@@ -130,80 +157,73 @@ type GetSessionTokenOutput struct {
 	// strongly recommend that you make no assumptions about the maximum size.
 	Credentials *types.Credentials
 
+	// The size, in bytes, of the session token returned in the Credentials for this
+	// response.
+	SessionTokenSize *int32
+
+	// The percentage (0-100) of the maximum allowed session token size that the
+	// returned session token consumes.
+	SessionTokenUtilization *int32
+
 	// Metadata pertaining to the operation's result.
 	ResultMetadata middleware.Metadata
 
 	noSmithyDocumentSerde
 }
 
+func (v *GetSessionTokenOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetSessionTokenResponse)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetSessionTokenOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.Credentials != nil {
+		s.WriteStruct(schemas.GetSessionTokenResponse_Credentials)
+		v.Credentials.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.SessionTokenSize != nil {
+		s.WriteInt32(schemas.GetSessionTokenResponse_SessionTokenSize, *v.SessionTokenSize)
+	}
+	if v.SessionTokenUtilization != nil {
+		s.WriteInt32(schemas.GetSessionTokenResponse_SessionTokenUtilization, *v.SessionTokenUtilization)
+	}
+}
+func (v *GetSessionTokenOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.GetSessionTokenResponse, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.GetSessionTokenResponse_Credentials:
+			v.Credentials = &types.Credentials{}
+			return v.Credentials.Deserialize(d)
+		case schemas.GetSessionTokenResponse_SessionTokenSize:
+			v.SessionTokenSize = new(int32)
+			return d.ReadInt32(schemas.GetSessionTokenResponse_SessionTokenSize, v.SessionTokenSize)
+		case schemas.GetSessionTokenResponse_SessionTokenUtilization:
+			v.SessionTokenUtilization = new(int32)
+			return d.ReadInt32(schemas.GetSessionTokenResponse_SessionTokenUtilization, v.SessionTokenUtilization)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationGetSessionTokenMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetSessionToken, schemas.GetSessionTokenRequest, schemas.GetSessionTokenResponse)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsquery_serializeOpGetSessionToken{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetSessionToken, schemas.GetSessionTokenRequest, schemas.GetSessionTokenResponse), output: &GetSessionTokenOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsquery_deserializeOpGetSessionToken{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "GetSessionToken"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetSessionToken(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -218,22 +238,8 @@ func (c *Client) addOperationGetSessionTokenMiddlewares(stack *middleware.Stack,
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opGetSessionToken(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "GetSessionToken",
-	}
 }

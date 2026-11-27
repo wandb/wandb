@@ -107,20 +107,24 @@ func NewSeries(name string, palette []AdaptiveColor) *Series {
 }
 
 // updateBounds extends the series bounds with the given data batch.
+//
+// Non-finite samples (NaN/Inf, e.g. a diverged loss) are excluded so they
+// cannot poison the bounds; they still render as gaps in the series line.
 func (s *Series) updateBounds(xs, ys []float64) {
-	if len(xs) == 0 || len(ys) == 0 {
-		return
+	for _, x := range xs {
+		if !isFinite(x) {
+			continue
+		}
+		s.xMin = min(s.xMin, x)
+		s.xMax = max(s.xMax, x)
 	}
 
-	xMin, xMax := slices.Min(xs), slices.Max(xs)
-	yMin, yMax := slices.Min(ys), slices.Max(ys)
-
-	s.xMin = min(s.xMin, xMin)
-	s.xMax = max(s.xMax, xMax)
-	s.yMin = min(s.yMin, yMin)
-	s.yMax = max(s.yMax, yMax)
-
 	for _, y := range ys {
+		if !isFinite(y) {
+			continue
+		}
+		s.yMin = min(s.yMin, y)
+		s.yMax = max(s.yMax, y)
 		if y > 0 {
 			s.yMinPositive = min(s.yMinPositive, y)
 		}
@@ -136,12 +140,16 @@ func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 func (s *Series) AddPoint(x, y float64) {
 	s.X = append(s.X, x)
 	s.Y = append(s.Y, y)
-	s.xMin = min(s.xMin, x)
-	s.xMax = max(s.xMax, x)
-	s.yMin = min(s.yMin, y)
-	s.yMax = max(s.yMax, y)
-	if y > 0 {
-		s.yMinPositive = min(s.yMinPositive, y)
+	if isFinite(x) {
+		s.xMin = min(s.xMin, x)
+		s.xMax = max(s.xMax, x)
+	}
+	if isFinite(y) {
+		s.yMin = min(s.yMin, y)
+		s.yMax = max(s.yMax, y)
+		if y > 0 {
+			s.yMinPositive = min(s.yMinPositive, y)
+		}
 	}
 }
 
@@ -175,6 +183,9 @@ type EpochLineChart struct {
 	// title is the metric name shown in the chart header.
 	title string
 
+	// xAxisMetric is the metric plotted on the x-axis, or "" for _step.
+	xAxisMetric string
+
 	// dirty marks the chart as needing a redraw on the next DrawIfNeeded call.
 	dirty bool
 
@@ -200,12 +211,21 @@ type EpochLineChart struct {
 	// yTickFormatter formats raw, unscaled Y values for axis labels.
 	yTickFormatter func(float64) string
 
+	// chartGuides controls the background guides rendered behind the series.
+	chartGuides string
+
 	// inspection holds crosshair overlay state for data inspection mode.
 	inspection ChartInspection
 
 	// inspectionLabelFormatter customizes legend labels for inspection mode.
 	// When nil, a default numeric formatter is used.
 	inspectionLabelFormatter func(seriesKey string, x, y float64) string
+
+	// cachedView memoizes the stringified canvas until the next Draw or
+	// Resize, or until the style epoch changes.
+	cachedView      string
+	cachedViewOK    bool
+	cachedViewEpoch uint64
 }
 
 func NewEpochLineChart(title string) *EpochLineChart {
@@ -214,13 +234,14 @@ func NewEpochLineChart(title string) *EpochLineChart {
 			linechart.WithXYSteps(4, 5), // The default number of ticks when drawing axis values.
 			linechart.WithAutoXRange(),
 		),
-		data:    make(map[string]*Series),
-		title:   title,
-		palette: GraphColors(DefaultColorScheme),
-		xMin:    math.Inf(1),
-		xMax:    math.Inf(-1),
-		yMin:    math.Inf(1),
-		yMax:    math.Inf(-1),
+		data:        make(map[string]*Series),
+		title:       title,
+		palette:     GraphColors(DefaultColorScheme),
+		xMin:        math.Inf(1),
+		xMax:        math.Inf(-1),
+		yMin:        math.Inf(1),
+		yMax:        math.Inf(-1),
+		chartGuides: DefaultChartGuides,
 	}
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
@@ -229,7 +250,14 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.XLabelFormatter = func(_ int, v float64) string {
 		return FormatXAxisTick(v, chart.maxXLabelWidth())
 	}
-	chart.YLabelFormatter = func(_ int, v float64) string {
+	// ntcharts labels rows 0, yStep, 2*yStep, ... and the top of the axis,
+	// which stacks onto the last stepped label when the gap is too small
+	// (e.g. "4.86" on row 6 right above "4.05" on row 5). Blank that one;
+	// ntcharts then neither draws it nor reserves width for it.
+	chart.YLabelFormatter = func(i int, v float64) string {
+		if yStep := chart.YStep(); yStep > 0 && i%yStep != 0 && !hasTopYTick(i, yStep) {
+			return ""
+		}
 		return chart.formatYTick(v)
 	}
 
@@ -341,20 +369,30 @@ func (c *EpochLineChart) SetPalette(colors []AdaptiveColor) {
 //
 // X values should be appended in non-decreasing order for efficient rendering.
 // Empty data is a no-op.
+//
+// A chart has a single x-axis. A custom axis replaces the step axis and the
+// series plotted against it; data on any other axis is not plotted.
 func (c *EpochLineChart) AddData(key string, data MetricData) {
+	if len(data.X) == 0 || len(data.X) != len(data.Y) {
+		return
+	}
+
+	if data.XAxisMetric != c.xAxisMetric {
+		if c.xAxisMetric != "" {
+			return
+		}
+		clear(c.data)
+		c.order = c.order[:0]
+		c.recomputeBounds()
+		c.xAxisMetric = data.XAxisMetric
+		c.isZoomed = false
+	}
+
 	s, ok := c.data[key]
 	if !ok {
 		s = NewSeries(key, c.palette)
 		c.data[key] = s
 		c.order = append(c.order, key)
-	}
-
-	// Safety checks.
-	if len(data.X) != len(data.Y) {
-		return
-	}
-	if len(data.X) == 0 || len(data.Y) == 0 {
-		return
 	}
 
 	// Amortized linear growth. Do not use slices.Concat as it causes
@@ -392,10 +430,16 @@ func (c *EpochLineChart) updateRanges() {
 		dataXMax = 0
 	}
 	niceMax := dataXMax
-	if niceMax < defaultMaxX {
+	switch {
+	case c.xAxisMetric != "":
+		// Custom axes fit the data.
+		if niceMax <= dataXMin {
+			niceMax = dataXMin + 1
+		}
+	case niceMax < defaultMaxX:
 		// Keep a decent default domain early in a run.
 		niceMax = defaultMaxX
-	} else {
+	default:
 		// Round to nearest 10.
 		niceMax = float64(((int(math.Ceil(niceMax)) + 9) / 10) * 10)
 	}
@@ -429,6 +473,11 @@ func (c *EpochLineChart) computeYRange() (minY, maxY float64, ok bool) {
 		}
 		minY, maxY = c.calculateLogRange(minPositive, maxPositive)
 		return minY, maxY, true
+	}
+
+	// No finite samples yet (e.g. only NaN/Inf values logged so far).
+	if !isFinite(c.yMin) || !isFinite(c.yMax) {
+		return 0, 0, false
 	}
 
 	minY, maxY = c.calculateLinearRange()
@@ -557,19 +606,22 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	c.dirty = true
 }
 
+// View returns the rendered canvas, cached between draws.
+func (c *EpochLineChart) View() string {
+	if epoch := StyleEpoch(); !c.cachedViewOK || c.cachedViewEpoch != epoch {
+		c.cachedView = c.Model.View()
+		c.cachedViewOK = true
+		c.cachedViewEpoch = epoch
+	}
+	return c.cachedView
+}
+
 // Draw renders all series using Braille patterns.
 func (c *EpochLineChart) Draw() {
+	c.cachedViewOK = false
 	c.Clear()
 
-	// Draw axes and X labels via ntcharts, but suppress its Y labels and
-	// draw our own. ntcharts v2.0.1 forces a label at graphHeight, which
-	// stacks on top of the previous tick when graphHeight is just above a
-	// multiple of yStep (e.g. "4.86" sitting on row y=6 and "4.05" on y=5).
-	origYFmter := c.YLabelFormatter
-	c.YLabelFormatter = func(int, float64) string { return "" }
 	c.DrawXYAxisAndLabel()
-	c.YLabelFormatter = origYFmter
-	c.drawYLabels()
 
 	if c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
 		c.dirty = false
@@ -580,6 +632,7 @@ func (c *EpochLineChart) Draw() {
 	if c.YStep() > 0 {
 		startX = c.Origin().X + 1
 	}
+	c.drawChartGuides(startX)
 
 	for _, key := range c.order {
 		c.drawSeries(c.data[key], startX)
@@ -589,45 +642,53 @@ func (c *EpochLineChart) Draw() {
 	c.dirty = false
 }
 
-// drawYLabels draws Y-axis tick labels at positions i = 0, yStep, 2*yStep, ...
-// and optionally at graphHeight when there's enough gap above the previous
-// tick. Replaces ntcharts' drawYLabel, which in v2.0.1 unconditionally draws
-// a label at graphHeight and stacks it onto the previous tick when graphHeight
-// mod yStep is small.
-func (c *EpochLineChart) drawYLabels() {
-	yStep := c.YStep()
-	graphH := c.GraphHeight()
-	if yStep <= 0 || graphH <= 0 {
+// drawChartGuides renders the configured background guides inside the plot area.
+// Series are drawn afterward, so data always wins when cells overlap.
+func (c *EpochLineChart) drawChartGuides(startX int) {
+	const (
+		dotXSpacing = 4
+		dotYSpacing = 2
+	)
+
+	graphWidth := c.GraphWidth()
+	graphHeight := c.GraphHeight()
+	if graphWidth <= 0 || graphHeight <= 0 {
 		return
 	}
-	viewMinY, viewMaxY := c.ViewMinY(), c.ViewMaxY()
-	increment := (viewMaxY - viewMinY) / float64(graphH)
-	origin := c.Origin()
 
-	draw := func(i int, lastVal string) string {
-		v := viewMinY + increment*float64(i)
-		s := c.YLabelFormatter(i, v)
-		if s == "" || s == lastVal {
-			return lastVal
+	switch c.chartGuides {
+	case ChartGuidesDots:
+		cell := canvas.NewCellWithStyle('·', chartGuidesStyle)
+		for y := 0; y < graphHeight; y += dotYSpacing {
+			for x := startX + dotXSpacing/2; x < startX+graphWidth; x += dotXSpacing {
+				c.Canvas.SetCell(canvas.Point{X: x, Y: y}, cell)
+			}
 		}
-		c.Canvas.SetStringWithStyle(
-			canvas.Point{X: origin.X - len(s), Y: origin.Y - i},
-			s, c.LabelStyle,
-		)
-		return s
-	}
 
-	var lastVal string
-	lastI := 0
-	for i := 0; i <= graphH; i += yStep {
-		lastVal = draw(i, lastVal)
-		lastI = i
+	case ChartGuidesHorizontal:
+		// Guides sit on the Y tick rows labeled by ntcharts, so each line
+		// corresponds to a labeled value in both linear and log mode. The top
+		// row is skipped: a guide hugging the chart's upper edge reads as a
+		// border rather than a reference line.
+		yStep := c.YStep()
+		if yStep <= 0 {
+			return
+		}
+		cell := canvas.NewCellWithStyle(boxLightHorizontal, chartGuidesStyle)
+		for i := yStep; i < graphHeight; i += yStep {
+			y := c.Origin().Y - i
+			for x := startX; x < startX+graphWidth; x++ {
+				c.Canvas.SetCell(canvas.Point{X: x, Y: y}, cell)
+			}
+		}
 	}
-	// Add a top tick when the last stepped tick fell short of graphHeight
-	// and there's room for a non-adjacent label.
-	if lastI < graphH && graphH-lastI >= (yStep+1)/2 {
-		draw(graphH, lastVal)
-	}
+}
+
+// hasTopYTick reports whether the top of the axis gets its own label: when
+// it is not a stepped tick and there is room for a non-adjacent label above
+// the last one.
+func hasTopYTick(graphH, yStep int) bool {
+	return yStep > 0 && graphH%yStep >= (yStep+1)/2
 }
 
 // drawSeries renders a single series onto the canvas.
@@ -652,23 +713,45 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		0, float64(c.GraphHeight()),
 	)
 
+	c.rasterizeSeries(bGrid, s, lb, ub)
+
+	patterns := bGrid.BraillePatterns()
+	style := s.style.Load().(lipgloss.Style)
+
+	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+}
+
+// rasterizeSeries plots the series window [lb, ub) onto the braille grid.
+// Samples sharing a braille column collapse into one vertical span and
+// columns connect with Bresenham, so the work is O(pixels), not O(points).
+func (c *EpochLineChart) rasterizeSeries(
+	bGrid *graph.BrailleGrid,
+	s *Series,
+	lb, ub int,
+) {
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
-	segments := make([][]canvas.Float64Point, 0, 1)
-	current := make([]canvas.Float64Point, 0, ub-lb)
-	flush := func() {
-		if len(current) == 0 {
+	var (
+		inSegment      bool
+		prev           canvas.Point
+		colX           int
+		colMin, colMax int
+	)
+	flushColumn := func() {
+		if !inSegment {
 			return
 		}
-		segments = append(segments, current)
-		current = make([]canvas.Float64Point, 0, ub-lb)
+		for y := colMin; y <= colMax; y++ {
+			bGrid.Set(canvas.Point{X: colX, Y: y})
+		}
 	}
 
 	for i := lb; i < ub; i++ {
 		yValue, ok := c.scaleYValue(s.Y[i])
 		if !ok {
-			flush()
+			flushColumn()
+			inSegment = false
 			continue
 		}
 
@@ -676,30 +759,27 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		y := (yValue - c.ViewMinY()) * yScale
 
 		if x < 0 || x > float64(c.GraphWidth()) || y < 0 || y > float64(c.GraphHeight()) {
-			flush()
+			flushColumn()
+			inSegment = false
 			continue
 		}
 
-		current = append(current, canvas.Float64Point{X: x, Y: y})
-	}
-	flush()
-
-	for _, points := range segments {
-		if len(points) == 1 {
-			bGrid.Set(bGrid.GridPoint(points[0]))
-			continue
+		gp := bGrid.GridPoint(canvas.Float64Point{X: x, Y: y})
+		switch {
+		case !inSegment:
+			colX, colMin, colMax = gp.X, gp.Y, gp.Y
+			inSegment = true
+		case gp.X == colX:
+			colMin = min(colMin, gp.Y)
+			colMax = max(colMax, gp.Y)
+		default:
+			flushColumn()
+			drawLine(bGrid, prev, gp)
+			colX, colMin, colMax = gp.X, gp.Y, gp.Y
 		}
-		for i := range len(points) - 1 {
-			gp1 := bGrid.GridPoint(points[i])
-			gp2 := bGrid.GridPoint(points[i+1])
-			drawLine(bGrid, gp1, gp2)
-		}
+		prev = gp
 	}
-
-	patterns := bGrid.BraillePatterns()
-	style := s.style.Load().(lipgloss.Style)
-
-	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+	flushColumn()
 }
 
 // drawBraillePatternsOccluded draws braille runes with opaque compositing.
@@ -945,6 +1025,11 @@ func (c *EpochLineChart) Title() string {
 	return c.title
 }
 
+// XAxisMetric returns the metric plotted on the x-axis, or "" for _step.
+func (c *EpochLineChart) XAxisMetric() string {
+	return c.xAxisMetric
+}
+
 // SetFocused sets the chart's focus state.
 func (c *EpochLineChart) SetFocused(focused bool) {
 	c.focused = focused
@@ -958,6 +1043,7 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.Model.Resize(width, height)
 	c.updateRanges()
 	c.dirty = true
+	c.cachedViewOK = false
 }
 
 // Park minimizes canvas memory for off-screen charts.
@@ -1016,7 +1102,20 @@ func TruncateTitle(title string, maxWidth int) string {
 func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
+		c.dirty = true
 	}
+}
+
+// SetChartGuides sets the background guide style.
+func (c *EpochLineChart) SetChartGuides(guides string) {
+	if !isChartGuides(guides) {
+		guides = DefaultChartGuides
+	}
+	if c.chartGuides == guides {
+		return
+	}
+	c.chartGuides = guides
+	c.dirty = true
 }
 
 // SetSeriesStyle sets the style for the named series, if present.

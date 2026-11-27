@@ -1,11 +1,14 @@
 package stream
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -20,12 +23,16 @@ var WriterProviders = wire.NewSet(
 type WriterFactory struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
+	Stats    *filestreamstats.Stats
 }
 
 // Writer saves work to the transaction log.
 //
 // The transaction log is primarily used for offline runs. During online runs,
 // it is used for data recovery in case there is an issue uploading data.
+//
+// Buffered records are flushed to the file periodically so that readers of
+// the file, such as `wandb leet`, see a running run's progress.
 type Writer struct {
 	logger   *observability.CoreLogger // logger for debugging
 	settings *settings.Settings        // the run's settings
@@ -44,15 +51,23 @@ type Writer struct {
 
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
+
+	exitFlushDone     chan struct{}
+	exitFlushSignaled bool
+
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
 }
 
 // New returns a new Writer.
 func (f *WriterFactory) New(writer *transactionlog.Writer) *Writer {
 	return &Writer{
-		logger:   f.Logger,
-		settings: f.Settings,
-		out:      make(chan runwork.MaybeSavedWork),
-		writer:   writer,
+		logger:        f.Logger,
+		settings:      f.Settings,
+		exitFlushDone: make(chan struct{}),
+		out:           make(chan runwork.MaybeSavedWork),
+		writer:        writer,
+		stats:         f.Stats,
 	}
 }
 
@@ -61,51 +76,109 @@ func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
 	return w.out
 }
 
+// ExitFlushDone closes after the exit flush attempt or when the writer stops.
+func (w *Writer) ExitFlushDone() <-chan struct{} {
+	return w.exitFlushDone
+}
+
 // Do saves all input Work and pushes it to the output channel,
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
-	defer w.logger.Reraise()
+	defer w.logger.Reraise("stream")
 	defer close(w.out)
+	defer w.signalFlushedAfterExit()
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
-	for work := range allWork {
-		w.logger.Debug(
-			"writer: got work",
-			"work", work,
-			"stream_id", w.settings.GetRunID(),
-		)
-
-		savedWork := runwork.MaybeSavedWork{Work: work}
-
-		record := work.ToRecord()
-		if !w.isLocal(record) {
-			recordNum := w.setNumber(record)
-			offset, err := w.write(record)
-
-			if err != nil {
-				w.logger.CaptureError(
-					fmt.Errorf("writer: failed to save record: %v", err))
-			} else {
-				savedWork.IsSaved = true
-				savedWork.SavedOffset = offset
-				savedWork.RecordNumber = recordNum
-			}
-		}
-
-		if w.settings.IsOffline() && !work.BypassOfflineMode() {
-			continue
-		}
-
-		w.out <- savedWork
+	// A nil channel never fires, which disables the periodic flush.
+	var tick <-chan time.Time
+	if interval := w.settings.GetTransactionLogFlushInterval(); interval > 0 {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		tick = ticker.C
 	}
 
+	for {
+		select {
+		case work, ok := <-allWork:
+			if !ok {
+				w.finish()
+				return
+			}
+			w.process(work)
+
+		case <-tick:
+			if err := w.Flush(); err != nil {
+				w.logger.CaptureError(
+					"stream",
+					fmt.Errorf("writer: failed to flush: %v", err),
+				)
+			}
+		}
+	}
+}
+
+// process saves one Work and pushes it to the output channel.
+func (w *Writer) process(work runwork.Work) {
+	w.logger.Debug(
+		"writer: got work",
+		"work", work,
+		"stream_id", w.settings.GetRunID(),
+	)
+
+	savedWork := runwork.MaybeSavedWork{Work: work}
+
+	record := work.ToRecord()
+
+	if !w.isLocal(record) {
+		recordNum := w.setNumber(record)
+		offset, err := w.write(record)
+
+		if err != nil {
+			w.logger.CaptureError(
+				"stream",
+				fmt.Errorf("writer: failed to save record: %v", err),
+			)
+		} else {
+			savedWork.IsSaved = true
+			savedWork.SavedOffset = offset
+			savedWork.RecordNumber = recordNum
+		}
+	}
+
+	if record.GetExit() != nil {
+		err := w.Flush()
+		if err != nil {
+			w.logger.CaptureError(
+				"stream",
+				fmt.Errorf("writer: failed to flush after exit: %v", err),
+			)
+		}
+
+		w.signalFlushedAfterExit()
+	}
+
+	w.out <- savedWork
+}
+
+func (w *Writer) signalFlushedAfterExit() {
+	if w.exitFlushSignaled {
+		return
+	}
+	w.exitFlushSignaled = true
+	close(w.exitFlushDone)
+}
+
+// finish closes the transaction log writer.
+func (w *Writer) finish() {
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 	w.finished = true
 
 	if err := w.writer.Close(); err != nil {
 		w.logger.CaptureError(
-			fmt.Errorf("writer: failed closing store: %v", err))
+			"stream",
+			fmt.Errorf("writer: failed closing store: %v", err),
+		)
 	}
 }
 
@@ -129,11 +202,28 @@ func (w *Writer) write(record *spb.Record) (int64, error) {
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 
-	if err := w.writer.Write(record); err != nil {
+	start := time.Now()
+	err := w.writer.Write(record)
+	marshalDuration := time.Since(start)
+	if err != nil {
 		return 0, err
 	}
 
-	return w.writer.LastRecordOffset()
+	if record.GetHistory() != nil {
+		w.stats.RecordSegment(
+			context.Background(),
+			filestreamstats.SegmentTxLogMarshal,
+			filestreamstats.StreamHistory,
+			marshalDuration,
+		)
+	}
+
+	offset, err := w.writer.LastRecordOffset()
+	if err == nil {
+		// The offset after the last record is the size of the log so far.
+		w.stats.SetTxLogBytes(offset)
+	}
+	return offset, err
 }
 
 // Flush ensures all Work the Writer has output has been written to disk.

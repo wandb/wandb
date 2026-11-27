@@ -8,12 +8,14 @@ package wbapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 
-	"github.com/hashicorp/go-retryablehttp"
-
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -30,26 +32,48 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
+	// telemetryProxy records the logger's telemetry until Shutdown.
+	telemetryProxy *analytics.OpenTelemetryProxy
+	logger         *observability.CoreLogger
+
 	settings *settings.Settings
 
+	authHandler          *AuthHandler
+	customChartHandler   *CustomChartHandler
 	featuresHandler      *FeaturesHandler
+	fileTransferHandler  *FileTransferHandler
+	graphqlHandler       *GraphQLHandler
+	opentelemetryHandler *OpenTelemetryHandler
+	runFilesHandler      *RunFilesHandler
+	runHandler           *RunHandler
+	runQueueHandler      *RunQueueHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
 // New returns a new WandbAPI.
-func New(
-	s *settings.Settings,
-	logger *observability.CoreLogger,
-) (*WandbAPI, error) {
+func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
 
-	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
+	credentialProvider, err := api.NewCredentialProvider(s, slog.Default())
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials: %v", err)
 	}
+
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		"wandb-core",
+	)
+	logger := observability.NewCoreLogger(
+		slog.Default(),
+		analytics.NewTelemetryRecorder(
+			telemetryProxy,
+			analytics.NewTelemetryContext(),
+		),
+	)
 
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
@@ -61,22 +85,90 @@ func New(
 		s.GetExtraHTTPHeaders(),
 	)
 
-	httpClient := retryablehttp.NewClient()
-	httpClient.RetryMax = int(s.GetFileTransferMaxRetries())
-	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
-	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
-	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
-	httpClient.Logger = logger
-
+	fileTransferClient := newFileTransferClient(
+		baseURL,
+		credentialProvider,
+		logger,
+		s,
+	)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileTransfers := filetransfer.NewFileTransfers(
+		fileTransferClient,
+		logger,
+		fileTransferStats,
+	)
+	fileTransferManager := filetransfer.NewFileTransferManager(
+		filetransfer.FileTransferManagerOptions{
+			Logger:            logger,
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
+	)
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
 	return &WandbAPI{
-		semaphore: make(chan struct{}, maxConcurrency),
-		settings:  s,
+		semaphore:      make(chan struct{}, maxConcurrency),
+		telemetryProxy: telemetryProxy,
+		logger:         logger,
+		settings:       s,
 
+		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
-		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
+		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
+		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		customChartHandler:   NewCustomChartHandler(graphqlClient),
+		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
+		runFilesHandler:      NewRunFilesHandler(graphqlClient),
+		runHandler:           NewRunHandler(graphqlClient),
+		runQueueHandler:      NewRunQueueHandler(graphqlClient),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(
+			graphqlClient,
+			fileTransferClient,
+			logger,
+		),
 	}, nil
+}
+
+func newFileTransferClient(
+	baseURL *url.URL,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	s *settings.Settings,
+) api.RetryableClient {
+	httpOpts := api.ClientOptions{
+		RetryPolicy: filetransfer.FileTransferRetryPolicy,
+		Logger:      logger.Logger,
+
+		RetryMax:        filetransfer.DefaultRetryMax,
+		RetryWaitMin:    filetransfer.DefaultRetryWaitMin,
+		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
+		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
+
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
+
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
+
+		PreRetryLayers: httplayers.Concat(
+			httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
+			httplayers.LimitTo(baseURL, credentialProvider),
+		),
+	}
+
+	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
+		httpOpts.RetryMax = int(retryMax)
+	}
+	if retryWaitMin := s.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
+		httpOpts.RetryWaitMin = retryWaitMin
+	}
+	if retryWaitMax := s.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
+		httpOpts.RetryWaitMax = retryWaitMax
+	}
+	if timeout := s.GetFileTransferTimeout(); timeout > 0 {
+		httpOpts.NonRetryTimeout = timeout
+	}
+
+	return api.NewClient(httpOpts)
 }
 
 // HandleRequest handles an API request and returns an API response,
@@ -88,17 +180,65 @@ func (p *WandbAPI) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
 ) *spb.ApiResponse {
-	// block until until we are able to process more requests
-	p.semaphore <- struct{}{}
+	if err := ctx.Err(); err != nil {
+		return apiErrorResponse(err.Error(), 0)
+	}
+
+	// Block until we are able to process more requests, unless the client is
+	// tearing down and the request context is cancelled first.
+	select {
+	case p.semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return apiErrorResponse(ctx.Err().Error(), 0)
+	}
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
+	case *spb.ApiRequest_AuthRequest:
+		return p.authHandler.HandleRequest(ctx, req.AuthRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_DownloadFileRequest:
+		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
+	case *spb.ApiRequest_UploadFileRequest:
+		return p.fileTransferHandler.HandleUploadFile(ctx, req.UploadFileRequest)
+	case *spb.ApiRequest_MarkRunFilesUploadedRequest:
+		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
+	case *spb.ApiRequest_StopRunRequest:
+		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
+	case *spb.ApiRequest_ReadRunConsoleLogsRequest:
+		return p.runHandler.HandleReadRunConsoleLogs(ctx, req.ReadRunConsoleLogsRequest)
+	case *spb.ApiRequest_CreateCustomChartRequest:
+		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
+	case *spb.ApiRequest_RunQueueOperationRequest:
+		return p.runQueueHandler.HandleRequest(ctx, req.RunQueueOperationRequest)
+	case *spb.ApiRequest_GraphqlRequest:
+		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
-		// TODO: Propagate ctx here.
-		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)
+		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	case *spb.ApiRequest_OpenTelemetryRequest:
+		return p.opentelemetryHandler.HandleRequest(ctx, req.OpenTelemetryRequest)
+	default:
+		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 	}
+}
 
-	return nil
+// Shutdown shuts down any resources held by the WandbAPI.
+//
+// It should be called once when the API is no longer needed.
+func (p *WandbAPI) Shutdown(ctx context.Context) {
+	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
+	}
+	if err := p.telemetryProxy.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down telemetry proxy",
+			"error",
+			err,
+		)
+	}
 }

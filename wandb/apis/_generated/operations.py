@@ -21,6 +21,7 @@ __all__ = [
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
+    "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
 ]
 
@@ -162,11 +163,19 @@ fragment CreatedProjectFragment on Project {
 }
 """
 
+IS_PROJECT_READ_ONLY_GQL = """
+query IsProjectReadOnly($entity: String!, $project: String!) {
+  project(entityName: $entity, name: $project) {
+    readOnly
+  }
+}
+"""
+
 GET_SWEEPS_GQL = """
-query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {
+query GetSweeps($project: String!, $entity: String!, $filters: JSONString!, $cursor: String, $perPage: Int = 50) {
   project(name: $project, entityName: $entity) {
     totalSweeps
-    sweeps(after: $cursor, first: $perPage) {
+    sweeps(after: $cursor, first: $perPage, filters: $filters) {
       pageInfo {
         ...PageInfoFragment
       }
@@ -355,6 +364,7 @@ query GetTeamEntity($name: String!) {
     readOnly
     readOnlyAdmin
     isTeam
+    entityType
     privateOnly
     storageBytes
     codeSavingEnabled

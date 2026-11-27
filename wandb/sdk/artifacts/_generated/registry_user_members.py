@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import UserRegistryMemberFragment
 
 
 class RegistryUserMembers(GQLResult):
-    project: Optional[RegistryUserMembersProject]
+    project: RegistryUserMembersProject | None
 
 
 class RegistryUserMembersProject(GQLResult):
-    members: List[UserRegistryMemberFragment]
+    members: list[UserRegistryMemberFragment]
 
 
 RegistryUserMembers.model_rebuild()

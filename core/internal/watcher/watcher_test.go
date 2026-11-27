@@ -37,6 +37,15 @@ func writeFile(t *testing.T, path, content string) {
 	_ = writeFileAndGetModTime(t, path, content)
 }
 
+// notify is a non-blocking send: the poller may emit more change events than
+// the test consumes, and a callback blocked on send would hang Finish().
+func notify[S any](c chan<- S, x S) {
+	select {
+	case c <- x:
+	default:
+	}
+}
+
 func waitWithDeadline[S any](t *testing.T, c <-chan S, msg string) S {
 	select {
 	case x := <-c:
@@ -84,14 +93,14 @@ func TestWatcher(t *testing.T) {
 	t.Run("runs callback on file write", func(t *testing.T) {
 		t.Parallel()
 
-		onChangeChan := make(chan struct{})
+		onChangeChan := make(chan struct{}, 1)
 		file := filepath.Join(t.TempDir(), "file.txt")
 		t1 := writeFileAndGetModTime(t, file, "")
 
 		w := newTestWatcher()
 		defer finishWithDeadline(t, w)
 		require.NoError(t,
-			w.Watch(file, func() { onChangeChan <- struct{}{} }))
+			w.Watch(file, func() { notify(onChangeChan, struct{}{}) }))
 		time.Sleep(100 * time.Millisecond) // see below
 		t2 := writeFileAndGetModTime(t, file, "xyz")
 
@@ -114,7 +123,7 @@ func TestWatcher(t *testing.T) {
 	t.Run("runs callback on new file in directory", func(t *testing.T) {
 		t.Parallel()
 
-		onChangeChan := make(chan string)
+		onChangeChan := make(chan string, 1)
 		dir := filepath.Join(t.TempDir(), "dir")
 		file := filepath.Join(dir, "file.txt")
 		mkdir(t, dir)
@@ -122,7 +131,7 @@ func TestWatcher(t *testing.T) {
 		w := newTestWatcher()
 		defer finishWithDeadline(t, w)
 		require.NoError(t,
-			w.WatchDir(dir, func(s string) { onChangeChan <- s }))
+			w.WatchDir(dir, func(s string) { notify(onChangeChan, s) }))
 		writeFile(t, file, "")
 
 		result := waitWithDeadline(t, onChangeChan,

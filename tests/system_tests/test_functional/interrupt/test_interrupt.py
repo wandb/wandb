@@ -10,7 +10,7 @@ from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 @pytest.fixture(autouse=True)
 def fast_stop_polling_interval(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("wandb.sdk.wandb_run._STOP_POLLING_INTERVAL", 0.1)
+    monkeypatch.setattr("wandb.sdk.lib.run_stopping._POLL_INTERVAL", 0.1)
 
 
 def test_run_stop_interrupts(wandb_backend_spy: WandbBackendSpy):

@@ -11,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -24,6 +25,12 @@ const (
 // RunHandle is the same as runhandle.RunHandle, created to avoid
 // a reference cycle.
 type RunHandle interface {
+	// WillInit promises that initialization will happen.
+	//
+	// It returns a callback that should be invoked in a defer call.
+	// If the callback runs before Init(), the initialization is considered failed.
+	WillInit() (finishInit func())
+
 	// Init is called when a new run is created successfully.
 	//
 	// It is called from the Sender goroutine and only if GetRunUpserter returns
@@ -34,6 +41,11 @@ type RunHandle interface {
 	//
 	// It is called from the Sender goroutine.
 	Upserter() (*RunUpserter, error)
+
+	// StartStopwatch begins tracking elapsed time.
+	//
+	// Does nothing if the stopwatch is already started.
+	StartStopwatch()
 }
 
 // RunUpdateWork implements Work to initialize or update a run.
@@ -53,6 +65,7 @@ type RunUpdateWork struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
+	SyncStateStore     runsyncstate.Store
 }
 
 // Accept implements WorkImpl.Accept.
@@ -60,6 +73,14 @@ func (w *RunUpdateWork) Accept(
 	_ *runwork.Request,
 	_ func(*spb.Record, *runwork.Request),
 ) bool {
+	// Measure the `_runtime` metric from the moment that the first RunRecord
+	// is received, before the Handler processes any history records.
+	w.RunHandle.StartStopwatch()
+
+	// Assign the segment ID. This will be stored in the transaction log,
+	// and the same value will be used when syncing.
+	w.Record.GetRun().SegmentId = w.ClientID
+
 	return true
 }
 
@@ -87,44 +108,43 @@ func (w *RunUpdateWork) updateRun(run *RunUpserter) {
 
 // initRun creates a run for the first time.
 func (w *RunUpdateWork) initRun(request *runwork.Request) {
+	finishInit := w.RunHandle.WillInit()
+	defer finishInit()
+
 	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
 		DebounceDelay: runUpsertDebounceSeconds * time.Second,
 
-		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,
 		Operations:         w.Operations,
 		FeatureProvider:    w.FeatureProvider,
 		GraphqlClientOrNil: w.GraphqlClientOrNil,
 		Logger:             w.Logger,
+		SyncStateStore:     w.SyncStateStore,
 	})
 
 	if err != nil {
 		w.Logger.Error("runupserter: failed to init run", "error", err)
-
-		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(request, runInitErrorResult(err))
-		}
-
+		respondRunUpdate(request, runInitErrorResult(err))
 		return
 	}
 
 	err = w.RunHandle.Init(upserter)
 	if err != nil {
 		w.Logger.CaptureError(
+			"runupserter",
 			fmt.Errorf(
 				"runupserter: failed to set run after initializing: %v",
-				err))
+				err,
+			),
+		)
 
-		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(request, runInitErrorResult(err))
-		}
-
+		respondRunUpdate(request, runInitErrorResult(err))
 		return
 	}
 
-	if w.Record.Control.GetMailboxSlot() != "" {
+	if request != nil {
 		updatedRun := proto.CloneOf(w.Record.GetRun())
 		upserter.FillRunRecord(updatedRun)
 		respondRunUpdate(request, &spb.RunUpdateResult{Run: updatedRun})
@@ -152,8 +172,7 @@ func respondRunUpdate(
 // If the error is a RunUpdateError, it is used to enhance the message.
 // Otherwise, a generic error with an unknown code is returned.
 func runInitErrorResult(err error) *spb.RunUpdateResult {
-	var runUpdateError *RunUpdateError
-	if errors.As(err, &runUpdateError) {
+	if runUpdateError, ok := errors.AsType[*RunUpdateError](err); ok {
 		return runUpdateError.AsResult()
 	} else {
 		return &spb.RunUpdateResult{
@@ -163,11 +182,6 @@ func runInitErrorResult(err error) *spb.RunUpdateResult {
 			},
 		}
 	}
-}
-
-// BypassOfflineMode implements WorkImpl.BypassOfflineMode.
-func (w *RunUpdateWork) BypassOfflineMode() bool {
-	return true
 }
 
 // DebugInfo implements WorkImpl.DebugInfo.

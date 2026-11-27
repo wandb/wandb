@@ -50,9 +50,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 207
+// Next ID: 210
 message Settings {
-  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180, 190;
 
   // The W&B API key.
   //
@@ -146,6 +146,9 @@ message Settings {
   // Interval in seconds between filestream transmissions.
   google.protobuf.DoubleValue x_file_stream_transmit_interval = 175;
 
+  // Whether to disable gzip compression of filestream request bodies.
+  google.protobuf.BoolValue x_file_stream_no_gzip = 208;
+
   // Additional headers to add to all outgoing HTTP requests.
   MapStringKeyStringValue x_extra_http_headers = 14;
 
@@ -163,6 +166,12 @@ message Settings {
   // Note: this value should not be set unless you have clear understanding of
   // the impact on the back-end.
   google.protobuf.Int32Value x_file_stream_max_line_bytes = 178;
+
+  // Which forms of each logged history value the SDK writes.
+  //
+  // A comma-separated list of "json" and "typed", in any order.
+  // The default is "json".
+  google.protobuf.StringValue x_history_value_encoding = 211;
 
   // Maximum number of retries for file upload/download operations.
   google.protobuf.Int32Value x_file_transfer_retry_max = 150;
@@ -365,6 +374,13 @@ message Settings {
   // This can have a performance overhead and is disabled by default.
   google.protobuf.BoolValue x_stats_track_process_tree = 198;
 
+  // Whether to skip cgroup CPU and memory limits for system metric percentages.
+  google.protobuf.BoolValue x_stats_no_cgroup = 207;
+
+  // Whether to report the CPU and memory used by W&B's own processes as
+  // `wandb.cpu` and `wandb.memory.rssMB`.
+  google.protobuf.BoolValue x_stats_self_usage = 210;
+
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
   // processes in a distributed training job.
@@ -426,9 +442,6 @@ message Settings {
   // Whether to delegate automatic computation of summary from history to the server.
   google.protobuf.BoolValue x_server_side_derived_summary = 189;
 
-  // Whether to delegate glob matching of metrics in define_metric to the server.
-  google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
-
   // Whether to skip saving the run events to the transaction log.
   //
   // This is only relevant for online runs. Can be used to reduce the
@@ -437,6 +450,13 @@ message Settings {
   // Should be used with caution, as it removes the gurantees about
   // recoverability.
   google.protobuf.BoolValue x_skip_transaction_log = 191;
+
+  // Interval in seconds between flushes of buffered run data to the .wandb
+  // file, so that tools reading the file see a running run's progress.
+  //
+  // Zero disables periodic flushing: data is then written only when a
+  // buffer fills or the run finishes.
+  google.protobuf.DoubleValue x_transaction_log_flush_interval = 209;
 
   // The scheme and hostname for contacting the CoreWeave metadata server.
   google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 192;
@@ -516,7 +536,6 @@ message Settings {
   google.protobuf.BoolValue show_info = 121;
   google.protobuf.BoolValue show_warnings = 122;
   google.protobuf.BoolValue silent = 123;
-  google.protobuf.StringValue start_method = 124;
   google.protobuf.BoolValue strict = 125;
   google.protobuf.Int32Value summary_errors = 126;
   google.protobuf.Int32Value summary_timeout = 127;

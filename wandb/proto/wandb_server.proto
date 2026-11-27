@@ -6,6 +6,7 @@ import "wandb/proto/wandb_api.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_settings.proto";
+import "wandb/proto/wandb_sweep_scheduler.proto";
 import "wandb/proto/wandb_sync.proto";
 
 option go_package = "core/pkg/service_go_proto";
@@ -140,6 +141,10 @@ message ServerRequest {
     ServerApiInitRequest api_init_request = 14;
     ServerApiCleanupRequest api_cleanup_request = 17;
     ApiRequest api_request = 15;
+
+    SweepSchedulerClientInitRequest sweep_scheduler_init = 18;
+    SweepSchedulerClientNextTaskRequest sweep_scheduler_next_task = 19;
+    SweepSchedulerClientStopRequest sweep_scheduler_stop = 20;
   }
 }
 
@@ -167,6 +172,9 @@ message ServerResponse {
 
     ServerApiInitResponse api_init_response = 14;
     ApiResponse api_response = 16;
+
+    SweepSchedulerServerInitResponse sweep_scheduler_init_response = 17;
+    SweepSchedulerServerNextTaskResponse sweep_scheduler_next_task_response = 18;
 
     ServerErrorResponse error_response = 200;
   }

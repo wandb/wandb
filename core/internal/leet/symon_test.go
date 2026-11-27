@@ -2,6 +2,8 @@ package leet_test
 
 import (
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
@@ -17,16 +20,22 @@ func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
+		Timestamp: 100,
+		Metrics:   map[string]float64{"gpu.0.temp": 40},
+	}})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
 	m, _ = m.Update(tea.KeyPressMsg{Code: '5'})
 	rows, _ := cfg.SymonGrid()
 	require.Equal(t, 5, rows)
+	require.Contains(t, m.View().Content, "GPU Temp")
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'c'})
-	_, _ = m.Update(tea.KeyPressMsg{Code: '4'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '4'})
 	_, cols := cfg.SymonGrid()
 	require.Equal(t, 4, cols)
+	require.Contains(t, m.View().Content, "GPU Temp")
 }
 
 func TestSymon_FilterLifecycle(t *testing.T) {
@@ -35,13 +44,13 @@ func TestSymon_FilterLifecycle(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m, _ = m.Update(leet.StatsMsg{
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
 		Timestamp: 100,
 		Metrics: map[string]float64{
 			"gpu.0.temp":        40,
 			"cpu.0.cpu_percent": 50,
 		},
-	})
+	}})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
@@ -52,4 +61,126 @@ func TestSymon_FilterLifecycle(t *testing.T) {
 	view := m.View().Content
 	require.Contains(t, view, "GPU Temp")
 	require.NotContains(t, view, "CPU Core")
+}
+
+func TestSymon_FirstPageOrderAndHeatmap(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
+		Timestamp: 100,
+		Metrics: map[string]float64{
+			"gpu.0.temp":        40,
+			"memory_percent":    50,
+			"cpu.0.cpu_percent": 20,
+			"cpu.1.cpu_percent": 60,
+		},
+	}})
+
+	view := m.View().Content
+	cores := strings.Index(view, "CPU Core (%)")
+	memory := strings.Index(view, "System Memory (%)")
+	gpu := strings.Index(view, "GPU Temp")
+	require.True(t, cores >= 0 && cores < memory && memory < gpu, view)
+	require.Contains(t, view, "[heatmap]")
+}
+
+func TestSymon_HeaderShowsUptimeAndLoad(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
+		Timestamp: 100,
+		Metrics: map[string]float64{
+			"memory_percent": 50,
+			"system.uptime":  93600 + 5*60,
+			"system.load1":   1.5,
+			"system.load5":   0.8,
+			"system.load15":  0.6,
+		},
+	}})
+
+	require.Contains(t, m.View().Content, "up 1d 2h • load 1.50 0.80 0.60")
+}
+
+func TestSymon_SidebarMetersAndToggle(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{StatsMsg: leet.StatsMsg{
+		Timestamp: 100,
+		Metrics: map[string]float64{
+			"memory_percent":    50,
+			"cpu.0.cpu_percent": 20,
+			"cpu.1.cpu_percent": 60,
+		},
+	}})
+
+	cpuMeter := regexp.MustCompile(`CPU\s+\S+\s+40%`)
+	require.Regexp(t, cpuMeter, stripANSI(m.View().Content))
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
+	require.NotRegexp(t, cpuMeter, stripANSI(m.View().Content))
+	require.False(t, cfg.SymonSidebarVisible())
+}
+
+func TestSymon_ProcessesSortedByCPUThenMemory(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{
+		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
+		Processes: []*spb.ProcessStats{
+			{Pid: 1, Name: "chrome", CpuPercent: 10, RssBytes: 8 << 30},
+			{Pid: 2, Name: "python", CpuPercent: 300, RssBytes: 1 << 30},
+		},
+	})
+
+	view := m.View().Content
+	require.Contains(t, view, "python")
+	require.Less(t, strings.Index(view, "python"), strings.Index(view, "chrome"))
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	view = m.View().Content
+	require.Less(t, strings.Index(view, "chrome"), strings.Index(view, "python"))
+}
+
+func TestSymon_ProcessFilterAndFocus(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	sym := leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	var m tea.Model = sym
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{
+		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
+		Processes: []*spb.ProcessStats{
+			{Pid: 1, Name: "chrome", CpuPercent: 10, RssBytes: 8 << 30},
+			{Pid: 2, Name: "python", CpuPercent: 300, RssBytes: 1 << 30},
+		},
+	})
+
+	for _, key := range []rune{'f', 'p', 'y', 't', 'h'} {
+		m, _ = m.Update(tea.KeyPressMsg{Code: key, Text: string(key)})
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	view := m.View().Content
+	require.Contains(t, view, "python")
+	require.NotContains(t, view, "chrome")
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.Equal(t, leet.FocusNone, sym.TestFocusState().Type,
+		"navigation keys stay in the process list while it has focus")
+
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, leet.FocusSystemChart, sym.TestFocusState().Type)
 }

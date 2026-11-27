@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import sys
 import threading
+from collections.abc import Callable
 from importlib.util import find_spec
-from typing import Any, Callable
+from typing import Any
 
 # The dictionary registering any post import hooks to be triggered once
 # the target module has been imported. Once a module has been imported

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -97,14 +96,6 @@ class Histogram(WBValue):
     def to_json(self, run: LocalRun | Artifact | None = None) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
-
-    def __sizeof__(self) -> int:
-        """Estimated size in bytes.
-
-        Currently the factor of 1.7 is used to account for the JSON encoding. We use
-        this in tb_watcher.TBHistory.
-        """
-        return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)

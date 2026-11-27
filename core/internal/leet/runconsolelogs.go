@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -58,6 +59,9 @@ type RunConsoleLogs struct {
 	// It is updated incrementally so View does not need to reformat every line on
 	// every render.
 	items []KeyValuePair
+
+	// dirtyFrom is the first line changed since the pane took an update.
+	dirtyFrom int
 }
 
 // NewRunConsoleLogs creates an empty console log store with terminal
@@ -114,6 +118,41 @@ func (cl *RunConsoleLogs) Items() []KeyValuePair {
 	return cl.items
 }
 
+// takeChanges returns the entries and the first one that needs rematching.
+// The owning console pane is the sole consumer of these updates.
+func (cl *RunConsoleLogs) takeChanges() ([]KeyValuePair, int) {
+	items := cl.Items()
+	dirtyFrom := cl.dirtyFrom
+	cl.dirtyFrom = len(items)
+	return items, dirtyFrom
+}
+
+// TimeAt returns when line i was logged.
+func (cl *RunConsoleLogs) TimeAt(i int) (time.Time, bool) {
+	if i < 0 || i >= len(cl.lines) {
+		return time.Time{}, false
+	}
+	return cl.lines[i].Timestamp, true
+}
+
+// IndexNear returns the index of the line logged nearest to t, or -1 when
+// there are no lines. Lines are appended in logging order, so their
+// timestamps are sorted.
+func (cl *RunConsoleLogs) IndexNear(t time.Time) int {
+	n := len(cl.lines)
+	if n == 0 {
+		return -1
+	}
+	i := sort.Search(n, func(i int) bool { return !cl.lines[i].Timestamp.Before(t) })
+	if i == n {
+		return n - 1
+	}
+	if i > 0 && t.Sub(cl.lines[i-1].Timestamp) < cl.lines[i].Timestamp.Sub(t) {
+		return i - 1
+	}
+	return i
+}
+
 // appendLine is called by the line supplier when a new terminal line is
 // created. Returns the index for future PutChar callbacks.
 func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
@@ -136,6 +175,7 @@ func (cl *RunConsoleLogs) onLineChanged(idx int, content []rune) {
 	}
 	value := strings.TrimRight(string(content), " \t")
 	cl.lines[idx].Content = value
+	cl.dirtyFrom = min(cl.dirtyFrom, idx)
 	if idx < len(cl.items) {
 		cl.items[idx].Value = value
 	}

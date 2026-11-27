@@ -16,7 +16,6 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, cast
 
 import wandb
-from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.utils import get_entrypoint_file
 from wandb.sdk.lib.runid import generate_id
@@ -26,14 +25,30 @@ from .utils import CODE_MOUNT_DIR, LOG_PREFIX, recursive_macro_sub
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
 
-# need to make user root for sagemaker, so users have access to /opt/ml directories
-# that let users create artifacts and access input data
-RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
-IMAGE_TAG_MAX_LENGTH = 32
+def _get_accelerator_base_image(
+    resource_args_build: dict[str, Any],
+) -> str | None:
+    """Return configured accelerator base image from raw builder resource args."""
+    for accelerator_key in ("accelerator", "cuda"):
+        base_image = resource_args_build.get(accelerator_key, {}).get("base_image")
+        if base_image is None or base_image == "":
+            continue
+
+        if not isinstance(base_image, str):
+            raise LaunchError(
+                "Invalid accelerator base image. Expected "
+                f"builder.{accelerator_key}.base_image to be a string Docker "
+                f"image reference, got {type(base_image).__name__}."
+            )
+
+        return base_image
+
+    return None
 
 
 class LaunchSource(enum.IntEnum):
@@ -81,7 +96,7 @@ class LaunchProject:
         self,
         uri: str | None,
         job: str | None,
-        api: Api,
+        api: LaunchApi,
         launch_spec: dict[str, Any],
         target_entity: str,
         target_project: str,
@@ -119,10 +134,8 @@ class LaunchProject:
         self._job_dockerfile: str | None = None
         self._job_build_context: str | None = None
         self._job_base_image: str | None = None
-        self.accelerator_base_image: str | None = self._resource_args_build.get(
-            "accelerator", {}
-        ).get("base_image") or self._resource_args_build.get("cuda", {}).get(
-            "base_image"
+        self.accelerator_base_image: str | None = _get_accelerator_base_image(
+            self._resource_args_build
         )
         self.docker_image: str | None = docker_config.get(
             "docker_image"
@@ -205,12 +218,12 @@ class LaunchProject:
         return f"{self.uri}"
 
     @classmethod
-    def from_spec(cls, launch_spec: dict[str, Any], api: Api) -> LaunchProject:
+    def from_spec(cls, launch_spec: dict[str, Any], api: LaunchApi) -> LaunchProject:
         """Constructs a LaunchProject instance using a launch spec.
 
         Arguments:
             launch_spec: Dictionary representation of launch spec
-            api: Instance of wandb.apis.internal Api
+            api: Instance of `wandb.sdk.launch.api.LaunchApi`
 
         Returns:
             An initialized `LaunchProject` object
@@ -409,7 +422,7 @@ class LaunchProject:
 
         Arguments:
             launch_project: LaunchProject to fetch and validate.
-            api: Instance of wandb.apis.internal Api
+            api: Instance of `wandb.sdk.launch.api.LaunchApi`
 
         Returns:
             A validated `LaunchProject` object.
@@ -464,7 +477,7 @@ class LaunchProject:
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
 
-    def get_env_vars_dict(self, api: Api, max_env_length: int) -> dict[str, str]:
+    def get_env_vars_dict(self, api: LaunchApi, max_env_length: int) -> dict[str, str]:
         """Generate environment variables for the project.
 
         Arguments:
@@ -474,9 +487,9 @@ class LaunchProject:
             Dictionary of environment variables.
         """
         env_vars = {}
-        env_vars["WANDB_BASE_URL"] = api.settings("base_url")
+        env_vars["WANDB_BASE_URL"] = api.settings["base_url"]
         override_api_key = self.launch_spec.get("_wandb_api_key")
-        env_vars["WANDB_API_KEY"] = override_api_key or api.api_key
+        env_vars["WANDB_API_KEY"] = override_api_key or api.api_key or ""
         if self.target_project:
             env_vars["WANDB_PROJECT"] = self.target_project
         env_vars["WANDB_ENTITY"] = self.target_entity

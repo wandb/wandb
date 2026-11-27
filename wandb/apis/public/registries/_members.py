@@ -49,7 +49,7 @@ class TeamMember(ArtifactsBase, arbitrary_types_allowed=True):
     role: Union[MemberRole, str]  # noqa: UP007
 
 
-MemberOrId = Union[User, Team, UserMember, TeamMember, str]
+MemberOrId = User | Team | UserMember | TeamMember | str
 """Type hint for a registry member argument that accepts a User, Team, or their ID."""
 
 

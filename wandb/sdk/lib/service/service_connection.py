@@ -2,20 +2,26 @@ from __future__ import annotations
 
 import atexit
 import pathlib
-from typing import Callable
+from collections.abc import Callable
 
-from wandb.proto import wandb_api_pb2, wandb_settings_pb2, wandb_sync_pb2
+from wandb.proto import (
+    wandb_api_pb2,
+    wandb_settings_pb2,
+    wandb_sweep_scheduler_pb2,
+    wandb_sync_pb2,
+)
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.exit_hooks import ExitHooks
-from wandb.sdk.lib.service.service_client import ServiceClient
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 from . import service_process, service_token
+from .service_client import ServiceClient
+from .service_finalizer import ServiceFinalizer
 
 
 class WandbAttachFailedError(Exception):
@@ -107,6 +113,8 @@ class ServiceConnection:
         """
         self._asyncer = asyncer
         self._client = client
+        self._finalizer = ServiceFinalizer(asyncer, client)
+
         self._proc = proc
         self._torn_down = False
         self._cleanup = cleanup
@@ -170,6 +178,7 @@ class ServiceConnection:
         """Tells wandb-core to initialize resources for handling API requests."""
         api_init_request = wandb_api_pb2.ServerApiInitRequest(
             settings=settings,
+            service_name="wandb",
         )
         request = spb.ServerRequest(api_init_request=api_init_request)
         handle = self._asyncer.run(lambda: self._client.deliver(request))
@@ -192,13 +201,22 @@ class ServiceConnection:
 
         return response.api_init_response
 
-    def api_cleanup_request(self, api_id: str) -> None:
-        """Tells wandb-core to cleanup API resources."""
-        api_cleanup_request = wandb_api_pb2.ServerApiCleanupRequest(
-            api_id=api_id,
-        )
-        request = spb.ServerRequest(api_cleanup_request=api_cleanup_request)
-        self._asyncer.run(lambda: self._client.publish(request))
+    def finalize(
+        self,
+        obj: object,
+        cleanup: spb.ServerRequest,
+    ) -> Callable[[], None]:
+        """Send a cleanup request when the object is garbage collected.
+
+        The request must not reference the object, or else it will never be
+        garbage collected. The request is not guaranteed to be sent before
+        the connection is closed, so any resource it would clean up must also be
+        cleaned up automatically by wandb-core when this connection closes.
+
+        Returns:
+            A callback that can be used to send the cleanup request immediately.
+        """
+        return self._finalizer.finalize(obj, cleanup)
 
     async def sync_status(
         self,
@@ -210,6 +228,60 @@ class ServiceConnection:
 
         handle = await self._client.deliver(request)
         return handle.map(lambda r: r.sync_status_response)
+
+    async def init_sweep_scheduler(
+        self,
+        settings: wandb_settings.Settings,
+        *,
+        entity: str,
+        project: str,
+        sweep_id: str,
+        batch_size: int,
+        poll_interval_seconds: float,
+    ) -> MailboxHandle[wandb_sweep_scheduler_pb2.SweepSchedulerServerInitResponse]:
+        """Send a SweepSchedulerClientInitRequest."""
+        init = wandb_sweep_scheduler_pb2.SweepSchedulerClientInitRequest(
+            entity=entity,
+            project=project,
+            sweep_id=sweep_id,
+            settings=settings.to_proto(),
+            batch_size=batch_size,
+            poll_interval_seconds=poll_interval_seconds,
+        )
+        request = spb.ServerRequest(sweep_scheduler_init=init)
+
+        handle = await self._client.deliver(request)
+        return handle.map(lambda r: r.sweep_scheduler_init_response)
+
+    async def sweep_scheduler_next_task(
+        self,
+        session_id: str,
+        result: wandb_sweep_scheduler_pb2.SweepSchedulerClientTaskResult | None,
+    ) -> MailboxHandle[wandb_sweep_scheduler_pb2.SweepSchedulerServerNextTaskResponse]:
+        """Send a SweepSchedulerClientNextTaskRequest.
+
+        This is a long poll: the response arrives once the scheduler's next
+        task is ready, up to roughly one poll interval later.
+        """
+        next_task = wandb_sweep_scheduler_pb2.SweepSchedulerClientNextTaskRequest(
+            session_id=session_id,
+            result=result,
+        )
+        request = spb.ServerRequest(sweep_scheduler_next_task=next_task)
+
+        handle = await self._client.deliver(request)
+        return handle.map(lambda r: r.sweep_scheduler_next_task_response)
+
+    async def stop_sweep_scheduler(self, session_id: str) -> None:
+        """Publish a SweepSchedulerClientStopRequest.
+
+        Fire-and-forget: the scheduler answers the outstanding long poll
+        with a Done task instead of responding to this request.
+        """
+        stop = wandb_sweep_scheduler_pb2.SweepSchedulerClientStopRequest(
+            session_id=session_id
+        )
+        await self._client.publish(spb.ServerRequest(sweep_scheduler_stop=stop))
 
     async def api_request_async(
         self,
@@ -233,12 +305,12 @@ class ServiceConnection:
             response = handle.wait_or(timeout=timeout)
         except (MailboxClosedError, HandleAbandonedError):
             raise WandbApiFailedError(
-                "Failed to initialize API resources:"
+                "Failed to execute API request:"
                 + " the service process is not running.",
             ) from None
         except TimeoutError:
             raise WandbApiFailedError(
-                "Failed to initialize API resources:"
+                "Failed to execute API request:"
                 + " the service process is busy and did not respond in time.",
             ) from None
 
@@ -372,6 +444,7 @@ class ServiceConnection:
             )
             await self._client.close()
 
+        self._finalizer.close()
         self._asyncer.run(publish_teardown_and_close)
 
         return self._proc.join()

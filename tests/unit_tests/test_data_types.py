@@ -4,6 +4,7 @@ import platform
 from pathlib import Path
 from unittest import mock
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,7 +19,11 @@ from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types import utils as data_types_utils
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.wandb_settings import Settings
+
+# Render off-screen so that the tests do not need a display.
+matplotlib.use("Agg")
 
 
 def subdict(d, expected_dict):
@@ -164,7 +169,6 @@ def test_captions(
     assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_bind_image(
     mock_run,
     image,
@@ -180,7 +184,6 @@ def test_image_accepts_other_images():
     assert image_a == image_b
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes(
     mock_run,
     image,
@@ -201,7 +204,6 @@ def test_image_accepts_bounding_boxes(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes_optional_args(
     mock_run,
     image,
@@ -227,7 +229,6 @@ def test_image_accepts_bounding_boxes_optional_args(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks(
     mock_run,
     image,
@@ -246,7 +247,6 @@ def test_image_accepts_masks(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks_without_class_labels(
     mock_run,
     image,
@@ -266,7 +266,75 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
+def test_image_box_type_schema_carries_per_box_class_maps(image):
+    """``_ImageFileType.box_class_maps`` carries per-box ``class_labels`` so
+    the frontend can render distinct legends per box-set even when IDs collide.
+    """
+    img = wandb.Image(
+        image,
+        boxes={
+            "box_set_1": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.1,
+                            "maxY": 0.2,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Box Label A"},
+            },
+            "box_set_2": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.3,
+                            "maxX": 0.4,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Different Box Label"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    box_class_maps = img_type.params["box_class_maps"]._params["val"]
+    assert box_class_maps["box_set_1"] == {"1": "Box Label A"}
+    assert box_class_maps["box_set_2"] == {"1": "Different Box Label"}
+
+
+def test_image_mask_type_schema_carries_per_mask_class_maps(image):
+    """``_ImageFileType`` exposes per-mask class labels so a Table's
+    column_types schema carries them, separate from the merged ``class_map``."""
+    img = wandb.Image(
+        image,
+        masks={
+            "ground_truth": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": {1: "Ignored", 2: "Text"},
+            },
+            "predictions": {
+                "mask_data": np.array([[1, 2], [3, 1]]),
+                "class_labels": {1: "Incorrect", 2: "Correct", 3: "FP"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    mask_class_maps = img_type.params["mask_class_maps"]._params["val"]
+    assert mask_class_maps["ground_truth"] == {"1": "Ignored", "2": "Text"}
+    assert mask_class_maps["predictions"] == {
+        "1": "Incorrect",
+        "2": "Correct",
+        "3": "FP",
+    }
+
+
 def test_image_seq_to_json(
     mock_run,
     image,
@@ -278,7 +346,6 @@ def test_image_seq_to_json(
     assert os.path.exists(os.path.join(run.dir, "media", "images", "test_0_0.png"))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_max_images(mock_run):
     run = mock_run()
     large_image = np.random.randint(255, size=(10, 10))
@@ -393,7 +460,6 @@ def test_image_from_matplotlib_with_image():
 @pytest.mark.skipif(
     platform.system() != "Windows", reason="Failure case is only happening on Windows"
 )
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_fail_to_make_file(
     mock_run,
     image,
@@ -430,37 +496,25 @@ def test_image_masks_with_pytorch_tensors():
     wandb.Image(image, masks={"predictions": {"mask_data": mask}})
 
 
-def test_image_normalize_neg1_to_1():
-    # Sometimes images are represented with values in range [-1, 1].
-    data = np.array([[-0.2, 0.6]])
+@pytest.mark.parametrize("dtype", [np.int32, np.float32, np.float64])
+def test_image_mask_rejects_out_of_range_values(dtype):
+    mask = np.array([[0, 300], [1000, 1]], dtype=dtype)
 
-    transformed_data = wandb.Image(data).to_data_array()
-
-    assert transformed_data == [[102, 204]]
-
-
-def test_image_normalize_0_to_1():
-    data = np.array([[0.2, 0.3]])
-
-    transformed_data = wandb.Image(data).to_data_array()
-
-    assert transformed_data == [[51, 76]]
+    with pytest.raises(TypeError, match="between 0 and 255"):
+        ImageMask({"mask_data": mask}, key="predictions")
 
 
-def test_image_normalize_clips_bad_range():
-    data = np.array([[-9, 0.1, 100, 254.5, 270]])
+@pytest.mark.parametrize("dtype", [np.uint8, np.int32, np.float32, np.float64])
+def test_image_mask_accepts_in_range_values(dtype):
+    mask = np.array([[0, 1], [200, 255]], dtype=dtype)
 
-    transformed_data = wandb.Image(data).to_data_array()
+    image_mask = ImageMask({"mask_data": mask}, key="predictions")
 
-    assert transformed_data == [[0, 0, 100, 254, 255]]
+    assert np.array_equal(np.array(Image.open(image_mask._path)), mask.astype(np.uint8))
 
 
-@pytest.mark.parametrize(
-    "scale",
-    [1e-8, 1e-5, 1e0, 1e1, -1e-8, -1e-5, -1e0, -1e1],
-)
-def test_image_normalization_numpy_pytorch_equal(scale):
-    img = np.random.uniform(low=0, high=1, size=[4, 4, 3]) * scale
+def test_image_numpy_pytorch_equal():
+    img = np.random.randint(0, 256, size=[4, 4, 3]).astype(np.uint8)
     torch_img = torch.from_numpy(img.transpose(2, 0, 1))
 
     wb_image = wandb.Image(img)
@@ -670,7 +724,7 @@ def test_video_numpy_mp4(mock_run):
 def test_video_numpy_multi(mock_run):
     run = mock_run()
     video = np.random.random(size=(2, 10, 3, 28, 28))
-    vid = wandb.Video(video)
+    vid = wandb.Video(video, format="gif")
     vid.bind_to_run(run, "videos", 0)
     assert vid.to_json(run)["path"].endswith(".gif")
 
@@ -678,7 +732,7 @@ def test_video_numpy_multi(mock_run):
 def test_video_numpy_invalid():
     video = np.random.random(size=(3, 28, 28))
     with pytest.raises(ValueError):
-        wandb.Video(video)
+        wandb.Video(video, format="gif")
 
 
 def test_video_path(mock_run):
@@ -695,6 +749,29 @@ def test_video_path_invalid():
         f.write("00000")
     with pytest.raises(ValueError):
         wandb.Video("video.avi")
+
+
+def test_video_path_ignores_explicit_format(mock_run):
+    run = mock_run()
+    with open("video.mp4", "w") as f:
+        f.write("00000")
+    vid = wandb.Video("video.mp4", format="webm")
+    vid.bind_to_run(run, "videos", 0)
+    assert vid._format == "mp4"
+    assert vid.to_json(run)["path"].endswith(".mp4")
+
+
+@pytest.mark.parametrize(
+    "data_or_path",
+    [
+        np.random.randint(255, size=(10, 3, 28, 28)),
+        io.BytesIO(b"00000"),
+    ],
+    ids=["numpy", "bytesio"],
+)
+def test_video_requires_format(data_or_path):
+    with pytest.raises(ValueError, match="requires a `format` argument"):
+        wandb.Video(data_or_path)
 
 
 def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
@@ -1162,9 +1239,9 @@ def test_table_column_style():
     rand_1 = np.random.randint(256, size=(2, 2, 3))
     rand_2 = np.random.randint(256, size=(2, 2, 3))
     rand_3 = np.random.randint(256, size=(2, 2, 3))
-    img_1 = wandb.Image(rand_1, normalize=False)
-    img_2 = wandb.Image(rand_2, normalize=False)
-    img_3 = wandb.Image(rand_3, normalize=False)
+    img_1 = wandb.Image(rand_1)
+    img_2 = wandb.Image(rand_2)
+    img_3 = wandb.Image(rand_3)
 
     table2 = wandb.Table(columns=[], data=[])
     table2.add_column("np_data", [rand_1, rand_2])
@@ -1650,7 +1727,7 @@ def test_numpy_arrays_to_list():
 
 def test_log_uint8_image():
     pytest.importorskip("torchvision")
-    from torchvision.io import read_image
+    from torchvision.io import decode_image
 
     with open("temp.png", "wb") as temp:
         # Create and save image
@@ -1659,7 +1736,7 @@ def test_log_uint8_image():
         im.save(temp.name)
 
         # Reading with torch vision
-        image = read_image(temp.name)
+        image = decode_image(temp.name)
 
         torch_vision = wandb.Image(image)
         path_im = wandb.Image(temp.name)

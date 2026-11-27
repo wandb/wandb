@@ -139,12 +139,15 @@ func (o *RunLogsChangeModel) LineSupplier(streamPrefix, streamLabel string) *Run
 }
 
 // NextLine allocates a new line in the output buffer.
-func (o *RunLogsChangeModel) NextLine(streamPrefix, streamLabel string) RunLogsLineRef {
+func (o *RunLogsChangeModel) NextLine(
+	streamPrefix, streamLabel, content string,
+) RunLogsLineRef {
 	line := &RunLogsLine{}
 	line.StreamPrefix = streamPrefix
 	line.StreamLabel = streamLabel
 	line.MaxLength = o.maxLineLength
 	line.Timestamp = o.getNow()
+	line.Content = []rune(content)
 
 	lineNum := o.firstLineNum + len(o.lines)
 	o.lines = append(o.lines, line)
@@ -168,7 +171,7 @@ type RunLogsLineSupplier struct {
 }
 
 func (s *RunLogsLineSupplier) NextLine() terminalemulator.Line {
-	return s.output.NextLine(s.streamPrefix, s.streamLabel)
+	return s.output.NextLine(s.streamPrefix, s.streamLabel, "")
 }
 
 // RunLogsLineRef is a reference to a console logs line.

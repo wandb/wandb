@@ -69,7 +69,10 @@ def test_resolve_org_entity_name_with_team_org_success(
         },
     )
 
-    assert resolve_org_entity_name(api.client, entity, input_org) == expected_org_entity
+    assert (
+        resolve_org_entity_name(api._service_api, entity, input_org)
+        == expected_org_entity
+    )
 
 
 def test_resolve_org_entity_name_with_team_org_invalid_org(
@@ -92,7 +95,7 @@ def test_resolve_org_entity_name_with_team_org_invalid_org(
     )
 
     with raises(ValueError, match="Unable to find organization for entity"):
-        resolve_org_entity_name(api.client, entity, "potato-org")
+        resolve_org_entity_name(api._service_api, entity, "potato-org")
 
 
 @mark.parametrize(
@@ -125,7 +128,10 @@ def test_resolve_org_entity_name_with_single_personal_org_success(
         },
     )
 
-    assert resolve_org_entity_name(api.client, entity, input_org) == expected_org_entity
+    assert (
+        resolve_org_entity_name(api._service_api, entity, input_org)
+        == expected_org_entity
+    )
 
 
 def test_resolve_org_entity_name_with_single_personal_org_invalid_org(
@@ -151,7 +157,7 @@ def test_resolve_org_entity_name_with_single_personal_org_invalid_org(
     with raises(
         ValueError, match="Expecting the organization name or entity name to match"
     ):
-        resolve_org_entity_name(api.client, entity, "potato-org")
+        resolve_org_entity_name(api._service_api, entity, "potato-org")
 
 
 def test_resolve_org_entity_name_with_multiple_orgs_no_org_specified(
@@ -177,7 +183,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_no_org_specified(
     )
 
     with raises(ValueError, match="belongs to multiple organizations"):
-        resolve_org_entity_name(api.client, entity)
+        resolve_org_entity_name(api._service_api, entity)
 
 
 def test_resolve_org_entity_name_with_multiple_orgs_display_name(
@@ -201,7 +207,10 @@ def test_resolve_org_entity_name_with_multiple_orgs_display_name(
         },
     )
 
-    assert resolve_org_entity_name(api.client, entity, "org1-display") == "org1-entity"
+    assert (
+        resolve_org_entity_name(api._service_api, entity, "org1-display")
+        == "org1-entity"
+    )
 
 
 def test_resolve_org_entity_name_with_multiple_orgs_entity_name(
@@ -225,7 +234,10 @@ def test_resolve_org_entity_name_with_multiple_orgs_entity_name(
         },
     )
 
-    assert resolve_org_entity_name(api.client, entity, "org2-entity") == "org2-entity"
+    assert (
+        resolve_org_entity_name(api._service_api, entity, "org2-entity")
+        == "org2-entity"
+    )
 
 
 def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(
@@ -249,7 +261,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(
         },
     )
     with raises(ValueError, match="Personal entity belongs to multiple organizations"):
-        resolve_org_entity_name(api.client, entity, "potato-org")
+        resolve_org_entity_name(api._service_api, entity, "potato-org")
 
 
 def test_resolve_org_entity_name_with_nonexistent_entity(
@@ -269,7 +281,7 @@ def test_resolve_org_entity_name_with_nonexistent_entity(
     )
 
     with raises(ValueError, match="Unable to find organization for entity"):
-        resolve_org_entity_name(api.client, entity)
+        resolve_org_entity_name(api._service_api, entity)
 
 
 def test_resolve_org_entity_name_with_single_org_missing_entity_errors(
@@ -281,7 +293,7 @@ def test_resolve_org_entity_name_with_single_org_missing_entity_errors(
     with raises(
         ValueError, match="Entity name is required to resolve org entity name."
     ):
-        resolve_org_entity_name(api.client, entity)
+        resolve_org_entity_name(api._service_api, entity)
 
 
 def test_server_supports__known_feature(
@@ -300,7 +312,7 @@ def test_server_supports__known_feature(
         },
     )
 
-    assert server_supports(api.client, pb.ServerFeature.LARGE_FILENAMES)
+    assert server_supports(api._service_api, pb.ServerFeature.LARGE_FILENAMES)
 
 
 def test_server_supports__unknown_feature(
@@ -319,5 +331,5 @@ def test_server_supports__unknown_feature(
         },
     )
 
-    assert not server_supports(api.client, "NOT_A_REAL_FEATURE")
-    assert not server_supports(api.client, 9999)
+    assert not server_supports(api._service_api, "NOT_A_REAL_FEATURE")
+    assert not server_supports(api._service_api, 9999)

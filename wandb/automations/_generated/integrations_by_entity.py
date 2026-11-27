@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, List, Literal, Optional, Union
+from typing import Annotated, Literal
 
 from pydantic import Field
 
@@ -13,29 +13,28 @@ from .fragments import PageInfoFields, SlackIntegrationFields, WebhookIntegratio
 
 
 class IntegrationsByEntity(GQLResult):
-    entity: Optional[IntegrationsByEntityEntity]
+    entity: IntegrationsByEntityEntity | None
 
 
 class IntegrationsByEntityEntity(GQLResult):
-    integrations: Optional[IntegrationsByEntityEntityIntegrations]
+    integrations: IntegrationsByEntityEntityIntegrations | None
 
 
 class IntegrationsByEntityEntityIntegrations(GQLResult):
     page_info: PageInfoFields = Field(alias="pageInfo")
-    edges: List[IntegrationsByEntityEntityIntegrationsEdges]
+    edges: list[IntegrationsByEntityEntityIntegrationsEdges]
 
 
 class IntegrationsByEntityEntityIntegrationsEdges(GQLResult):
-    node: Optional[
+    node: (
         Annotated[
-            Union[
-                IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration,
-                WebhookIntegrationFields,
-                SlackIntegrationFields,
-            ],
+            IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration
+            | WebhookIntegrationFields
+            | SlackIntegrationFields,
             Field(discriminator="typename__"),
         ]
-    ]
+        | None
+    )
 
 
 class IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration(GQLResult):

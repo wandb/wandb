@@ -18,6 +18,8 @@ fragment SourceCollectionInfoFragment on ArtifactSequence {
 
 # A fragment on Project that only includes minimal identifying fields.
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -45,6 +47,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -68,7 +71,11 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
-  aliases {
+  createdAt
+  aliases @include(if: true) {
+    # Workaround: ensures generated pydantic field defaults to `None`,
+    # since callers that have a paginated alternative (e.g.
+    # `Artifact._from_name`) omit this unbounded field from the request.
     ...ArtifactAliasFragment
   }
   artifactCollection {
@@ -93,7 +100,12 @@ query ProjectArtifacts(
   project(entityName: $entity, name: $project) {
     artifactType(name: $type) {
       artifactCollection(name: $collection) {
-        artifacts(after: $cursor, first: $perPage, order: $order, filters: $filters) {
+        artifacts(
+          after: $cursor
+          first: $perPage
+          order: $order
+          filters: $filters
+        ) {
           totalCount
           pageInfo {
             ...PageInfoFragment
@@ -166,6 +178,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           versionIndex
+          createdAt
           aliases {
             ...ArtifactAliasFragment
           }
@@ -192,20 +205,6 @@ query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   }
 }
 
-query ArtifactByName(
-  $entity: String!
-  $project: String!
-  $name: String!
-  $enableTracking: Boolean
-  $includeAliases: Boolean = true
-) {
-  project(name: $project, entityName: $entity) {
-    artifact(name: $name, enableTracking: $enableTracking) {
-      ...ArtifactFragment
-    }
-  }
-}
-
 query ArtifactMembershipByName(
   $entity: String!
   $project: String!
@@ -215,6 +214,33 @@ query ArtifactMembershipByName(
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
       ...ArtifactMembershipFragment
+    }
+  }
+}
+
+# Paginates `ArtifactCollectionMembership.aliasesConnection`. Used to fetch an
+# entire membership's aliases lazily, on the first access to
+# `Artifact.aliases`, rather than fetching them with the rest of the
+# artifact -- see `Artifact._resolve_pending_aliases`.
+query ArtifactMembershipAliases(
+  $entity: String!
+  $project: String!
+  $name: String!
+  $cursor: String
+  $perPage: Int!
+) {
+  project(name: $project, entityName: $entity) {
+    artifactCollectionMembership(name: $name) {
+      aliasesConnection(after: $cursor, first: $perPage) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactAliasFragment
+          }
+        }
+      }
     }
   }
 }
@@ -273,10 +299,17 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
   }
 }
 
-mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
+mutation UpdateArtifact(
+  $input: UpdateArtifactInput!
+  $includeAliases: Boolean = true
+) {
   result: updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
+    }
+    artifactMembership @include(if: true) {
+      # Workaround: ensures generated pydantic field defaults to `None`
+      ...ArtifactMembershipFragment
     }
   }
 }
@@ -289,7 +322,10 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
   }
 }
 
-mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
+mutation LinkArtifact(
+  $input: LinkArtifactInput!
+  $includeAliases: Boolean = true
+) {
   result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {

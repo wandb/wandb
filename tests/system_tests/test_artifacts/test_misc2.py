@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import wandb
@@ -74,6 +74,7 @@ def test_lazy_artifact_passthrough(user):
             "file_count",
             "created_at",
             "updated_at",
+            "linked_at",
         ]
 
         # These setters should be valid both before and after logging

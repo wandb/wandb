@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.26.2.dev1"
+__version__ = "0.31.3.dev1"
 
 
 from wandb.errors import Error
@@ -44,11 +44,11 @@ AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
-from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
 
 from wandb.sdk.lib import preinit as _preinit
 from wandb.sdk.lib import lazyloader as _lazyloader
+from wandb.sdk.lib import deprecated_api as _deprecated_api
 
 from wandb.integration.torch import wandb_torch
 
@@ -62,6 +62,7 @@ from wandb.data_types import Plotly
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
+from wandb.data_types import EvalTable
 from wandb.data_types import Html
 from wandb.data_types import box3d
 from wandb.data_types import Object3D
@@ -82,8 +83,6 @@ from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
 
 # globals
-Api = PublicApi
-api = InternalApi()
 run: Run | None = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
@@ -144,16 +143,17 @@ lightgbm = _lazyloader.LazyLoader(
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 
-
-def ensure_configured():
-    global api
-    api = InternalApi()
+api = _deprecated_api.DeprecatedApi()
+ensure_configured = _deprecated_api.ensure_configured
 
 
-def set_trace():
-    import pdb
+def __getattr__(name: str):
+    # The public API is imported on first use.
+    if name == "Api":
+        from wandb.apis.public import Api
 
-    pdb.set_trace()
+        return Api
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 if wandb_sdk.lib.ipython.in_notebook():
@@ -193,6 +193,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",

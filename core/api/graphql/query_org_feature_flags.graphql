@@ -1,0 +1,10 @@
+# Fetches organization-level feature flags and legacy ramps.
+query OrgFeatureFlags($org: String!) {
+  organization(name: $org) {
+    # OrgName deliberately includes legacy ramps keyed by organization name.
+    featureFlags(rampIDType: OrgName) {
+      rampKey
+      isEnabled
+    }
+  }
+}

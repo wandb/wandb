@@ -1,17 +1,21 @@
 import json
 import subprocess
-import sys
 
 import pytest
 import wandb
-from wandb.apis.internal import InternalApi
 from wandb.apis.public import Api
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
-def _run_cmd_check_msg(cmd: list[str], assert_str: str) -> None:
+def _run_cmd_check_msg(cmd: list[str], assert_str: str, *, check: bool = True) -> None:
     """Helper for asserting a statement is in logs."""
-    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        if check:
+            raise
+        out = e.output
     assert assert_str in out.decode("utf-8")
 
 
@@ -24,13 +28,7 @@ def test_launch_sweep_param_validation(user):
     run.finish()
 
     base = ["wandb", "launch-sweep"]
-    # In python 3.12, Click returns with an exit code of 2 when there are
-    # missing arguments.
-    if sys.version_info >= (3, 12):
-        with pytest.raises(subprocess.CalledProcessError):
-            _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
-    else:
-        _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]", check=False)
 
     base += ["-e", user, "-p", "p"]
     err_msg = "'config' and/or 'resume_id' required"
@@ -95,7 +93,7 @@ def test_launch_sweep_param_validation(user):
         ),
     ],
 )
-def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
+def test_launch_sweep_scheduler_resources(user, scheduler_args, msg, create_run_queue):
     # make proj and job
     settings = wandb.Settings(project="model-registry")
     run = wandb.init(settings=settings)
@@ -103,8 +101,9 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
     job_name = f"{user}/model-registry/{job_artifact.wait().name}"
     run.finish()
 
-    internal_api = InternalApi()
-    internal_api.create_run_queue(
+    launch_api = LaunchApi()
+    create_run_queue(
+        launch_api._service_api,
         entity=user,
         project="model-registry",
         queue_name="q",
@@ -140,21 +139,22 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
         "num-workers-str",
     ],
 )
-def test_launch_sweep_launch_uri(user, image_uri, launch_config):
+def test_launch_sweep_launch_uri(user, image_uri, launch_config, create_run_queue):
     queue = "test"
-    api = InternalApi()
+    api = LaunchApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
-    res = api.create_run_queue(
+    res = create_run_queue(
+        api._service_api,
         entity=user,
         project=LAUNCH_DEFAULT_PROJECT,
         queue_name=queue,
         access="USER",
     )
 
-    if res.get("success") is not True:
+    if not res.success:
         raise Exception("create queue" + str(res))
 
     sweep_config = {
@@ -185,13 +185,14 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
-def test_launch_sweep_launch_resume(user):
-    api = InternalApi()
+def test_launch_sweep_launch_resume(user, create_run_queue):
+    api = LaunchApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
-    api.create_run_queue(
+    create_run_queue(
+        api._service_api,
         entity=user,
         project=LAUNCH_DEFAULT_PROJECT,
         queue_name="queue",

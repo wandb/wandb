@@ -1,7 +1,10 @@
-import wandb
-from wandb._pydantic import IS_PYDANTIC_V2
-
-from .actions import ActionType, DoNothing, SendNotification, SendWebhook
+from .actions import (
+    ActionType,
+    DoNothing,
+    SendNotification,
+    SendPromptToAria,
+    SendWebhook,
+)
 from .automations import Automation, NewAutomation
 from .events import (
     ArtifactEvent,
@@ -10,46 +13,58 @@ from .events import (
     MetricThresholdFilter,
     MetricZScoreFilter,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
     OnRunState,
+    OnSandboxState,
+    OnUnlinkArtifact,
     RunEvent,
     RunStateFilter,
+    SandboxEvent,
+    SandboxState,
 )
 from .integrations import Integration, SlackIntegration, WebhookIntegration
-from .scopes import ArtifactCollectionScope, ProjectScope, ScopeType
-
-# ----------------------------------------------------------------------------
-# WARNINGS on import
-if not IS_PYDANTIC_V2:
-    # Raises an error in Pydantic v1 environments, where the Automations API
-    # has not been tested and is unlikely to work as expected.
-    #
-    # Remove this when we either:
-    # - Drop support for Pydantic v1
-    # - Are able to implement (limited) Pydantic v1 support
-    raise ImportError(
-        "The W&B Automations API requires Pydantic v2. "
-        "We recommend upgrading `pydantic` to use this feature."
-    )
-
-# ----------------------------------------------------------------------------
+from .scopes import (
+    ArtifactCollectionScope,
+    EntityScope,
+    OrgScope,
+    ProjectScope,
+    RegistryScope,
+    ScopeType,
+    TeamScope,
+)
 
 __all__ = [
     # Scopes
     "ScopeType",  # doc:exclude
     "ArtifactCollectionScope",  # doc:exclude
     "ProjectScope",  # doc:exclude
+    "RegistryScope",  # doc:exclude
+    "OrgScope",  # doc:exclude
+    "TeamScope",  # doc:exclude
+    "EntityScope",  # doc:exclude
     # Events
     "EventType",  # doc:exclude
     "OnAddArtifactAlias",
+    "OnAddArtifactTag",
+    "OnAddCollectionTag",
     "OnCreateArtifact",
     "OnLinkArtifact",
+    "OnRemoveArtifactTag",
+    "OnRemoveCollectionTag",
     "OnRunMetric",
     "OnRunState",
+    "OnSandboxState",
+    "OnUnlinkArtifact",
     "ArtifactEvent",  # doc:exclude
     "RunEvent",  # doc:exclude
+    "SandboxEvent",  # doc:exclude
+    "SandboxState",
     "MetricThresholdFilter",
     "MetricChangeFilter",
     "RunStateFilter",
@@ -58,6 +73,7 @@ __all__ = [
     "ActionType",  # doc:exclude
     "SendNotification",
     "SendWebhook",
+    "SendPromptToAria",
     "DoNothing",
     # Automations
     "Automation",

@@ -11,6 +11,9 @@ import (
 type MetricData struct {
 	X []float64
 	Y []float64
+
+	// XAxisMetric is the metric whose values X holds, or "" for _step.
+	XAxisMetric string
 }
 
 // HistoryMsg contains metrics data from a wandb history record.
@@ -18,17 +21,33 @@ type HistoryMsg struct {
 	RunPath string
 	Metrics map[string]MetricData
 	Media   map[string][]MediaPoint
+
+	// StepTimes pairs each row's step (X) with its _timestamp (Y), in
+	// unix seconds.
+	StepTimes MetricData
 }
 
 // RunMsg contains data from the wandb run record.
 type RunMsg struct {
 	RunPath     string
 	ID          string
+	Entity      string
 	Project     string
 	DisplayName string
 	Notes       string
 	Tags        []string
 	Config      *spb.ConfigRecord
+	StartTime   time.Time
+	Telemetry   *spb.TelemetryRecord
+	State       *RunState
+}
+
+func (m RunMsg) runState() RunState {
+	if m.State != nil {
+		return *m.State
+	}
+
+	return RunStateRunning
 }
 
 // SummaryMsg contains summary data from the wandb run.
@@ -79,7 +98,8 @@ type InitMsg struct {
 
 // BatchedRecordsMsg contains all messages read during a batch read.
 type BatchedRecordsMsg struct {
-	Msgs []tea.Msg
+	Msgs    []tea.Msg
+	HasMore bool
 }
 
 // ChunkedBatchMsg contains a chunk of messages with progress info.
@@ -93,6 +113,12 @@ type ChunkedBatchMsg struct {
 
 // HeartbeatMsg is sent periodically for live runs to ensure we don't miss data.
 type HeartbeatMsg struct{}
+
+// RunLivePulseMsg drives the single-run view's breathing live indicator.
+type RunLivePulseMsg struct{}
+
+// WorkspaceLivePulseMsg drives the workspace's breathing live indicators.
+type WorkspaceLivePulseMsg struct{}
 
 // LeftSidebarAnimationMsg is sent during left sidebar animations.
 type LeftSidebarAnimationMsg struct{}
@@ -125,6 +151,13 @@ type WorkspaceBatchedRecordsMsg struct {
 	Batch  BatchedRecordsMsg
 }
 
+// WorkspaceRunReadErrMsg reports a failed read of a workspace run's
+// transaction log.
+type WorkspaceRunReadErrMsg struct {
+	RunKey string
+	Err    error
+}
+
 // WorkspaceFileChangedMsg is emitted when a watched workspace run's .wandb
 // file changes on disk.
 //
@@ -133,13 +166,18 @@ type WorkspaceFileChangedMsg struct {
 	RunKey string
 }
 
-// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+// WorkspaceRunDiscoveryMsg is emitted after listing the runs of a wandb
+// directory or a W&B project.
 //
-// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// RunKeys are run directory names for a wandb directory and run IDs for a
+// project, newest first. Runs has the metadata of the runs a project listing
+// returned, keyed by run ID.
+//
 // If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
 // as unusable.
-type WorkspaceRunDirsMsg struct {
+type WorkspaceRunDiscoveryMsg struct {
 	RunKeys []string
+	Runs    map[string]RunMsg
 	Err     error
 }
 

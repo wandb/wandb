@@ -27,6 +27,11 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"TPU runtime HBM util", "tpu.0.runtimeHbmUtilization", "TPU Runtime HBM Utilization", "%"},
 		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration",
 			"TPU Tensorcore Idle Duration", ""},
+		{"Process CPU throttled", "proc.cpu.throttledPercent", "Process CPU Throttled", "%"},
+		{"Process OOM kills", "proc.memory.oomKills", "Process OOM Kills", ""},
+		{"Network TCP retransmits", "network.tcpRetransmits", "Network TCP Retransmits", ""},
+		{"W&B CPU", "wandb.cpu", "W&B CPU", "%"},
+		{"W&B memory", "wandb.memory.rssMB", "W&B Memory", "B"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -40,6 +45,13 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 	}
 }
 
+func TestMatchMetricDef_ByteRatesAndSizesAreUnscaled(t *testing.T) {
+	// symon reports these in bytes (per second); the chart must not rescale them.
+	require.Equal(t, "7.67GB/s", leet.MatchMetricDef("gpu.0.nvlinkRxBytes").Unit.Format(7.67e9))
+	trn := leet.MatchMetricDef("trn.host_total_memory_usage")
+	require.Equal(t, "582MiB", trn.Unit.Format(610705408))
+}
+
 func TestExtractBaseKey(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -48,6 +60,7 @@ func TestExtractBaseKey(t *testing.T) {
 		{"gpu.0.temp/l:0:GPU0", "gpu.temp"},
 		{"gpu.process.2.temp", "gpu.process.temp"},
 		{"disk.disk4.out", "disk.io_per_device"},
+		{"disk.disk4.readBps", "disk.io_rate_per_device"},
 		{"cpu.0.cpu_percent", "cpu.cpu_percent"},
 		{"memory.used", "memory.used"},
 	}
@@ -67,6 +80,7 @@ func TestExtractSeriesName(t *testing.T) {
 		{"cpu.2.cpu_percent", "CPU 2"},
 		{"disk.disk4.in", "disk4 read"},
 		{"disk.disk4.out", "disk4 write"},
+		{"disk.disk4.writeBps", "disk4 write"},
 		{"memory.used", "Default"},
 	}
 	for _, tc := range cases {
@@ -93,7 +107,10 @@ func TestUnitFormat(t *testing.T) {
 		{1048576, leet.UnitMiB, "1TiB"},
 		{256, leet.UnitGiB, "256GiB"},
 		{1536, leet.UnitGiB, "1.5TiB"},
-		{2048, leet.UnitMiBps, "2.15GB/s"},
+		{7.67e9, leet.UnitBps, "7.67GB/s"},
+		{750, leet.UnitJoule, "750J"},
+		{1500, leet.UnitJoule, "1.5kJ"},
+		{2.5e6, leet.UnitJoule, "2.5MJ"},
 		{0.005, leet.UnitScalar, "0.005"},
 		{0.5, leet.UnitScalar, "0.5"},
 		{3.14, leet.UnitScalar, "3.14"},

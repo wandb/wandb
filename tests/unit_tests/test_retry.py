@@ -2,7 +2,7 @@
 
 import dataclasses
 import datetime
-from collections.abc import Iterator
+from collections.abc import Generator
 from unittest import mock
 
 import pytest
@@ -16,7 +16,7 @@ class MockTime:
 
 
 @pytest.fixture(autouse=True)
-def mock_time() -> Iterator[MockTime]:
+def mock_time() -> Generator[MockTime]:
     """Mock out the now()/sleep() funcs used by the retry logic."""
     now = datetime.datetime.now()
 
@@ -141,34 +141,6 @@ class MyError(Exception):
 
 
 SECOND = datetime.timedelta(seconds=1)
-
-
-class TestFilteredBackoff:
-    def test_reraises_exc_failing_predicate(self):
-        wrapped = mock.Mock(spec=retry.Backoff)
-        filtered = retry.FilteredBackoff(
-            filter=lambda e: False,
-            wrapped=wrapped,
-        )
-
-        with pytest.raises(MyError):
-            filtered.next_sleep_or_reraise(MyError("don't retry me"))
-
-        wrapped.next_sleep_or_reraise.assert_not_called()
-
-    def test_delegates_exc_passing_predicate(self):
-        retriable_exc = MyError("retry me")
-        wrapped = mock.Mock(
-            spec=retry.Backoff,
-            next_sleep_or_reraise=mock.Mock(return_value=123 * SECOND),
-        )
-        filtered = retry.FilteredBackoff(
-            filter=lambda e: e == retriable_exc,
-            wrapped=wrapped,
-        )
-
-        assert filtered.next_sleep_or_reraise(retriable_exc) == 123 * SECOND
-        wrapped.next_sleep_or_reraise.assert_called_once_with(retriable_exc)
 
 
 class TestExponentialBackoff:

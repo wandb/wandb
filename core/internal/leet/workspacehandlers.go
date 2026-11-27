@@ -1,8 +1,12 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"os"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -75,6 +79,14 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		g.handleFilterKey(msg)
 		return nil
 	}
+	if w.consoleLogsPane.IsFilterMode() {
+		w.consoleLogsPane.HandleFilterKey(msg)
+		return nil
+	}
+
+	if w.pendingSelectAll != nil {
+		return w.confirmSelectAll(msg)
+	}
 
 	// Grid config capture takes priority.
 	if w.config.IsAwaitingGridConfig() {
@@ -89,8 +101,8 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	case FocusTargetMedia:
-		if w.mediaPane.HandleKey(msg) {
-			return nil
+		if handled, cmd := w.mediaPane.HandleKey(msg); handled {
+			return cmd
 		}
 	}
 
@@ -104,6 +116,11 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	layout := w.computeViewports()
+
+	// Pane resizing wins over pane-local mouse handling.
+	if w.drag.handleMouse(msg, layout, w.dragTargets()) {
+		return nil
+	}
 
 	// Clicks in the left sidebar clear all chart focus.
 	if w.runsAnimState.IsVisible() && mouse.X < layout.leftSidebarWidth {
@@ -145,6 +162,27 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	// Separator or status bar area — no chart interaction.
+	return nil
+}
+
+// dragTargets reports which layout boundaries a mouse event may grab.
+func (w *Workspace) dragTargets() dragTargets {
+	t := dragTargets{
+		width:           w.width,
+		height:          w.height,
+		leftExpanded:    w.runsAnimState.IsExpanded(),
+		rightExpanded:   w.runOverviewSidebar.IsExpanded(),
+		mediaFullscreen: w.mediaPane.IsFullscreen(),
+	}
+	if t.rightExpanded {
+		t.overview = w.runOverviewSidebar
+	}
+	return t
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (w *Workspace) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	w.drag.reset()
 	return nil
 }
 
@@ -345,7 +383,7 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.runsAnimationCmd()
@@ -361,7 +399,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.runOverviewAnimationCmd()
@@ -390,9 +428,7 @@ func (w *Workspace) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.mediaPane.Toggle()
-	if !mediaWillBeVisible {
-		w.focusMgr.ResolveAfterVisibilityChange()
-	}
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 	return w.mediaPaneAnimationCmd()
 }
@@ -410,7 +446,7 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 		bottomWillBeVisible,
 	)
 	w.consoleLogsPane.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.consoleLogsPaneAnimationCmd()
@@ -427,31 +463,12 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 
 	w.updateBottomPaneHeights(sysWillBeVisible, mediaVisible, logsVisible)
 	w.systemMetricsPane.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 	return w.systemMetricsPaneAnimationCmd()
 }
 
 // ---- Reader / Watcher Commands ----
-
-// initReaderCmd initializes a WandbReader for the given run asynchronously.
-func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
-	return func() tea.Msg {
-		reader, err := NewLevelDBHistorySource(runPath, w.logger)
-		if err != nil {
-			return WorkspaceInitErrMsg{
-				RunKey:  runKey,
-				RunPath: runPath,
-				Err:     err,
-			}
-		}
-		return WorkspaceRunInitMsg{
-			RunKey:  runKey,
-			RunPath: runPath,
-			Reader:  reader,
-		}
-	}
-}
 
 // readAllChunkCmd reads a bounded chunk of records for the given workspace run.
 func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
@@ -464,8 +481,8 @@ func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
-		if err != nil {
-			return ErrorMsg{Err: err}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return WorkspaceRunReadErrMsg{RunKey: runKey, Err: err}
 		}
 		if msg == nil {
 			return nil
@@ -491,8 +508,8 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
-		if err != nil {
-			return ErrorMsg{Err: err}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return WorkspaceRunReadErrMsg{RunKey: runKey, Err: err}
 		}
 		if msg == nil {
 			return nil
@@ -501,14 +518,12 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 		if !ok {
 			return msg
 		}
-		if len(batch.Msgs) == 0 {
-			return nil
-		}
 
 		return WorkspaceBatchedRecordsMsg{
 			RunKey: runKey,
 			Batch: BatchedRecordsMsg{
-				Msgs: batch.Msgs,
+				Msgs:    batch.Msgs,
+				HasMore: batch.HasMore,
 			},
 		}
 	}
@@ -522,15 +537,22 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 	return <-w.liveChan
 }
 
-// ensureLiveStreaming wires up watcher + heartbeat for a selected, running run.
+// ensureLiveStreaming wires up watcher + heartbeat for a selected run that
+// may still be live (see RunState.mayBeLive).
 //
-// It is a no-op if the run is nil, not live, or its reader is not initialized.
-// When a watcher is started it also returns a command that waits for the first
-// change notification so that subsequent updates are driven primarily by
-// filesystem events, with the heartbeat as a safety net.
+// It is a no-op if the run is nil, already in a terminal state, or its
+// reader is not initialized. When a watcher is started it also returns a
+// command that waits for the first change notification so that subsequent
+// updates are driven primarily by filesystem events, with the heartbeat as
+// a safety net.
 func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
-	if run == nil || run.Reader == nil || run.state != RunStateRunning {
+	if run == nil || run.Reader == nil || !run.state.mayBeLive() {
 		return nil
+	}
+
+	// A remote run has no transaction log to watch; its source polls.
+	if run.wandbPath == "" {
+		return batchCmds(w.nextLiveReadCmd(run, false), w.ensureLivePulseCmd())
 	}
 
 	var watcherCmd tea.Cmd
@@ -540,10 +562,22 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 		run.watcher = NewWatcherManager(ch, w.logger)
 
 		if err := run.watcher.Start(run.wandbPath); err != nil {
-			w.logger.CaptureError(fmt.Errorf(
-				"workspace: failed to start watcher for %s: %v", run.Key, err))
+			w.logger.CaptureError(
+				"leet",
+				fmt.Errorf(
+					"workspace: failed to start watcher for %s: %v",
+					run.Key,
+					err,
+				),
+			)
 			run.watcher = nil
 		} else {
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(run.wandbPath); err == nil {
+				run.lastUpdateAt = info.ModTime()
+			}
 			watcherCmd = w.waitForWatcher(run.Key)
 		}
 	}
@@ -553,7 +587,7 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
 	}
 
-	return watcherCmd
+	return batchCmds(watcherCmd, w.ensureLivePulseCmd())
 }
 
 // waitForWatcher blocks until the watcher for the given run emits a change
@@ -596,13 +630,19 @@ func (w *Workspace) handleWorkspaceInitErr(msg WorkspaceInitErrMsg) tea.Cmd {
 	// Revert selection state so we don't get stuck with "selected but never loads".
 	if msg.RunKey != "" {
 		w.dropRun(msg.RunKey)
+		w.rememberRuns()
 	}
 
 	if msg.Err != nil && !os.IsNotExist(msg.Err) {
-		w.logger.CaptureError(fmt.Errorf(
-			"workspace: init reader for %s (%s): %v",
-			msg.RunKey, msg.RunPath, msg.Err,
-		))
+		w.logger.CaptureError(
+			"leet",
+			fmt.Errorf(
+				"workspace: init reader for %s (%s): %v",
+				msg.RunKey,
+				msg.RunPath,
+				msg.Err,
+			),
+		)
 	}
 	return nil
 }
@@ -639,7 +679,13 @@ func (w *Workspace) handleWorkspaceChunkedBatch(msg WorkspaceChunkedBatchMsg) te
 	for _, sub := range msg.Batch.Msgs {
 		w.handleWorkspaceRecord(run, sub)
 	}
-	w.metricsGrid.drawVisible()
+	if !msg.Batch.HasMore || time.Since(w.lastDrawAt) >= bootRedrawInterval {
+		w.lastDrawAt = time.Now()
+		w.metricsGrid.drawVisible()
+		if g := w.systemMetrics[msg.RunKey]; g != nil {
+			g.drawVisible()
+		}
+	}
 
 	if msg.Batch.HasMore {
 		return w.readAllChunkCmd(run)
@@ -660,29 +706,40 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 		w.handleWorkspaceRecord(run, sub)
 	}
 	w.metricsGrid.drawVisible()
-
-	// Continue draining while the run is still live.
-	if run.state == RunStateRunning {
-		return w.ReadAvailableCmd(run)
+	if g := w.systemMetrics[msg.RunKey]; g != nil {
+		g.drawVisible()
 	}
 
-	if !w.anyRunRunning() {
-		w.heartbeatMgr.Stop()
-	}
+	return batchCmds(
+		w.nextLiveReadCmd(run, msg.Batch.HasMore),
+		w.ensureLivePulseCmd(),
+	)
+}
 
-	return nil
+// nextLiveReadCmd schedules the read that follows a batch, if any.
+func (w *Workspace) nextLiveReadCmd(run *WorkspaceRun, hasMore bool) tea.Cmd {
+	if run.Reader == nil {
+		return nil
+	}
+	return run.Reader.NextLiveReadCmd(w.ReadAvailableCmd(run), hasMore)
 }
 
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.
 func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
+	// Every message here is derived from a transaction-log record —
+	// proof of life for the crash check. (FileComplete leaves
+	// RunStateRunning, after which lastUpdateAt is irrelevant.)
+	run.lastUpdateAt = time.Now()
+
 	switch m := msg.(type) {
 	case RunMsg:
+		sessionRuns.observe(m, true)
 		w.getOrCreateRunOverview(run.Key).ProcessRunMsg(m)
 		w.indexRunFilterData(run.Key, m)
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
-		run.state = RunStateRunning
+		run.state = m.runState()
 		w.syncLiveRunState()
 
 	case HistoryMsg:
@@ -709,12 +766,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 		w.getOrCreateConsoleLogs(run.Key).ProcessRaw(m.Text, m.IsStderr, m.Time)
 
 	case FileCompleteMsg:
-		switch m.ExitCode {
-		case 0:
-			run.state = RunStateFinished
-		default:
-			run.state = RunStateFailed
-		}
+		run.state = runStateForExitCode(m.ExitCode)
 		w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
 		w.syncLiveRunState()
 
@@ -728,6 +780,16 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 
 // handleHeartbeat is invoked when the workspace heartbeat timer fires.
 func (w *Workspace) handleHeartbeat() tea.Cmd {
+	// Presume-crashed sweep: live runs whose transaction logs went silent.
+	for key, run := range w.runsByKey {
+		if run == nil || run.state != RunStateRunning || !w.selectedRuns[key] {
+			continue
+		}
+		if !run.lastUpdateAt.IsZero() && time.Since(run.lastUpdateAt) > RunCrashTimeout {
+			w.markRunPresumedCrashed(run)
+		}
+	}
+
 	if !w.anyRunRunning() {
 		w.heartbeatMgr.Stop()
 		return w.waitForLiveMsg
@@ -746,11 +808,65 @@ func (w *Workspace) handleHeartbeat() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// handleRunReadErr handles a failed transaction-log read for a run.
+//
+// Mirrors the single-run view's ErrorMsg path: the run can no longer
+// stream, so mark it failed instead of leaving it silently frozen in
+// whatever state it was in.
+func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
+	// A dead run's file often ends mid-record, so keep this out of error
+	// telemetry.
+	w.logger.Error(fmt.Sprintf(
+		"workspace: run %s read failed: %v", msg.RunKey, msg.Err))
+
+	run := w.runsByKey[msg.RunKey]
+	if run == nil {
+		return nil
+	}
+
+	run.state = RunStateFailed
+	w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
+	w.stopWatcher(run)
+	w.syncLiveRunState()
+	if !w.anyRunRunning() {
+		w.heartbeatMgr.Stop()
+	}
+	// No final boot chunk will arrive to draw any throttled history.
+	w.metricsGrid.drawVisible()
+	if g := w.systemMetrics[msg.RunKey]; g != nil {
+		g.drawVisible()
+	}
+	return nil
+}
+
+// markRunPresumedCrashed mirrors the server's stale-runs sweep for a local
+// run: no transaction-log writes for RunCrashTimeout and no exit record
+// means the writer is presumed gone. The watcher stays armed so the run is
+// revived if writes resume.
+func (w *Workspace) markRunPresumedCrashed(run *WorkspaceRun) {
+	w.logger.Info(fmt.Sprintf(
+		"workspace: no transaction log updates for %s in %v, presuming the run crashed",
+		run.Key, time.Since(run.lastUpdateAt).Round(time.Second)))
+	run.state = RunStateCrashed
+	w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
+	w.syncLiveRunState()
+}
+
 // handleWorkspaceFileChanged reacts to a filesystem change for a given run.
 func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.Cmd {
 	run := w.runsByKey[msg.RunKey]
 	if run == nil {
 		return nil
+	}
+
+	if run.state == RunStateCrashed {
+		// The writer came back: revive the presumed-crashed run.
+		w.logger.Info(fmt.Sprintf(
+			"workspace: transaction log updated, reviving crashed run %s", run.Key))
+		run.lastUpdateAt = time.Now()
+		run.state = RunStateRunning
+		w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
+		w.syncLiveRunState()
 	}
 
 	// Re‑arm watcher for the next change if we're still watching this run.
@@ -765,24 +881,39 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 		w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 	}
 
-	return batchCmds(w.ReadAvailableCmd(run), watcherCmd)
+	return batchCmds(w.ReadAvailableCmd(run), watcherCmd, w.ensureLivePulseCmd())
+}
+
+// livePulseCmd schedules the next live-indicator frame.
+func (w *Workspace) livePulseCmd() tea.Cmd {
+	return tea.Tick(LivePulseFrame, func(time.Time) tea.Msg {
+		return WorkspaceLivePulseMsg{}
+	})
+}
+
+// ensureLivePulseCmd starts the live-indicator redraw loop when a live run is
+// visible. Returns nil if the loop is already ticking or nothing is live.
+func (w *Workspace) ensureLivePulseCmd() tea.Cmd {
+	if w.pulseTicking || !w.needsLiveAnimation() {
+		return nil
+	}
+	w.pulseTicking = true
+	return w.livePulseCmd()
+}
+
+// handleLivePulse keeps the live indicators animating while any visible run
+// is live.
+func (w *Workspace) handleLivePulse() tea.Cmd {
+	if !w.needsLiveAnimation() {
+		w.pulseTicking = false
+		return nil
+	}
+	return w.livePulseCmd()
 }
 
 func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
 	w.logger.Debug("workspace: quit requested")
-
-	if w.heartbeatMgr != nil {
-		w.heartbeatMgr.Stop()
-	}
-	for _, run := range w.runsByKey {
-		if run == nil {
-			continue
-		}
-		w.stopWatcher(run)
-		if run.Reader != nil {
-			run.Reader.Close()
-		}
-	}
+	w.Cleanup()
 
 	return tea.Quit
 }
@@ -881,7 +1012,30 @@ func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleScrollFocusedChartRows(msg tea.KeyPressMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil && w.focus.Type == FocusSystemChart {
+		g.scrollFocusedChartRows(chartRowScrollDelta(msg))
+	}
+	return nil
+}
+
+func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(w.config.ChartGuides())
+	if err := w.config.SetChartGuides(guides); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save chart guides: %v", err))
+	}
+	w.metricsGrid.SetChartGuides(guides)
+	for _, g := range w.systemMetrics {
+		g.SetChartGuides(guides)
+	}
+	return nil
+}
+
 func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if w.focusMgr.Current() == FocusTargetConsoleLogs {
+		w.consoleLogsPane.EnterFilterMode()
+		return nil
+	}
 	w.metricsGrid.EnterFilterMode()
 	return nil
 }
@@ -900,13 +1054,15 @@ func (w *Workspace) handleEnterSystemMetricsFilter(msg tea.KeyPressMsg) tea.Cmd 
 		return batchCmds(cmds...)
 	}
 
-	grid := w.getOrCreateSystemMetricsGrid(cur.Key)
-	grid.EnterFilterMode()
-	grid.ApplyFilter()
+	w.getOrCreateSystemMetricsGrid(cur.Key).EnterFilterMode()
 	return batchCmds(cmds...)
 }
 
 func (w *Workspace) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if w.focusMgr.Current() == FocusTargetConsoleLogs {
+		w.consoleLogsPane.ClearFilter()
+		return nil
+	}
 	if w.metricsGrid.FilterQuery() != "" {
 		w.metricsGrid.ClearFilter()
 	}
@@ -948,7 +1104,7 @@ func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.metricsGridAnimState.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 
 	w.updateBottomPaneHeights(
 		w.systemMetricsPane.animState.TargetVisible(),
@@ -1072,15 +1228,23 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 
 	if _, selected := w.selectedRuns[runKey]; selected {
 		w.dropRun(runKey)
+		w.rememberRuns()
 		return nil
 	}
 
-	// Resolve the run file before mutating selection state so we don't end up
-	// "selected but unloadable" if the key can't be mapped to a .wandb file.
-	wandbFile := runWandbFile(w.wandbDir, runKey)
-	if wandbFile == "" {
-		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
-		w.logger.CaptureError(err)
+	cmd := w.selectRun(runKey)
+	w.rememberRuns()
+	return cmd
+}
+
+// selectRun selects the run, pins it if no run is pinned, and starts loading it.
+func (w *Workspace) selectRun(runKey string) tea.Cmd {
+	cmd := w.backend.InitReaderCmd(runKey)
+	if cmd == nil {
+		w.logger.CaptureError(
+			"leet",
+			fmt.Errorf("workspace: unable to initialize reader for run key %q", runKey),
+		)
 		return nil
 	}
 
@@ -1089,7 +1253,18 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		w.pinnedRun = runKey
 	}
 
-	return w.initReaderCmd(runKey, wandbFile)
+	return cmd
+}
+
+// rememberRuns saves the selection for the next time the directory is
+// opened, with the newest run so a run that starts later shows up as new.
+func (w *Workspace) rememberRuns() {
+	w.dirState.SelectedRuns = slices.Sorted(maps.Keys(w.selectedRuns))
+	w.dirState.PinnedRun = w.pinnedRun
+	if len(w.runs.Items) > 0 {
+		w.dirState.LatestRun = w.runs.Items[0].Key
+	}
+	w.dirState.save()
 }
 
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -1111,13 +1286,12 @@ func (w *Workspace) togglePin(runKey string) {
 	if w.pinnedRun == runKey {
 		// Unpin but keep selection unchanged.
 		w.pinnedRun = ""
-		w.metricsGrid.drawVisible()
-		return
+	} else {
+		w.pinnedRun = runKey
+		w.refreshPinnedRun()
 	}
-
-	w.pinnedRun = runKey
-	w.refreshPinnedRun()
 	w.metricsGrid.drawVisible()
+	w.rememberRuns()
 }
 
 func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -1147,6 +1321,49 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.togglePin(runKey)
+	return nil
+}
+
+// handleSelectAllRunsKey asks to confirm selecting every run matching the
+// runs filter, since that loads all of them.
+func (w *Workspace) handleSelectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for _, item := range w.runs.FilteredItems {
+		if !w.selectedRuns[item.Key] {
+			w.pendingSelectAll = append(w.pendingSelectAll, item.Key)
+		}
+	}
+	return nil
+}
+
+// confirmSelectAll selects the pending runs on y; any other key cancels.
+func (w *Workspace) confirmSelectAll(msg tea.KeyPressMsg) tea.Cmd {
+	keys := w.pendingSelectAll
+	w.pendingSelectAll = nil
+	if msg.String() != "y" {
+		return nil
+	}
+	var cmds []tea.Cmd
+	for _, key := range keys {
+		cmds = append(cmds, w.selectRun(key))
+	}
+	w.rememberRuns()
+	return batchCmds(cmds...)
+}
+
+// handleDeselectAllRunsKey deselects every run except the pinned one.
+func (w *Workspace) handleDeselectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for key := range w.selectedRuns {
+		if key != w.pinnedRun {
+			w.dropRun(key)
+		}
+	}
+	w.rememberRuns()
 	return nil
 }
 
@@ -1227,13 +1444,16 @@ func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
 	return w.systemMetrics[cur.Key]
 }
 
-// handleFocusRuns moves focus to the runs list if it's visible.
+// handleFocusRuns moves focus home to the runs list.
 //
-// This gives Esc a natural "return home" feel in workspace mode:
-// wherever focus currently is, Esc snaps it back to the run selector.
+// This gives Esc a natural "return home" feel in workspace mode: wherever
+// focus currently is, Esc snaps it back to the run selector. When the runs
+// list can't take focus (hidden or empty), Esc just clears focus.
 func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
-	if w.runsAnimState.TargetVisible() {
+	if w.runsFocusAvailable() {
 		w.focusMgr.SetTarget(FocusTargetRunsList, 1)
+	} else {
+		w.focusMgr.ClearAll()
 	}
 	return nil
 }

@@ -167,6 +167,7 @@ def test_linked_artifacts_field(user, api):
         assert len(linked_artifacts) == len(link_collections)
         for linked in linked_artifacts:
             assert linked.is_link is True
+            assert linked.linked_at is not None
             assert linked.linked_artifacts == []
             assert linked.source_artifact.qualified_name == artifact.qualified_name
             assert linked.collection.name in link_collections

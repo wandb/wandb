@@ -1,3 +1,4 @@
+import glob as glob_module
 import os
 import pathlib
 import platform
@@ -7,6 +8,133 @@ import pytest
 # ----------------------------------
 # wandb.save
 # ----------------------------------
+
+
+def test_save_glob_metacharacters_not_matched_by_default(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    monkeypatch.chdir(tmp_path)
+    # "[1]" in a glob pattern is interpreted as a glob character class
+    # matching the single character "1" rather than the literal "[1]".
+    pathlib.Path("myfile[1].txt").touch()
+
+    run = mock_run()
+    run.save("myfile[1].txt", policy="now")
+
+    assert not pathlib.Path(run.dir, "myfile[1].txt").exists()
+    parsed = parse_records(record_q)
+    published = [f for files_record in parsed.files for f in files_record.files]
+    assert published == []
+
+
+def test_save_glob_escape_matches_literal_path(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    monkeypatch.chdir(tmp_path)
+
+    pathlib.Path("myfile[1].txt").touch()
+
+    run = mock_run()
+    # glob.escape() is the documented way to match file names
+    # that contain glob metacharacters while passing glob=True to save().
+    run.save(glob_module.escape("myfile[1].txt"), policy="now")
+
+    assert pathlib.Path(run.dir, "myfile[1].txt").exists()
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert file_record.path == "myfile[1].txt"
+
+
+def test_save_glob_false_treats_path_as_literal(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    monkeypatch.chdir(tmp_path)
+    pathlib.Path("myfile[1].txt").touch()
+
+    run = mock_run()
+    # glob=False disables glob pattern expansion (e.g., "*", "?", "[...]").
+    run.save("myfile[1].txt", policy="now", glob=False)
+
+    assert pathlib.Path(run.dir, "myfile[1].txt").exists()
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert file_record.path == "myfile[1].txt"
+
+    # Delete the source and call save() again with the same literal path.
+    # The file should still be detected as a "preexisting" match.
+    pathlib.Path("myfile[1].txt").unlink()
+    run.save("myfile[1].txt", policy="now", glob=False)
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert file_record.path == "myfile[1].txt"
+
+
+def test_save_glob_false_does_not_expand_wildcards(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    monkeypatch.chdir(tmp_path)
+    pathlib.Path("test.rad").touch()
+    pathlib.Path("foo.rad").touch()
+
+    run = mock_run()
+    # With glob=False, actual wildcard characters (e.g., "*", "?") are not expanded.
+    run.save("*.rad", policy="now", glob=False)
+
+    assert not pathlib.Path(run.dir, "test.rad").exists()
+    assert not pathlib.Path(run.dir, "foo.rad").exists()
+    parsed = parse_records(record_q)
+    published = [f for files_record in parsed.files for f in files_record.files]
+    assert published == []
+
+
+def test_save_glob_false_warns_when_metacharacters_and_no_literal_match(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    capsys,
+):
+    monkeypatch.chdir(tmp_path)
+
+    run = mock_run()
+    run.save("myfiles/*.txt", policy="now", glob=False)
+
+    _, err = capsys.readouterr()
+    # warn that the user may have meant to pass glob=True.
+    assert "glob=True" in err
+
+
+def test_save_glob_true_warns_when_metacharacters_and_no_glob_match(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    capsys,
+):
+    monkeypatch.chdir(tmp_path)
+
+    pathlib.Path("test[1].txt").touch()
+
+    run = mock_run()
+    run.save("test[1].txt", policy="now", glob=True)
+
+    _, err = capsys.readouterr()
+    # warn that the user may have meant to pass glob=False.
+    assert "glob=False" in err
 
 
 def test_save_relative_path(

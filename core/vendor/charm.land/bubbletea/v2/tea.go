@@ -4,9 +4,9 @@
 // both. It's been battle-tested in several large projects and is
 // production-ready.
 //
-// A tutorial is available at https://github.com/charmbracelet/bubbletea/tree/master/tutorials
+// A tutorial is available at https://github.com/charmbracelet/bubbletea/tree/main/tutorials
 //
-// Example programs can be found at https://github.com/charmbracelet/bubbletea/tree/master/examples
+// Example programs can be found at https://github.com/charmbracelet/bubbletea/tree/main/examples
 package tea
 
 import (
@@ -145,6 +145,20 @@ type View struct {
 	// ProgressBar when not nil, shows a progress bar in the terminal's
 	// progress bar section. Support depends on the terminal.
 	ProgressBar *ProgressBar
+
+	// ProgramStatus when not nil, reports the program status to the terminal
+	// using the Program Status Protocol (OSC 7501): whether the program is
+	// idle, working, waiting on the user, done, or failed. Support depends on
+	// the terminal.
+	//
+	// The status usually addresses the root record (empty ID). Changing it
+	// sends a new report, and setting it back to nil clears the record.
+	//
+	// The status is not cleared when the program exits, so done and error
+	// reports stay visible to the user. Report [ProgramStateDone],
+	// [ProgramStateError], or [ProgramStateIdle] before quitting rather than
+	// leaving a working or blocked status behind.
+	ProgramStatus *ProgramStatus
 
 	// AltScreen puts the program in the alternate screen buffer
 	// (i.e. the program goes into full window mode). Note that the altscreen will
@@ -317,15 +331,23 @@ const (
 	ProgressBarWarning
 )
 
-// String return a human-readable value for the given [ProgressBarState].
+// String returns a human-readable name for the given [ProgressBarState].
+// Values outside the known range return "Unknown".
 func (s ProgressBarState) String() string {
-	return [...]string{
-		"None",
-		"Default",
-		"Error",
-		"Indeterminate",
-		"Warning",
-	}[s]
+	switch s {
+	case ProgressBarNone:
+		return "None"
+	case ProgressBarDefault:
+		return "Default"
+	case ProgressBarError:
+		return "Error"
+	case ProgressBarIndeterminate:
+		return "Indeterminate"
+	case ProgressBarWarning:
+		return "Warning"
+	default:
+		return "Unknown"
+	}
 }
 
 // ProgressBar represents the terminal progress bar.
@@ -336,7 +358,7 @@ func (s ProgressBarState) String() string {
 type ProgressBar struct {
 	// State is the current state of the progress bar. It can be one of
 	// [ProgressBarNone], [ProgressBarDefault], [ProgressBarError],
-	// [ProgressBarIndeterminate], and [ProgressBarWarn].
+	// [ProgressBarIndeterminate], and [ProgressBarWarning].
 	State ProgressBarState
 	// Value is the current value of the progress bar. It should be between
 	// 0 and 100.
@@ -501,7 +523,13 @@ type Program struct {
 	msgs         chan Msg
 	errs         chan error
 	finished     chan struct{}
+	runMu        sync.Mutex
 	shutdownOnce sync.Once
+	started      atomic.Bool
+
+	// ranOnce reports whether [Program.Run] has been called before, so its
+	// per-run state can be reinitialized on subsequent runs.
+	ranOnce bool
 
 	profile *colorprofile.Profile // the terminal color profile
 
@@ -517,7 +545,8 @@ type Program struct {
 	// the environment variables for the program, defaults to os.Environ().
 	environ uv.Environ
 	// the program's logger for debugging.
-	logger uv.Logger
+	logger    uv.Logger
+	tracePath string
 
 	// where to read inputs from, this will usually be os.Stdin.
 	input io.Reader
@@ -531,14 +560,15 @@ type Program struct {
 	// modes keeps track of terminal modes that have been enabled or disabled.
 	ignoreSignals uint32
 
-	// ticker is the ticker that will be used to write to the renderer.
-	ticker *time.Ticker
-
 	// once is used to stop the renderer.
 	once sync.Once
 
 	// rendererDone is used to stop the renderer.
 	rendererDone chan struct{}
+
+	// rendererWake wakes the renderer when it has stopped its ticker because
+	// nothing was changing. See [Program.startRenderer].
+	rendererWake chan struct{}
 
 	// Initial window size. Mainly used for testing.
 	width, height int
@@ -597,7 +627,9 @@ func NewProgram(model Model, opts ...ProgramOption) *Program {
 		initialModel: model,
 		msgs:         make(chan Msg),
 		errs:         make(chan error, 1),
+		finished:     make(chan struct{}),
 		rendererDone: make(chan struct{}),
+		rendererWake: make(chan struct{}, 1),
 	}
 
 	// Apply all options to the program.
@@ -631,10 +663,7 @@ func NewProgram(model Model, opts ...ProgramOption) *Program {
 
 	tracePath, traceOk := os.LookupEnv("TEA_TRACE")
 	if traceOk && len(tracePath) > 0 {
-		// We have a trace filepath.
-		if f, err := os.OpenFile(tracePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600); err == nil {
-			p.logger = log.New(f, "bubbletea: ", log.LstdFlags|log.Lshortfile)
-		}
+		p.tracePath = tracePath
 	}
 
 	return p
@@ -666,11 +695,13 @@ func (p *Program) handleSignals() chan struct{} {
 
 			case s := <-sig:
 				if atomic.LoadUint32(&p.ignoreSignals) == 0 {
-					switch s {
-					case syscall.SIGINT:
-						p.msgs <- InterruptMsg{}
-					default:
-						p.msgs <- QuitMsg{}
+					var msg Msg = QuitMsg{}
+					if s == syscall.SIGINT {
+						msg = InterruptMsg{}
+					}
+					select {
+					case p.msgs <- msg:
+					case <-p.ctx.Done():
 					}
 					return
 				}
@@ -752,6 +783,10 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 		case msg := <-p.msgs:
 			msg = p.translateInputEvent(msg)
 
+			if size, ok := msg.(WindowSizeMsg); ok && !isPlausibleWindowSize(size.Width, size.Height) {
+				continue
+			}
+
 			// Filter messages.
 			if p.filter != nil {
 				msg = p.filter(model, msg)
@@ -808,35 +843,38 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 				}
 
 			case readClipboardMsg:
-				p.execute(ansi.RequestSystemClipboard)
+				p.executeQuery(ansi.RequestSystemClipboard)
 
 			case setClipboardMsg:
 				p.execute(ansi.SetSystemClipboard(string(msg)))
 
 			case readPrimaryClipboardMsg:
-				p.execute(ansi.RequestPrimaryClipboard)
+				p.executeQuery(ansi.RequestPrimaryClipboard)
 
 			case setPrimaryClipboardMsg:
 				p.execute(ansi.SetPrimaryClipboard(string(msg)))
 
 			case backgroundColorMsg:
-				p.execute(ansi.RequestBackgroundColor)
+				p.executeQuery(ansi.RequestBackgroundColor)
 
 			case foregroundColorMsg:
-				p.execute(ansi.RequestForegroundColor)
+				p.executeQuery(ansi.RequestForegroundColor)
 
 			case cursorColorMsg:
-				p.execute(ansi.RequestCursorColor)
+				p.executeQuery(ansi.RequestCursorColor)
+
+			case programStatusSupportMsg:
+				p.executeQuery(ansi.RequestProgramStatusSupport)
 
 			case execMsg:
 				// NB: this blocks.
 				p.exec(msg.cmd, msg.fn)
 
 			case terminalVersion:
-				p.execute(ansi.RequestNameVersion)
+				p.executeQuery(ansi.RequestNameVersion)
 
 			case requestCapabilityMsg:
-				p.execute(ansi.RequestTermcap(string(msg)))
+				p.executeQuery(ansi.RequestTermcap(string(msg)))
 
 			case BatchMsg:
 				go p.execBatchMsg(msg)
@@ -853,7 +891,7 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 				go p.checkResize()
 
 			case requestCursorPosMsg:
-				p.execute(ansi.RequestCursorPositionReport)
+				p.executeQuery(ansi.RequestCursorPositionReport)
 
 			case RawMsg:
 				p.execute(fmt.Sprint(msg.Msg))
@@ -886,6 +924,16 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 func (p *Program) render(model Model) {
 	if p.renderer != nil {
 		p.renderer.render(model.View()) // send view to renderer
+		p.wakeRenderer()
+	}
+}
+
+// wakeRenderer restarts the renderer's ticker if it was stopped because
+// nothing was changing. It never blocks.
+func (p *Program) wakeRenderer() {
+	select {
+	case p.rendererWake <- struct{}{}:
+	default:
 	}
 }
 
@@ -993,26 +1041,64 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 		return nil, errors.New("bubbletea: InitialModel cannot be nil")
 	}
 
+	// Acquire runMu for the duration of initialization. Kill() will also
+	// acquire runMu before calling shutdown(), preventing data races between
+	// Run() writing to fields like p.handlers, p.renderer, and
+	// p.cancelReader and Kill() reading them.
+	p.runMu.Lock()
+	initialized := false
+	defer func() {
+		if !initialized {
+			p.runMu.Unlock()
+		}
+	}()
+
+	p.finished = make(chan struct{})
+	defer close(p.finished)
+
+	if p.tracePath != "" {
+		if f, err := os.OpenFile(p.tracePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600); err == nil {
+			defer f.Close() //nolint:errcheck
+			p.logger = log.New(f, "bubbletea: ", log.LstdFlags|log.Lshortfile)
+		}
+	}
+
 	// Initialize context and teardown channel.
+	//
+	// When a previous run already tore down its per-run state, recreate it so
+	// the Program can be run again. The context is only recreated after an
+	// actual run: replacing it unconditionally would swallow a
+	// [Program.Kill] issued before the program started, which works by
+	// cancelling the context created in NewProgram.
+	if p.ranOnce {
+		p.ctx, p.cancel = context.WithCancel(p.externalCtx)
+		p.errs = make(chan error, 1)
+		p.shutdownOnce = sync.Once{}
+	}
+	p.ranOnce = true
+
 	p.handlers = channelHandlers{}
 	cmds := make(chan Cmd)
 
-	p.finished = make(chan struct{})
-	defer func() {
-		close(p.finished)
-	}()
-
 	defer p.cancel()
+	p.started.Store(true)
 
 	if p.disableInput {
 		p.input = nil
 	} else if p.input == nil {
 		p.input = os.Stdin
 		if !term.IsTerminal(os.Stdin.Fd()) {
-			ttyIn, _, err := OpenTTY()
+			ttyIn, ttyOut, err := OpenTTY()
 			if err != nil {
 				return p.initialModel, fmt.Errorf("bubbletea: error opening TTY: %w", err)
 			}
+			// Nothing else owns these files: close them when Run returns so
+			// each Run doesn't leak a /dev/tty fd (on Windows, CONIN$ and
+			// CONOUT$ handles).
+			defer func() {
+				_ = ttyIn.Close()
+				_ = ttyOut.Close()
+			}()
 			p.input = ttyIn
 		}
 	}
@@ -1035,6 +1121,10 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 	// Check if output is a TTY before entering raw mode, hiding the cursor and
 	// so on.
 	if err := p.initTerminal(); err != nil {
+		// The input may already be in raw mode at this point (on Windows it
+		// is made raw before the output console-mode setup), so restore the
+		// terminal before returning the error.
+		_ = p.restoreTerminalState()
 		return p.initialModel, err
 	}
 
@@ -1044,10 +1134,11 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 		// Set the initial size of the terminal.
 		w, h, err := term.GetSize(p.ttyOutput.Fd())
 		if err != nil {
+			_ = p.restoreTerminalState()
 			return p.initialModel, fmt.Errorf("bubbletea: error getting terminal size: %w", err)
 		}
 
-		width, height = w, h
+		width, height = p.fallbackDimensions(w, h)
 	}
 
 	p.width, p.height = width, height
@@ -1065,6 +1156,7 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 				p.height,
 			)
 			r.setLogger(p.logger)
+			r.setNoInput(p.disableInput)
 			// XXX: This breaks many things especially when we want the output
 			// to be compatible with terminals that are not necessary a TTY.
 			// This was originally done to work around a Wish emulated-pty
@@ -1099,6 +1191,7 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 	model := p.initialModel
 	if p.input != nil {
 		if err := p.initInputReader(false); err != nil {
+			_ = p.restoreTerminalState()
 			return model, err
 		}
 	}
@@ -1110,7 +1203,7 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 		// Query for synchronized updates support (mode 2026) and unicode core
 		// (mode 2027). If the terminal supports it, the renderer will enable
 		// it once we get the response.
-		p.execute(ansi.RequestModeSynchronizedOutput +
+		p.executeQuery(ansi.RequestModeSynchronizedOutput +
 			ansi.RequestModeUnicodeCore)
 	}
 
@@ -1138,6 +1231,10 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 
 	// Process commands.
 	p.handlers.add(p.handleCommands(cmds))
+
+	// Initialization is complete. Release the lock so Kill() can proceed.
+	p.runMu.Unlock()
+	initialized = true
 
 	// Run event loop, handle updates and draw.
 	var err error
@@ -1195,13 +1292,25 @@ func (p *Program) Send(msg Msg) {
 // If the program is not running this will be a no-op, so it's safe to call
 // if the program is unstarted or has already exited.
 func (p *Program) Quit() {
+	if !p.started.Load() {
+		return
+	}
 	p.Send(Quit())
 }
 
 // Kill stops the program immediately and restores the former terminal state.
 // The final render that you would normally see when quitting will be skipped.
 // [program.Run] returns a [ErrProgramKilled] error.
+//
+// If [Program.Run] is concurrently initializing, Kill will wait for it to
+// finish before performing shutdown. This prevents data races that could
+// occur when Kill reads fields that Run is still setting up.
 func (p *Program) Kill() {
+	// Wait for Run() to finish initializing before calling shutdown().
+	// This prevents data races between Run() writing to fields like
+	// p.handlers, p.renderer, and p.cancelReader and Kill() reading them.
+	p.runMu.Lock()
+	defer p.runMu.Unlock()
 	p.shutdown(true)
 }
 
@@ -1215,6 +1324,23 @@ func (p *Program) execute(seq string) {
 	p.mu.Lock()
 	_, _ = p.outputBuf.WriteString(seq)
 	p.mu.Unlock()
+	p.wakeRenderer()
+}
+
+// executeQuery writes a terminal query to the program output. Queries expect a
+// reply on p.input, so when input is disabled the query is skipped: the
+// program cannot read the response, and the terminal's reply would leak into
+// the shell once the program exits (#1590).
+//
+// This covers every query that expects a reply, not just the startup
+// capability probe: background, foreground, and cursor color requests, cursor
+// position reports, clipboard reads, and terminal version and termcap
+// queries.
+func (p *Program) executeQuery(seq string) {
+	if p.disableInput {
+		return
+	}
+	p.execute(seq)
 }
 
 // flush flushes the output buffer to the program output.
@@ -1289,14 +1415,14 @@ func (p *Program) recoverFromPanic(r interface{}) {
 	}
 }
 
-// recoverFromGoPanic recovers from a goroutine panic, prints a stack trace and
-// signals for the program to be killed and terminal restored to a usable state.
+// recoverFromGoPanic recovers from a goroutine panic, prints a stack trace,
+// restores the terminal to a usable state, and signals the program to be killed.
 func (p *Program) recoverFromGoPanic(r interface{}) {
 	select {
 	case p.errs <- ErrProgramPanic:
 	default:
 	}
-	p.cancel()
+	p.shutdown(true)
 	// We use "\r\n" to ensure the output is formatted even when restoring the
 	// terminal does not work or when raw mode is still active.
 	rec := strings.ReplaceAll(fmt.Sprintf("%s", r), "\n", "\r\n")
@@ -1324,9 +1450,8 @@ func (p *Program) releaseTerminal(reset bool) error {
 	atomic.StoreUint32(&p.ignoreSignals, 1)
 	if p.cancelReader != nil {
 		p.cancelReader.Cancel()
+		p.waitForReadLoop()
 	}
-
-	p.waitForReadLoop()
 
 	if p.renderer != nil {
 		p.stopRenderer(false)
@@ -1347,8 +1472,10 @@ func (p *Program) RestoreTerminal() error {
 	if err := p.initTerminal(); err != nil {
 		return err
 	}
-	if err := p.initInputReader(false); err != nil {
-		return err
+	if p.input != nil {
+		if err := p.initInputReader(false); err != nil {
+			return err
+		}
 	}
 
 	p.startRenderer()
@@ -1367,10 +1494,11 @@ func (p *Program) RestoreTerminal() error {
 // and will persist across renders by the Program.
 //
 // If the altscreen is active no output will be printed.
+// If the program has already exited this is a no-op.
 func (p *Program) Println(args ...any) {
-	p.msgs <- printLineMessage{
+	p.Send(printLineMessage{
 		messageBody: fmt.Sprint(args...),
-	}
+	})
 }
 
 // Printf prints above the Program. It takes a format template followed by
@@ -1381,22 +1509,22 @@ func (p *Program) Println(args ...any) {
 // its own line.
 //
 // If the altscreen is active no output will be printed.
+// If the program has already exited this is a no-op.
 func (p *Program) Printf(template string, args ...any) {
-	p.msgs <- printLineMessage{
+	p.Send(printLineMessage{
 		messageBody: fmt.Sprintf(template, args...),
-	}
+	})
 }
 
 // startRenderer starts the renderer.
 func (p *Program) startRenderer() {
 	framerate := time.Second / time.Duration(p.fps)
-	if p.ticker == nil {
-		p.ticker = time.NewTicker(framerate)
-	} else {
-		// If the ticker already exists, it has been stopped and we need to
-		// reset it.
-		p.ticker.Reset(framerate)
-	}
+	// Stop ticking after about half a second of frames with nothing to draw.
+	idleFrames := max(p.fps/2, 1)
+
+	// Each run of the renderer gets its own ticker, so a goroutine that is
+	// still exiting can't stop the ticker of the next one.
+	ticker := time.NewTicker(framerate)
 
 	// Since the renderer can be restarted after a stop, we need to reset
 	// the done channel and its corresponding sync.Once.
@@ -1405,15 +1533,43 @@ func (p *Program) startRenderer() {
 	// Start the renderer.
 	p.renderer.start()
 	go func() {
+		defer ticker.Stop()
+
+		var (
+			idle    int       // consecutive frames with nothing to draw
+			parked  bool      // whether the ticker is stopped
+			realign bool      // whether the ticker runs a shortened interval
+			last    time.Time // when the ticker last fired
+		)
 		for {
 			select {
 			case <-p.rendererDone:
-				p.ticker.Stop()
 				return
 
-			case <-p.ticker.C:
+			case <-p.rendererWake:
+				if !parked {
+					continue
+				}
+				// Resume on the same frame boundaries as if the ticker had
+				// never stopped, so frames are drawn exactly when they
+				// would have been.
+				parked, realign = false, true
+				ticker.Reset(framerate - time.Since(last)%framerate)
+
+			case last = <-ticker.C:
+				if realign {
+					realign = false
+					ticker.Reset(framerate)
+				}
 				_ = p.flush()
-				_ = p.renderer.flush(false)
+				if drew, _ := p.renderer.flush(false); drew {
+					idle = 0
+				} else if idle++; idle >= idleFrames {
+					// Nothing is changing. Stop waking up every frame until
+					// there is something to draw, see [Program.wakeRenderer].
+					ticker.Stop()
+					parked = true
+				}
 			}
 		}
 	}()
@@ -1430,7 +1586,7 @@ func (p *Program) stopRenderer(kill bool) {
 
 	if !kill {
 		// flush locks the mutex
-		_ = p.renderer.flush(true)
+		_, _ = p.renderer.flush(true)
 	}
 
 	_ = p.renderer.close()

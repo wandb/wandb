@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
 import getpass
 import json
 import logging
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -19,35 +19,47 @@ from functools import wraps
 from typing import Any
 
 import click
-import yaml
 from click.exceptions import ClickException
 
 import wandb
 import wandb.errors
-import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import get_sentry
-from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public import RunQueue
+from wandb import Error, env, util, wandb_agent
+from wandb.analytics import get_telemetry_recorder
 from wandb.errors.links import url_registry
-from wandb.old import core as old_core
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
-from wandb.sdk.internal.internal_api import Api as SDKInternalApi
-from wandb.sdk.launch import utils as launch_utils
-from wandb.sdk.launch._launch_add import _launch_add
-from wandb.sdk.launch.errors import ExecutionError, LaunchError
-from wandb.sdk.launch.sweeps import SweepNotFoundError
-from wandb.sdk.launch.sweeps import utils as sweep_utils
-from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.lib import filesystem, settings_file
-from wandb.sync import SyncManager, get_run_from_path, get_runs
+from wandb.sdk.lib import config_util, filesystem, settings_file, urls, wbauth
+from wandb.sdk.lib.filenames import DIFF_FNAME
+from wandb.sdk.lib.hashutil import md5_file_b64
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.sweeps import SweepNotFoundError
 
 from .beta import beta
+from .clean import clean
+from .leet import leet
+
+
+def _get_wandb_dir(root_dir: str | None = None) -> str:
+    if root_dir is None or root_dir == "":
+        try:
+            cwd = os.getcwd()
+        except OSError:
+            wandb.termwarn("os.getcwd() no longer exists, using system temp directory")
+            cwd = tempfile.gettempdir()
+        root_dir = env.get_dir(cwd)
+
+    dirname = ".wandb" if os.path.exists(os.path.join(root_dir, ".wandb")) else "wandb"
+    path = os.path.join(root_dir, dirname)
+    if not os.access(root_dir, os.W_OK):
+        wandb.termwarn(
+            f"Path {path} wasn't writable, using system temp directory", repeat=False
+        )
+        path = os.path.join(tempfile.gettempdir(), dirname)
+    return path
+
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
-_wandb_dir = old_core.wandb_dir(env.get_dir())
+_wandb_dir = _get_wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir) or not os.access(_wandb_dir, os.W_OK):
     _wandb_dir = tempfile.gettempdir()
 
@@ -88,11 +100,6 @@ RUN_CONTEXT = {
     "allow_extra_args": True,
     "ignore_unknown_options": True,
 }
-
-
-def cli_unsupported(argument):
-    wandb.termerror(f"Unsupported argument `{argument}`")
-    sys.exit(1)
 
 
 class ClickWandbException(ClickException):
@@ -160,34 +167,38 @@ def display_error(func):
     return wrapper
 
 
-_api = None  # caching api instance allows patching from unit tests
+def _configured_api_key() -> str | None:
+    """The API key from the environment or netrc, without prompting for one."""
+    settings = wandb_setup.singleton().settings
+    return settings.api_key or wbauth.read_netrc_auth(host=settings.base_url)
 
 
-def _get_cling_api(reset=None):
-    """Get a reference to the internal api with cling settings."""
-    global _api
-    if reset:
-        _api = None
-        wandb.teardown()
-    if _api is None:
-        # TODO(jhr): make a settings object that is better for non runs.
-        # only override the necessary setting
-        wandb_setup.singleton().settings.x_cli_only_mode = True
-        _api = InternalApi()
-    return _api
+def _run_file_text(api_run, name: str) -> str | None:
+    """Return the contents of a run's file, or None if the run has no such file."""
+    for file in api_run.files(names=[name]):
+        if file.updated_at:
+            with (
+                tempfile.TemporaryDirectory() as tmpdir,
+                file.download(root=tmpdir) as f,
+            ):
+                return f.read()
+    return None
 
 
-def prompt_for_project(ctx, entity):
+def _format_project(project: str) -> str:
+    return re.sub(r"\W+", "-", project.lower()).strip("-_")
+
+
+def prompt_for_project(ctx, entity, api):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
-    api = _get_cling_api()
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
-            # description = editor()
-            project = api.upsert_project(project, entity=entity)["name"]
+            project = _format_project(project)
+            api.create_project(project, entity)
         else:
-            project_names = [project["name"] for project in result] + ["Create New"]
+            project_names = [project.name for project in result] + ["Create New"]
             wandb.termlog("Which project should we use?")
             result = util.prompt_choices(project_names)
             if result:
@@ -197,12 +208,11 @@ def prompt_for_project(ctx, entity):
             # TODO: check with the server if the project exists
             if project == "Create New":
                 project = click.prompt(
-                    "Enter a name for your new project", value_proc=api.format_project
+                    "Enter a name for your new project", value_proc=_format_project
                 )
-                # description = editor()
-                project = api.upsert_project(project, entity=entity)["name"]
+                api.create_project(project, entity)
 
-    except wandb.errors.CommError as e:
+    except (wandb.Error, WandbApiFailedError) as e:
         raise ClickException(str(e))
 
     return project
@@ -239,8 +249,9 @@ def cli(ctx):
 @display_error
 def projects(entity, display=True):
     """List projects for the current entity."""
-    api = _get_cling_api()
-    projects = api.list_projects(entity=entity)
+    api = wandb.Api()
+    entity = entity or api.settings["entity"] or api.default_entity
+    projects = api.projects(entity)
     if len(projects) == 0:
         message = f"No projects found for {entity}"
     else:
@@ -248,15 +259,7 @@ def projects(entity, display=True):
     if display:
         click.echo(click.style(message, bold=True))
         for project in projects:
-            click.echo(
-                "".join(
-                    (
-                        click.style(project["name"], fg="blue", bold=True),
-                        " - ",
-                        str(project["description"] or "").split("\n")[0],
-                    )
-                )
-            )
+            click.echo(click.style(project.name, fg="blue", bold=True))
     return projects
 
 
@@ -266,7 +269,7 @@ def projects(entity, display=True):
     "--cloud",
     is_flag=True,
     help="""Log in to the W&B public cloud
-    (https://api.wandb.ai).
+    (https://api.forge.coreweave.com).
     Mutually exclusive with --host.""",
 )
 @click.option(
@@ -293,7 +296,7 @@ def projects(entity, display=True):
 )
 @click.option(
     "--verify/--no-verify",
-    default=False,
+    default=True,
     is_flag=True,
     help="""Verify the API key with W&B after storing it. If verification
     is successful, display the source of the credentials and the
@@ -329,9 +332,9 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
         $ wandb login WANDB_API_KEY_EXAMPLE
 
-    To log in and verify the API key is valid:
+    To log in and bypass verifying the API key:
 
-        $ wandb login --verify
+        $ wandb login --no-verify
 
     To log in to the W&B public cloud instead of a configured self-hosted instance:
 
@@ -358,7 +361,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         sys.exit(1)
 
     if cloud:
-        host = "https://api.wandb.ai"
+        host = urls.DEFAULT_BASE_URL
 
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
@@ -453,44 +456,11 @@ def init(ctx, project, entity, reset, mode):
         click.echo(
             click.style("Let's setup this directory for W&B!", fg="green", bold=True)
         )
-    api = _get_cling_api()
-    if api.api_key is None:
-        ctx.invoke(login)
-        api = _get_cling_api(reset=True)
+    api = wandb.Api()
+    viewer = api.viewer
 
-    viewer = api.viewer()
-
-    # Viewer can be `None` in case your API information became invalid, or
-    # in testing if you switch hosts.
-    if not viewer:
-        click.echo(
-            click.style(
-                "Your login information seems to be invalid: can you log in again please?",
-                fg="red",
-                bold=True,
-            )
-        )
-        ctx.invoke(login)
-        api = _get_cling_api(reset=True)
-
-    # This shouldn't happen.
-    viewer = api.viewer()
-    if not viewer:
-        click.echo(
-            click.style(
-                "We're sorry, there was a problem logging you in. "
-                "Please send us a note at support@wandb.com and tell us how this happened.",
-                fg="red",
-                bold=True,
-            )
-        )
-        sys.exit(1)
-
-    # At this point we should be logged in successfully.
-    if len(viewer["teams"]["edges"]) > 1:
-        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
-            "Manual entry"
-        ]
+    if len(viewer.teams) > 1:
+        team_names = viewer.teams + ["Manual entry"]
         wandb.termlog(
             "Which team should we use?",
         )
@@ -503,13 +473,11 @@ def init(ctx, project, entity, reset, mode):
         if entity == "Manual Entry":
             entity = click.prompt("Enter the name of the team you want to use")
     else:
-        entity = viewer.get("entity") or click.prompt(
-            "What username or team should we use?"
-        )
+        entity = viewer.entity or click.prompt("What username or team should we use?")
 
     # TODO: this error handling sucks and the output isn't pretty
     try:
-        project = prompt_for_project(ctx, entity)
+        project = prompt_for_project(ctx, entity, api)
     except ClickWandbException:
         raise ClickException(f"Could not find team: {entity}")
 
@@ -540,373 +508,202 @@ def init(ctx, project, entity, reset, mode):
 
 
 @cli.command(context_settings=CONTEXT)
-@click.pass_context
-@click.argument("path", nargs=-1, type=click.Path(exists=True))
+@click.argument("paths", nargs=-1, type=click.Path(exists=True))
 @click.option(
-    "--view",
-    is_flag=True,
-    default=False,
-    help="View runs.",
-    hidden=True,
-)
-@click.option(
+    "-v",
     "--verbose",
     is_flag=True,
-    default=False,
-    help="Enable verbose output.",
-    hidden=True,
-)
-@click.option("--id", "run_id", help="Upload to an existing run ID.")
-@click.option("--project", "-p", help="Set the project to upload the run to.")
-@click.option("--entity", "-e", help="Set the entity to scope the project to.")
-@click.option(
-    "--job_type",
-    "job_type",
-    help="Set the job type to group related runs.",
+    help="Print more information.",
 )
 @click.option(
-    "--sync-tensorboard/--no-sync-tensorboard",
+    "--yes",
+    "skip_confirmation",
     is_flag=True,
-    default=None,
-    help="""Sync TensorBoard tfevent files.
-    On by default for specific paths,
-    off for --sync-all.""",
+    help="Don't prompt for confirmation.",
 )
 @click.option(
-    "--include-globs",
-    help="Include only runs matching these glob patterns (comma-separated).",
+    "--id",
+    "run_id",
+    help="""Upload to an existing run ID.
+
+    If this is set when syncing multiple files (with the same entity
+    and project), the files will be synced in order of start time.
+    """,
 )
 @click.option(
-    "--exclude-globs",
-    help="Exclude runs matching these glob patterns (comma-separated).",
+    "--project",
+    "-p",
+    help="Override the project for all synced runs.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    help="Override the entity for all synced runs.",
+)
+@click.option(
+    "--job-type",
+    "job_type",
+    help="Override the job type for all synced runs.",
 )
 @click.option(
     "--include-online/--no-include-online",
+    "--no-skip-online/--skip-online",
     is_flag=True,
     default=None,
     help="Include runs created in online mode.",
 )
 @click.option(
-    "--include-offline/--no-include-offline",
-    is_flag=True,
-    default=None,
-    help="Include runs created in offline mode.",
-)
-@click.option(
     "--include-synced/--no-include-synced",
+    "--no-skip-synced/--skip-synced",
     is_flag=True,
     default=None,
     help="Include runs that are already synced.",
 )
 @click.option(
-    "--mark-synced/--no-mark-synced",
-    is_flag=True,
-    default=True,
-    help="Mark runs as synced after upload.",
-)
-@click.option(
-    "--sync-all",
-    is_flag=True,
-    default=False,
-    help="Sync all unsynced runs in the local wandb directory.",
-)
-@click.option(
-    "--clean",
-    is_flag=True,
-    default=False,
-    help="Delete local data for runs that are already synced.",
-)
-@click.option(
-    "--clean-old-hours",
-    default=24,
-    help="""Delete only synced runs older than this many
-    hours (use with --clean).""",
-    type=int,
-)
-@click.option(
-    "--clean-force",
-    is_flag=True,
-    default=False,
-    help="Skip the confirmation prompt if --clean is specified.",
-)
-@click.option("--ignore", hidden=True)
-@click.option(
-    "--show", default=5, help="Set the number of runs to show in the summary."
-)
-@click.option(
-    "--append",
-    is_flag=True,
-    default=False,
-    help="Append data to an existing run instead of creating a new run.",
-)
-@click.option(
-    "--skip-console",
-    is_flag=True,
-    default=False,
-    help="Skip uploading console logs.",
-)
-@click.option(
     "--replace-tags",
-    help="Rename tags during sync. Use 'old=new' pairs separated by commas.",
+    help="Rename tags using the format 'old1=new1,old2=new2'.",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print what would happen without uploading anything.",
+)
+@click.option(
+    "-n",
+    "parallelism",
+    default=5,  # Same as for `wandb beta sync`
+    help="""Max number of runs to sync at a time.
+
+    When syncing multiple files that are part of the same run,
+    the files are synced sequentially in order of start time
+    regardless of this setting. This happens for resumed runs
+    or when using the --id parameter.
+    """,
+)
+# Removed options. Kept to provide a nice message for a few releases.
+@click.option("--sync-tensorboard", hidden=True, is_flag=True, default=None)
+@click.option("--include-globs", hidden=True, default=None)
+@click.option("--exclude-globs", hidden=True, default=None)
+@click.option("--include-offline/--no-include-offline", hidden=True, default=None)
+@click.option("--clean", hidden=True, is_flag=True, default=None)
+@click.option("--clean-old-hours", hidden=True, default=None)
+@click.option("--clean-force", hidden=True, is_flag=True, default=None)
+@click.option("--mark-synced/--no-mark-synced", hidden=True, default=None)
+@click.option("--sync-all", hidden=True, is_flag=True, default=None)
+@click.option("--skip-console", hidden=True, is_flag=True, default=None)
+@click.option("--legacy", hidden=True, is_flag=True, default=None)
 @display_error
 def sync(
-    ctx,
-    path=None,
-    view=None,
-    verbose=None,
-    run_id=None,
-    project=None,
-    entity=None,
-    job_type=None,  # trace this back to SyncManager
-    sync_tensorboard=None,
-    include_globs=None,
-    exclude_globs=None,
-    include_online=None,
-    include_offline=None,
-    include_synced=None,
-    mark_synced=None,
-    sync_all=None,
-    ignore=None,
-    show=None,
-    clean=None,
-    clean_old_hours=24,
-    clean_force=None,
-    append=None,
-    skip_console=None,
-    replace_tags=None,
+    paths: tuple[str, ...],
+    verbose: bool,
+    skip_confirmation: bool,
+    run_id: str | None,
+    project: str | None,
+    entity: str | None,
+    job_type: str | None,
+    replace_tags: str | None,
+    include_online: bool | None,
+    include_synced: bool | None,
+    dry_run: bool,
+    parallelism: int,
+    # Removed options:
+    sync_tensorboard: bool | None,
+    include_globs: str | None,
+    exclude_globs: str | None,
+    include_offline: bool | None,
+    mark_synced: bool | None,
+    sync_all: bool | None,
+    clean: bool | None,
+    clean_old_hours: int | None,
+    clean_force: bool | None,
+    skip_console: bool | None,
+    legacy: bool | None,
 ):
     """Upload existing local W&B run data to the cloud.
 
-    Sync offline or incomplete runs from the local `wandb` directory to
-    the W&B server. If PATH is provided, sync runs at that path. If no
-    path is given, search for a ./wandb directory, then a wandb/
-    subdirectory.
+    Sync offline or incomplete runs to the W&B server. Provide PATHS to sync
+    specific runs, or run with no arguments to sync un-uploaded runs in the
+    wandb folder.
 
-    Run without arguments to print a summary of synced and unsynced
-    runs without uploading anything.
+    When no PATHS are given, this will ask for confirmation before
+    syncing. Pass --yes to skip confirmation or --dry-run to exit without
+    syncing.
 
-    When syncing a specific path, include TensorBoard event files
-    by default. When using `--sync-all`, disable TensorBoard by
-    default (use `--sync-tensorboard` to enable it).
+    PATHS should be run directories, usually in the format
 
-    PATH is a .wandb file or a run directory that contains a .wandb file.
-    A typical path looks like:
+    ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID
 
-    ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
-
-    where run-YYYYMMDD_HHMMSS-RUN_ID is the run directory and
-    run-RUN_ID.wandb is the .wandb file. YYYYMMDD_HHMMSS is the
-    timestamp of when the run was created and RUN_ID is the unique ID
-    of the run.
+    YYYYMMDD_HHMMSS is the timestamp of when the run was created and RUN_ID is
+    its unique ID.
 
     For example, to show a summary of local runs and their sync status:
 
-        $ wandb sync
+        $ wandb sync --dry-run
 
-    To sync run ID abcd1234 that is locally saved locally in
-    the ./wandb/run-20170617_000000-abcd1234 directory:
+    To sync run ID abcd1234 that is saved in ./wandb/run-20170617_000000-abcd1234:
 
         $ wandb sync ./wandb/run-20170617_000000-abcd1234
 
-    To sync run abcd1234 by its local .wandb
-    filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb):
+    To sync all unsynced runs in the wandb folder:
 
-        $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
+        $ wandb sync
 
-    To sync all unsynced runs in the local wandb directory:
+    Use `wandb clean` to delete local data for runs that have been synced. See
 
-        $ wandb sync --sync-all
+        $ wandb clean --help
 
-    To delete local data for runs that have already been synced:
-
-        $ wandb sync --clean
-
-    To delete synced runs older than 48 hours without a confirmation prompt:
-
-        $ wandb sync --clean --clean-old-hours 48 --clean-force
+    for more info.
     """
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to sync runs")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
+    from wandb.cli import beta_sync
 
-    if ignore:
-        exclude_globs = ignore
-    if include_globs:
-        include_globs = include_globs.split(",")
-    if exclude_globs:
-        exclude_globs = exclude_globs.split(",")
+    if clean is not None or clean_old_hours is not None or clean_force is not None:
+        raise ClickException("Use `wandb clean` instead of `wandb sync --clean`")
 
-    replace_tags_dict = _parse_sync_replace_tags(replace_tags)
-    if replace_tags and replace_tags_dict is None:
-        return  # Error already printed by helper function
-
-    def _summary():
-        all_items = get_runs(
-            include_online=True,
-            include_offline=True,
-            include_synced=True,
-            include_unsynced=True,
+    if sync_all is not None:
+        raise ClickException(
+            "`--sync-all` has been removed."
+            + " Use `wandb sync` without arguments instead, or pass --yes"
+            + " in scripts."
         )
-        sync_items = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else False,
-            include_unsynced=True,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
+
+    removed_options: list[str] = []
+    if sync_tensorboard is not None:
+        removed_options.append("--sync-tensorboard")
+    if include_globs is not None:
+        removed_options.append("--include-globs")
+    if exclude_globs is not None:
+        removed_options.append("--exclude-globs")
+    if include_offline is not None:
+        removed_options.append("--include-offline/--no-include-offline")
+    if mark_synced is not None:
+        removed_options.append("--mark-synced/--no-mark-synced")
+    if skip_console is not None:
+        removed_options.append("--skip-console")
+    if legacy is not None:
+        removed_options.append("--legacy")
+
+    if removed_options:
+        removed_options_str = ", ".join(removed_options)
+        raise ClickException(
+            f"The following options have been removed: {removed_options_str}."
+            + " Downgrade to wandb<=0.29.0 to use them.",
         )
-        synced = []
-        unsynced = []
-        for item in all_items:
-            (synced if item.synced else unsynced).append(item)
-        if sync_items:
-            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
-            if show and show < len(sync_items):
-                wandb.termlog(f"Showing {show} runs to be synced:")
-            for item in sync_items[: (show or len(sync_items))]:
-                wandb.termlog(f"  {item}")
-        else:
-            wandb.termlog("No runs to be synced.")
-        if synced:
-            clean_cmd = click.style("wandb sync --clean", fg="yellow")
-            wandb.termlog(
-                f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
-            )
-        if unsynced:
-            sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
-            wandb.termlog(
-                f"NOTE: use {sync_cmd} to sync {len(unsynced)} unsynced runs from local directory."
-            )
 
-    def _sync_path(_path, _sync_tensorboard):
-        if run_id and len(_path) > 1:
-            wandb.termerror("id can only be set for a single run.")
-            sys.exit(1)
-        sm = SyncManager(
-            project=project,
-            entity=entity,
-            run_id=run_id,
-            job_type=job_type,
-            mark_synced=mark_synced,
-            app_url=api.app_url,
-            view=view,
-            verbose=verbose,
-            sync_tensorboard=_sync_tensorboard,
-            log_path=_wandb_log_path,
-            append=append,
-            skip_console=skip_console,
-            replace_tags=replace_tags_dict,
-        )
-        for p in _path:
-            sm.add(p)
-        sm.start()
-        while not sm.is_done():
-            _ = sm.poll()
-
-    def _sync_all():
-        sync_items = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else False,
-            include_unsynced=True,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
-        )
-        if not sync_items:
-            wandb.termerror("Nothing to sync.")
-        else:
-            # When syncing run directories, default to not syncing tensorboard
-            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
-            _sync_path(sync_items, sync_tb)
-
-    def _clean():
-        if path:
-            runs = list(map(get_run_from_path, path))
-            if not clean_force:
-                click.confirm(
-                    click.style(
-                        f"Are you sure you want to remove {len(runs)} runs?",
-                        bold=True,
-                    ),
-                    abort=True,
-                )
-            for run in runs:
-                shutil.rmtree(run.path)
-            click.echo(click.style("Success!", fg="green"))
-            return
-        runs = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else True,
-            include_unsynced=False,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
-        )
-        since = datetime.datetime.now() - datetime.timedelta(hours=clean_old_hours)
-        old_runs = [run for run in runs if run.datetime < since]
-        old_runs.sort(key=lambda _run: _run.datetime)
-        if old_runs:
-            click.echo(
-                f"Found {len(runs)} runs, {len(old_runs)} are older than {clean_old_hours} hours"
-            )
-            for run in old_runs:
-                click.echo(run.path)
-            if not clean_force:
-                click.confirm(
-                    click.style(
-                        f"Are you sure you want to remove {len(old_runs)} runs?",
-                        bold=True,
-                    ),
-                    abort=True,
-                )
-            for run in old_runs:
-                shutil.rmtree(run.path)
-            click.echo(click.style("Success!", fg="green"))
-        else:
-            click.echo(
-                click.style(
-                    f"No runs older than {clean_old_hours} hours found", fg="red"
-                )
-            )
-
-    if sync_all:
-        _sync_all()
-    elif clean:
-        _clean()
-    elif path:
-        # When syncing a specific path, default to syncing tensorboard
-        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
-        _sync_path(path, sync_tb)
-    else:
-        _summary()
-
-
-def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
-    """Parse replace_tags string into a dictionary.
-
-    Args:
-        replace_tags: String in format 'old_tag1=new_tag1,old_tag2=new_tag2'
-
-    Returns:
-        Mapping of old tags to new tags, or None if format is invalid
-    """
-    if not replace_tags:
-        return {}
-
-    replace_tags_dict = {}
-    for pair in replace_tags.split(","):
-        if "=" not in pair:
-            wandb.termerror(
-                f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
-            )
-            return None
-        old_tag, new_tag = pair.split("=", 1)
-        replace_tags_dict[old_tag.strip()] = new_tag.strip()
-
-    return replace_tags_dict
+    beta_sync.sync(
+        [pathlib.Path(p) for p in paths],
+        live=False,
+        entity=entity or "",
+        project=project or "",
+        run_id=run_id or "",
+        job_type=job_type or "",
+        replace_tags=replace_tags or "",
+        dry_run=dry_run,
+        skip_confirmation=skip_confirmation,
+        skip_synced=not include_synced,
+        skip_online=not include_online,
+        verbose=verbose,
+        parallelism=parallelism,
+    )
 
 
 @cli.command(context_settings=CONTEXT)
@@ -955,7 +752,8 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 @click.option(
     "--update",
     default=None,
-    help="Update an existing sweep configuration. Pass the sweep ID.",
+    help="""Update the configuration of a sweep while it is still
+    pending, before any run has started. Pass the sweep ID.""",
 )
 @click.option(
     "--stop",
@@ -1035,9 +833,7 @@ def sweep(
 
         $ wandb sweep -p foobar -e team-awesome sweep_config.yaml
 
-    To update sweep abcd1234 with a new configuration from sweep_config.yaml.
-    This is useful for changing the parameters or search strategy of an
-    active sweep:
+    To update sweep abcd1234 with a new configuration from sweep_config.yaml:
 
         $ wandb sweep --update abcd1234 sweep_config.yaml
 
@@ -1068,6 +864,13 @@ def sweep(
 
         $ wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
     """
+    from wandb.apis.public.sweeps import (
+        _set_sweep_state,
+        _sweep_with_runs,
+        _upsert_sweep,
+    )
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
     is_state_change_command = sum(lcls[k] for k in state_args)
@@ -1075,11 +878,7 @@ def sweep(
         raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
-        api = _get_cling_api()
-        if not api.is_authenticated:
-            wandb.termlog("Login to W&B to use the sweep feature")
-            ctx.invoke(login, no_offline=True)
-            api = _get_cling_api(reset=True)
+        api = wandb.Api()
         parts = dict(entity=entity, project=project, name=sweep_id)
         err = sweep_utils.parse_sweep_id(parts)
         if err:
@@ -1096,7 +895,18 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        getattr(api, f"{state}_sweep")(sweep_id, entity=entity, project=project)
+        _set_sweep_state(
+            api,
+            sweep_id,
+            {
+                "stop": "FINISHED",
+                "cancel": "CANCELED",
+                "pause": "PAUSED",
+                "resume": "RUNNING",
+            }[state],
+            entity=entity,
+            project=project,
+        )
         wandb.termlog("Done.")
         return
     else:
@@ -1118,11 +928,7 @@ def sweep(
         wandb.termwarn("Unable to parse settings parameter", repeat=False)
         return ret
 
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
+    api = wandb.Api()
 
     sweep_obj_id = None
     if update:
@@ -1135,8 +941,8 @@ def sweep(
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
 
-        has_project = (project or api.settings("project")) is not None
-        has_entity = (entity or api.settings("entity")) is not None
+        has_project = (project or api.settings["project"]) is not None
+        has_entity = (entity or api.settings["entity"]) is not None
 
         termerror_msg = (
             "Sweep lookup requires a valid %s, and none was specified. \n"
@@ -1153,7 +959,7 @@ def sweep(
             wandb.termerror(termerror_msg % (("project",) * 2))
             return
 
-        found = api.sweep(sweep_id, "{}", entity=entity, project=project)
+        found = _sweep_with_runs(api, sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
             return
@@ -1192,17 +998,18 @@ def sweep(
         entity
         or env.get("WANDB_ENTITY")
         or config.get("entity")
-        or api.settings("entity")
+        or api.settings["entity"]
     )
     project = (
         project
         or env.get("WANDB_PROJECT")
         or config.get("project")
-        or api.settings("project")
+        or api.settings["project"]
         or util.auto_project_name(config.get("program"))
     )
 
-    sweep_id, warnings = api.upsert_sweep(
+    sweep_obj, warnings = _upsert_sweep(
+        api,
         config,
         project=project,
         entity=entity,
@@ -1210,12 +1017,18 @@ def sweep(
         prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
+    sweep_id = sweep_obj["name"]
 
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
-    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(
+        base_url=api.settings["base_url"],
+        entity=api.settings["entity"] or api.default_entity,
+        project=api.settings["project"],
+        sweep_id=sweep_id,
+    )
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1236,6 +1049,11 @@ def sweep(
 
     styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
     wandb.termlog(f"Run sweep agent with: {styled_path}")
+    if config is not None and config.get("scheduler") is not None:
+        styled_scheduler = click.style(
+            f"wandb sweep-scheduler {sweep_path}", fg="yellow"
+        )
+        wandb.termlog(f"Run scheduler with: {styled_scheduler}")
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -1294,25 +1112,29 @@ def launch_sweep(
     resume_id,
     prior_runs,
 ):
-    api = _get_cling_api()
-    env = os.environ
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
+    import yaml
 
-    entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
+    from wandb.apis.public.sweeps import _sweep_with_runs, _upsert_sweep
+    from wandb.sdk.launch import utils as launch_utils
+    from wandb.sdk.launch.api import LaunchApi
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+    from wandb.sdk.launch.sweeps.scheduler import Scheduler
+
+    api = LaunchApi()
+    env = os.environ
+
+    entity = entity or env.get("WANDB_ENTITY") or api.settings["entity"]
     if entity is None:
         wandb.termerror("Must specify entity when using launch")
         return
 
-    project = project or env.get("WANDB_PROJECT") or api.settings("project")
+    project = project or env.get("WANDB_PROJECT") or api.settings["project"]
     if project is None:
         wandb.termerror("A project must be configured when using launch")
         return
 
     # get personal username, not team name or service account, default to entity
-    author = api.viewer().get("username") or entity
+    author = api.viewer.username or entity
 
     # if not sweep_config XOR resume_id
     if not (config or resume_id):
@@ -1354,7 +1176,7 @@ def launch_sweep(
             sweep_config["method"] = settings["method"]
 
     else:  # Resuming an existing sweep
-        found = api.sweep(resume_id, "{}", entity=entity, project=project)
+        found = _sweep_with_runs(api, resume_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
             return
@@ -1407,11 +1229,11 @@ def launch_sweep(
         return
 
     # validate training job existence
-    if not sweep_utils.check_job_exists(PublicApi(), sweep_config.get("job")):
+    if not sweep_utils.check_job_exists(wandb.Api(), sweep_config.get("job")):
         return False
 
     # validate scheduler job existence, if present
-    if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
+    if not sweep_utils.check_job_exists(wandb.Api(), scheduler_job):
         return False
 
     # Set run overrides for the Scheduler
@@ -1470,7 +1292,8 @@ def launch_sweep(
         }
     )
 
-    sweep_id, warnings = api.upsert_sweep(
+    sweep_obj, warnings = _upsert_sweep(
+        api,
         sweep_config,
         project=project,
         entity=entity,
@@ -1481,10 +1304,16 @@ def launch_sweep(
         template_variable_values=scheduler_args.get("template_variables"),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
+    sweep_id = sweep_obj["name"]
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
-    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(
+        base_url=api.settings["base_url"],
+        entity=api.settings["entity"] or api.default_entity,
+        project=api.settings["project"],
+        sweep_id=sweep_id,
+    )
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1720,6 +1549,11 @@ def launch(
     Running `wandb launch [URI]` will launch the run directly. To add the
     run to a queue, run `wandb launch [URI] --queue [optional queuename]`.
     """
+    from wandb.sdk.launch import utils as launch_utils
+    from wandb.sdk.launch._launch_add import _launch_add
+    from wandb.sdk.launch.api import LaunchApi
+    from wandb.sdk.launch.errors import ExecutionError, LaunchError
+
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
@@ -1727,8 +1561,12 @@ def launch(
     from wandb.sdk.launch.create_job import _create_job
     from wandb.sdk.launch.utils import _is_git_uri
 
-    api = _get_cling_api()
-    get_sentry().configure_scope(process_context="launch_cli")
+    api = LaunchApi()
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "launch_cli",
+        }
+    )
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1764,11 +1602,6 @@ def launch(
 
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
-
-    try:
-        launch_utils.check_logged_in(api)
-    except Exception:
-        wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
     run_id = config.get("run_id")
 
@@ -1824,8 +1657,7 @@ def launch(
             raise LaunchError("'--set-var' flag requires queue to be set")
         if entity is None:
             entity = launch_utils.get_default_entity(api, config)
-        public_api = PublicApi()
-        runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
+        runqueue = api.run_queue(entity=entity, name=queue)
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars
         )
@@ -1860,11 +1692,11 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
-            get_sentry().exception(e)
+            telemetry_recorder.exception(e, attributes=e.context)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
-            get_sentry().exception(e)
+            telemetry_recorder.exception(e, attributes=e.context)
             sys.exit(e)
         except asyncio.CancelledError:
             sys.exit(0)
@@ -1891,8 +1723,11 @@ def launch(
                 priority=priority,
             )
 
+        except Error as e:
+            telemetry_recorder.exception(e, attributes=e.context)
+            raise
         except Exception as e:
-            get_sentry().exception(e)
+            telemetry_recorder.exception(e)
             raise
 
 
@@ -1955,6 +1790,8 @@ def launch_agent(
     log_file=None,
     verbose=0,
 ):
+    from wandb.sdk.launch.errors import LaunchError
+
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1968,8 +1805,11 @@ def launch_agent(
     if log_file is not None:
         _launch.set_launch_logfile(log_file)
 
-    api = _get_cling_api()
-    get_sentry().configure_scope(process_context="launch_agent")
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "launch_agent",
+        }
+    )
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
     )
@@ -1979,13 +1819,15 @@ def launch_agent(
             "To launch an agent please specify a queue or a list of queues in the configuration file or cli."
         )
 
-    launch_utils.check_logged_in(api)
-
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(
+            api,
+            agent_config,
+            telemetry_recorder=telemetry_recorder,
+        )
     except Exception as e:
-        get_sentry().exception(e)
+        telemetry_recorder.exception(e)
         raise
 
 
@@ -2018,9 +1860,33 @@ def launch_agent(
     help="""Forward signals (e.g. SIGINT/SIGTERM) to child runs so they can
     shut down cleanly.""",
 )
+@click.option(
+    "--term-timeout",
+    "-t",
+    default=None,
+    type=int,
+    help="""Time (in seconds) after receiving a shutdown signal (e.g. SIGINT
+    /SIGTERM) to force-kill child runs which have not finished since receiving
+    the initial forwarded signal. Does nothing if --forward-signals is not set.""",
+)
+@click.option(
+    "--max-consecutive-failed-runs",
+    default=None,
+    type=click.IntRange(min=1),
+    help="""Shut the agent down once this many runs have failed back to back.""",
+)
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, forward_signals, sweep_id):
+def agent(
+    ctx,
+    project,
+    entity,
+    count,
+    forward_signals,
+    term_timeout,
+    max_consecutive_failed_runs,
+    sweep_id,
+):
     """Start a sweep agent.
 
     Poll the W&B server for hyperparameter configurations from
@@ -2051,13 +1917,11 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     To forward signals to child runs for clean shutdown:
 
         $ wandb agent --forward-signals wbyz9876
-    """
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep agent feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
 
+    To stop the agent after 5 runs fail back to back:
+
+        $ wandb agent --max-consecutive-failed-runs 5 wbyz9876
+    """
     wandb.termlog("Starting wandb agent 🕵️")
     try:
         wandb_agent.agent(
@@ -2066,10 +1930,16 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
             project=project,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
-        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        # The agent loop has already printed the "Sweep was deleted or agent was
+        # not found" error to the terminal before re-raising, so here we only
+        # need to report that we're stopping and translate it into a non-zero
+        # exit code.
+        wandb.termerror("Stopping agent.")
         sys.exit(1)
 
     # you can send local commands like so:
@@ -2088,13 +1958,15 @@ def scheduler(
     ctx,
     sweep_id,
 ):
-    api = InternalApi()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep scheduler feature")
-        ctx.invoke(login, no_offline=True)
-        api = InternalApi(reset=True)
+    from wandb.sdk.launch.api import LaunchApi
 
-    get_sentry().configure_scope(process_context="sweep_scheduler")
+    api = LaunchApi()
+
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "launch_scheduler",
+        }
+    )
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -2118,8 +1990,104 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        get_sentry().exception(e)
+        telemetry_recorder.exception(e)
         raise
+
+
+@cli.command(
+    name="sweep-scheduler",
+    context_settings=CONTEXT,
+    help="Run a local scheduler that suggests a sweep's runs (Experimental).",
+)
+@click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
+@click.option("--project", "-p", default=None, help="Project that owns the sweep.")
+@click.option(
+    "--batch-size",
+    default=10,
+    type=int,
+    help="Number of runs to keep in flight at once.",
+)
+@click.option(
+    "--poll-interval",
+    default=10.0,
+    type=float,
+    help="Seconds to wait between polls of the sweep's runs.",
+)
+@click.argument("sweep_id")
+@display_error
+def sweep_scheduler(
+    entity: str | None,
+    project: str | None,
+    batch_size: int,
+    poll_interval: float,
+    sweep_id: str,
+) -> None:
+    """Drive a scheduler-enabled sweep locally using external search engines.
+
+    A scheduler-enabled sweep must have been previously created with the config
+    `scheduler: {engine: wandb}` (or `optuna`/`ax`). This CLI will then attempt
+    to maintain `batch_size` runs in flight at once, and poll the sweep's runs
+    every `poll_interval` seconds. The CLI may be stopped and restarted at any
+    time, and will resume the sweep from the last known state.
+
+    **Do not** run multiple instances of this CLI for the same sweep. It will
+    cause duplicate runs to be generated as multiple instances will not know
+    the other's runs.
+
+    If the `source` field is used in the scheduler config, this command must be
+    run in a directory containing the Python file referenced by `source`.
+
+    The optional `optimizer` field in the sweep scheduler config must name a
+    function that returns the client for the search engine (Optuna `Study` or
+    Ax `Client`). This client **must not** be persisted to disk, as it will be
+    re-created on each restart. This custom function may be used to configure
+    the engine's sampler and pruner.
+    """
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+    from wandb.sdk.sweeps.scheduler import client
+    from wandb.sdk.sweeps.scheduler.optimizer import make_optimizer
+
+    if batch_size < 1:
+        wandb.termerror("--batch-size must be at least 1")
+        sys.exit(1)
+
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "sweep_scheduler",
+        }
+    )
+
+    # Resolve the sweep the user already created with `wandb sweep`.
+    # `run_scheduler` authenticates the session itself, so the defaults are
+    # all this needs the API for.
+    api = wandb.Api()
+    parts = dict(entity=entity, project=project, name=sweep_id)
+    err = sweep_utils.parse_sweep_id(parts)
+    if err:
+        raise ClickException(err)
+    entity = parts.get("entity") or entity or api.settings["entity"]
+    project = parts.get("project") or project or api.settings["project"]
+    sweep_id = parts.get("name") or sweep_id
+    if not entity or not project:
+        raise ClickException(
+            "Pass the sweep as entity/project/sweep_id or provide "
+            "--entity and --project."
+        )
+
+    wandb.termlog(f"Starting sweep scheduler for {sweep_id} 🧹")
+    try:
+        client.run_scheduler(
+            entity=entity,
+            project=project,
+            sweep_id=sweep_id,
+            make_optimizer=make_optimizer,
+            batch_size=batch_size,
+            poll_interval=poll_interval,
+        )
+    except wandb.Error as e:
+        # run_scheduler already explained the failure.
+        telemetry_recorder.exception(e)
+        sys.exit(1)
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs.")
@@ -2143,7 +2111,7 @@ def job() -> None:
 )
 def _list(project, entity):
     wandb.termlog(f"Listing jobs in {entity}/{project}")
-    public_api = PublicApi()
+    public_api = wandb.Api()
     try:
         jobs = public_api.list_jobs(entity=entity, project=project)
     except wandb.errors.CommError as e:
@@ -2175,7 +2143,7 @@ def _list(project, entity):
 )
 @click.argument("job")
 def describe(job):
-    public_api = PublicApi()
+    public_api = wandb.Api()
     try:
         job = public_api.job(name=job)
     except wandb.errors.CommError as e:
@@ -2310,11 +2278,10 @@ def create(
     code: A code path, containing a requirements.txt file.
     image: A docker image.
     """
+    from wandb.sdk.launch.api import LaunchApi
     from wandb.sdk.launch.create_job import _create_job
 
-    api = _get_cling_api()
-    get_sentry().configure_scope(process_context="job_create")
-
+    api = LaunchApi()
     entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
     if not entity:
         wandb.termerror("No entity provided, use --entity or set WANDB_ENTITY")
@@ -2373,7 +2340,7 @@ def create(
         msg += f", with aliases: {alias_str}"
 
     wandb.termlog(msg)
-    web_url = util.app_url(api.settings().get("base_url"))
+    web_url = util.app_url(api.settings["base_url"])
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
@@ -2438,7 +2405,7 @@ def docker_run(ctx, docker_run_args):
     """
     import wandb.docker
 
-    api = InternalApi()
+    api_key = _configured_api_key()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
@@ -2456,13 +2423,15 @@ def docker_run(ctx, docker_run_args):
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
-    if api.api_key:
-        args = ["-e", f"WANDB_API_KEY={api.api_key}"] + args
+    env = dict(os.environ)
+    if api_key:
+        args = ["-e", "WANDB_API_KEY"] + args
+        env["WANDB_API_KEY"] = api_key
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
         )
-    subprocess.call(["docker", "run"] + args)
+    subprocess.call(["docker", "run"] + args, env=env)
 
 
 @cli.command(context_settings=RUN_CONTEXT)
@@ -2539,7 +2508,7 @@ def docker(
 
         $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py"
     """
-    api = InternalApi()
+    api_key = _configured_api_key()
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
 
@@ -2594,8 +2563,10 @@ def docker(
     if not no_dir:
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
-    if api.api_key:
-        command.extend(["-e", f"WANDB_API_KEY={api.api_key}"])
+    env = dict(os.environ)
+    if api_key:
+        command.extend(["-e", "WANDB_API_KEY"])
+        env["WANDB_API_KEY"] = api_key
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2612,7 +2583,7 @@ def docker(
             command.extend(["-e", f"WANDB_COMMAND={cmd}"])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
-    subprocess.call(command)
+    subprocess.call(command, env=env)
 
 
 @cli.command(
@@ -2707,7 +2678,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
         $ wandb server start --no-daemon
     """
-    api = InternalApi()
+    api_key = _configured_api_key()
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
 
@@ -2783,7 +2754,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
         else:
             wandb.termlog(f"W&B server started at http://localhost:{port} \U0001f680")
             wandb.termlog("You can stop the server by running `wandb server stop`")
-            if not api.api_key:
+            if not api_key:
                 # Let the server start before potentially launching a browser
                 time.sleep(2)
                 ctx.invoke(login, host=host)
@@ -2900,7 +2871,7 @@ def put(
     """
     if name is None:
         name = os.path.basename(path)
-    public_api = PublicApi()
+    public_api = wandb.Api()
     entity, project, artifact_name = public_api._parse_artifact_path(name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -2969,7 +2940,7 @@ def get(path, root, type):
 
         $ wandb artifact get --root ./data team-awesome/foobar/processed-training-set:v2
     """
-    public_api = PublicApi()
+    public_api = wandb.Api()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -2987,8 +2958,8 @@ def get(path, root, type):
             settings_entity = public_api.settings["entity"] or public_api.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = SDKInternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=organization
+            entity = public_api._resolve_org_entity_name(
+                non_org_entity=settings_entity, org_or_entity=organization
             )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"
         wandb.termlog(
@@ -3025,7 +2996,7 @@ def ls(path, type):
 
         $ wandb artifact ls --type model team-awesome/foobar
     """
-    public_api = PublicApi()
+    public_api = wandb.Api()
     if type is not None:
         types = [public_api.artifact_type(type, path)]
     else:
@@ -3086,6 +3057,8 @@ def cleanup(target_size, remove_temp):
 
         $ wandb artifact cache cleanup --remove-temp 5GB
     """
+    from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+
     target_size = util.from_human_size(target_size)
     cache = get_artifact_file_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
@@ -3124,32 +3097,25 @@ def pull(run, project, entity):
 
         $ wandb pull -p foobar -e team-awesome abcd1234
     """
-    api = InternalApi()
-    project, run = api.parse_slug(run, project=project)
-    urls = api.download_urls(project, run=run, entity=entity)
-    if len(urls) == 0:
+    api = wandb.Api(
+        overrides={
+            key: value
+            for key, value in {"project": project, "entity": entity}.items()
+            if value is not None
+        }
+    )
+    api_run = api.run(run)
+    files = api_run.files()
+    if len(files) == 0:
         raise ClickException("Run has no files")
-    click.echo(f"Downloading: {click.style(project, bold=True)}/{run}")
+    click.echo(f"Downloading: {click.style(api_run.project, bold=True)}/{api_run.id}")
 
-    for name in urls:
-        if api.file_current(name, urls[name]["md5"]):
-            click.echo(f"File {name} is up to date")
+    for file in files:
+        if os.path.isfile(file.name) and md5_file_b64(file.name) == file.md5:
+            click.echo(f"File {file.name} is up to date")
         else:
-            length, response = api.download_file(urls[name]["url"])
-            # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write(f"File {name}\r")
-            dirname = os.path.dirname(name)
-            if dirname != "":
-                filesystem.mkdir_exists_ok(dirname)
-            with click.progressbar(
-                length=length,
-                label=f"File {name}",
-                fill_char=click.style("&", fg="green"),
-            ) as bar:
-                with open(name, "wb") as f:
-                    for data in response.iter_content(chunk_size=4096):
-                        f.write(data)
-                        bar.update(len(data))
+            file.download(replace=True)
+            click.echo(f"File {file.name}")
 
 
 @cli.command(context_settings=CONTEXT)
@@ -3230,29 +3196,27 @@ def restore(ctx, run, no_git, branch, project, entity):
 
         $ wandb restore other-team/their-project:abcd1234
     """
-    from wandb.old.core import wandb_dir
     from wandb.sdk.lib.gitlib import GitRepo
 
-    api = _get_cling_api()
-    if ":" in run:
-        if "/" in run:
-            entity, rest = run.split("/", 1)
-        else:
-            rest = run
-        project, run = rest.split(":", 1)
-    elif run.count("/") > 1:
-        entity, run = run.split("/", 1)
-
-    project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content, metadata = api.run_config(
-        project, run=run, entity=entity
+    api = wandb.Api(
+        overrides={
+            key: value
+            for key, value in {"project": project, "entity": entity}.items()
+            if value is not None
+        }
     )
+    api_run = api.run(run)
+    project, run = api_run.project, api_run.id
+    commit = api_run.commit
+    json_config = api_run.rawconfig
+    patch_content = _run_file_text(api_run, DIFF_FNAME)
+    metadata = api_run.metadata or {}
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
     restore_message = f"""`wandb restore` needs to be run from the same git repository as the original run.
 Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 
-    git = GitRepo(remote=api.settings("git_remote"))
+    git = GitRepo(remote=wandb_setup.singleton().settings.git_remote)
 
     if no_git:
         commit = None
@@ -3266,55 +3230,50 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 
     if commit and git.enabled:
         wandb.termlog(f"Fetching origin and finding commit: {commit}")
-        subprocess.check_call(["git", "fetch", "--all"])
-        try:
-            git.repo.commit(commit)
-        except ValueError:
+        git.fetch_all()
+        if not git.has_commit(commit):
             wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
-            files = api.download_urls(project, run=run, entity=entity)
-            for filename in files:
-                if filename.startswith("upstream_diff_") and filename.endswith(
-                    ".patch"
-                ):
-                    commit = filename[len("upstream_diff_") : -len(".patch")]
-                    try:
-                        git.repo.commit(commit)
-                    except ValueError:
-                        commit = None
-                    else:
+            upstream_patch = None
+            for file in api_run.files():
+                name = file.name
+                if name.startswith("upstream_diff_") and name.endswith(".patch"):
+                    commit = name[len("upstream_diff_") : -len(".patch")]
+                    if git.has_commit(commit):
+                        upstream_patch = file
                         break
 
-            if commit:
+            if upstream_patch:
                 wandb.termlog(f"Falling back to upstream commit: {commit}")
-                patch_path, _ = api.download_write_file(files[filename])
+                with upstream_patch.download(root=_get_wandb_dir(), replace=True) as f:
+                    patch_path = f.name
             else:
                 raise ClickException(restore_message)
         else:
             if patch_content:
-                patch_path = os.path.join(wandb_dir(), "diff.patch")
+                patch_path = os.path.join(_get_wandb_dir(), "diff.patch")
                 with open(patch_path, "w") as f:
                     f.write(patch_content)
             else:
                 patch_path = None
 
         branch_name = f"wandb/{run}"
-        if branch and branch_name not in git.repo.branches:
-            git.repo.git.checkout(commit, b=branch_name)
+        if branch and not git.has_branch(branch_name):
+            git.checkout_new_branch(branch_name, commit)
             wandb.termlog(f"Created branch {click.style(branch_name, bold=True)}")
         elif branch:
             wandb.termlog(
                 f"Using existing branch, run `git branch -D {branch_name}` from master for a clean checkout"
             )
-            git.repo.git.checkout(branch_name)
+            git.checkout(branch_name)
         else:
             wandb.termlog(f"Checking out {commit} in detached mode")
-            git.repo.git.checkout(commit)
+            git.checkout(commit)
 
         if patch_path:
             # we apply the patch from the repository root so git doesn't exclude
             # things outside the current directory
-            root = git.root
+            root = git.root_dir
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff
@@ -3328,23 +3287,16 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                     "Failed to apply patch, try un-staging any un-committed changes"
                 )
 
-    filesystem.mkdir_exists_ok(wandb_dir())
-    config_path = os.path.join(wandb_dir(), "config.yaml")
-    config = Config()
-    for k, v in json_config.items():
-        if k not in ("_wandb", "wandb_version"):
-            config[k] = v
-    s = b"wandb_version: 1"
-    s += b"\n\n" + yaml.dump(
-        config._as_dict(),
-        Dumper=yaml.SafeDumper,
-        default_flow_style=False,
-        allow_unicode=True,
-        encoding="utf-8",
+    wandb_dir = _get_wandb_dir()
+    config_path = os.path.join(wandb_dir, "config.yaml")
+    config_util.save_config_file_from_dict(
+        config_path,
+        {
+            key: {"value": value}
+            for key, value in json_config.items()
+            if key not in ("_wandb", "wandb_version")
+        },
     )
-    s = s.decode("utf-8")
-    with open(config_path, "w") as f:
-        f.write(s)
 
     wandb.termlog(f"Restored config variables to {config_path}")
     if image:
@@ -3449,10 +3401,21 @@ def status(settings):
 
         $ wandb status
     """
-    api = _get_cling_api()
     if settings:
         click.echo(click.style("Current Settings", bold=True))
-        settings = api.settings()
+        global_settings = wandb_setup.singleton().settings
+        settings = {
+            key: getattr(global_settings, key)
+            for key in (
+                "base_url",
+                "entity",
+                "project",
+                "organization",
+                "git_remote",
+                "ignore_globs",
+                "root_dir",
+            )
+        }
         click.echo(
             json.dumps(settings, sort_keys=True, indent=2, separators=(",", ": "))
         )
@@ -3542,7 +3505,7 @@ def verify(host):
 
     Validate that a self-hosted or dedicated cloud W&B deployment is configured
     and operating correctly. Do not run this command against the public W&B
-    cloud at api.wandb.ai.
+    cloud at forge.coreweave.com.
 
     Exits with `code 1` if any critical check fails.
 
@@ -3554,17 +3517,15 @@ def verify(host):
 
         $ wandb verify --host https://my-wandb-server.example.com
     """
+    import wandb.sdk.verify.verify as wandb_verify
+
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"
-    api = _get_cling_api()
-    reinit = False
+    settings = wandb_setup.singleton().settings
     if host is None:
-        host = api.settings("base_url")
+        host = settings.base_url
         wandb.termlog(f"Default host selected: {host}")
-    # if the given host does not match the default host, re-run init
-    elif host != api.settings("base_url"):
-        reinit = True
 
     tmp_dir = tempfile.mkdtemp()
     wandb.termlog(
@@ -3573,8 +3534,7 @@ def verify(host):
     os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
-    if reinit:
-        api = _get_cling_api(reset=True)
+    api = wandb.Api()
     if not wandb_verify.check_host(host):
         sys.exit(1)
     if not wandb_verify.check_logged_in(api, host):
@@ -3582,7 +3542,7 @@ def verify(host):
     url_success, url = wandb_verify.check_graphql_put(api, host)
     large_post_success = wandb_verify.check_large_post()
     wandb_verify.check_secure_requests(
-        api.settings("base_url"),
+        settings.base_url,
         "Checking requests to base url",
         "Connections are not made over https. SSL required for secure communications.",
     )
@@ -3666,3 +3626,5 @@ def purge_cache(
 
 
 cli.add_command(beta)
+cli.add_command(leet)
+cli.add_command(clean)

@@ -35,6 +35,9 @@ var UnitCelsius UnitFormatter = unitCelsius{}
 // Power in Watts.
 var UnitWatt UnitFormatter = unitWatt{}
 
+// Energy in Joules.
+var UnitJoule UnitFormatter = unitJoule{}
+
 // Frequency measured in MHz, titled in Hz.
 var UnitMHz UnitFormatter = unitMHz{}
 
@@ -45,10 +48,8 @@ var UnitBytes UnitFormatter = unitBytes{factorToBytes: 1}
 var UnitMiB UnitFormatter = unitBytes{factorToBytes: 1024 * 1024}
 var UnitGiB UnitFormatter = unitBytes{factorToBytes: 1024 * 1024 * 1024}
 
-// Byte rates: values provided in B/s, MiB/s, GiB/s; title wants "B/s".
-var UnitBps UnitFormatter = unitBytesPerSecond{factorToBps: 1}
-var UnitMiBps UnitFormatter = unitBytesPerSecond{factorToBps: 1024 * 1024}
-var UnitGiBps UnitFormatter = unitBytesPerSecond{factorToBps: 1024 * 1024 * 1024}
+// Byte rates in bytes per second.
+var UnitBps UnitFormatter = unitBytesPerSecond{}
 
 type unitNone struct{}
 
@@ -96,6 +97,26 @@ func (unitWatt) Format(v float64) string {
 	}
 }
 
+type unitJoule struct{}
+
+func (unitJoule) Name() string { return "J" }
+func (unitJoule) Format(v float64) string {
+	if v == 0 {
+		return "0"
+	}
+	absV := math.Abs(v)
+	switch {
+	case absV >= 1e9:
+		return formatSigFigs(v/1e9, 3) + "GJ"
+	case absV >= 1e6:
+		return formatSigFigs(v/1e6, 3) + "MJ"
+	case absV >= 1e3:
+		return formatSigFigs(v/1e3, 3) + "kJ"
+	default:
+		return formatSigFigs(v, 3) + "J"
+	}
+}
+
 type unitMHz struct{}
 
 func (unitMHz) Name() string { return "Hz" }
@@ -123,14 +144,14 @@ func (u unitBytes) Format(v float64) string {
 	return formatBytesBinary(v * u.factorToBytes)
 }
 
-type unitBytesPerSecond struct{ factorToBps float64 }
+type unitBytesPerSecond struct{}
 
 func (unitBytesPerSecond) Name() string { return "B/s" }
-func (u unitBytesPerSecond) Format(v float64) string {
+func (unitBytesPerSecond) Format(v float64) string {
 	if v == 0 {
 		return "0"
 	}
-	return formatRateDecimal(v * u.factorToBps)
+	return formatRateDecimal(v)
 }
 
 // Binary prefixes: B, KiB, MiB, GiB, TiB.
@@ -164,8 +185,6 @@ var scales = []struct {
 	factor float64
 	suffix string
 }{
-	{1e-6, "μ"},
-	{1e-3, "m"},
 	{1.0, ""},
 	{1e3, "k"},
 	{1e6, "M"},

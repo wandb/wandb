@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import struct
 import threading
+from typing import Literal
 
 import pytest
-from typing_extensions import Literal
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import mailbox
 from wandb.sdk.lib import asyncio_manager

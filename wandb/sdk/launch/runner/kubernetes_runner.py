@@ -11,12 +11,11 @@ import os
 import shlex
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 import wandb
-from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -47,8 +46,10 @@ from ..utils import (
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
+    inject_restricted_security_context,
     make_k8s_label_safe,
     make_name_dns_safe,
+    validate_kubernetes_resource_args,
 )
 from .abstract import AbstractRun, AbstractRunner
 
@@ -78,6 +79,9 @@ from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa:
     V1Secret,
 )
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 TIMEOUT = 5
 API_KEY_SECRET_MAX_RETRIES = 5
@@ -347,7 +351,7 @@ class KubernetesRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
@@ -440,12 +444,6 @@ class KubernetesRunner(AbstractRunner):
         for i, cont in enumerate(containers):
             if "name" not in cont:
                 cont["name"] = cont.get("name", "launch" + str(i))
-            if "securityContext" not in cont:
-                cont["securityContext"] = {
-                    "allowPrivilegeEscalation": False,
-                    "capabilities": {"drop": ["ALL"]},
-                    "seccompProfile": {"type": "RuntimeDefault"},
-                }
 
         entry_point = (
             launch_project.override_entrypoint or launch_project.get_job_entry_point()
@@ -563,6 +561,12 @@ class KubernetesRunner(AbstractRunner):
                 WANDB_K8S_LABEL_AGENT,
                 LaunchAgent.name(),
             )
+
+        # Force the restricted securityContext onto every pod spec in the
+        # assembled job (standard template, and any CronJob jobTemplate). This
+        # is symmetric with validate_kubernetes_resource_args, which refuses
+        # submitter-supplied securityContext anywhere in the manifest.
+        inject_restricted_security_context(job)
 
         return job, api_key_secret
 
@@ -775,6 +779,9 @@ class KubernetesRunner(AbstractRunner):
                 )
                 cont["env"] = env
 
+        validate_kubernetes_resource_args(config)
+        inject_restricted_security_context(config)
+
         try:
             sanitize_identifiers_for_k8s(config)
 
@@ -802,8 +809,9 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             The run object if the run was successful, otherwise None.
         """
-        await LaunchKubernetesMonitor.ensure_initialized()
         resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
+        validate_kubernetes_resource_args(resource_args)
+        await LaunchKubernetesMonitor.ensure_initialized()
         if not resource_args:
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "
@@ -882,6 +890,12 @@ class KubernetesRunner(AbstractRunner):
                 resource_args,
                 overrides,
             )
+
+            # Custom resources never go through _inject_defaults, so harden any
+            # pod spec they expose here. Matches the standard Job path and is
+            # symmetric with validate_kubernetes_resource_args.
+            inject_restricted_security_context(resource_args)
+
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
@@ -1440,7 +1454,7 @@ def _configure_containers_for_code_mount(
 
 
 def apply_code_mount_configuration_emptydir(
-    manifest: dict | list, project: LaunchProject, api: Api
+    manifest: dict | list, project: LaunchProject, api: LaunchApi
 ) -> None:
     """Apply emptyDir code mount configuration when no PVC is available.
 
@@ -1450,9 +1464,9 @@ def apply_code_mount_configuration_emptydir(
     Args:
         manifest: The manifest to modify.
         project: The launch project.
-        api: The internal API instance (for base_url).
+        api: The launch API instance (for base_url).
     """
-    base_url = api.settings("base_url")
+    base_url = api.settings["base_url"]
     source_type = project.job_source_type
     source_info = project.job_source_info
     install_deps = project._auto_default_base_image

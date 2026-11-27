@@ -89,8 +89,7 @@ func (l Line) Set(x int, c *Cell) {
 	}
 
 	if cw > 1 {
-		// Mark wide cells with an zero cells.
-		// We set the wide cell down below
+		// Mark wide cells with zero-width placeholder cells.
 		for j := 1; j < cw && x+j < lineWidth; j++ {
 			l[x+j] = Cell{}
 		}
@@ -188,6 +187,9 @@ func renderLine(buf io.StringWriter, l Line) {
 		_, _ = buf.WriteString(c.String())
 	}
 
+	if pending.Len() > 0 {
+		_, _ = buf.WriteString(pending.String())
+	}
 	if link.URL != "" {
 		_, _ = buf.WriteString(ansi.ResetHyperlink())
 	}
@@ -646,6 +648,11 @@ func TrimSpace(s string) string {
 // parts of the screen that have changed.
 type RenderBuffer struct {
 	*Buffer
+
+	// Touched records which lines changed since the last render. It holds at
+	// least one entry per screen row, and a nil entry means that row is
+	// unchanged. Shortening it is not meaningful, since the rows still exist, so
+	// the renderer restores the length rather than checking it at every read.
 	Touched []*LineData
 }
 
@@ -663,14 +670,7 @@ func (b *RenderBuffer) TouchLine(x, y, n int) {
 		return
 	}
 
-	if y >= len(b.Touched) {
-		b.Touched = append(b.Touched, make([]*LineData, y-len(b.Touched)+1)...)
-	}
-
-	// Re-check bounds: a concurrent resize may have cleared Touched
-	if y >= len(b.Touched) {
-		return
-	}
+	b.growTouched()
 
 	ch := b.Touched[y]
 	if ch == nil {
@@ -689,9 +689,6 @@ func (b *RenderBuffer) Touch(x, y int) {
 
 // TouchedLines returns the number of touched lines in the buffer.
 func (b *RenderBuffer) TouchedLines() int {
-	if b.Touched == nil {
-		return 0
-	}
 	count := 0
 	for _, t := range b.Touched {
 		if t != nil {
@@ -704,10 +701,13 @@ func (b *RenderBuffer) TouchedLines() int {
 // SetCell sets the cell at the given x, y position and marks the line as
 // touched.
 func (b *RenderBuffer) SetCell(x, y int, c *Cell) {
-	if !cellEqual(b.CellAt(x, y), c) {
+	if p := b.CellAt(x, y); !cellEqual(p, c) {
 		width := 1
 		if c != nil && c.Width > 0 {
 			width = c.Width
+		}
+		if p != nil && p.Width > 0 {
+			width = max(width, p.Width)
 		}
 		b.TouchLine(x, y, width)
 	}
@@ -792,4 +792,71 @@ func (b *RenderBuffer) DeleteCellArea(x, y, n int, c *Cell, area Rectangle) {
 		n = remainingCells
 	}
 	b.TouchLine(x, y, n)
+}
+
+// Resize resizes the buffer and touches every cell it creates, since the
+// screen there still shows whatever the last render left.
+func (b *RenderBuffer) Resize(width, height int) {
+	curWidth, curHeight := b.Width(), b.Height()
+	b.Buffer.Resize(width, height)
+
+	if width > curWidth {
+		for y := range min(curHeight, height) {
+			b.TouchLine(curWidth, y, width-curWidth)
+		}
+	}
+	for y := curHeight; y < height; y++ {
+		b.TouchLine(0, y, width)
+	}
+}
+
+// Clear clears the buffer with space cells and marks all lines as touched.
+func (b *RenderBuffer) Clear() {
+	b.Buffer.Clear()
+	w := b.Width()
+	for y := range b.Lines {
+		b.TouchLine(0, y, w)
+	}
+}
+
+// ClearArea clears the buffer with space cells within the specified rectangle
+// and marks the affected lines as touched.
+func (b *RenderBuffer) ClearArea(area Rectangle) {
+	b.Buffer.ClearArea(area)
+	w := area.Max.X - area.Min.X
+	for y := area.Min.Y; y < area.Max.Y; y++ {
+		b.TouchLine(area.Min.X, y, w)
+	}
+}
+
+// Fill fills the buffer with the given cell and marks all lines as touched.
+func (b *RenderBuffer) Fill(c *Cell) {
+	b.FillArea(c, b.Bounds())
+}
+
+// FillArea fills the buffer with the given cell within the specified rectangle
+// and marks the affected lines as touched.
+func (b *RenderBuffer) FillArea(c *Cell, area Rectangle) {
+	b.Buffer.FillArea(c, area)
+	w := area.Max.X - area.Min.X
+	for y := area.Min.Y; y < area.Max.Y; y++ {
+		b.TouchLine(area.Min.X, y, w)
+	}
+}
+
+// growTouched restores the one-entry-per-row invariant, which an application is
+// free to break by shortening or dropping the list.
+//
+// Only ever grows. Truncating to the screen would be the tidier rule, but
+// [RenderBuffer.TouchedLines] counts non-nil records rather than touched ones,
+// so discarding the entries of a frame that collapsed makes it look untouched
+// and skips the erase that clears the rows it gave up. Growing is enough: every
+// reader indexes by screen row, and a longer list has an entry for each.
+func (b *RenderBuffer) growTouched() {
+	if len(b.Touched) >= len(b.Lines) {
+		return
+	}
+	touched := make([]*LineData, len(b.Lines))
+	copy(touched, b.Touched)
+	b.Touched = touched
 }

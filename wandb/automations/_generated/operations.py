@@ -5,14 +5,16 @@ __all__ = [
     "CREATE_AUTOMATION_GQL",
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
     "DELETE_AUTOMATION_GQL",
-    "GET_AUTOMATIONS_BY_ENTITY_GQL",
-    "GET_AUTOMATIONS_GQL",
+    "GET_AUTOMATIONS_LEGACY_GQL",
+    "GET_ENTITY_AUTOMATIONS_GQL",
+    "GET_ENTITY_AUTOMATIONS_LEGACY_GQL",
+    "GET_ORG_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
 ]
 
-GET_AUTOMATIONS_GQL = """
-query GetAutomations($cursor: String, $perPage: Int) {
+GET_AUTOMATIONS_LEGACY_GQL = """
+query GetAutomationsLegacy($cursor: String, $perPage: Int) {
   scope: viewer {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
@@ -27,6 +29,11 @@ query GetAutomations($cursor: String, $perPage: Int) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -37,6 +44,13 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   __typename
   id
   name
+}
+
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
@@ -86,6 +100,12 @@ fragment ProjectTriggersFields on Project {
   }
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -114,6 +134,7 @@ fragment TriggerFields on Trigger {
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
   }
   event: triggeringCondition {
     ...FilterEventFields
@@ -123,6 +144,8 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -134,8 +157,8 @@ fragment WebhookIntegrationFields on GenericWebhookIntegration {
 }
 """
 
-GET_AUTOMATIONS_BY_ENTITY_GQL = """
-query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+GET_ENTITY_AUTOMATIONS_LEGACY_GQL = """
+query GetEntityAutomationsLegacy($entity: String!, $cursor: String, $perPage: Int) {
   scope: entity(name: $entity) {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
@@ -150,6 +173,11 @@ query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -160,6 +188,13 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   __typename
   id
   name
+}
+
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
@@ -209,6 +244,12 @@ fragment ProjectTriggersFields on Project {
   }
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -237,6 +278,7 @@ fragment TriggerFields on Trigger {
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
   }
   event: triggeringCondition {
     ...FilterEventFields
@@ -246,6 +288,282 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
+    ...PushNotificationActionFields
+  }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+}
+"""
+
+GET_ENTITY_AUTOMATIONS_GQL = """
+query GetEntityAutomations($entity: String!, $cursor: String, $perPage: Int, $order: String, $filters: JSONString) {
+  scope: entity(name: $entity) {
+    triggers(after: $cursor, first: $perPage, order: $order, filters: $filters) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerFields
+        }
+      }
+    }
+  }
+}
+
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
+}
+
+fragment FilterEventFields on FilterEventTriggeringCondition {
+  __typename
+  eventType
+  filter
+}
+
+fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
+  __typename
+  integration {
+    ...WebhookIntegrationFields
+  }
+  requestPayload
+}
+
+fragment NoOpActionFields on NoOpTriggeredAction {
+  __typename
+  noOp
+}
+
+fragment NotificationActionFields on NotificationTriggeredAction {
+  __typename
+  integration {
+    ...SlackIntegrationFields
+  }
+  title
+  message
+  severity
+}
+
+fragment PageInfoFields on PageInfo {
+  endCursor
+  hasNextPage
+}
+
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
+fragment QueueJobActionFields on QueueJobTriggeredAction {
+  __typename
+  queue {
+    id
+    name
+  }
+  template
+}
+
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+
+fragment TriggerFields on Trigger {
+  __typename
+  id
+  createdAt
+  updatedAt
+  name
+  description
+  enabled
+  scope {
+    ...ProjectScopeFields
+    ...ArtifactPortfolioScopeFields
+    ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
+  }
+  event: triggeringCondition {
+    ...FilterEventFields
+  }
+  action: triggeredAction {
+    ...QueueJobActionFields
+    ...NotificationActionFields
+    ...GenericWebhookActionFields
+    ...NoOpActionFields
+    ...AriaActionFields
+    ...PushNotificationActionFields
+  }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+}
+"""
+
+GET_ORG_AUTOMATIONS_GQL = """
+query GetOrgAutomations($org: String!, $cursor: String, $perPage: Int, $order: String, $filters: JSONString) {
+  scope: organization(name: $org) {
+    triggers(first: $perPage, after: $cursor, order: $order, filters: $filters) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerFields
+        }
+      }
+    }
+  }
+}
+
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
+}
+
+fragment FilterEventFields on FilterEventTriggeringCondition {
+  __typename
+  eventType
+  filter
+}
+
+fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
+  __typename
+  integration {
+    ...WebhookIntegrationFields
+  }
+  requestPayload
+}
+
+fragment NoOpActionFields on NoOpTriggeredAction {
+  __typename
+  noOp
+}
+
+fragment NotificationActionFields on NotificationTriggeredAction {
+  __typename
+  integration {
+    ...SlackIntegrationFields
+  }
+  title
+  message
+  severity
+}
+
+fragment PageInfoFields on PageInfo {
+  endCursor
+  hasNextPage
+}
+
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
+fragment QueueJobActionFields on QueueJobTriggeredAction {
+  __typename
+  queue {
+    id
+    name
+  }
+  template
+}
+
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+
+fragment TriggerFields on Trigger {
+  __typename
+  id
+  createdAt
+  updatedAt
+  name
+  description
+  enabled
+  scope {
+    ...ProjectScopeFields
+    ...ArtifactPortfolioScopeFields
+    ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
+  }
+  event: triggeringCondition {
+    ...FilterEventFields
+  }
+  action: triggeredAction {
+    ...QueueJobActionFields
+    ...NotificationActionFields
+    ...GenericWebhookActionFields
+    ...NoOpActionFields
+    ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -266,6 +584,11 @@ mutation CreateAutomation($input: CreateFilterTriggerInput!) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -276,6 +599,13 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   __typename
   id
   name
+}
+
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
@@ -313,6 +643,12 @@ fragment ProjectScopeFields on Project {
   name
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -341,6 +677,7 @@ fragment TriggerFields on Trigger {
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
   }
   event: triggeringCondition {
     ...FilterEventFields
@@ -350,6 +687,8 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -370,6 +709,11 @@ mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -380,6 +724,13 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   __typename
   id
   name
+}
+
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
@@ -417,6 +768,12 @@ fragment ProjectScopeFields on Project {
   name
 }
 
+fragment PushNotificationActionFields on PushNotificationTriggeredAction {
+  __typename
+  title
+  body
+}
+
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
@@ -445,6 +802,7 @@ fragment TriggerFields on Trigger {
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
   }
   event: triggeringCondition {
     ...FilterEventFields
@@ -454,6 +812,8 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
+    ...PushNotificationActionFields
   }
 }
 
@@ -513,7 +873,7 @@ fragment WebhookIntegrationFields on GenericWebhookIntegration {
 
 CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL = """
 mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
-  createGenericWebhookIntegration(input: $input) {
+  result: createGenericWebhookIntegration(input: $input) {
     integration {
       __typename
       ...WebhookIntegrationFields

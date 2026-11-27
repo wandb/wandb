@@ -3,6 +3,7 @@ package runfiles
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"sync"
 
@@ -50,7 +51,7 @@ type savedFile struct {
 
 	// HTTP headers to set on the reupload request for the file if
 	// `reuploadScheduled`.
-	reuploadHeaders []string
+	reuploadHeaders http.Header
 
 	// Hash of the last successfully uploaded content (base64 MD5).
 	lastUploadedB64MD5 string
@@ -91,7 +92,7 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 // the file bytes differ from the last successful upload.
 func (f *savedFile) Upload(
 	url string,
-	headers []string,
+	headers http.Header,
 ) {
 	f.Lock()
 	defer f.Unlock()
@@ -113,7 +114,7 @@ func (f *savedFile) Upload(
 // doUpload sends an upload Task to the FileTransferManager.
 //
 // It must be called while a lock is held. It temporarily releases the lock.
-func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
+func (f *savedFile) doUpload(uploadURL string, uploadHeaders http.Header) {
 	// Mark as uploading first so concurrent f.Upload calls defer and queue.
 	f.isUploading = true
 

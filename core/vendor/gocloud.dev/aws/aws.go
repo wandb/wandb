@@ -21,11 +21,14 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/ratelimit"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 const (
@@ -59,7 +62,7 @@ func parseResponseChecksumValidation(value string) (aws.ResponseChecksumValidati
 	}
 }
 
-// NewDefaultV2Config returns a aws.Config for AWS SDK v2, using the default options.
+// NewDefaultV2Config returns an aws.Config for AWS SDK v2, using the default options.
 func NewDefaultV2Config(ctx context.Context) (aws.Config, error) {
 	return config.LoadDefaultConfig(ctx)
 }
@@ -78,6 +81,11 @@ func NewDefaultV2Config(ctx context.Context) (aws.Config, error) {
 //   - region: The AWS region for requests; sets WithRegion.
 //   - anonymous: A value of "true" forces use of anonymous credentials.
 //   - profile: The shared config profile to use; sets SharedConfigProfile.
+//   - role: An IAM role ARN to assume via STS.
+//   - role_session_name: The session name for the assumed role.
+//   - role_external_id: The external ID for the assumed role.
+//   - role_duration: The duration of the role session, e.g. "1h".
+//   - web_identity_token_file: Path to an OIDC token file; assumes the role with web identity.
 //   - endpoint: The AWS service endpoint to send HTTP request.
 //   - hostname_immutable: Make the hostname immutable, only works if endpoint is also set.
 //   - dualstack: A value of "true" enables dual stack (IPv4 and IPv6) endpoints.
@@ -91,6 +99,9 @@ func V2ConfigFromURLParams(ctx context.Context, q url.Values) (aws.Config, error
 	var endpoint string
 	var hostnameImmutable bool
 	var rateLimitCapacity int64
+	var roleARN string
+	var role roleOptions
+	var anonymous bool
 	var opts []func(*config.LoadOptions) error
 	for param, values := range q {
 		value := values[0]
@@ -135,8 +146,26 @@ func V2ConfigFromURLParams(ctx context.Context, q url.Values) (aws.Config, error
 				return aws.Config{}, fmt.Errorf("invalid value for anonymous: %w", err)
 			}
 			if anon {
+				anonymous = true
 				opts = append(opts, config.WithCredentialsProvider(aws.AnonymousCredentials{}))
 			}
+		case "role":
+			if !strings.HasPrefix(value, "arn:") {
+				return aws.Config{}, fmt.Errorf("invalid value for role: must be a valid ARN (starts with 'arn:'): %s", value)
+			}
+			roleARN = value
+		case "role_session_name":
+			role.sessionName = value
+		case "role_external_id":
+			role.externalID = value
+		case "role_duration":
+			d, err := time.ParseDuration(value)
+			if err != nil {
+				return aws.Config{}, fmt.Errorf("invalid value for role_duration: %w", err)
+			}
+			role.duration = d
+		case "web_identity_token_file":
+			role.webIdentityTokenFile = value
 		case requestChecksumCalculationParamKey:
 			value, err := parseRequestChecksumCalculation(value)
 			if err != nil {
@@ -157,17 +186,29 @@ func V2ConfigFromURLParams(ctx context.Context, q url.Values) (aws.Config, error
 			return aws.Config{}, fmt.Errorf("unknown query parameter %q", param)
 		}
 	}
-	if endpoint != "" {
-		customResolver := aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...any) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					PartitionID:       "aws",
-					URL:               endpoint,
-					SigningRegion:     region,
-					HostnameImmutable: hostnameImmutable,
-				}, nil
-			})
-		opts = append(opts, config.WithEndpointResolverWithOptions(customResolver))
+	if roleARN == "" && role != (roleOptions{}) {
+		return aws.Config{}, fmt.Errorf("query parameter %q is required when using role_session_name, role_external_id, role_duration or web_identity_token_file", "role")
+	}
+	if roleARN != "" && anonymous {
+		return aws.Config{}, fmt.Errorf("query parameter %q is not supported with anonymous credentials", "role")
+	}
+	if role.webIdentityTokenFile != "" && role.externalID != "" {
+		return aws.Config{}, fmt.Errorf("query parameter %q is not supported with web_identity_token_file", "role_external_id")
+	}
+	if roleARN != "" {
+		baseConfig, err := config.LoadDefaultConfig(ctx, opts...)
+		if err != nil {
+			return aws.Config{}, fmt.Errorf("failed to load default AWS config: %w", err)
+		}
+		stsClient := sts.NewFromConfig(baseConfig)
+		provider := role.provider(stsClient, roleARN)
+		opts = []func(*config.LoadOptions) error{
+			config.WithCredentialsProvider(provider),
+		}
+		if baseConfig.Region == "" {
+			return aws.Config{}, fmt.Errorf("STS client created with empty region: all other parameters must be collected before assuming role")
+		}
+		opts = append(opts, config.WithRegion(baseConfig.Region))
 	}
 
 	var rateLimiter retry.RateLimiter
@@ -181,5 +222,49 @@ func V2ConfigFromURLParams(ctx context.Context, q url.Values) (aws.Config, error
 		})
 	}))
 
-	return config.LoadDefaultConfig(ctx, opts...)
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return aws.Config{}, err
+	}
+	if endpoint != "" {
+		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(
+			func(service, region string, options ...any) (aws.Endpoint, error) {
+				return aws.Endpoint{
+					PartitionID:       "aws",
+					URL:               endpoint,
+					SigningRegion:     region,
+					HostnameImmutable: hostnameImmutable,
+				}, nil
+			})
+	}
+	return cfg, nil
+}
+
+// roleOptions holds the optional query parameters for assuming a role.
+type roleOptions struct {
+	sessionName          string
+	externalID           string
+	duration             time.Duration
+	webIdentityTokenFile string
+}
+
+// provider returns a credentials provider that assumes roleARN.
+func (r roleOptions) provider(stsClient *sts.Client, roleARN string) aws.CredentialsProvider {
+	if r.webIdentityTokenFile != "" {
+		return stscreds.NewWebIdentityRoleProvider(stsClient, roleARN, stscreds.IdentityTokenFile(r.webIdentityTokenFile), func(o *stscreds.WebIdentityRoleOptions) {
+			if r.sessionName != "" {
+				o.RoleSessionName = r.sessionName
+			}
+			o.Duration = r.duration
+		})
+	}
+	return stscreds.NewAssumeRoleProvider(stsClient, roleARN, func(o *stscreds.AssumeRoleOptions) {
+		if r.sessionName != "" {
+			o.RoleSessionName = r.sessionName
+		}
+		if r.externalID != "" {
+			o.ExternalID = aws.String(r.externalID)
+		}
+		o.Duration = r.duration
+	})
 }

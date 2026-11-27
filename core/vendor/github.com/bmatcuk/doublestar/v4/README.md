@@ -147,6 +147,9 @@ FilepathGlob. If passed, doublestar will treat all alphabetic characters as
 case insensitive (i.e. "a" in the pattern would match "a" or "A"). This is
 useful for platforms like Windows where paths are case insensitive by default.
 
+Note that this case insensitive comparison is naïve, simply using
+`unicode.ToLower()` to compare.
+
 ```go
 WithFailOnIOErrors()
 ```
@@ -220,9 +223,9 @@ pattern with a `*` or `?` could potentially match a hidden file/directory.
 func Glob(fsys fs.FS, pattern string, opts ...GlobOption) ([]string, error)
 ```
 
-Glob returns the names of all files matching pattern or nil if there is no
-matching file. The syntax of patterns is the same as in `Match()`. The pattern
-may describe hierarchical names such as `usr/*/bin/ed`.
+Glob returns the names of all files matching `pattern` ([see "patterns"]) or
+`nil` if there is no matching file. The syntax of `patterns` is the same as in
+`Match()`. The pattern may describe hierarchical names such as `usr/*/bin/ed`.
 
 Glob ignores file system errors such as I/O errors reading directories by
 default. The only possible returned error is `ErrBadPattern`, reporting that
@@ -254,11 +257,11 @@ type GlobWalkFunc func(path string, d fs.DirEntry) error
 func GlobWalk(fsys fs.FS, pattern string, fn GlobWalkFunc, opts ...GlobOption) error
 ```
 
-GlobWalk calls the callback function `fn` for every file matching pattern.  The
-syntax of pattern is the same as in Match() and the behavior is the same as
-Glob(), with regard to limitations (such as patterns containing `/./`, `/../`,
-or starting with `/`). The pattern may describe hierarchical names such as
-usr/*/bin/ed.
+GlobWalk calls the callback function `fn` for every file matching `pattern`
+([see "patterns"]).  The syntax of `pattern` is the same as in `Match()` and
+the behavior is the same as `Glob()`, with regard to limitations (such as
+patterns containing `/./`, `/../`, or starting with `/`). The pattern may
+describe hierarchical names such as usr/*/bin/ed.
 
 GlobWalk may have a small performance benefit over Glob if you do not need a
 slice of matches because it can avoid allocating memory for the matches.
@@ -293,9 +296,10 @@ Note: users should _not_ count on the returned error,
 func FilepathGlob(pattern string, opts ...GlobOption) (matches []string, err error)
 ```
 
-FilepathGlob returns the names of all files matching pattern or nil if there is
-no matching file. The syntax of pattern is the same as in Match(). The pattern
-may describe hierarchical names such as usr/*/bin/ed.
+FilepathGlob returns the names of all files matching `pattern` ([see
+"patterns"]) or nil if there is no matching file. The syntax of `pattern` is
+the same as in `Match()`. The pattern may describe hierarchical names such as
+usr/*/bin/ed.
 
 FilepathGlob ignores file system errors such as I/O errors reading directories
 by default. The only possible returned error is `ErrBadPattern`, reporting that
@@ -362,11 +366,11 @@ validate against a list of approved base directories?
 func ValidatePattern(s string) bool
 ```
 
-Validate a pattern. Patterns are validated while they run in Match(),
-PathMatch(), and Glob(), so, you normally wouldn't need to call this.  However,
-there are cases where this might be useful: for example, if your program allows
-a user to enter a pattern that you'll run at a later time, you might want to
-validate it.
+Validate a pattern. Patterns are validated while they run in `Match()`,
+`PathMatch()`, and `Glob()`, so, you normally wouldn't need to call this.
+However, there are cases where this might be useful: for example, if your
+program allows a user to enter a pattern that you'll run at a later time, you
+might want to validate it.
 
 ValidatePattern assumes your pattern uses '/' as the path separator.
 
@@ -393,7 +397,10 @@ Special Terms | Meaning
 `[class]`     | matches any single non-path-separator character against a class of characters ([see "character classes"])
 `{alt1,...}`  | matches a sequence of characters if one of the comma-separated alternatives matches
 
-Any character with a special meaning can be escaped with a backslash (`\`).
+Any character with a special meaning can be escaped with a backslash (`\`)
+_except_ when using functions such as `PathMatch()`, `ValidatePathPattern()`,
+or `FilepathGlob()` on systems where backslash is a path separator (such as
+Windows) where escaping is disabled.
 
 A doublestar (`**`) should appear surrounded by path separators such as `/**/`.
 A mid-pattern doublestar (`**`) behaves like bash's globstar option: a pattern
@@ -411,6 +418,25 @@ Class      | Meaning
 `[125-79]` | matches any single character within the set 129, or the range 5-7
 `[^class]` | matches any single character which does *not* match the class
 `[!class]` | same as `^`: negates the class
+
+To match a literal `^` or `!`, ensure they are not the first character in the
+character class, or escape them.
+
+A special note about escaping: a closing bracket (`]`) or dash (`-`) can be
+escaped with a backslash (`\`) _except_ when using functions such as
+`PathMatch()`, `ValidatePathPattern()`, or `FilepathGlob()` on systems where
+backslash is a path separator (such as Windows). However, _all_ doublestar
+functions (including those mentioned and `Match()`, `ValidatePattern()`, and
+`Glob()`) can match a literal closing bracket or dash if you follow these
+rules:
+* A character class that begins with a closing bracket can match a literal
+  closing bracket. For example, `[]abc]` will match `]`, `a`, `b`, or `c`. If
+  you want to negate the character class, the `^` or `!` must come first (ex:
+  `[^]abc]`).
+* A character class that begins or ends with a dash can match a literal dash.
+  For example, `[-abc]` or `[abc-]` will match `a`, `b`, `c`, or `-`. If you
+  want to negate the character class, the `^` or `!` must come first (ex:
+  `[!-abc]`).
 
 #### Globs Are Not Regular Expressions
 

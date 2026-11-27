@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="780" viewBox="0 0 1280 780" role="img" aria-labelledby="title desc">
+  <title id="title">W&amp;B SDK two-process architecture map</title>
+  <desc id="desc">User Python code flows through the SDK interface and a socket to wandb-core, where a per-run stream runs Handler, transaction log, and Sender, ending at the W&amp;B backend.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fbfcfb"/>
+      <stop offset="1" stop-color="#eef5f4"/>
+    </linearGradient>
+    <linearGradient id="python" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#e8f3ff"/>
+      <stop offset="1" stop-color="#d7eaff"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#ecf8ef"/>
+      <stop offset="1" stop-color="#d7f0df"/>
+    </linearGradient>
+    <linearGradient id="durable" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#fff1d4"/>
+      <stop offset="1" stop-color="#ffe0a3"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#21313b" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#2472b4"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#248a55"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#b36b00"/>
+    </marker>
+    <style>
+      .canvas { fill: url(#bg); }
+      .title { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 31px; font-weight: 700; fill: #17232d; }
+      .subtitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 16px; font-weight: 400; fill: #4b5a64; }
+      .laneTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #263640; }
+      .laneNote { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 400; fill: #687781; }
+      .boxTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 17px; font-weight: 700; fill: #17232d; }
+      .boxText { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; font-weight: 400; fill: #40505a; }
+      .code { font-family: Menlo, Consolas, monospace; font-size: 11.5px; font-weight: 500; fill: #5b6670; }
+      .codeSmall { font-family: Menlo, Consolas, monospace; font-size: 10.5px; font-weight: 500; fill: #53636d; }
+      .pill { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 700; fill: #ffffff; }
+      .chip { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 11px; font-weight: 700; fill: #ffffff; }
+      .label { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 11px; font-weight: 700; fill: #53626d; }
+      .muted { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 11px; font-weight: 400; fill: #687781; }
+      .streamTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #2d5b45; letter-spacing: 1px; }
+      .box { fill: #ffffff; stroke: #ccd8dc; stroke-width: 1.4; filter: url(#shadow); }
+      .chipBox { fill: #fffdf7; stroke: #dcc08e; stroke-width: 1.2; }
+      .chipText { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; font-weight: 600; fill: #2d4250; }
+    </style>
+  </defs>
+
+  <rect class="canvas" width="1280" height="780"/>
+  <text x="64" y="56" class="title">W&amp;B SDK: two-process architecture</text>
+  <text x="64" y="88" class="subtitle">Python owns the user-facing hot path; wandb-core owns streams, durability, and uploads.</text>
+
+  <!-- Lanes -->
+  <rect x="64" y="140" width="260" height="550" rx="18" fill="url(#python)" stroke="#9ec8ef"/>
+  <text x="86" y="172" class="laneTitle">User process — Python</text>
+  <text x="86" y="192" class="laneNote">user ergonomics, hot path</text>
+
+  <rect x="348" y="140" width="156" height="550" rx="18" fill="#fbfbf8" stroke="#cdd6da"/>
+  <text x="370" y="172" class="laneTitle">Local IPC</text>
+  <text x="370" y="192" class="laneNote">spawned by Python,</text>
+  <text x="370" y="208" class="laneNote">WANDB_SERVICE</text>
+
+  <rect x="528" y="140" width="440" height="550" rx="18" fill="url(#core)" stroke="#a6d6b4"/>
+  <text x="550" y="172" class="laneTitle">wandb-core process — Go</text>
+  <text x="550" y="192" class="laneNote">one service, many runs</text>
+
+  <rect x="992" y="140" width="224" height="550" rx="18" fill="url(#durable)" stroke="#e6bd6e"/>
+  <text x="1014" y="172" class="laneTitle">Destinations</text>
+  <text x="1014" y="192" class="laneNote">remote APIs · replay</text>
+
+  <!-- Python column -->
+  <g>
+    <rect class="box" x="88" y="200" width="212" height="96" rx="14"/>
+    <text x="106" y="228" class="boxTitle">Training script</text>
+    <text x="106" y="252" class="code">wandb.init(...)</text>
+    <text x="106" y="269" class="code">run.log({...})</text>
+    <text x="106" y="286" class="code">run.finish()</text>
+  </g>
+
+  <g>
+    <rect class="box" x="88" y="324" width="212" height="92" rx="14"/>
+    <text x="106" y="352" class="boxTitle">wandb / Run API</text>
+    <text x="106" y="376" class="boxText">validation, config, media</text>
+    <text x="106" y="398" class="code">wandb_run.py · wandb_init.py</text>
+  </g>
+
+  <g>
+    <rect class="box" x="88" y="440" width="212" height="110" rx="14"/>
+    <text x="106" y="468" class="boxTitle">Interface</text>
+    <text x="106" y="492" class="boxText">records → protobuf frames,</text>
+    <text x="106" y="509" class="boxText">mailbox matches replies</text>
+    <text x="106" y="532" class="code">sdk/interface · lib/service</text>
+  </g>
+
+  <text x="88" y="606" class="laneNote">also in-process: console capture,</text>
+  <text x="88" y="624" class="laneNote">settings, telemetry, atexit hooks</text>
+
+  <path d="M194 296V320" stroke="#2472b4" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowBlue)"/>
+  <path d="M194 416V436" stroke="#2472b4" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowBlue)"/>
+
+  <!-- IPC wire: request over, response back -->
+  <path d="M300 495H540" stroke="#2472b4" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowBlue)"/>
+  <g>
+    <rect x="360" y="468" width="132" height="54" rx="10" fill="#ffffff" stroke="#b9c6cc" stroke-width="1.4" filter="url(#shadow)"/>
+    <line x1="392" y1="468" x2="392" y2="522" stroke="#b9c6cc" stroke-width="1.2"/>
+    <line x1="428" y1="468" x2="428" y2="522" stroke="#b9c6cc" stroke-width="1.2"/>
+    <text x="376" y="500" class="codeSmall" text-anchor="middle">W</text>
+    <text x="410" y="500" class="codeSmall" text-anchor="middle">len</text>
+    <text x="460" y="500" class="codeSmall" text-anchor="middle">protobuf</text>
+  </g>
+  <text x="426" y="456" class="label" text-anchor="middle">ServerRequest</text>
+  <path d="M544 535H304" stroke="#2472b4" stroke-width="1.75" stroke-linecap="round" stroke-dasharray="6 5" fill="none" marker-end="url(#arrowBlue)"/>
+  <text x="426" y="560" class="label" text-anchor="middle">ServerResponse → mailbox</text>
+  <text x="426" y="632" class="codeSmall" text-anchor="middle">service_client.py</text>
+  <text x="426" y="648" class="codeSmall" text-anchor="middle">↔ tokenizer.go</text>
+
+  <!-- Core: connection column -->
+  <g>
+    <rect class="box" x="544" y="270" width="156" height="100" rx="14"/>
+    <text x="562" y="298" class="boxTitle">StreamMux</text>
+    <text x="562" y="320" class="boxText">stream id →</text>
+    <text x="562" y="336" class="boxText">per-run Stream</text>
+    <text x="562" y="356" class="code">stream_mux.go</text>
+  </g>
+
+  <g>
+    <rect class="box" x="544" y="440" width="156" height="110" rx="14"/>
+    <text x="562" y="468" class="boxTitle">Connection</text>
+    <text x="562" y="490" class="boxText">one per client,</text>
+    <text x="562" y="506" class="boxText">routes records,</text>
+    <text x="562" y="522" class="boxText">sync, API</text>
+    <text x="562" y="541" class="code">connection.go</text>
+  </g>
+
+  <path d="M614 440V374" stroke="#248a55" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+  <path d="M700 320H728" stroke="#248a55" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+
+  <!-- Core: per-run stream container -->
+  <rect x="716" y="210" width="236" height="440" rx="18" fill="#ffffff" fill-opacity="0.55" stroke="#7fbb96" stroke-width="1.6"/>
+  <text x="732" y="238" class="streamTitle">STREAM — ONE PER RUN</text>
+
+  <g>
+    <rect class="box" x="732" y="260" width="204" height="120" rx="14"/>
+    <rect x="750" y="276" width="74" height="22" rx="11" fill="#276fa8"/>
+    <text x="762" y="291" class="chip">fast lane</text>
+    <text x="750" y="324" class="boxTitle">Handler</text>
+    <text x="750" y="346" class="boxText">partial history, summary,</text>
+    <text x="750" y="362" class="boxText">light replies</text>
+  </g>
+
+  <path d="M834 380V412" stroke="#248a55" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+
+  <g>
+    <path d="M764 426 C764 417 904 417 904 426 v44 c0 9 -140 9 -140 0 z" fill="#fff7e8" stroke="#d59d3b" stroke-width="1.5" filter="url(#shadow)"/>
+    <path d="M764 426 c0 9 140 9 140 0" fill="none" stroke="#d59d3b" stroke-width="1.5"/>
+    <text x="834" y="450" text-anchor="middle" style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #17232d;">transaction log</text>
+    <text x="834" y="466" text-anchor="middle" class="codeSmall">.wandb file</text>
+  </g>
+
+  <path d="M834 482V516" stroke="#248a55" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+
+  <g>
+    <rect class="box" x="732" y="520" width="204" height="120" rx="14"/>
+    <rect x="750" y="536" width="104" height="22" rx="11" fill="#238853"/>
+    <text x="766" y="551" class="chip">blocking lane</text>
+    <text x="750" y="584" class="boxTitle">Sender</text>
+    <text x="750" y="606" class="boxText">GraphQL, filestream, files,</text>
+    <text x="750" y="622" class="boxText">artifacts, finish</text>
+  </g>
+
+  <text x="716" y="668" class="muted">hand-off stays in memory; the log adds</text>
+  <text x="716" y="684" class="muted">crash replay + sender backpressure</text>
+
+  <!-- Right lane -->
+  <g>
+    <rect class="box" x="1008" y="250" width="192" height="110" rx="14"/>
+    <text x="1026" y="278" class="boxTitle">wandb beta sync</text>
+    <text x="1026" y="300" class="boxText">replays .wandb logs</text>
+    <text x="1026" y="316" class="boxText">through Sender paths</text>
+    <text x="1026" y="338" class="code">beta_sync.py · runsync</text>
+  </g>
+
+  <g>
+    <rect class="box" x="1008" y="488" width="192" height="184" rx="14"/>
+    <text x="1026" y="516" class="boxTitle">W&amp;B backend</text>
+    <rect class="chipBox" x="1026" y="534" width="156" height="30" rx="8"/>
+    <text x="1104" y="553" class="chipText" text-anchor="middle">GraphQL API</text>
+    <rect class="chipBox" x="1026" y="574" width="156" height="30" rx="8"/>
+    <text x="1104" y="593" class="chipText" text-anchor="middle">filestream</text>
+    <rect class="chipBox" x="1026" y="614" width="156" height="30" rx="8"/>
+    <text x="1104" y="633" class="chipText" text-anchor="middle">files + artifacts</text>
+  </g>
+
+  <path d="M936 580H1004" stroke="#248a55" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+  <path d="M904 434 C952 410 980 340 1004 306" stroke="#b36b00" stroke-width="2" stroke-linecap="round" stroke-dasharray="7 6" fill="none" marker-end="url(#arrowAmber)"/>
+
+  <!-- Legend -->
+  <g transform="translate(64 716)">
+    <rect x="0" y="0" width="1152" height="38" rx="19" fill="#17232d" opacity="0.92"/>
+    <circle cx="26" cy="19" r="7" fill="#53a5e8"/>
+    <text x="43" y="24" class="pill">User path: validate + hand off fast</text>
+    <circle cx="406" cy="19" r="7" fill="#56b774"/>
+    <text x="423" y="24" class="pill">Core path: stream, upload, retry</text>
+    <circle cx="766" cy="19" r="7" fill="#e4a33c"/>
+    <text x="783" y="24" class="pill">Durable path: .wandb log + replay</text>
+  </g>
+</svg>

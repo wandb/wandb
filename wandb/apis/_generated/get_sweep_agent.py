@@ -3,23 +3,21 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import AgentFragment
 
 
 class GetSweepAgent(GQLResult):
-    project: Optional[GetSweepAgentProject]
+    project: GetSweepAgentProject | None
 
 
 class GetSweepAgentProject(GQLResult):
-    sweep: Optional[GetSweepAgentProjectSweep]
+    sweep: GetSweepAgentProjectSweep | None
 
 
 class GetSweepAgentProjectSweep(GQLResult):
-    agent: Optional[AgentFragment]
+    agent: AgentFragment | None
 
 
 GetSweepAgent.model_rebuild()

@@ -6,12 +6,20 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
 	// Boot loading parameters
 	BootLoadChunkSize = 1000
 	BootLoadMaxTime   = 100 * time.Millisecond
+
+	// bootRedrawInterval bounds how often the visible charts are redrawn
+	// while chunks are still arriving. A redraw rasterizes every point of
+	// every visible chart, so drawing after each chunk made loading
+	// quadratic in the run's length.
+	bootRedrawInterval = 100 * time.Millisecond
 
 	// Live monitoring parameters
 	LiveMonitorChunkSize = 2000
@@ -22,6 +30,8 @@ const (
 //
 // Implementations:
 //   - LevelDBHistorySource: Reads from a LevelDB-style .wandb transaction log
+//   - ParquetHistorySource: Reads from a run's exported parquet history files.
+//     The files are downloaded from the W&B backend.
 //
 // The Read method returns a ChunkedBatchMsg containing processed records,
 // and may return io.EOF when the stream is complete.
@@ -36,6 +46,10 @@ type HistorySource interface {
 		chunkSize int,
 		maxTimePerChunk time.Duration,
 	) (tea.Msg, error)
+
+	// NextLiveReadCmd returns a command to read the next set of records from the history source.
+	// hasMore indicates whether the previous read stopped before exhausting currently available data.
+	NextLiveReadCmd(readCmd tea.Cmd, hasMore bool) tea.Cmd
 
 	// Close closes the history source that is being read from.
 	Close()
@@ -57,4 +71,46 @@ func ReadRecords(
 		}
 		return msgs
 	}
+}
+
+func concatenateHistory(messages []HistoryMsg, runPath string) HistoryMsg {
+	h := HistoryMsg{
+		RunPath: runPath,
+		Metrics: make(map[string]MetricData),
+		Media:   make(map[string][]MediaPoint),
+	}
+	for _, msg := range messages {
+		for metricName, data := range msg.Metrics {
+			existing := h.Metrics[metricName]
+			existing.X = append(existing.X, data.X...)
+			existing.Y = append(existing.Y, data.Y...)
+			existing.XAxisMetric = data.XAxisMetric
+			h.Metrics[metricName] = existing
+		}
+		for mediaKey, points := range msg.Media {
+			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
+		}
+		h.StepTimes.X = append(h.StepTimes.X, msg.StepTimes.X...)
+		h.StepTimes.Y = append(h.StepTimes.Y, msg.StepTimes.Y...)
+	}
+
+	if len(h.Metrics) == 0 {
+		h.Metrics = nil
+	}
+	if len(h.Media) == 0 {
+		h.Media = nil
+	}
+
+	return h
+}
+
+func concatenateSummary(messages []SummaryMsg, runPath string) SummaryMsg {
+	s := SummaryMsg{
+		RunPath: runPath,
+		Summary: make([]*spb.SummaryRecord, 0),
+	}
+	for _, msg := range messages {
+		s.Summary = append(s.Summary, msg.Summary...)
+	}
+	return s
 }

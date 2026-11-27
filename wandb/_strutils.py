@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 from base64 import b64decode, b64encode
+from collections.abc import Iterable
 from typing import Any
 
 
 def ensureprefix(s: str, prefix: str) -> str:
     """Ensures the string has the given prefix prepended."""
     return s if s.startswith(prefix) else f"{prefix}{s}"
-
-
-def ensuresuffix(s: str, suffix: str) -> str:
-    """Ensures the string has the given suffix appended."""
-    return s if s.endswith(suffix) else f"{s}{suffix}"
 
 
 def nameof(obj: Any, full: bool = True) -> str:
@@ -21,6 +17,11 @@ def nameof(obj: Any, full: bool = True) -> str:
     falling back on the `__name__` attribute.
     """
     return getattr(obj, "__qualname__", obj.__name__) if full else obj.__name__
+
+
+def repr_join(items: Iterable[Any], sep: str = ", ") -> str:
+    """Returns the joined repr(...) strings of all items in the iterable."""
+    return sep.join(map(repr, items))
 
 
 def b64decode_ascii(s: str) -> str:

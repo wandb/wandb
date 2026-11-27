@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 )
 
@@ -32,19 +31,16 @@ func (h *TFEventConverter) ConvertNext(
 	event *tbproto.TFEvent,
 	logger *observability.CoreLogger,
 ) {
-	stepKey, err := h.withNamespace("global_step")
-	if err != nil {
-		logger.CaptureError(fmt.Errorf("tensorboard: global_step: %v", err))
-	} else {
-		emitter.SetTFStep(pathtree.PathOf(stepKey), event.Step)
-		emitter.SetTFWallTime(event.WallTime)
-	}
+	emitter.SetTFStep(event.Step)
+	emitter.SetTFWallTime(event.WallTime)
 
 	for _, value := range event.GetSummary().GetValue() {
 		tag, err := h.withNamespace(value.GetTag())
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: invalid tag: %v", err))
+				"tensorboard",
+				fmt.Errorf("tensorboard: invalid tag: %v", err),
+			)
 			continue
 		}
 

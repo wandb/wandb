@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from unittest.mock import Mock
 
 import pytest
@@ -26,7 +26,7 @@ class _Tester:
         self._mock_printer.loading_symbol.return_value = loading_symbol
 
     @contextlib.contextmanager
-    def _dynamic_text(self) -> Iterator[printer.DynamicText]:
+    def _dynamic_text(self) -> Generator[printer.DynamicText]:
         """Fake implementation of Printer.dynamic_text."""
         yield self._mock_dynamic_text
 

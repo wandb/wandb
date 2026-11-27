@@ -1,0 +1,5 @@
+query XXHashDigestsEnabled($entityName: String!) {
+  entity(name: $entityName) {
+    xxhashDigestsEnabled
+  }
+}

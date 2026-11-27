@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -38,6 +39,42 @@ func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
 	d := grid.CalculateChartDimensions(10, 5) // small on purpose
 	require.GreaterOrEqual(t, d.CellW, leet.MinChartWidth)
 	require.GreaterOrEqual(t, d.CellH, leet.MinChartHeight)
+}
+
+// The rendered grid must never be wider than the pane. Regression test for
+// the column count (raw pane width) disagreeing with the cell widths (pane
+// width minus content padding) in a narrow window around each column-count
+// transition, which overflowed the pane during sidebar drags.
+func TestMetricsGrid_View_FitsPaneWidth(t *testing.T) {
+	h := 30
+	grid := newMetricsGrid(t, 3, 2, 200, h, nil)
+
+	metrics := make(map[string]leet.MetricData, 6)
+	for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
+		metrics[name] = leet.MetricData{X: []float64{1}, Y: []float64{1}}
+	}
+	grid.ProcessHistory(leet.HistoryMsg{Metrics: metrics})
+
+	// 24 is the narrowest the main column can be dragged to.
+	for w := 24; w <= 120; w++ {
+		grid.UpdateDimensions(w, h)
+		dims := grid.CalculateChartDimensions(w, h)
+		require.LessOrEqual(t, lipgloss.Width(grid.View(dims)), w,
+			"grid overflows a %d-wide pane", w)
+	}
+}
+
+func TestMetricsGrid_XAxisMetricInChartHeader(t *testing.T) {
+	grid := newMetricsGrid(t, 1, 1, 80, 24, nil)
+	grid.ProcessHistory(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"train/loss": {X: []float64{9}, Y: []float64{0.5}, XAxisMetric: "custom_step"},
+		},
+	})
+	grid.UpdateDimensions(80, 24)
+
+	dims := grid.CalculateChartDimensions(80, 24)
+	require.Contains(t, grid.View(dims), "[x: custom_step]")
 }
 
 func TestMetricsGrid_Render_EmptyGridShowsSectionHeader(t *testing.T) {
@@ -252,7 +289,7 @@ func TestMetricsGrid_Inspection_FocusedOnly(t *testing.T) {
 
 func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	w, h := 240, 60
-	grid := newMetricsGrid(t, 1, 2, w, h, nil)
+	grid := newMetricsGrid(t, 1, 3, w, h, nil)
 
 	// alpha has dense steps, beta has sparse to exercise nearestIndex tie-breaks.
 	hist := map[string]leet.MetricData{
@@ -264,6 +301,11 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 			X: []float64{0, 2, 4, 6, 8},
 			Y: []float64{20, 40, 60, 80, 100},
 		},
+		"gamma": {
+			X:           []float64{0, 2, 4, 6, 8},
+			Y:           []float64{20, 40, 60, 80, 100},
+			XAxisMetric: "custom_step",
+		},
 	}
 	m := leet.HistoryMsg{Metrics: hist}
 	require.True(t, grid.ProcessHistory(m))
@@ -273,8 +315,10 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 
 	chA := grid.TestChartAt(0, 0)
 	chB := grid.TestChartAt(0, 1)
+	chC := grid.TestChartAt(0, 2)
 	require.NotNil(t, chA)
 	require.NotNil(t, chB)
+	require.NotNil(t, chC)
 
 	// Start synchronized at X=3 on alpha.
 	relPX := int(math.Round(
@@ -290,6 +334,7 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	xB, _, bActive := chB.InspectionData()
 	require.True(t, aActive)
 	require.True(t, bActive)
+	require.False(t, chC.IsInspecting(), "gamma is on another x-axis")
 	require.InDelta(t, 3.0, xA, 1e-6) // alpha matches anchor exactly
 
 	// For beta (X: {0,2,4,6,8}), nearest to 3 is a tie (2 and 4). Implementation picks the lower (2).

@@ -58,7 +58,7 @@ func (d *dumper) dump(v reflect.Value) {
 	case reflect.Array, reflect.Slice:
 		d.dumpArray(v)
 
-	case reflect.Interface, reflect.Ptr:
+	case reflect.Interface, reflect.Pointer:
 		d.dumpPtr(v)
 
 	case reflect.Struct:
@@ -79,7 +79,7 @@ func (d *dumper) nl() {
 }
 
 func typeName(t reflect.Type) string {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		return typeName(t.Elem())
 	}
 	return t.Name()
@@ -122,7 +122,7 @@ func (d *dumper) dumpStruct(v reflect.Value) {
 
 func isZero(v reflect.Value) bool {
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		return v.IsNil()
 	case reflect.Func, reflect.Map:
 		return v.IsNil()

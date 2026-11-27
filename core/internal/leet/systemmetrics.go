@@ -45,7 +45,8 @@ var metricDefs = []MetricDef{
 	{Name: "Process CPU", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^cpu(/l:.+)?$`)},
 	{Name: "CPU Core", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
-		Regex: regexp.MustCompile(`^cpu\.\d+\.cpu_percent(/l:.+)?$`)},
+		ChartKind: MetricChartKindFrenchFries,
+		Regex:     regexp.MustCompile(`^cpu\.\d+\.cpu_percent(/l:.+)?$`)},
 	{Name: "Apple E-cores", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^cpu\.ecpu_percent(/l:.+)?$`)},
 	{Name: "Apple E-cores Freq", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,
@@ -82,6 +83,10 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^proc\.memory\.availableMB(/l:.+)?$`)},
 	{Name: "Process CPU Threads", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^proc\.cpu\.threads(/l:.+)?$`)},
+	{Name: "Process CPU Throttled", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^proc\.cpu\.throttledPercent(/l:.+)?$`)},
+	{Name: "Process OOM Kills", Unit: UnitScalar, MinY: 0, MaxY: 10, AutoRange: true,
+		Regex: regexp.MustCompile(`^proc\.memory\.oomKills(/l:.+)?$`)},
 
 	// Disk metrics - handle both aggregated and per-device
 	{Name: "Disk", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
@@ -99,15 +104,32 @@ var metricDefs = []MetricDef{
 	{Name: "Disk Write Total", Unit: UnitMiB, MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^disk\.out(/l:.+)?$`)},
 
-	// Network metrics - treat as rates instead of cumulative
+	// Per-device I/O rates derived by symon from the cumulative counters.
+	{Name: "Disk I/O", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^disk\.[^.]+\.(read|write)Bps$`)},
+
+	// Network metrics - CUMULATIVE
 	{Name: "Network Rx", Unit: UnitBytes, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.recv(/l:.+)?$`)},
 	{Name: "Network Tx", Unit: UnitBytes, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.sent(/l:.+)?$`)},
+	{Name: "Network TCP Retransmits", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.tcpRetransmits(/l:.+)?$`)},
+	// Network rates derived by symon from the cumulative counters.
+	{Name: "Network Rx", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.recvBps$`)},
+	{Name: "Network Tx", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.sentBps$`)},
 
 	// System power
 	{Name: "System Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
 		Regex: regexp.MustCompile(`^system\.powerWatts(/l:.+)?$`)},
+
+	// W&B's own processes
+	{Name: "W&B CPU", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^wandb\.cpu(/l:.+)?$`)},
+	{Name: "W&B Memory", Unit: UnitMiB, MinY: 0, MaxY: 1024, AutoRange: true,
+		Regex: regexp.MustCompile(`^wandb\.memory\.rssMB(/l:.+)?$`)},
 
 	// Apple Neural Engine
 	{Name: "Neural Engine Power", Unit: UnitWatt, MinY: 0, MaxY: 50, AutoRange: true,
@@ -136,6 +158,8 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^gpu\.\d+\.powerPercent(/l:.+)?$`)},
 	{Name: "GPU Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.powerWatts(/l:.+)?$`)},
+	{Name: "GPU Energy", Unit: UnitJoule, MinY: 0, MaxY: 1000, AutoRange: true,
+		Regex: regexp.MustCompile(`^gpu\.\d+\.energyJoules(/l:.+)?$`)},
 	{Name: "GPU SM Clock", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.smClock(/l:.+)?$`)},
 	{Name: "GPU Graphics Clock", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,
@@ -164,13 +188,13 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^gpu\.\d+\.pipeFp16Active(/l:.+)?$`)},
 	{Name: "GPU Tensor HMMA", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.pipeTensorHmmaActive(/l:.+)?$`)},
-	{Name: "GPU PCIe Tx", Unit: UnitGiBps, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "GPU PCIe Tx", Unit: UnitBps, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.pcieTxBytes(/l:.+)?$`)},
-	{Name: "GPU PCIe Rx", Unit: UnitGiBps, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "GPU PCIe Rx", Unit: UnitBps, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.pcieRxBytes(/l:.+)?$`)},
-	{Name: "GPU NVLink Tx", Unit: UnitGiBps, MinY: 0, MaxY: 100, AutoRange: true,
+	{Name: "GPU NVLink Tx", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.nvlinkTxBytes(/l:.+)?$`)},
-	{Name: "GPU NVLink Rx", Unit: UnitGiBps, MinY: 0, MaxY: 100, AutoRange: true,
+	{Name: "GPU NVLink Rx", Unit: UnitBps, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.nvlinkRxBytes(/l:.+)?$`)},
 
 	// Per-process GPU metrics
@@ -255,29 +279,29 @@ var metricDefs = []MetricDef{
 	// Trainium metrics
 	{Name: "Neuron Core", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_utilization(/l:.+)?$`)},
-	{Name: "Trainium Host Memory", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Trainium Host Memory", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.host_total_memory_usage(/l:.+)?$`)},
-	{Name: "Neuron Device Memory", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Neuron Device Memory", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.neuron_device_total_memory_usage(/l:.+)?$`)},
-	{Name: "Trainium Host App Memory", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Trainium Host App Memory", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.host_memory_usage\.application_memory(/l:.+)?$`)},
-	{Name: "Trainium Host Constants", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Trainium Host Constants", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.host_memory_usage\.constants(/l:.+)?$`)},
-	{Name: "Trainium Host DMA", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Trainium Host DMA", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.host_memory_usage\.dma_buffers(/l:.+)?$`)},
-	{Name: "Trainium Host Tensors", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Trainium Host Tensors", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.host_memory_usage\.tensors(/l:.+)?$`)},
-	{Name: "Neuron Constants", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Neuron Constants", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.constants(/l:.+)?$`)},
-	{Name: "Neuron Model Code", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Neuron Model Code", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.model_code(/l:.+)?$`)},
-	{Name: "Neuron Scratchpad", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Neuron Scratchpad", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(
 			`^trn\.\d+\.neuroncore_memory_usage\.model_shared_scratchpad(/l:.+)?$`,
 		)},
-	{Name: "Neuron Runtime", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Neuron Runtime", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.runtime_memory(/l:.+)?$`)},
-	{Name: "Neuron Tensors", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
+	{Name: "Neuron Tensors", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.tensors(/l:.+)?$`)},
 }
 
@@ -310,9 +334,13 @@ func ExtractBaseKey(metricName string) string {
 	parts := strings.Split(metricName, ".")
 
 	// Special handling for disk I/O metrics: disk.{device}.in/out -> disk.io_per_device
-	if len(parts) == 3 && parts[0] == "disk" &&
-		(parts[2] == "in" || parts[2] == "out") {
-		return "disk.io_per_device"
+	if len(parts) == 3 && parts[0] == "disk" {
+		switch parts[2] {
+		case "in", "out":
+			return "disk.io_per_device"
+		case "readBps", "writeBps":
+			return "disk.io_rate_per_device"
+		}
 	}
 
 	// Handle patterns like "gpu.0.temp" -> "gpu.temp"
@@ -345,15 +373,14 @@ func ExtractSeriesName(metricName string) string {
 
 	parts := strings.Split(metricName, ".")
 
-	// Handle disk I/O patterns like "disk.disk4.in", "disk.nvme0n1.out"
-	if len(parts) == 3 && parts[0] == "disk" &&
-		(parts[2] == "in" || parts[2] == "out") {
-		diskName := parts[1]
-		direction := parts[2]
-		if direction == "in" {
-			return diskName + " read"
+	// Handle disk I/O patterns like "disk.disk4.in", "disk.nvme0n1.writeBps"
+	if len(parts) == 3 && parts[0] == "disk" {
+		switch parts[2] {
+		case "in", "readBps":
+			return parts[1] + " read"
+		case "out", "writeBps":
+			return parts[1] + " write"
 		}
-		return diskName + " write"
 	}
 
 	// Handle patterns like "gpu.0.temp"

@@ -16,6 +16,11 @@ class ArtifactCollectionType(str, Enum):
     SEQUENCE = "SEQUENCE"
 
 
+class ArtifactDigestAlgorithm(str, Enum):
+    MANIFEST_MD5 = "MANIFEST_MD5"
+    MANIFEST_XXH128 = "MANIFEST_XXH128"
+
+
 class ArtifactState(str, Enum):
     COMMITTED = "COMMITTED"
     DELETED = "DELETED"

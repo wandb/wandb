@@ -32,6 +32,23 @@ func (mh *MetricHandler) Exists(key string) bool {
 	return exists
 }
 
+// StepMetric returns the name of a metric's custom X axis, or "" if it
+// has none.
+//
+// A metric matching a glob is defined on first lookup.
+func (mh *MetricHandler) StepMetric(key string) string {
+	if metric, ok := mh.definedMetrics[key]; ok {
+		return metric.Step
+	}
+
+	metric, ok := mh.matchGlobMetric(key)
+	if !ok {
+		return ""
+	}
+	mh.definedMetrics[key] = metric
+	return metric.Step
+}
+
 // ProcessRecord updates metric definitions.
 func (mh *MetricHandler) ProcessRecord(record *spb.MetricRecord) error {
 	if record.StepMetric != "" {

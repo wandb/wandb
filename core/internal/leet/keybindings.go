@@ -42,7 +42,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"esc"},
-					Description: "Back to workspace (when not filtering/configuring)",
+					Description: "Unfocus pane, then back to workspace",
+					Handler:     (*Run).handleEscape,
+				},
+				{
+					Keys:        []string{"i"},
+					Description: "Inspect the raw records in the run's .wandb file",
 				},
 			},
 		},
@@ -60,7 +65,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
-					Keys:        []string{"]"},
+					Keys:        []string{"]", "2"},
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
@@ -73,6 +78,15 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Run).handleResetLayout,
 				},
 			},
 		},
@@ -114,8 +128,18 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
+					Keys:        []string{"shift+up", "shift+down"},
+					Description: "Scroll the rows of a heatmap chart with more series than fit",
+					Handler:     (*Run).handleScrollFocusedChartRows,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Run).handleCycleChartGuides,
+				},
+				{
 					Keys:        []string{"/"},
-					Description: "Filter metrics by pattern",
+					Description: "Filter metrics by pattern (console logs when the logs pane is focused)",
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
@@ -125,7 +149,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"ctrl+/", "ctrl+l"},
-					Description: "Clear metrics filter",
+					Description: "Clear metrics filter (console filter when the logs pane is focused)",
 					Handler:     (*Run).handleClearMetricsFilter,
 				},
 				{
@@ -193,6 +217,19 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        NavKeysFor(NavIntentRight),
 					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
 					Handler:     (*Run).handleSidebarPageNav,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
+				},
+				{
+					Keys: []string{"l"},
+					Description: "Link console logs and charts: the selected line and the chart " +
+						"crosshair follow each other (logs pane focused)",
+				},
+				{
+					Keys:        []string{"k"},
+					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
 				},
 			},
 		},
@@ -264,6 +301,15 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Workspace).handleResetLayout,
+				},
 			},
 		},
 		{
@@ -319,8 +365,18 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleCycleFocusedChartMode,
 				},
 				{
+					Keys:        []string{"shift+up", "shift+down"},
+					Description: "Scroll the rows of a heatmap chart with more series than fit",
+					Handler:     (*Workspace).handleScrollFocusedChartRows,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Workspace).handleCycleChartGuides,
+				},
+				{
 					Keys:        []string{"/"},
-					Description: "Filter metrics by pattern",
+					Description: "Filter metrics by pattern (console logs when the logs pane is focused)",
 					Handler:     (*Workspace).handleEnterMetricsFilter,
 				},
 				{
@@ -331,7 +387,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 				{
 					// TODO: remove ctrl+l.
 					Keys:        []string{"ctrl+/", "ctrl+l"},
-					Description: "Clear metrics filter",
+					Description: "Clear metrics filter (console filter when the logs pane is focused)",
 					Handler:     (*Workspace).handleClearMetricsFilter,
 				},
 				{
@@ -409,6 +465,24 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Pin/unpin selected run",
 					Handler:     (*Workspace).handlePinRunKey,
 				},
+				{
+					Keys:        []string{"ctrl+a"},
+					Description: "Select all runs matching the runs filter (y to confirm)",
+					Handler:     (*Workspace).handleSelectAllRunsKey,
+				},
+				{
+					Keys:        []string{"x"},
+					Description: "Deselect all runs except the pinned one",
+					Handler:     (*Workspace).handleDeselectAllRunsKey,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
+				},
+				{
+					Keys:        []string{"k"},
+					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
+				},
 			},
 		},
 
@@ -438,34 +512,73 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 			},
 		},
 		{
+			Name: "Panels",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"["},
+					Description: "Toggle the vitals sidebar",
+					Handler:     (*Symon).handleToggleSidebar,
+				},
+				{
+					Keys:        []string{"t"},
+					Description: "Sort the processes by CPU or by memory",
+					Handler:     (*Symon).handleToggleProcessSort,
+				},
+				{
+					Keys:        []string{"drag border"},
+					Description: "Resize the sidebar with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset the sidebar width to the default",
+					Handler:     (*Symon).handleResetLayout,
+				},
+				{
+					Keys:        []string{"f"},
+					Description: "Filter the processes by name or PID",
+					Handler:     (*Symon).handleEnterProcessFilter,
+				},
+				{
+					Keys:        []string{"ctrl+f"},
+					Description: "Clear the processes filter",
+					Handler:     (*Symon).handleClearProcessFilter,
+				},
+			},
+		},
+		{
 			Name: "Navigation",
 			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus: processes ↔ charts",
+					Handler:     (*Symon).handleTab,
+				},
 				{
 					Keys: concatKeys(
 						NavKeysFor(NavIntentUp), NavKeysFor(NavIntentDown),
 						NavKeysFor(NavIntentLeft), NavKeysFor(NavIntentRight),
 					),
-					Description: "Navigate chart focus within page",
+					Description: "Move the chart focus, or the process cursor when the list has focus",
 					Handler:     (*Symon).handleGridNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentPageUp),
-					Description: "Previous chart page",
+					Description: "Previous page of charts or processes",
 					Handler:     (*Symon).handlePrevPage,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentPageDown),
-					Description: "Next chart page",
+					Description: "Next page of charts or processes",
 					Handler:     (*Symon).handleNextPage,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentHome),
-					Description: "Jump to first chart page",
+					Description: "Jump to the first page",
 					Handler:     (*Symon).handleNavHome,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentEnd),
-					Description: "Jump to last chart page",
+					Description: "Jump to the last page",
 					Handler:     (*Symon).handleNavEnd,
 				},
 			},
@@ -477,6 +590,16 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Keys:        []string{"y"},
 					Description: "Toggle log Y on focused chart",
 					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"shift+up", "shift+down"},
+					Description: "Scroll the rows of a heatmap chart with more series than fit",
+					Handler:     (*Symon).handleScrollFocusedChartRows,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Symon).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"\\"},
@@ -510,6 +633,87 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 	}
 }
 
+// InspectorKeyBindings returns key bindings for the record inspector view.
+func InspectorKeyBindings() []BindingCategory[Inspector] {
+	return []BindingCategory[Inspector]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Inspector]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Inspector).handleQuit,
+				},
+				{
+					Keys:        []string{"esc"},
+					Description: "Unfocus the detail pane",
+					Handler:     (*Inspector).handleEscape,
+				},
+				{
+					Keys:        []string{"drag border"},
+					Description: "Resize the panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Inspector).handleResetLayout,
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Inspector]{
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Switch focus: record list ↔ record detail",
+					Handler:     (*Inspector).handleToggleFocus,
+				},
+				{
+					Keys: concatKeys(
+						NavKeysFor(NavIntentUp), NavKeysFor(NavIntentDown)),
+					Description: "Previous/next record (list) / scroll (detail)",
+					Handler:     (*Inspector).handleVerticalNav,
+				},
+				{
+					Keys: concatKeys(
+						NavKeysFor(NavIntentPageUp), NavKeysFor(NavIntentPageDown)),
+					Description: "Page up / page down",
+					Handler:     (*Inspector).handlePageNav,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentHome),
+					Description: "Jump to the first record / top of the detail",
+					Handler:     (*Inspector).handleNavHome,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentEnd),
+					Description: "Jump to the last record; follows a live run",
+					Handler:     (*Inspector).handleNavEnd,
+				},
+			},
+		},
+		{
+			Name: "Filter",
+			Bindings: []KeyBinding[Inspector]{
+				{
+					Keys:        []string{"/"},
+					Description: "Filter records by type or summary",
+					Handler:     (*Inspector).handleEnterFilter,
+				},
+				{
+					Keys:        []string{"ctrl+/"},
+					Description: "Clear the filter",
+					Handler:     (*Inspector).handleClearFilter,
+				},
+			},
+		},
+	}
+}
+
 // buildKeyMap builds a fast lookup map from key string to handler.
 func buildKeyMap[T any](
 	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
@@ -519,8 +723,9 @@ func buildKeyMap[T any](
 			if binding.Handler == nil {
 				continue
 			}
+			handler := recordFeatureUsage(binding.Handler)
 			for _, key := range binding.Keys {
-				keyMap[normalizeKey(key)] = binding.Handler
+				keyMap[normalizeKey(key)] = handler
 			}
 		}
 	}
@@ -532,10 +737,23 @@ func buildKeyMap[T any](
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.
 func normalizeKey(key string) string {
-	if key == " " {
+	switch key {
+	case " ":
 		return "space"
+	case "alt+esc", "shift+esc", "ctrl+esc":
+		// The terminal decoder coalesces a fast Esc-Esc mash into a single
+		// alt+esc; any modified Esc still means Esc.
+		return "esc"
 	}
 	return key
+}
+
+// chartRowScrollDelta maps the heatmap row-scroll keys to a row delta.
+func chartRowScrollDelta(msg tea.KeyPressMsg) int {
+	if msg.String() == "shift+up" {
+		return -1
+	}
+	return 1
 }
 
 func mouseCategory[T any]() BindingCategory[T] {

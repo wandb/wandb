@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
 import wandb
-from wandb import env, util
+from wandb import env
 
 
 def _disable_ssl() -> Callable[[], None]:
@@ -40,11 +42,16 @@ if env.ssl_disabled():
     _disable_ssl()
 
 
-reset_path = util.vendor_setup()
+__all__ = ["Api"]
 
-from .internal import Api as InternalApi  # noqa
-from .public import Api as PublicApi  # noqa
+if TYPE_CHECKING:
+    from .public import Api
 
-reset_path()
 
-__all__ = ["InternalApi", "PublicApi"]
+def __getattr__(name: str) -> Any:
+    # `wandb.apis.public` is imported on first use, so that `import wandb`
+    # does not pay for it.
+    if name in ("Api", "public"):
+        public = import_module(".public", __name__)
+        return public if name == "public" else public.Api
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -58,7 +58,7 @@ func (m *SchemeMap) Register(api, typ, scheme string, value any) {
 func (m *SchemeMap) FromString(typ, urlstr string) (any, *url.URL, error) {
 	u, err := url.Parse(urlstr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open %s.%s: %v", m.api, typ, err)
+		return nil, nil, fmt.Errorf("open %s.%s: %w", m.api, typ, err)
 	}
 	val, err := m.FromURL(typ, u)
 	if err != nil {

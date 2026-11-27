@@ -42,7 +42,7 @@ func (fs *FakeFileStream) GetRequest(
 
 			Settings: s,
 			Logger:   observability.NewNoOpLogger(),
-			Printer:  observability.NewPrinter(),
+			Printer:  observability.NewPrinter(0),
 		})
 	}
 
@@ -56,6 +56,7 @@ func (fs *FakeFileStream) Start(
 	entity string,
 	project string,
 	runID string,
+	segmentID string,
 	offsetMap filestream.FileStreamOffsetMap,
 ) {
 }

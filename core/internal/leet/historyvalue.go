@@ -1,0 +1,130 @@
+package leet
+
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+
+	"github.com/wandb/simplejsonext"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+// historyItemValue preserves numeric types and prefers the typed oneof.
+// Invalid typed JSON returns an error even when the legacy value is valid.
+func historyItemValue(item *spb.HistoryItem) (any, error) {
+	switch value := item.GetValue().(type) {
+	case *spb.HistoryItem_None:
+		return nil, nil
+	case *spb.HistoryItem_Boolean:
+		return value.Boolean, nil
+	case *spb.HistoryItem_Integer:
+		return value.Integer, nil
+	case *spb.HistoryItem_Number:
+		return value.Number, nil
+	case *spb.HistoryItem_Text:
+		return value.Text, nil
+	case *spb.HistoryItem_Json:
+		decoded, err := simplejsonext.UnmarshalString(value.Json)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal typed history item value: %w", err)
+		}
+		return decoded, nil
+	case nil:
+		decoded, err := simplejsonext.UnmarshalString(item.GetValueJson())
+		if err != nil {
+			return item.GetValueJson(), nil
+		}
+		return decoded, nil
+	default:
+		return nil, fmt.Errorf("unknown history value type %T", item.GetValue())
+	}
+}
+
+// historyItemFloat returns the item's value as a chart point.
+// The boolean return value is false if the value is not a number.
+func historyItemFloat(item *spb.HistoryItem) (float64, bool) {
+	switch value := item.GetValue().(type) {
+	case *spb.HistoryItem_Number:
+		return value.Number, true
+	case *spb.HistoryItem_Integer:
+		// Above 2^53 this rounds. The JSON path rounds the same way.
+		return float64(value.Integer), true
+	case *spb.HistoryItem_Text:
+		// A logged string that holds a number plots today, because the
+		// JSON path unquotes the text before it parses.
+		f, err := strconv.ParseFloat(value.Text, 64)
+		return f, err == nil
+	case *spb.HistoryItem_Json:
+		f, err := strconv.ParseFloat(trimJSONString(value.Json), 64)
+		return f, err == nil
+	case *spb.HistoryItem_None, *spb.HistoryItem_Boolean:
+		return 0, false
+	}
+
+	f, err := strconv.ParseFloat(trimJSONString(item.GetValueJson()), 64)
+	return f, err == nil
+}
+
+// historyItemString returns the item's value as display text.
+func historyItemString(item *spb.HistoryItem) string {
+	switch value := item.GetValue().(type) {
+	case *spb.HistoryItem_None:
+		// value_json holds the text "null", so the typed form matches it.
+		return "null"
+	case *spb.HistoryItem_Number:
+		return formatJSONFloat(value.Number)
+	case *spb.HistoryItem_Integer:
+		return strconv.FormatInt(value.Integer, 10)
+	case *spb.HistoryItem_Boolean:
+		return strconv.FormatBool(value.Boolean)
+	case *spb.HistoryItem_Text:
+		return value.Text
+	case *spb.HistoryItem_Json:
+		return trimJSONString(value.Json)
+	}
+
+	return trimJSONString(item.GetValueJson())
+}
+
+// historyItemStep returns the item's value as a step number.
+func historyItemStep(item *spb.HistoryItem) (int64, bool) {
+
+	switch value := item.GetValue().(type) {
+	case *spb.HistoryItem_Integer:
+		return value.Integer, true
+	case *spb.HistoryItem_Json:
+		n, err := strconv.ParseInt(strings.TrimSpace(value.Json), 10, 64)
+		return n, err == nil
+	case *spb.HistoryItem_None,
+		*spb.HistoryItem_Boolean,
+		*spb.HistoryItem_Number,
+		*spb.HistoryItem_Text:
+		return 0, false
+	}
+
+	n, err := strconv.ParseInt(strings.TrimSpace(item.GetValueJson()), 10, 64)
+	return n, err == nil
+}
+
+// formatJSONFloat renders a float the way the JSON writer does, so typed
+// and JSON reads of one value produce the same text.
+func formatJSONFloat(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	}
+
+	s := strconv.FormatFloat(f, 'g', -1, 64)
+	if !strings.ContainsAny(s, ".e") {
+		// Go prints a whole float as "1" and Python prints "1.0"
+		// Ensure that both readers get the same text.
+		s += ".0"
+	}
+	return s
+}

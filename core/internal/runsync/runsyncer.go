@@ -12,10 +12,12 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -72,7 +74,12 @@ func (f *RunSyncerFactory) New(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+	syncStateStore := runsyncstate.File(path)
+	recordParser := f.RecordParserFactory.New(
+		runWork.BeforeEndCtx(),
+		tbHandler,
+		syncStateStore,
+	)
 	runReader := f.RunReaderFactory.New(
 		path,
 		displayPath,
@@ -108,17 +115,32 @@ func (rs *RunSyncer) Init(ctx context.Context) (*RunInfo, error) {
 	rs.runInfo = runInfo
 	rs.mu.Unlock()
 
+	// NOTE: Print after setting runInfo for a useful message prefix.
+	if version.Compare(runInfo.SDKVersion, version.Version) > 0 {
+		rs.printer.Warnf(
+			"Syncing a run generated with a newer SDK version (%s) may"+
+				" not work as expected.",
+			version.PyPI(runInfo.SDKVersion),
+		)
+	}
+
 	return runInfo, nil
 }
 
 // Sync uploads the .wandb file.
 func (rs *RunSyncer) Sync(ctx context.Context) error {
+	rs.runHandle.UpdateTelemetry(&spb.TelemetryRecord{
+		Feature: &spb.Feature{
+			Sync2: true,
+		},
+	})
+
 	g := &errgroup.Group{}
 
 	// Print the run's URL once we know it.
 	g.Go(func() error {
 		select {
-		case <-rs.runHandle.Ready():
+		case <-rs.runHandle.ReadyOrFailed():
 			rs.printRunURL()
 		case <-rs.runWork.BeforeEndCtx().Done():
 			rs.logger.Error("runsync: didn't print run URL, handle never became ready")
@@ -172,13 +194,13 @@ func (rs *RunSyncer) markSynced() {
 func (rs *RunSyncer) printRunURL() {
 	upserter, err := rs.runHandle.Upserter()
 	if err != nil {
-		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		rs.logger.CaptureError("runsync", fmt.Errorf("runsync: printRunURL: %v", err))
 		return
 	}
 
 	url, err := upserter.RunPath().URL(rs.settings.GetAppURL())
 	if err != nil {
-		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		rs.logger.CaptureError("runsync", fmt.Errorf("runsync: printRunURL: %v", err))
 		return
 	}
 

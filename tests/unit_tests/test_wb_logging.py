@@ -1,7 +1,7 @@
 import contextlib
 import logging
 import pathlib
-from collections.abc import Iterator
+from collections.abc import Generator
 
 from wandb.sdk.lib import wb_logging
 
@@ -12,7 +12,7 @@ wb_logging.configure_wandb_logger()
 def _wandb_file_handler(
     run_id: str,
     path: pathlib.Path,
-) -> Iterator[None]:
+) -> Generator[None]:
     handler = wb_logging.add_file_handler(run_id, path)
     try:
         yield

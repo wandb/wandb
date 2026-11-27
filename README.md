@@ -6,8 +6,7 @@
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/v/wandb" /></a>
 <a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/pyversions/wandb" /></a>
-<a href="https://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
-<a href="https://codecov.io/gh/wandb/wandb"><img src="https://img.shields.io/codecov/c/gh/wandb/wandb" /></a>
+<a href="https://github.com/wandb/wandb/actions/workflows/sdk-ci.yml?query=branch%3Amain"><img src="https://github.com/wandb/wandb/actions/workflows/sdk-ci.yml/badge.svg?branch=main" /></a>
 </p>
 <p align='center'>
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
@@ -103,7 +102,7 @@ When we discontinue support for a Python version, we will increment the library�
 
 # Contribution guidelines
 
-Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
+Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution Guide](./CONTRIBUTING.md) and the [docs/ directory](./docs) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
 
 &nbsp;
 

@@ -5,15 +5,89 @@ For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Generic, Literal, Optional, TypeVar
+import re
+from collections.abc import Collection, Iterator, Mapping
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Final, Generic, Literal, TypeAlias, TypeVar
 
-from pydantic import NonNegativeInt
+from pydantic import GetCoreSchemaHandler, NonNegativeInt, PlainSerializer
+from pydantic.alias_generators import to_camel
+from pydantic_core import CoreSchema
+from pydantic_core.core_schema import no_info_after_validator_function
 
-from .base import GQLResult
+from wandb._strutils import repr_join
+
+from .base import GQLInput, GQLResult
+from .utils import to_json
 
 NodeT = TypeVar("NodeT")
 """A generic type variable for a GraphQL relay node."""
+
+
+ORDER_REGEX: Final[re.Pattern[str]] = re.compile(
+    r"""
+    \A              # Absolute start of string, multiline not allowed
+    ([+-])?         # Optional leading sign
+    ([a-zA-Z_]\w*)  # Field name (must start with a non-numeric character)
+    \Z              # Absolute end of string, multiline not allowed
+    """,
+    flags=re.VERBOSE | re.ASCII,
+)
+
+
+FilterDict: TypeAlias = Annotated[dict[str, Any], PlainSerializer(to_json)]
+"""A paginator filter mapping serialized as JSON for GraphQL variables."""
+
+
+@dataclass(frozen=True, slots=True)
+class OrderValidator:
+    """Pydantic metadata that validates and normalizes an `order` argument."""
+
+    valid: Collection[str] | Mapping[str, str] | None = None
+    """Allowed names, or aliases mapped to canonical serialized names."""
+
+    aliases: tuple[tuple[str, str], ...] = field(init=False, default=())
+    """Immutable accepted-to-canonical aliases derived from ``valid``."""
+
+    def __post_init__(self) -> None:
+        # Empty collections are treated as None (no restrictions on valid names)
+        if isinstance(valid := self.valid, Mapping):
+            aliases = tuple(sorted(valid.items()))
+        else:
+            aliases = tuple((name, name) for name in sorted(valid or ()))
+        object.__setattr__(self, "aliases", aliases)
+
+        valid = frozenset(valid) if valid else None
+        object.__setattr__(self, "valid", valid)
+
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return no_info_after_validator_function(self.validate, handler(source_type))
+
+    def validate(self, order: str) -> str:
+        # Parse the components of the order string
+        if (m := ORDER_REGEX.match(order)) is None:
+            raise ValueError(f"Invalid order string: {order!r}")
+
+        sign, name = m.groups()
+
+        # Check if the field name (without the sign) is allowed and get the canonical name
+        if aliases := dict(self.aliases):
+            if (canonical := aliases.get(name)) is None:
+                msg = (
+                    f"Invalid order field {name!r}, must be one of: "
+                    f"{repr_join(sorted(aliases))}"
+                )
+                raise ValueError(msg)
+            name = canonical
+
+        # Default to ascending order
+        return f"{sign or '+'}{name}"
+
+
+class PaginatorVars(GQLInput, alias_generator=to_camel):
+    pass
 
 
 class PageInfo(GQLResult):
@@ -21,7 +95,7 @@ class PageInfo(GQLResult):
 
     typename__: Literal["PageInfo"] = "PageInfo"
 
-    end_cursor: Optional[str]
+    end_cursor: str | None
     """Opaque token marking the end of this page and the start of the next page."""
 
     has_next_page: bool
@@ -59,7 +133,7 @@ class Connection(GQLResult, Generic[NodeT]):
     page_info: PageInfo
     """Pagination metadata, e.g. `end_cursor`, `has_next_page`."""
 
-    total_count: Optional[NonNegativeInt] = None
+    total_count: NonNegativeInt | None = None
     """Total number of results across all pages, if available."""
 
     def nodes(self) -> Iterator[NodeT]:
@@ -72,7 +146,7 @@ class Connection(GQLResult, Generic[NodeT]):
         return self.page_info.has_next_page
 
     @property
-    def next_cursor(self) -> Optional[str]:
+    def next_cursor(self) -> str | None:
         """The cursor value to pass as the `after` arg in the next page request."""
         return self.page_info.end_cursor
 

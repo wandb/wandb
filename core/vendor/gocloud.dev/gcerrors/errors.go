@@ -41,7 +41,7 @@ const (
 	// AlreadyExists means that the resource exists, but it should not.
 	AlreadyExists ErrorCode = gcerr.AlreadyExists
 
-	// InvalidArguments means that a value given to a Go CDK API is incorrect.
+	// InvalidArgument means that a value given to a Go CDK API is incorrect.
 	InvalidArgument ErrorCode = gcerr.InvalidArgument
 
 	// Internal means that something unexpected happened. Internal errors always indicate
@@ -66,6 +66,43 @@ const (
 
 	// DeadlinedExceeded means that the operation timed out.
 	DeadlineExceeded ErrorCode = gcerr.DeadlineExceeded
+)
+
+var (
+	// ErrUnknown means that the error could not be categorized.
+	ErrUnknown = gcerr.ErrUnknown
+
+	// ErrNotFound means that the resource was not found.
+	ErrNotFound = gcerr.ErrNotFound
+
+	// ErrAlreadyExists means that the resource exists, but it should not.
+	ErrAlreadyExists = gcerr.ErrAlreadyExists
+
+	// ErrInvalidArgument means that a value given to a Go CDK API is incorrect.
+	ErrInvalidArgument = gcerr.ErrInvalidArgument
+
+	// ErrInternal means that something unexpected happened. Internal errors always indicate
+	// bugs in the Go CDK (or possibly the underlying service).
+	ErrInternal = gcerr.ErrInternal
+
+	// ErrUnimplemented means that the feature is not implemented.
+	ErrUnimplemented = gcerr.ErrUnimplemented
+
+	// ErrFailedPrecondition means that the system was in the wrong state.
+	ErrFailedPrecondition = gcerr.ErrFailedPrecondition
+
+	// ErrPermissionDenied means that the caller does not have permission to execute the specified operation.
+	ErrPermissionDenied = gcerr.ErrPermissionDenied
+
+	// ErrResourceExhausted means that some resource has been exhausted, typically because a service resource limit
+	// has been reached.
+	ErrResourceExhausted = gcerr.ErrResourceExhausted
+
+	// ErrCanceled means that the operation was canceled.
+	ErrCanceled = gcerr.ErrCanceled
+
+	// ErrDeadlinedExceeded means that the operation timed out.
+	ErrDeadlineExceeded = gcerr.ErrDeadlineExceeded
 )
 
 // Code returns the ErrorCode of err if it, or some error it wraps, is an *Error.

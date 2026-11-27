@@ -34,7 +34,7 @@ def class_proportions(y_train, y_test, labels):
 
 def make_table(class_column, dataset_column, count_column):
     columns = ["class", "dataset", "count"]
-    data = list(zip(class_column, dataset_column, count_column))
+    data = list(zip(class_column, dataset_column, count_column, strict=False))
 
     return wandb.Table(data=data, columns=columns)
 

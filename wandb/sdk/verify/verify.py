@@ -7,19 +7,20 @@ import getpass
 import io
 import os
 import time
+from collections.abc import Callable
 from functools import partial
+from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import click
 import requests
-from wandb_gql import gql
 
 import wandb
+from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.lib import runid
-
-from ...apis.internal import Api
+from wandb.sdk.lib import runid, urls
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
@@ -53,8 +54,8 @@ def print_results(failed_test_or_tests: str | list[str] | None, warning: bool) -
 
 
 def check_host(host: str) -> bool:
-    if host in ("api.wandb.ai", "http://api.wandb.ai", "https://api.wandb.ai"):
-        print_results("Cannot run wandb verify against api.wandb.ai", False)
+    if urls.is_forge_host(host if "://" in host else f"https://{host}"):
+        print_results("Cannot run wandb verify against the W&B public cloud", False)
         return False
     return True
 
@@ -69,15 +70,6 @@ def check_logged_in(api: Api, host: str) -> bool:
                 click.style(login_doc_url, underline=True, fg="blue")
             )
         )
-    # check that api key is correct
-    # TODO: Better check for api key is correct
-    else:
-        res = api.api.viewer()
-        if not res:
-            fail_string = (
-                "Could not get viewer with default API key. "
-                f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
-            )
 
     print_results(fail_string, False)
     return fail_string is None
@@ -422,8 +414,7 @@ def check_large_post() -> bool:
 
     username = getpass.getuser()
     failed_test_strings = []
-    query = gql(
-        """
+    query = """
         query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
             project(entityName: $entity, name: $name) {
                 run(name: $runName, desc: $desc) {
@@ -433,14 +424,13 @@ def check_large_post() -> bool:
             }
         }
         """
-    )
     public_api = wandb.Api()
-    client = public_api._base_client
 
     try:
-        client._get_result(
+        # TODO: Move this verify query behind an Api-owned operation.
+        public_api._service_api.execute_graphql(
             query,
-            variable_values={
+            variables={
                 "entity": username,
                 "name": PROJECT_NAME,
                 "runName": "",
@@ -450,9 +440,9 @@ def check_large_post() -> bool:
         )
     except Exception as e:
         if (
-            isinstance(e, requests.HTTPError)
+            isinstance(e, WandbApiFailedError)
             and e.response is not None
-            and e.response.status_code == 413
+            and e.response.http_status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value
         ):
             failed_test_strings.append(
                 'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'
@@ -467,7 +457,9 @@ def check_large_post() -> bool:
 
 def check_wandb_version(api: Api) -> None:
     print("Checking wandb package version is up to date".ljust(72, "."), end="")  # noqa: T201
-    _, server_info = api.viewer_server_info()
+    server_info = api._service_api.execute_graphql(
+        "query ServerInfo { serverInfo { cliVersionInfo } }"
+    )["serverInfo"]
     fail_string = None
     warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
@@ -495,7 +487,7 @@ def check_sweeps(api: Api) -> bool:
     failed_test_strings: list[str] = []
 
     sweep_config = {
-        "method": "random",
+        "method": "grid",
         "metric": {"goal": "minimize", "name": "score"},
         "parameters": {
             "x": {"values": [0.01, 0.05, 0.1]},
@@ -530,7 +522,7 @@ def check_sweeps(api: Api) -> bool:
                 score = objective(run.config)
                 run.log({"score": score})
 
-        wandb.agent(sweep_id, function=main, count=10)
+        wandb.agent(sweep_id, function=main, count=9)
     except Exception as e:
         failed_test_strings.append(f"Failed to run sweep agent: {e}")
         print_results(failed_test_strings, False)
@@ -542,14 +534,12 @@ def check_sweeps(api: Api) -> bool:
 
 def retry_fn(fn: Callable) -> Any:
     ini_time = time.time()
-    res = None
     i = 0
-    while i < MIN_RETRYS or time.time() - ini_time < GET_RUN_MAX_TIME:
+    while True:
         i += 1
         try:
-            res = fn()
-            break
+            return fn()
         except Exception:
+            if i >= MIN_RETRYS and time.time() - ini_time >= GET_RUN_MAX_TIME:
+                raise
             time.sleep(1)
-            continue
-    return res

@@ -6,23 +6,18 @@ import concurrent.futures
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
-    from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-    from wandb.sdk.internal.progress import ProgressFn
 
 
 _POLICY_REGISTRY: dict[str, type[StoragePolicy]] = {}
 
 
 class StoragePolicy(ABC):
-    _api: InternalApi | None = None
-
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         _POLICY_REGISTRY[cls.name()] = cls
@@ -55,17 +50,6 @@ class StoragePolicy(ABC):
         dest_path: str | None = None,
         executor: concurrent.futures.Executor | None = None,
     ) -> FilePathStr:
-        raise NotImplementedError
-
-    @abstractmethod
-    def store_file(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: ArtifactManifestEntry,
-        preparer: StepPrepare,
-        progress_callback: ProgressFn | None = None,
-    ) -> bool:
         raise NotImplementedError
 
     @abstractmethod

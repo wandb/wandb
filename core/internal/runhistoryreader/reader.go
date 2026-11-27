@@ -45,6 +45,9 @@ type HistoryReader struct {
 	// This is used to determine if we need to query the W&B backend for data.
 	minLiveStep int64
 
+	// liveDataReader reads history that has not been exported to Parquet.
+	liveDataReader *LiveDataReader
+
 	// parquetReaders is the readers for the history files.
 	parquetReaders []*ffi.RustArrowReader
 }
@@ -61,6 +64,10 @@ func New(
 	useCache bool,
 	rustArrowWrapper *ffi.RustArrowWrapper,
 ) (*HistoryReader, error) {
+	if len(keys) > 0 && !slices.Contains(keys, "_step") {
+		keys = append([]string{"_step"}, keys...)
+	}
+
 	historyReader := &HistoryReader{
 		entity:        entity,
 		graphqlClient: graphqlClient,
@@ -70,6 +77,13 @@ func New(
 		keys:          keys,
 
 		minLiveStep: math.MaxInt64,
+		liveDataReader: NewLiveDataReader(
+			entity,
+			project,
+			runId,
+			graphqlClient,
+			keys,
+		),
 	}
 
 	filePaths, err := historyReader.getParquetFilePaths(ctx, useCache)
@@ -125,8 +139,7 @@ func (h *HistoryReader) GetHistorySteps(
 		results = append(results, resultsForPartition...)
 	}
 
-	selectAllColumns := len(h.keys) == 0
-	livehistory, err := h.getLiveData(ctx, minStep, maxStep, selectAllColumns)
+	livehistory, err := h.getLiveData(ctx, minStep, maxStep)
 	if err != nil {
 		return nil, err
 	}

@@ -3,19 +3,22 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactFragment
+from .fragments import ArtifactFragment, ArtifactMembershipFragment
 
 
 class UpdateArtifact(GQLResult):
-    result: Optional[UpdateArtifactResult]
+    result: UpdateArtifactResult | None
 
 
 class UpdateArtifactResult(GQLResult):
     artifact: ArtifactFragment
+    artifact_membership: ArtifactMembershipFragment | None = Field(
+        alias="artifactMembership", default=None
+    )
 
 
 UpdateArtifact.model_rebuild()

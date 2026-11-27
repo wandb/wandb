@@ -99,10 +99,12 @@ func (s *tfEventStream) loop() {
 		event, err := s.reader.NextEvent(s.ctx, s.emitFilePath /*onNewFile*/)
 		if err != nil {
 			s.logger.CaptureError(
+				"tensorboard",
 				fmt.Errorf(
 					"tensorboard: failed reading next event: %v",
 					err,
-				))
+				),
+			)
 			return
 		}
 

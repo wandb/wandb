@@ -99,7 +99,7 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 // [FileStreamRequest] can be thought of as the "idealized" request;
 // it is what we wish the API looked like.
 type FileStreamRequestJSON struct {
-	Files      map[string]offsetAndContent `json:"files,omitempty"`
+	Files      map[string]OffsetAndContent `json:"files,omitempty"`
 	Uploaded   []string                    `json:"uploaded,omitempty"`
 	Preempting *bool                       `json:"preempting,omitempty"`
 
@@ -107,8 +107,18 @@ type FileStreamRequestJSON struct {
 	ExitCode *int32 `json:"exitcode,omitempty"`
 }
 
-// offsetAndContent is a run of lines to update in a filestream file.
-type offsetAndContent struct {
+// IsHeartbeat is true if this is a "heartbeat" request containing no data.
+func (r *FileStreamRequestJSON) IsHeartbeat() bool {
+	return r != nil &&
+		len(r.Files) == 0 &&
+		len(r.Uploaded) == 0 &&
+		r.Preempting == nil &&
+		r.Complete == nil &&
+		r.ExitCode == nil
+}
+
+// OffsetAndContent is a run of lines to update in a filestream file.
+type OffsetAndContent struct {
 	Offset  int      `json:"offset"`
 	Content []string `json:"content"`
 }

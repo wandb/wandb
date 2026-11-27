@@ -6,9 +6,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -25,14 +29,31 @@ func makeHandler(
 ) *stream.Handler {
 	t.Helper()
 
-	s := settings.New()
-	s.UpdateServerSideDerivedSummary(skipDerivedSummary)
+	return makeHandlerWithSettings(t, inChan, commit, &spb.Settings{
+		XServerSideDerivedSummary: wrapperspb.Bool(skipDerivedSummary),
+	})
+}
+
+func makeHandlerWithSettings(
+	t *testing.T,
+	inChan chan runwork.Work,
+	commit string,
+	settingsProto *spb.Settings,
+	stats ...*filestreamstats.Stats,
+) *stream.Handler {
+	t.Helper()
+
+	s := settings.From(settingsProto)
 
 	handlerFactory := stream.HandlerFactory{
 		Logger:          observabilitytest.NewTestLogger(t),
 		Settings:        s,
-		TerminalPrinter: observability.NewPrinter(),
+		TerminalPrinter: observability.NewPrinter(0),
 		Commit:          stream.GitCommitHash(commit),
+		RunHandle:       runhandle.New(),
+	}
+	if len(stats) > 0 {
+		handlerFactory.Stats = stats[0]
 	}
 	h := handlerFactory.New(runworktest.New())
 
@@ -171,10 +192,7 @@ func makeSummaryRecord(d data) *spb.Record {
 func makeExitRecord() *spb.Record {
 	record := &spb.Record{
 		RecordType: &spb.Record_Exit{
-			Exit: &spb.RunExitRecord{
-				ExitCode: 0,
-				Runtime:  1,
-			},
+			Exit: &spb.RunExitRecord{},
 		},
 	}
 	return record
@@ -746,6 +764,62 @@ func TestHandlePartialHistory(t *testing.T) {
 			}
 		},
 		)
+	}
+}
+
+func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
+	tests := []struct {
+		name      string
+		encoding  string
+		wantJSON  bool
+		wantTyped bool
+	}{
+		{"default", "", true, false},
+		{"json", "json", true, false},
+		{"typed", "typed", false, true},
+		{"dual write", "json,typed", true, true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inChan := make(chan runwork.Work, stream.BufferSize)
+			handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
+				XHistoryValueEncoding: wrapperspb.String(test.encoding),
+				// skip summary records so we only get a history record
+				XServerSideDerivedSummary: wrapperspb.Bool(true),
+			})
+
+			inChan <- runwork.NoRequest(runwork.WorkRecord{Record: makePartialHistoryRecord(data{
+				items: map[string]string{"metric": "1.0"},
+				step:  7,
+				flush: true,
+			})})
+
+			record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+			history := record.GetHistory()
+			require.NotNil(t, history)
+
+			byKey := make(map[string]*spb.HistoryItem)
+			for _, item := range history.Item {
+				byKey[item.GetNestedKey()[0]] = item
+				if !test.wantJSON {
+					assert.Empty(t, item.ValueJson)
+				}
+				if !test.wantTyped {
+					assert.Nil(t, item.Value)
+				}
+			}
+			if test.wantJSON {
+				assert.NotEmpty(t, byKey["metric"].ValueJson)
+				assert.NotEmpty(t, byKey["_step"].ValueJson)
+				assert.NotEmpty(t, byKey["_runtime"].ValueJson)
+			}
+			if test.wantTyped {
+				assert.IsType(t, &spb.HistoryItem_Number{}, byKey["metric"].Value)
+				assert.IsType(t, &spb.HistoryItem_Integer{}, byKey["_step"].Value)
+				assert.IsType(t, &spb.HistoryItem_Number{}, byKey["_runtime"].Value)
+			}
+		})
 	}
 }
 

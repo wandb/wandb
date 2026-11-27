@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Callable, Final, TypeVar
+from typing import Final, TypeVar
 from uuid import UUID, uuid4
 
 from typing_extensions import ParamSpec

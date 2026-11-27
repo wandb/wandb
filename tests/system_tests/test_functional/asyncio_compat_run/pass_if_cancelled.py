@@ -5,8 +5,7 @@ import time
 
 from wandb.sdk.lib import asyncio_compat
 
-_got_cancelled_lock = threading.Lock()
-_got_cancelled = False
+_got_cancelled = threading.Event()
 
 
 async def pass_if_cancelled() -> None:
@@ -24,8 +23,7 @@ async def pass_if_cancelled() -> None:
         # The test sends a SIGINT to the process, which we expect
         # asyncio_compat.run() to turn into task cancellation.
         print(f"CancelledError caught at {time.monotonic()}", file=sys.stderr)
-        with _got_cancelled_lock:
-            _got_cancelled = True
+        _got_cancelled.set()
         raise
 
 
@@ -33,8 +31,11 @@ if __name__ == "__main__":
     try:
         asyncio_compat.run(pass_if_cancelled)
     except KeyboardInterrupt:
-        with _got_cancelled_lock:
-            cancelled = _got_cancelled
+        # If the interrupt is sent at an unlucky time, it is possible for
+        # the thread started by run() to "leak" and continue running after
+        # it returns. However, run() guarantees that that thread will
+        # get a CancelledError if it successfully entered the asyncio loop.
+        cancelled = _got_cancelled.wait(timeout=2)
 
         if cancelled:
             print(

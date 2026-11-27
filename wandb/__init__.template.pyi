@@ -33,6 +33,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",  # doc:exclude
     "Html",
     "box3d",
     "Object3D",
@@ -62,14 +63,14 @@ __all__ = (
 )
 
 import os
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Callable, Literal, TextIO
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
-from wandb.apis import InternalApi
-from wandb.apis import PublicApi as Api
+from wandb.apis.public import Api
 from wandb.data_types import (
     Audio,
+    EvalTable,
     Graph,
     Histogram,
     Html,
@@ -85,6 +86,7 @@ from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
+from wandb.sdk.lib.deprecated_api import DeprecatedApi
 from wandb.sdk.lib.filesystem import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
@@ -97,15 +99,21 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.26.2.dev1"
+__version__: str = "0.31.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-api: InternalApi
 patched: dict[str, list[Callable]]
+
+# deprecated
+api: DeprecatedApi
+
+def ensure_configured() -> None:
+    """<sdk/lib/deprecated_api.py::ensure_configured>"""
+    ...
 
 def require(
     requirement: str | Iterable[str] | None = None,
@@ -163,7 +171,6 @@ def init(
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::finish>"""
     ...
@@ -174,8 +181,9 @@ def login(
     host: str | None = None,
     force: bool | None = None,
     timeout: int | None = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
@@ -193,6 +201,7 @@ def save(
     glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
+    glob: bool = True,
 ) -> bool | list[str]:
     """<sdk/wandb_run.py::Run::save>"""
     ...
@@ -221,6 +230,8 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """<wandb_agent.py::agent>"""
     ...
@@ -231,7 +242,6 @@ def define_metric(
     step_sync: bool | None = None,
     hidden: bool | None = None,
     summary: str | None = None,
-    goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """<sdk/wandb_run.py::Run::define_metric>"""

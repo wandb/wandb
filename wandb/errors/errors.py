@@ -2,17 +2,12 @@ from __future__ import annotations
 
 
 class Error(Exception):
-    """Base W&B Error.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Base W&B Error."""
 
     def __init__(self, message: str, context: dict | None = None) -> None:
         super().__init__(message)
         self.message = message
-        # sentry context capture
-        if context:
-            self.context = context
+        self.context = context or {}
 
 
 class CommError(Error):

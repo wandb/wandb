@@ -12,14 +12,14 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
-from collections import deque
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import suppress
-from itertools import chain
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, ClassVar, Iterable, Iterator, Mapping
+from typing import Any, ClassVar
 
 from ariadne_codegen import Plugin
+from ariadne_codegen.config import get_client_settings
 from graphql import (
     ExecutableDefinitionNode,
     FieldNode,
@@ -54,8 +54,8 @@ from .plugin_utils import (
     is_field_call,
     is_import_from,
     is_redundant_class,
-    make_all_assignment,
     make_import_from,
+    make_lazy_init_body,
     make_literal,
 )
 
@@ -99,10 +99,10 @@ class GraphQLCodegenPlugin(Plugin):
     def __init__(self, schema: GraphQLSchema, config_dict: dict[str, Any]) -> None:
         super().__init__(schema, config_dict)
 
-        codegen_config: dict[str, Any] = self.config_dict["tool"]["ariadne-codegen"]
+        config = get_client_settings(self.config_dict)
 
-        package_path = codegen_config["target_package_path"]
-        package_name = codegen_config["target_package_name"]
+        package_path = config.target_package_path
+        package_name = config.target_package_name
         self.package_dir = Path(package_path) / package_name
 
         self.classes_to_drop = set()
@@ -112,7 +112,7 @@ class GraphQLCodegenPlugin(Plugin):
 
         # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
         # See: https://github.com/mirumee/ariadne-codegen/issues/316
-        if (id_name := "ID") in codegen_config["scalars"]:
+        if (id_name := "ID") in config.scalars:
             from ariadne_codegen.client_generators import constants
 
             constants.SIMPLE_TYPE_MAP.pop(id_name, None)
@@ -164,16 +164,9 @@ class GraphQLCodegenPlugin(Plugin):
         return self._rewrite_init_module(module)
 
     def _rewrite_init_module(self, module: ast.Module) -> ast.Module:
-        """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
-        # Drop selected import statements from the __init__ module
-        kept_import_stmts = list(self._filter_init_imports(module.body))
-
-        # Regenerate the `__all__ = [...]` export statement
-        names_to_export = chain.from_iterable(map(imported_names, kept_import_stmts))
-        module.body = [
-            make_all_assignment(names_to_export),
-            *kept_import_stmts,
-        ]
+        """Drop unwanted imports from `__init__` and make the remaining ones lazy."""
+        kept_import_stmts = self._filter_init_imports(module.body)
+        module.body = make_lazy_init_body(kept_import_stmts)
         return ast.fix_missing_locations(module)
 
     def _filter_init_imports(
@@ -188,55 +181,6 @@ class GraphQLCodegenPlugin(Plugin):
                 # Keep only imported names that aren't being dropped
                 kept_names = sorted(set(imported_names(imp)) - omit_names)
                 yield make_import_from(imp.module, kept_names, level=imp.level)
-
-    def _ensure_all_model_rebuilds(self, module: ast.Module) -> ast.Module:
-        """Ensure that all generated classes call `model_rebuild()` after being defined.
-
-        NOTE: This is intended only as a workaround to accommodate pydantic v1
-        compatibility issues.
-
-        Context: In some cases, depending on the order of class definitions/imports/etc.,
-        pydantic v1 requires calling `.update_forward_refs()` (i.e. `.model_rebuild()` in v2)
-        when it would no longer be necessary in pydantic v2.
-
-        Example error from pydantic v1:
-
-            pydantic.errors.ConfigError: field "args" not yet prepared
-            so type is still a ForwardRef, you might need to call
-            TypeInfoFragmentFields.update_forward_refs().
-
-        We can probably drop this codegen hack/workaround once pydantic v1 is no longer supported.
-        """
-        import_stmts = deque()  # e.g. `from typing import ...`
-        classdef_stmts = deque()  # e.g. `class MyFragmentFields(BaseModel): ...`
-
-        for stmt in module.body:
-            match stmt:
-                case ast.ImportFrom() | ast.Import():
-                    import_stmts.append(stmt)
-                case ast.ClassDef():
-                    classdef_stmts.append(stmt)
-                case ast.Expr(value=ast.Call(func=ast.Attribute(attr="model_rebuild"))):
-                    # e.g. `MyFragmentFields.model_rebuild()`
-                    # We'll regenerate these from scratch
-                    pass
-                case _:
-                    msg = f"Unexpected AST statement in module: {ast.dump(stmt)}"
-                    raise ValueError(msg)
-
-        rebuild_stmts = [
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Attribute(value=ast.Name(cl.name), attr="model_rebuild"),
-                    args=[],
-                    keywords=[],
-                )
-            )
-            for cl in classdef_stmts
-        ]
-
-        module.body = [*import_stmts, *classdef_stmts, *rebuild_stmts]
-        return module
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
         # `ariadne-codegen` 0.16 misses standard GraphQL meta fields in the schema model.
@@ -331,7 +275,6 @@ class GraphQLCodegenPlugin(Plugin):
         self,
         constraints: ParsedConstraints,
         ann: ast.AnnAssign,
-        # gql_field: GraphQLField | GraphQLInputField,
     ) -> ast.AnnAssign:
         """Apply any `@constraints(...)` from the GraphQL field definition to this pydantic `Field(...)`.
 
@@ -458,7 +401,6 @@ class GraphQLCodegenPlugin(Plugin):
                     # - omit default: Fragment defined on a GQL interface with multiple impls.
                     stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
 
-        module = self._ensure_all_model_rebuilds(module)
         return self._rewrite_generated_module(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:

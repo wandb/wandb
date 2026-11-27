@@ -1,9 +1,28 @@
 import os
 import signal
+import subprocess
 from unittest import mock
 
 import pytest
 from wandb import wandb_agent
+from wandb.apis.public import sweeps
+
+
+@pytest.fixture(autouse=True)
+def _sweep_helpers_call_the_mock_api(monkeypatch):
+    """Route the sweep helpers to the methods of the mock API they receive."""
+    for helper, method in [
+        ("_sweep_with_runs", "sweep"),
+        ("_register_agent", "register_agent"),
+        ("_agent_heartbeat", "agent_heartbeat"),
+    ]:
+        monkeypatch.setattr(
+            sweeps,
+            helper,
+            lambda api, *args, _method=method, **kwargs: getattr(api, _method)(
+                *args, **kwargs
+            ),
+        )
 
 
 class _DummyPopen:
@@ -16,6 +35,45 @@ class _DummyPopen:
 
     def kill(self):
         self.sent.append("kill")
+
+
+# lambdas can't contain raise statements, so we have to create a specific
+# function for this
+def _exit_with_status_7():
+    raise SystemExit(7)
+
+
+@pytest.mark.parametrize("exit_code", [None, 0, 1, -signal.SIGTERM])
+def test_agent_process_poll_returns_function_exit_code(exit_code):
+    child_process = mock.Mock(exitcode=exit_code)
+    with mock.patch.object(
+        wandb_agent.multiprocessing,
+        "Process",
+        return_value=child_process,
+    ):
+        proc = wandb_agent.AgentProcess(function=mock.Mock())
+
+    result = proc.poll()
+
+    assert result == exit_code
+    if exit_code is None:
+        child_process.join.assert_not_called()
+    else:
+        assert isinstance(result, int)
+        assert not isinstance(result, bool)
+        child_process.join.assert_called_once_with()
+
+
+def test_agent_process_poll_reports_function_system_exit():
+    proc = wandb_agent.AgentProcess(
+        env={},
+        function=_exit_with_status_7,
+        run_id="test-run",
+    )
+
+    proc.wait(timeout=10)
+
+    assert proc.poll() == 7
 
 
 def _capture_handlers(monkeypatch, valid_signals):
@@ -86,7 +144,11 @@ def test_agent_process_forwards_command_signal_on_posix(monkeypatch):
     )
 
     handler = handlers[signal.SIGTERM]
-    handler(signal.SIGTERM, None)
+    # _forward_signal raises ShutdownSignal after forwarding SIGTERM so
+    # Agent.run's cleanup cascade runs; assert forwarding happened first.
+    with pytest.raises(wandb_agent.ShutdownSignal) as excinfo:
+        handler(signal.SIGTERM, None)
+    assert excinfo.value.signum == signal.SIGTERM
     assert dummy_holder["popen"].sent == [signal.SIGTERM]
 
 
@@ -147,7 +209,11 @@ def test_agent_process_forwards_to_function_process(monkeypatch):
     proc._popen = None
 
     handler = handlers[signal.SIGTERM]
-    handler(signal.SIGTERM, None)
+    # _forward_signal raises ShutdownSignal after forwarding SIGTERM so
+    # Agent.run's cleanup cascade runs; assert forwarding happened first.
+    with pytest.raises(wandb_agent.ShutdownSignal) as excinfo:
+        handler(signal.SIGTERM, None)
+    assert excinfo.value.signum == signal.SIGTERM
     mock_proc.send_signal.assert_called_once_with(signal.SIGTERM)
 
 
@@ -174,6 +240,206 @@ def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
     handler = handlers[signal.SIGTERM]
     handler(signal.SIGKILL, None)
     mock_proc.kill.assert_called_once()
+
+
+def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatch):
+    """Check that single ShutdownSignal moves loop to tier 1."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    agent._run_processes["run-1"] = run_process
+
+    # ShutdownSignal must be caught inside Agent.run, not escape.
+    agent.run()
+
+    assert api.agent_heartbeat.call_count == 1
+    run_process.wait.assert_called()
+    run_process.terminate.assert_not_called()
+
+
+def test_agent_run_second_shutdown_signal_escalates_to_terminate(monkeypatch):
+    """Checks that a second ShutdownSignal moves loop to tier 2."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    # Tier 1's wait() is interrupted by a second signal; Tier 2's wait() (after
+    # terminate()) returns normally.
+    run_process.wait.side_effect = [
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+        None,
+    ]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    assert run_process.wait.call_count == 2
+    run_process.terminate.assert_called_once()
+    run_process.kill.assert_not_called()
+
+
+def test_agent_run_skips_tier2_when_runs_already_exited(monkeypatch):
+    """Checks that tier 1 completing successfully skips tier 2."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    # Alive during the main-loop poll, exited by the time the finally
+    # block probes for still-running processes.
+    run_process.poll.side_effect = [None, 0]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    run_process.wait.assert_called()  # Tier 1 ran
+    run_process.terminate.assert_not_called()  # Tier 2 skipped
+    run_process.kill.assert_not_called()  # Tier 3 not reached
+
+
+def test_agent_run_third_shutdown_signal_escalates_to_kill(monkeypatch):
+    """Checks that a third shutdown signal moves loop to tier 3 (SIGKILL)."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    # Both Tier 1's wait() and Tier 2's wait() are interrupted by signals.
+    run_process.wait.side_effect = [
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+    ]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    run_process.terminate.assert_called_once()
+    run_process.kill.assert_called_once()
+
+
+def test_agent_run_term_timeout_expiry_escalates_straight_to_kill(monkeypatch):
+    """Checks that subprocess running past term_timeout gets sent a SIGKILL."""
+
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(
+        api=api,
+        queue=mock.Mock(),
+        sweep_id="sweep-1",
+        term_timeout=1,
+        forward_signals=True,
+    )
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+
+    run_process.wait.side_effect = subprocess.TimeoutExpired(cmd="child", timeout=5)
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    assert run_process.wait.call_count == 1
+    wait_timeout = run_process.wait.call_args.kwargs["timeout"]
+    assert wait_timeout is not None
+    assert 0 <= wait_timeout <= 1
+
+    run_process.terminate.assert_not_called()
+    run_process.kill.assert_called_once()
+
+
+def test_agent_run_term_timeout_ignored_without_forward_signals(monkeypatch):
+    """Test that term_timeout only applies when forward_signals is also set."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(
+        api=api,
+        queue=mock.Mock(),
+        sweep_id="sweep-1",
+        term_timeout=1,
+        forward_signals=False,
+    )
+
+    run_process = mock.Mock()
+    run_process.poll.side_effect = [None, 0]
+    run_process.wait.return_value = 0
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    assert run_process.wait.call_args.kwargs["timeout"] is None
+    run_process.terminate.assert_not_called()
+    run_process.kill.assert_not_called()
+
+
+def test_agent_run_term_timeout_in_tier2_escalates_to_kill(monkeypatch):
+    """Checks that the tier 2 wait also obeys term_timeout."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(
+        api=api,
+        queue=mock.Mock(),
+        sweep_id="sweep-1",
+        term_timeout=5,
+        forward_signals=True,
+    )
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    run_process.wait.side_effect = [
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+        subprocess.TimeoutExpired(cmd="child", timeout=5),
+    ]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    tier2_timeout = run_process.wait.call_args_list[1].kwargs["timeout"]
+    assert tier2_timeout is not None
+    assert 0 <= tier2_timeout <= 5
+
+    run_process.terminate.assert_called_once()
+    run_process.kill.assert_called_once()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX-only signal registration path")

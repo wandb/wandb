@@ -1,16 +1,22 @@
 package stream_test
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
+	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -18,6 +24,9 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runupserter"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -35,23 +44,36 @@ type testFixtures struct {
 	RunHandle *runhandle.RunHandle
 	Settings  *wbsettings.Settings
 	Logger    *observability.CoreLogger
+	Logs      *bytes.Buffer
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
+	return makeSenderWithFileStream(t, client, nil)
+}
+
+func makeSenderWithFileStream(
+	t *testing.T,
+	client graphql.Client,
+	fileStream filestream.FileStream,
+	stats ...*filestreamstats.Stats,
+) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
-	logger := observabilitytest.NewTestLogger(t)
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
-		RunId:   &wrapperspb.StringValue{Value: "run1"},
-		Console: &wrapperspb.StringValue{Value: "off"},
-		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
+		RunId:    &wrapperspb.StringValue{Value: "run1"},
+		Console:  &wrapperspb.StringValue{Value: "off"},
+		ApiKey:   &wrapperspb.StringValue{Value: "test-api-key"},
+		SyncDir:  wrapperspb.String(t.TempDir()),
+		XPrimary: wrapperspb.Bool(true),
 	})
 	baseURL := stream.BaseURLFromSettings(logger, settings)
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
-		Logger:   logger,
-		Printer:  observability.NewPrinter(),
-		Settings: settings,
+		FeatureProvider: featurechecker.New(nil, logger),
+		Logger:          logger,
+		Printer:         observability.NewPrinter(0),
+		Settings:        settings,
 	}
 	fileTransferManager := stream.NewFileTransferManager(
 		baseURL,
@@ -59,34 +81,230 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		logger,
 		settings,
 	)
+	runHandle := runhandle.New()
+	fileWatcher := watchertest.NewFakeWatcher()
 	runfilesUploaderFactory := &runfiles.UploaderFactory{
 		FileTransfer: fileTransferManager,
-		FileWatcher:  watchertest.NewFakeWatcher(),
+		FileWatcher:  fileWatcher,
 		GraphQL:      client,
 		Logger:       logger,
 		Settings:     settings,
+		RunHandle:    runHandle,
 	}
-	runHandle := runhandle.New()
+	if fileStream != nil {
+		upserter := runupsertertest.NewTestUpserter(
+			t,
+			"test-entity",
+			"test-project",
+			"run1",
+			runupserter.RunUpserterParams{Settings: settings},
+		)
+		finishInit := runHandle.WillInit()
+		assert.NoError(t, runHandle.Init(upserter))
+		finishInit()
+	}
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
 		CredentialProvider:      credentialProvider,
 		Logger:                  logger,
+		Printer:                 observability.NewPrinter(0),
 		Settings:                settings,
 		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
+		FileTransferStats:       filetransfer.NewFileTransferStats(),
+		FileWatcher:             fileWatcher,
 		RunfilesUploaderFactory: runfilesUploaderFactory,
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
+		Peeker:                  &observability.Peeker{},
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
 	}
+	if len(stats) > 0 {
+		senderFactory.Stats = stats[0]
+	}
+	var sender *stream.Sender
+	if fileStream != nil {
+		sender = senderFactory.NewWithFileStream(runWork, fileStream)
+	} else {
+		sender = senderFactory.New(runWork)
+	}
 	return testFixtures{
-		Sender:    senderFactory.New(runWork),
+		Sender:    sender,
 		RunHandle: runHandle,
 		Settings:  settings,
 		Logger:    logger,
+		Logs:      logs,
 	}
+}
+
+func TestSendExitBeforeRunInitialization(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	x := makeSender(t, client)
+	require.NoError(t, os.MkdirAll(x.Settings.GetFilesDir(), 0o700))
+	request, responses := runworktest.SimpleRequest(t, "exit")
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{}},
+	}, request)
+
+	select {
+	case response := <-responses:
+		require.NotNil(t, response.GetResultCommunicate().GetExitResult())
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not finish")
+	}
+
+	assert.Empty(t, client.AllRequests())
+	files, err := os.ReadDir(x.Settings.GetFilesDir())
+	require.NoError(t, err)
+	assert.Empty(t, files)
+	for _, entry := range observabilitytest.ExtractLogs(t, x.Logs) {
+		assert.NotEqual(t, "ERROR", entry["level"], entry["msg"])
+	}
+}
+
+func TestSendSummaryIgnoresInboundStep(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+				},
+			},
+		},
+	}, nil)
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{
+					{Key: "loss", ValueJson: "1.23"},
+					{Key: "_step", ValueJson: "999"},
+				},
+			},
+		},
+	}, nil)
+
+	request := fileStream.GetRequest(x.Settings)
+
+	summary := runsummary.New()
+	request.SummaryUpdates.Apply(summary)
+	summaryMap := summary.ToNestedMaps()
+	assert.Equal(t, map[string]any{"loss": 1.23, "_step": int64(0)}, summaryMap)
+}
+
+func TestSendHistoryAppliesSteps(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+			},
+		}},
+	}, nil)
+
+	request := fileStream.GetRequest(x.Settings)
+	require.Len(t, request.HistoryLines, 1)
+	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
+}
+
+func sendHistoryItems(x testFixtures, items ...*spb.HistoryItem) {
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{Item: items}},
+	}, nil)
+}
+
+func TestSendHistoryUploadsTypedValuesAndPaths(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "null", Value: &spb.HistoryItem_None{}},
+		&spb.HistoryItem{
+			Key:   "false",
+			Value: &spb.HistoryItem_Boolean{Boolean: false},
+		},
+		&spb.HistoryItem{
+			Key:   "zero",
+			Value: &spb.HistoryItem_Integer{Integer: 0},
+		},
+		&spb.HistoryItem{
+			Key:   "float",
+			Value: &spb.HistoryItem_Number{Number: 1.0},
+		},
+		&spb.HistoryItem{
+			Key:   "empty",
+			Value: &spb.HistoryItem_Text{Text: ""},
+		},
+		&spb.HistoryItem{
+			NestedKey: []string{"nested", "object"},
+			Value:     &spb.HistoryItem_Json{Json: `{"a": 1, "b": {"c": true}}`},
+		},
+		&spb.HistoryItem{
+			NestedKey: []string{"nested", "array"},
+			Value:     &spb.HistoryItem_Json{Json: `[1, {"x": null}]`},
+		},
+	)
+
+	rows := fileStream.GetRequest(x.Settings).HistoryLines
+	require.Len(t, rows, 1)
+	assert.JSONEq(t, `{
+		"_step": 0,
+		"null":  null,
+		"false": false,
+		"zero":  0,
+		"float": 1,
+		"empty": "",
+		"nested": {
+			"object": {	"a": 1, "b": {"c": true}},
+			"array": [1, {"x": null}]
+		}
+	}`, rows[0])
+}
+
+func TestSendHistoryPrefersTypedValues(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	sendHistoryItems(x,
+		&spb.HistoryItem{
+			Key:       "typed",
+			Value:     &spb.HistoryItem_Integer{Integer: 7},
+			ValueJson: "99",
+		},
+		&spb.HistoryItem{Key: "legacy", ValueJson: `{"a": [false, 2]}`},
+	)
+
+	rows := fileStream.GetRequest(x.Settings).HistoryLines
+	require.Len(t, rows, 1)
+	assert.JSONEq(t, `{
+		"typed":  7,
+		"legacy": {"a": [false, 2]},
+		"_step":  0
+	}`, rows[0])
+}
+
+func TestSendHistoryPreservesTypedStep(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "_step", Value: &spb.HistoryItem_Integer{Integer: 5}},
+		&spb.HistoryItem{Key: "first", Value: &spb.HistoryItem_Boolean{Boolean: true}},
+	)
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "second", Value: &spb.HistoryItem_Integer{Integer: 2}},
+	)
+
+	rows := fileStream.GetRequest(x.Settings).HistoryLines
+	require.Len(t, rows, 2)
+	assert.JSONEq(t, `{	"_step": 5, "first": true}`, rows[0])
+	assert.JSONEq(t, `{	"_step": 6, "second": 2}`, rows[1])
 }
 
 // Verify that arguments are properly passed through to graphql

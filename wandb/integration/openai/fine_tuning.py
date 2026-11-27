@@ -287,7 +287,7 @@ class WandbLogger:
                 raise Exception(
                     "It appears you are not currently logged in to Weights & Biases. "
                     "Please run `wandb login` in your terminal or `wandb.login()` in a notebook. "
-                    "Create a new API key at https://wandb.ai/settings and store it securely."
+                    f"Create a new API key at {wandb.setup().settings.app_url}/settings and store it securely."
                 )
 
     @classmethod

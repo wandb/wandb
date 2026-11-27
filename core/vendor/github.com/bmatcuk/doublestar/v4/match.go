@@ -95,7 +95,7 @@ func matchWithSeparator(pattern, name string, separator rune, validate bool, cas
 func doMatchWithSeparator(pattern, name string, separator rune, validate bool, caseInsensitive bool, doublestarPatternBacktrack, doublestarNameBacktrack, starPatternBacktrack, starNameBacktrack, patIdx, nameIdx int) (matched bool, err error) {
 	patLen := len(pattern)
 	nameLen := len(name)
-	startOfSegment := true
+	startOfSegment := patIdx == 0 || rune(pattern[patIdx-1]) == separator
 MATCH:
 	for nameIdx < nameLen {
 		if patIdx < patLen {
@@ -157,49 +157,58 @@ MATCH:
 					patIdx++
 				}
 
-				if patIdx >= patLen || pattern[patIdx] == ']' {
-					// class didn't end or empty character class
+				if patIdx < patLen && pattern[patIdx] == ']' {
+					// a class that starts with a ] can match a literal ]
+					matched = matchRune(']', nameRune, caseInsensitive)
+					patIdx++
+				}
+
+				if patIdx >= patLen {
+					// class didn't end
 					return false, ErrBadPattern
 				}
 
-				last := utf8.MaxRune
-				for patIdx < patLen && pattern[patIdx] != ']' {
-					patRune, patRuneLen := utf8.DecodeRuneInString(pattern[patIdx:])
-					patIdx += patRuneLen
-
-					// match a range
-					if last < utf8.MaxRune && patRune == '-' && patIdx < patLen && pattern[patIdx] != ']' {
-						if pattern[patIdx] == '\\' {
-							// next character is escaped
-							patIdx++
-						}
-						patRune, patRuneLen = utf8.DecodeRuneInString(pattern[patIdx:])
+				if !matched {
+					last := utf8.MaxRune
+					for patIdx < patLen && pattern[patIdx] != ']' {
+						patRune, patRuneLen := utf8.DecodeRuneInString(pattern[patIdx:])
 						patIdx += patRuneLen
 
-						if last <= nameRune && nameRune <= patRune {
+						// match a range
+						if last < utf8.MaxRune && patRune == '-' && patIdx < patLen && pattern[patIdx] != ']' {
+							if separator != '\\' && pattern[patIdx] == '\\' {
+								// next character is escaped (disabled when the
+								// separator is backslash, as in PathMatch on Windows)
+								patIdx++
+							}
+							patRune, patRuneLen = utf8.DecodeRuneInString(pattern[patIdx:])
+							patIdx += patRuneLen
+
+							if matchRuneRange(last, patRune, nameRune, caseInsensitive) {
+								matched = true
+								break
+							}
+
+							// didn't match range - reset `last`
+							last = utf8.MaxRune
+							continue
+						}
+
+						// not a range - check if the next rune is escaped
+						if separator != '\\' && patRune == '\\' {
+							patRune, patRuneLen = utf8.DecodeRuneInString(pattern[patIdx:])
+							patIdx += patRuneLen
+						}
+
+						// check if the rune matches
+						if matchRune(patRune, nameRune, caseInsensitive) {
 							matched = true
 							break
 						}
 
-						// didn't match range - reset `last`
-						last = utf8.MaxRune
-						continue
+						// no matches yet
+						last = patRune
 					}
-
-					// not a range - check if the next rune is escaped
-					if patRune == '\\' {
-						patRune, patRuneLen = utf8.DecodeRuneInString(pattern[patIdx:])
-						patIdx += patRuneLen
-					}
-
-					// check if the rune matches
-					if matchRune(patRune, nameRune, caseInsensitive) {
-						matched = true
-						break
-					}
-
-					// no matches yet
-					last = patRune
 				}
 
 				if matched == negate {
@@ -211,7 +220,7 @@ MATCH:
 					break
 				}
 
-				closingIdx := indexUnescapedByte(pattern[patIdx:], ']', true)
+				closingIdx := indexUnescapedByte(pattern[patIdx:], ']', separator != '\\')
 				if closingIdx == -1 {
 					// no closing `]`
 					return false, ErrBadPattern
@@ -316,6 +325,14 @@ MATCH:
 	return isZeroLengthPattern(pattern[patIdx:], separator, validate)
 }
 
+func matchRuneRange(lo, hi, r rune, caseInsensitive bool) bool {
+	if caseInsensitive {
+		rl := unicode.ToLower(r)
+		return unicode.ToLower(lo) <= rl && rl <= unicode.ToLower(hi)
+	}
+	return lo <= r && r <= hi
+}
+
 func matchRune(a, b rune, caseInsensitive bool) bool {
 	if caseInsensitive {
 		return unicode.ToLower(a) == unicode.ToLower(b)
@@ -407,6 +424,16 @@ func indexMatchedClosingAlt(s string, allowEscaping bool) int {
 		if allowEscaping && s[i] == '\\' {
 			// skip next byte
 			i++
+		} else if s[i] == '[' {
+			// skip the character class so a '}' within it isn't mistaken for
+			// the closing brace of the alternation
+			for i++; i < l; i++ {
+				if allowEscaping && s[i] == '\\' {
+					i++
+				} else if s[i] == ']' {
+					break
+				}
+			}
 		} else if s[i] == '{' {
 			alts++
 		} else if s[i] == '}' {

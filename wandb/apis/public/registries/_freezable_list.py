@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, MutableSequence, Sequence
 from itertools import chain
-from typing import Any, TypeVar, final, overload
+from typing import Any, TypeVar, overload
 
 from wandb._strutils import nameof
 
 T = TypeVar("T")
 
 
-@final
 class FreezableList(MutableSequence[T]):
     """A list-like container type that only allows adding new items.
 

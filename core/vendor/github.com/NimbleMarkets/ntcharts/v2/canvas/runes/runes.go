@@ -35,6 +35,7 @@ const (
 	ArcUpLeft    = '\u256F' // ╯
 	ArcUpRight   = '\u2570' // ╰
 
+	UpperHalfBlock  = '▀'      // ▀
 	LowerBlockOne   = '\u2581' // ▁
 	LowerBlockTwo   = '\u2582' // ▂
 	LowerBlockThree = '\u2583' // ▃
@@ -50,7 +51,47 @@ const (
 	LeftBlockThree  = '\u258D' // ▍
 	LeftBlockTwo    = '\u258E' // ▎
 	LeftBlockOne    = '\u258F' // ▏
+
+	RightHalfBlock          = '\u2590' // ▐
+	QuadLowerLeft           = '\u2596' // ▖
+	QuadLowerRight          = '\u2597' // ▗
+	QuadUpperLeft           = '\u2598' // ▘
+	QuadUpperLeftLowerAll   = '\u2599' // ▙
+	QuadUpperLeftLowerRight = '\u259A' // ▚
+	QuadUpperAllLowerLeft   = '\u259B' // ▛
+	QuadUpperAllLowerRight  = '\u259C' // ▜
+	QuadUpperRight          = '\u259D' // ▝
+	QuadUpperRightLowerLeft = '\u259E' // ▞
+	QuadUpperRightLowerAll  = '\u259F' // ▟
 )
+
+// quadrantBlocks is indexed by filled quadrants as bits:
+// upper-left=8, upper-right=4, lower-left=2, lower-right=1.
+var quadrantBlocks = [16]rune{
+	Null, QuadLowerRight, QuadLowerLeft, LowerBlockFour,
+	QuadUpperRight, RightHalfBlock, QuadUpperRightLowerLeft, QuadUpperRightLowerAll,
+	QuadUpperLeft, QuadUpperLeftLowerRight, LeftBlockFour, QuadUpperLeftLowerAll,
+	UpperHalfBlock, QuadUpperAllLowerRight, QuadUpperAllLowerLeft, FullBlock,
+}
+
+// QuadrantBlock returns the block element rune with the given
+// quadrants of a cell filled, or Null if no quadrant is filled.
+func QuadrantBlock(upperLeft, upperRight, lowerLeft, lowerRight bool) rune {
+	i := 0
+	if upperLeft {
+		i |= 8
+	}
+	if upperRight {
+		i |= 4
+	}
+	if lowerLeft {
+		i |= 2
+	}
+	if lowerRight {
+		i |= 1
+	}
+	return quadrantBlocks[i]
+}
 
 /*
 Braille dot number offsets
@@ -259,6 +300,23 @@ func LowerBlockElementFromFloat64(f float64) rune {
 		e++
 	}
 	return lowerBlockElements[e]
+}
+
+// InverseLowerBlockElement returns the lower block element whose height is
+// the complement of the given rune: Null and FullBlock swap, ▁ becomes ▇,
+// and so on. Drawn in reverse video, the result fills the top of the cell
+// with the foreground color, which is how bars extending below an axis
+// render their fractional end. Returns Null for any other rune.
+func InverseLowerBlockElement(r rune) rune {
+	if r == Null {
+		return FullBlock
+	}
+	for i, e := range lowerBlockElements {
+		if e == r {
+			return lowerBlockElements[8-i]
+		}
+	}
+	return Null
 }
 
 var leftBlockElements = [9]rune{
@@ -566,4 +624,21 @@ func CombineCandlesticks(r1 rune, r2 rune) (r rune) {
 	}
 	r = CandlestickFromCandlestickSegments(c)
 	return
+}
+
+// InverseLeftBlockElement returns the left block element whose width is
+// the complement of the given rune: Null and FullBlock swap, ▏ becomes ▉,
+// and so on. Drawn in reverse video, the result fills the right of the
+// cell with the foreground color, which is how bars extending left of an
+// axis render their fractional end. Returns Null for any other rune.
+func InverseLeftBlockElement(r rune) rune {
+	if r == Null {
+		return FullBlock
+	}
+	for i, e := range leftBlockElements {
+		if e == r {
+			return leftBlockElements[8-i]
+		}
+	}
+	return Null
 }

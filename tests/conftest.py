@@ -4,20 +4,26 @@ import logging
 import os
 import pathlib
 import shutil
+import subprocess
 import sys
 import time
 import unittest.mock
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable
+from typing import Any
 
 from wandb.sdk import wandb_setup
 
-# Don't write to Sentry in wandb.
+# Don't report error and telemetry in tests.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
-import git
+# Hide the developer's global and system git config from tests that run git,
+# so their hooks (core.hooksPath, init.templateDir) and signing settings
+# (commit.gpgsign, tag.gpgSign) can't break or hang test repos.
+os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+
 import pytest
 import wandb
 import wandb.util
@@ -39,7 +45,7 @@ pytest_plugins = [
 
 
 @pytest.fixture(autouse=True, scope="session")
-def setup_wandb_env_variables() -> Iterator[None]:
+def setup_wandb_env_variables() -> Generator[None]:
     """Configures wandb env variables to suitable defaults for tests."""
     with pytest.MonkeyPatch().context() as monkeypatch:
         # Override the base URL, which otherwise defaults to https://api.wandb.ai
@@ -92,7 +98,7 @@ def copy_asset(
 @pytest.fixture()
 def wandb_caplog(
     caplog: pytest.LogCaptureFixture,
-) -> Iterator[pytest.LogCaptureFixture]:
+) -> Generator[pytest.LogCaptureFixture]:
     """Modified caplog fixture that detect wandb log messages.
 
     The wandb logger is configured to not propagate messages to the root logger,
@@ -167,7 +173,7 @@ def patch_apikey(dummy_api_key: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Use a fake API key and W&B server URL in a test."""
     dummy_url = "https://dummy"
 
-    # Both are needed because of the way InternalApi gets the base URL.
+    # wandb.Api() reads the environment; everything else reads the singleton.
     monkeypatch.setenv("WANDB_BASE_URL", dummy_url)
     wandb_setup.singleton().settings.base_url = dummy_url
 
@@ -182,13 +188,13 @@ def patch_apikey(dummy_api_key: str, monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def skip_verify_login(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch `wandb.Api` to not verify the API key."""
-    from wandb.apis.public import api
+    """Skip credential verification so tests don't contact the W&B server."""
+    from wandb.apis.public.service_api import AuthenticateResponse, ServiceApi
 
     monkeypatch.setattr(
-        api.wandb_login,
-        "_verify_login",
-        unittest.mock.MagicMock(),
+        ServiceApi,
+        "authenticate",
+        unittest.mock.MagicMock(return_value=AuthenticateResponse()),
     )
 
 
@@ -213,14 +219,22 @@ def runner(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def git_repo(runner):
-    with runner.isolated_filesystem(), git.Repo.init(".") as repo:
+    with runner.isolated_filesystem():
+        subprocess.run(["git", "init", "."], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "test"], check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], check=True)
         filesystem.mkdir_exists_ok("wandb")
         # Because the forked process doesn't use my monkey patch above
         with open(os.path.join("wandb", "settings"), "w") as f:
             f.write("[default]\nproject: test")
         open("README", "wb").close()
-        repo.index.add(["README"])
-        repo.index.commit("Initial commit")
+        subprocess.run(["git", "add", "README"], check=True)
+        subprocess.run(
+            # Skip hooks and signing so the user's git config can't break tests.
+            ["git", "commit", "--no-verify", "--no-gpg-sign", "-m", "Initial commit"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
         yield GitRepo(lazy=False)
 
 

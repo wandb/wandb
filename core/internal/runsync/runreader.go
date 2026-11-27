@@ -36,6 +36,7 @@ type RunReader struct {
 	updates     *RunSyncUpdates // modifications to make to records
 	live        bool            // "live" mode retries EOFs
 
+	seenRun  bool // whether we've processed a run record yet
 	seenExit bool // whether we've processed an exit record yet
 
 	logger       *observability.CoreLogger
@@ -75,6 +76,8 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 	}
 	defer reader.Close()
 
+	runInfo := &RunInfo{}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -84,6 +87,10 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 
 		record, err := r.nextUpdatedRecord(ctx, reader, true /*retryEOF*/)
 
+		if _, ok := err.(*SyncError); ok {
+			return nil, err
+		}
+
 		if err != nil {
 			return nil, &SyncError{
 				Err:      err,
@@ -92,13 +99,16 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 			}
 		}
 
-		if run := record.GetRun(); run != nil {
-			return &RunInfo{
-				Entity:    run.Entity,
-				Project:   run.Project,
-				RunID:     run.RunId,
-				StartTime: run.StartTime.AsTime(),
-			}, nil
+		// The Header always appears before the RunRecord.
+		// When we've found the first RunRecord, we are done.
+		if header := record.GetHeader(); header != nil {
+			runInfo.SDKVersion = header.GetVersionInfo().GetProducer()
+		} else if run := record.GetRun(); run != nil {
+			runInfo.Entity = run.Entity
+			runInfo.Project = run.Project
+			runInfo.RunID = run.RunId
+			runInfo.StartTime = run.StartTime.AsTime()
+			return runInfo, nil
 		}
 	}
 }
@@ -159,22 +169,17 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 				return err
 			}
 
-		case record.GetRun() != nil:
+		// Only the first Run record initializes the run and gets a response.
+		// Later Run records, such as from changing the run's name, tags or
+		// notes, are updates and are handled like most other records.
+		case record.GetRun() != nil && !r.seenRun:
+			r.seenRun = true
+
 			// Fail early if initializing the run (UpsertBucket) fails.
 			err := r.waitForRunRecord(ctx, record)
 			if err != nil {
 				return err
 			}
-
-			// The RunStart request is required to come after a Run record,
-			// but its contents are irrelevant when syncing. It causes
-			// the Sender to start FileStream.
-			r.parseAndAddWork(
-				&spb.Record{RecordType: &spb.Record_Request{
-					Request: &spb.Request{RequestType: &spb.Request_RunStart{
-						RunStart: &spb.RunStartRequest{},
-					}},
-				}})
 		}
 	}
 }
@@ -264,6 +269,18 @@ func (r *RunReader) nextUpdatedRecord(
 			case <-time.After(time.Second):
 			}
 			record, err = reader.Read()
+		}
+	}
+
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, &SyncError{
+			Err:     err,
+			Message: "runsync: incomplete transaction log",
+			UserText: fmt.Sprintf(
+				"Failed to sync all data from %q: the file ends with"+
+					" an incomplete record. If the run is still running,"+
+					" retry after it finishes or use `wandb beta sync --live`.",
+				r.displayPath),
 		}
 	}
 

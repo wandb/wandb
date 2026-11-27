@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_otel.proto";
 import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
@@ -12,6 +13,10 @@ option go_package = "core/pkg/service_go_proto";
 // ServerApiCleanupRequest should be used once the instance is no longer needed.
 message ServerApiInitRequest {
   Settings settings = 1;
+
+  // The name of the service requesting the API instance.
+  // This is used to identify the service in the OpenTelemetry backend.
+  string service_name = 2;
 }
 
 message ServerApiInitResponse {
@@ -29,6 +34,16 @@ message ApiRequest {
   oneof request {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
+    GraphQLRequest graphql_request = 4;
+    DownloadFileRequest download_file_request = 5;
+    UploadFileRequest upload_file_request = 6;
+    MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
+    StopRunRequest stop_run_request = 8;
+    AuthRequest auth_request = 9;
+    CreateCustomChartRequest create_custom_chart_request = 10;
+    RunQueueOperationRequest run_queue_operation_request = 11;
+    OpenTelemetryRequest open_telemetry_request = 12;
+    ReadRunConsoleLogsRequest read_run_console_logs_request = 13;
   }
 }
 
@@ -36,6 +51,15 @@ message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
+    GraphQLResponse graphql_response = 4;
+    DownloadFileResponse download_file_response = 5;
+    UploadFileResponse upload_file_response = 6;
+    MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
+    StopRunResponse stop_run_response = 8;
+    AuthResponse auth_response = 9;
+    CreateCustomChartResponse create_custom_chart_response = 10;
+    RunQueueOperationResponse run_queue_operation_response = 11;
+    ReadRunConsoleLogsResponse read_run_console_logs_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -44,6 +68,11 @@ message ApiResponse {
 message ApiErrorResponse {
   string message = 1;
   optional ErrorType error_type = 2;
+
+  // HTTP status code from the upstream W&B backend, if the failure originated
+  // from an HTTP response. 0 if the failure had no HTTP status (transport
+  // error, GraphQL `errors` without an associated HTTP error, etc.).
+  int32 http_status = 3;
 }
 
 enum ErrorType {
@@ -79,6 +108,20 @@ message ServerApiCleanupRequest {
 // Features may be specific to the API instance, for example if they depend
 // on the entity. Keep this in mind if caching the response.
 message FeaturesRequest {
+  oneof request {
+    ServerFeaturesRequest server = 1;
+    OrgFeaturesRequest org = 2;
+  }
+}
+
+message FeaturesResponse {
+  oneof response {
+    ServerFeaturesResponse server = 1;
+    OrgFeaturesResponse org = 2;
+  }
+}
+
+message ServerFeaturesRequest {
   // Names of features to check.
   //
   // Features not in this list are not included in the response
@@ -90,9 +133,375 @@ message FeaturesRequest {
   repeated ServerFeature features = 1;
 }
 
-message FeaturesResponse {
+message ServerFeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
+}
+
+message OrgFeaturesRequest {
+  // Organization whose features to check.
+  string org = 1;
+
+  // Names of organization features to check.
+  repeated string features = 2;
+}
+
+message OrgFeaturesResponse {
+  // Values of organization feature flags that exist.
+  //
+  // Requested flags that do not exist are omitted.
+  map<string, bool> features = 1;
+}
+
+// Execute a raw GraphQL document.
+//
+// A successful request returns GraphQLResponse with the JSON-encoded `data`
+// field from the GraphQL response. Invalid input, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
+// that include GraphQL `errors`, ApiErrorResponse.message is derived from
+// those error messages.
+//
+// The optional omit_* and rename_fields fields rewrite the query
+// before it is sent upstream. They strip parts of generated queries that are
+// not supported by the deployed W&B server (decided client-side based on
+// feature flags) without reproducing a GraphQL parser in Python.
+message GraphQLRequest {
+  string query = 1;
+  string variables_json = 2;
+
+  // Variable names ($var) to remove from variable definitions and usages.
+  repeated string omit_variables = 3;
+  // Fragment names to remove (both definitions and `...spreads`).
+  repeated string omit_fragments = 4;
+  // Field names to remove from selection sets.
+  repeated string omit_fields = 5;
+  // Field renames applied to selection sets: { old_name: new_name }.
+  map<string, string> rename_fields = 6;
+}
+
+message GraphQLResponse {
+  string data_json = 1;
+}
+
+// Download a file from a URL to a local path.
+//
+// wandb-core performs the download using its file transfer subsystem,
+// whose retries and timeouts are governed by the file transfer settings.
+// A successful request returns DownloadFileResponse; failures, including
+// non-successful HTTP status codes, return ApiErrorResponse.
+message DownloadFileRequest {
+  // The local path to write the file to.
+  string path = 1;
+
+  // The URL to download the file from.
+  string url = 2;
+
+  // The expected file size in bytes if known, used for progress reporting.
+  int64 size = 3;
+}
+
+message DownloadFileResponse {}
+
+// Upload a local file to a URL with an HTTP PUT request.
+//
+// wandb-core performs the upload using its file transfer subsystem,
+// whose retries and timeouts are governed by the file transfer settings.
+// A successful request returns UploadFileResponse; failures, including
+// non-successful HTTP status codes, return ApiErrorResponse.
+message UploadFileRequest {
+  // The absolute local path of the file to upload.
+  string path = 1;
+
+  // The URL to upload the file to.
+  string url = 2;
+
+  // Extra HTTP headers to send with the PUT request.
+  map<string, string> headers = 3;
+}
+
+message UploadFileResponse {}
+
+// Notify the W&B backend that run files have finished uploading.
+//
+// Uploading a file to its (presigned) destination URL only writes the bytes to
+// the object store; the backend must still be told the file is committed before
+// it appears on the run. During a live run, wandb-core sends this signal via the
+// filestream "uploaded" field. This request performs the same notification for
+// files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`,
+// without disturbing the run's state.
+//
+// A successful request returns MarkRunFilesUploadedResponse;
+// failures return ApiErrorResponse.
+message MarkRunFilesUploadedRequest {
+  // The entity that owns the run.
+  string entity = 1;
+
+  // The project that the run belongs to.
+  string project = 2;
+
+  // The ID of the run.
+  string run_id = 3;
+
+  // The save-names of the files that finished uploading.
+  repeated string files = 4;
+}
+
+message MarkRunFilesUploadedResponse {}
+
+// Requests related to the API instance's credentials.
+//
+// The credentials come from the settings used to initialize the API
+// instance: an API key, or an identity token file when using federated
+// identity.
+message AuthRequest {
+  oneof request {
+    AuthenticateRequest authenticate_request = 1;
+    GetAccessTokenRequest get_access_token_request = 2;
+  }
+}
+
+message AuthResponse {
+  oneof response {
+    AuthenticateResponse authenticate_response = 1;
+    GetAccessTokenResponse get_access_token_response = 2;
+  }
+}
+
+// Verify the API instance's credentials and identify the authenticated user.
+//
+// wandb-core authenticates to the W&B backend the same way it
+// does for any other request and asks it who the credentials belong to.
+//
+// A successful request returns AuthenticateResponse with information about
+// the authenticated user. Rejected credentials, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse.
+message AuthenticateRequest {}
+
+message AuthenticateResponse {
+  // The user's default entity, used for runs when no entity is specified.
+  string default_entity = 1;
+
+  // The user's username.
+  string username = 2;
+
+  // The user's email address.
+  string email = 3;
+
+  // Names of the teams the user is a member of.
+  repeated string teams = 4;
+
+  // JSON-encoded user flags from the server, like "code_saving_enabled".
+  string flags_json = 5;
+}
+
+// Retrieve an access token for authenticating directly with the W&B server.
+//
+// This only applies when the API instance uses federated identity:
+// wandb-core exchanges the identity token configured in the instance's
+// settings for an access token, caching it in the credentials file and
+// refreshing it when it is at or near expiration. The token allows SDK
+// code that talks to the W&B server without going through wandb-core to
+// authenticate with a Bearer header.
+//
+// If the API instance does not use token-based credentials, a successful
+// response contains an empty access_token. A failed token exchange returns
+// ApiErrorResponse.
+message GetAccessTokenRequest {}
+
+message GetAccessTokenResponse {
+  // The access token, or empty when not using federated identity.
+  string access_token = 1;
+}
+
+// Flag a run to stop on the W&B backend.
+//
+// This is the same signal sent by the "Stop run" button in the W&B UI: the
+// backend sets the run's stopped flag, which the process running the run
+// polls during its heartbeat to shut itself down gracefully.
+//
+// A successful request returns StopRunResponse; failures return
+// ApiErrorResponse.
+message StopRunRequest {
+  // The run's storage ID (its GraphQL node ID), not the run name.
+  string storage_id = 1;
+}
+
+message StopRunResponse {}
+
+// Read a page of a run's captured console output.
+//
+// The W&B backend records the console output of a run while it is
+// running. This request reads it back, either from the start of the log
+// in ascending line order (`first`/`after`) or as a tail of the most
+// recent lines (`last`).
+//
+// A successful request returns ReadRunConsoleLogsResponse; failures
+// return ApiErrorResponse.
+message ReadRunConsoleLogsRequest {
+  // The entity that owns the run.
+  string entity = 1;
+
+  // The project that the run belongs to.
+  string project = 2;
+
+  // The ID of the run.
+  string run_id = 3;
+
+  // Maximum number of lines to return, in ascending line order from the
+  // start of the log or from the `after` cursor.
+  //
+  // Mutually exclusive with `last`. The backend may return fewer lines
+  // than requested; use `has_next_page` rather than the number of
+  // returned lines to detect the end of the log.
+  optional int32 first = 4;
+
+  // A cursor: return lines after the line it refers to.
+  //
+  // Cursors are bookmark strings minted by the server and opaque to the
+  // client; echo the `end_cursor` of a previous response back here to
+  // read the next page.
+  optional string after = 5;
+
+  // If set, return only the last N lines of the log.
+  //
+  // Mutually exclusive with `first` and `after`. The backend caps the
+  // number of lines returned in one page, so a very large tail may come
+  // back truncated to the cap (10,000 lines as of server 0.68).
+  optional int32 last = 6;
+}
+
+message ReadRunConsoleLogsResponse {
+  // The returned lines, in ascending line order.
+  repeated RunConsoleLogLine lines = 1;
+
+  // A cursor referring to the last returned line; pass it as `after` to
+  // read the next page. Only set for a forward-pagination
+  // (`first`/`after`) request with a non-empty result; a tail (`last`)
+  // response leaves it empty because its cursors cannot seed forward
+  // pagination.
+  string end_cursor = 2;
+
+  // Whether the log has more lines after this page.
+  //
+  // Reliable even when the backend cuts a page short: wandb-core
+  // rederives it from line numbers. Never true without an `end_cursor`.
+  // Always false for a tail (`last`) request.
+  bool has_next_page = 3;
+
+  // Total number of lines in the run's console log, regardless of how
+  // many this page returned.
+  int64 total_lines = 4;
+}
+
+// A single line of a run's captured console output.
+message RunConsoleLogLine {
+  // Position of the line in the run's console log, starting at 0.
+  int64 number = 1;
+
+  // The time the line was captured, as an ISO 8601 / RFC 3339 string.
+  string timestamp = 2;
+
+  // The severity of the line: "error" for lines written to stderr,
+  // empty otherwise.
+  string level = 3;
+
+  // A label identifying the process that wrote the line when several
+  // processes write to the same run (as set by the `x_label` setting in
+  // shared mode). Empty for single-writer runs.
+  string label = 4;
+
+  // The text of the line.
+  string content = 5;
+}
+
+// Create a custom chart preset.
+message CreateCustomChartRequest {
+  // The entity (user or team) that owns the chart.
+  string entity = 1;
+
+  // The chart preset's unique name within the entity.
+  string name = 2;
+
+  // The human-readable name shown in the UI.
+  string display_name = 3;
+
+  // The chart specification type, such as "vega2".
+  string spec_type = 4;
+
+  // The backend access level, such as "PRIVATE" or "PUBLIC".
+  string access = 5;
+
+  // The JSON-encoded chart specification.
+  string spec = 6;
+}
+
+message CreateCustomChartResponse {
+  // The ID of the created chart preset.
+  string chart_id = 1;
+}
+
+// Perform an operation on a run queue.
+message RunQueueOperationRequest {
+  oneof operation {
+    CreateDefaultResourceConfigRequest create_default_resource_config_request = 1;
+    CreateRunQueueRequest create_run_queue_request = 2;
+    UpsertRunQueueRequest upsert_run_queue_request = 3;
+  }
+}
+
+// Response from a run-queue operation.
+message RunQueueOperationResponse {
+  oneof operation {
+    CreateDefaultResourceConfigResponse create_default_resource_config_response = 1;
+    CreateRunQueueResponse create_run_queue_response = 2;
+    UpsertRunQueueResponse upsert_run_queue_response = 3;
+  }
+}
+
+// Create a default resource configuration for a run queue.
+message CreateDefaultResourceConfigRequest {
+  string entity_name = 1;
+  string resource = 2;
+  string config = 3;
+  optional string template_variables = 4;
+}
+
+message CreateDefaultResourceConfigResponse {
+  bool success = 1;
+  string default_resource_config_id = 2;
+}
+
+// Create a run queue.
+message CreateRunQueueRequest {
+  string entity = 1;
+  string project = 2;
+  string queue_name = 3;
+  string access = 4;
+  optional string prioritization_mode = 5;
+  optional string default_resource_config_id = 6;
+}
+
+message CreateRunQueueResponse {
+  bool success = 1;
+  string queue_id = 2;
+}
+
+// Create or update a run queue and its default resource configuration.
+message UpsertRunQueueRequest {
+  string entity_name = 1;
+  string project_name = 2;
+  string queue_name = 3;
+  string resource_type = 4;
+  string resource_config = 5;
+  optional string template_variables = 6;
+  optional string prioritization_mode = 7;
+  optional string external_links = 8;
+  optional string client_mutation_id = 9;
+}
+
+message UpsertRunQueueResponse {
+  bool success = 1;
+  repeated string config_schema_validation_errors = 2;
 }
 
 // Start of Scan run history

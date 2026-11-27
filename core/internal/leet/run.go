@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"context"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -10,9 +11,31 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
+
+// RunParams identifies the run LEET displays.
+//
+// Exactly one of RunFile or Remote is set.
+type RunParams struct {
+	// RunFile is the path to a local .wandb transaction log.
+	RunFile string
+
+	// Remote identifies a run stored on a W&B server.
+	Remote *RemoteRunParams
+}
+
+// RemoteRunParams identifies a run stored on a W&B server.
+type RemoteRunParams struct {
+	// BaseURL is the W&B API base URL (e.g. https://api.forge.coreweave.com).
+	BaseURL string
+
+	Entity  string
+	Project string
+	RunID   string
+}
 
 // Run holds data/state related to a single W&B run.
 //
@@ -29,8 +52,8 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// runParams contains the information about the run.
+	runParams *RunParams
 
 	// Run state tracking.
 	runState RunState
@@ -46,8 +69,16 @@ type Run struct {
 	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
 	liveRunning atomic.Bool
 
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
+
+	// pulseTicking reports whether the live-indicator redraw loop is armed.
+	pulseTicking bool
+
 	// Data reader.
 	historySource HistorySource
+	initCancel    context.CancelFunc
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -56,6 +87,13 @@ type Run struct {
 	// Focus management.
 	focusMgr *FocusManager
 	focus    *Focus
+
+	// focusSeeded is set once initial focus lands on the first pane that
+	// receives data. After that, focus only ever changes on user action.
+	focusSeeded bool
+
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
 
 	// UI components.
 	metricsGridAnimState *AnimatedValue
@@ -68,6 +106,11 @@ type Run struct {
 	mediaStore           *MediaStore
 	mediaPane            *MediaPane
 
+	// stepTimes maps history steps to wall-clock time. With linkConsole set,
+	// the selected console line and the charts' crosshair follow each other.
+	stepTimes   stepTimeline
+	linkConsole bool
+
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
 	animating   bool
@@ -75,21 +118,21 @@ type Run struct {
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
+	lastError     string
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
+	lastDrawAt   time.Time
 
 	// Logger.
 	logger *observability.CoreLogger
 }
 
 func NewRun(
-	runPath string,
+	runParams *RunParams,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
-
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -122,7 +165,7 @@ func NewRun(
 		keyMap:               buildKeyMap(RunKeyBindings()),
 		focus:                focus,
 		isLoading:            true,
-		runPath:              runPath,
+		runParams:            runParams,
 		metricsGridAnimState: metricsGridAnimState,
 		metricsGrid:          metricsGrid,
 		runOverview:          ro,
@@ -137,6 +180,13 @@ func NewRun(
 		logger:               logger,
 	}
 	run.focusMgr = run.buildRunFocusManager()
+	run.drag = paneDragger{
+		saved:    cfg.RunLayout,
+		persist:  cfg.SetRunLayout,
+		relayout: run.applyLayoutConfig,
+		logger:   logger,
+	}
+	run.leftSidebar.overridesSource = run.layoutOverrides
 	return run
 }
 
@@ -148,14 +198,25 @@ func (r *Run) SetMediaStore(store *MediaStore) {
 
 // Init initializes the model and returns the initial command.
 //
+// The watcher/heartbeat message pump is not started here: it starts
+// together with the watcher once the boot load completes for a live run.
+//
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
-	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+	var source tea.Cmd
+
+	if r.IsRemote() {
+		ctx, cancel := context.WithCancel(context.Background())
+		r.initCancel = cancel
+		source = InitializeParquetHistorySource(ctx, r.runParams.Remote, r.logger)
+	} else {
+		source = InitializeLevelDBHistorySource(r.runParams.RunFile, r.logger)
+	}
 
 	return tea.Batch(
 		source,
-		r.watcherMgr.WaitForMsg,
+		r.mediaPane.Init(),
 	)
 }
 
@@ -182,8 +243,19 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if picture.IsPictureMsg(msg) {
+		cmds = append(cmds, r.mediaPane.handlePictureMsg(msg))
+		return r, tea.Batch(cmds...)
+	}
+
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
+	case mediaPanePrepareMsg:
+		if t.pane != r.mediaPane {
+			return r, nil
+		}
+		return r, r.mediaPane.handlePrepareMsg()
+
 	case tea.KeyPressMsg:
 		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
@@ -191,11 +263,10 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, tea.Batch(cmds...)
 
 	case tea.MouseMsg:
-		newM, c := r.handleMouseMsg(t)
-		if c != nil {
+		if c := r.handleMouseMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
-		return newM, tea.Batch(cmds...)
+		return r, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
@@ -210,15 +281,39 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleWindowResize handles window resize messages.
 func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 	r.width, r.height = msg.Width, msg.Height
+	r.applyLayoutConfig()
+	r.focusMgr.Resolve()
+}
 
-	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.animState.TargetVisible())
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (r *Run) applyLayoutConfig() {
+	r.updateSidebarDimensions(
+		r.leftSidebar.animState.TargetVisible(),
+		r.rightSidebar.animState.TargetVisible(),
+	)
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-	r.focusMgr.ResolveAfterAvailabilityChange()
+}
+
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (r *Run) layoutOverrides() LayoutOverrides {
+	return r.drag.overrides()
+}
+
+// updateSidebarDimensions re-derives both sidebars' expanded widths from the
+// terminal width, the given post-toggle visibility of each side, and the
+// layout overrides.
+func (r *Run) updateSidebarDimensions(leftVisible, rightVisible bool) {
+	o := r.layoutOverrides()
+	left, right := fitSidebarFractions(
+		r.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	r.leftSidebar.UpdateDimensions(r.width, rightVisible, left)
+	r.rightSidebar.UpdateDimensions(r.width, leftVisible, right)
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -247,6 +342,8 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleHeartbeat()
 	case FileChangedMsg:
 		return r.handleFileChange()
+	case RunLivePulseMsg:
+		return r.handleLivePulse()
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
@@ -259,7 +356,7 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleMetricsGridAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
+		if cmd := r.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}
@@ -297,7 +394,6 @@ func (r *Run) View() tea.View {
 // renderMainView renders the main application view.
 func (r *Run) renderMainView() string {
 	layout := r.computeViewports()
-	r.mediaPane.SetStore(r.mediaStore)
 
 	w := layout.mainContentAreaWidth
 	centralColumn := ""
@@ -308,19 +404,31 @@ func (r *Run) renderMainView() string {
 
 		if r.metricsGridAnimState.IsVisible() && layout.height > 0 {
 			if r.metricsGrid.ChartCount() == 0 {
+				hint := "No scalar metrics logged."
+				if r.runState.mayBeLive() {
+					hint = liveDataLoadingHint(time.Now())
+				}
 				sections = append(sections,
-					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
+					renderMetricsEmptyState(w, layout.height, hint))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
-				sections = append(sections, r.metricsGrid.View(dims))
+				// Pad the grid (header + rows*cellHeight lines, short of
+				// layout.height by the integer-division remainder) to its
+				// reserved height so the sections below sit exactly at the
+				// rows computeVerticalStackLayout reserves for them. Mouse
+				// hit-testing maps screen rows to sections via that layout.
+				sections = append(sections,
+					placeMainColumn(w, layout.height, r.metricsGrid.View(dims)))
 			}
 		}
 
 		if layout.mediaHeight > 0 {
 			sections = append(sections, r.mediaPane.View(w, layout.mediaHeight, "", ""))
+		} else {
+			r.mediaPane.Park()
 		}
 		if layout.consoleLogsHeight > 0 {
-			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.takeChanges())
 			sections = append(sections, r.consoleLogsPane.View(w, "", ""))
 		}
 
@@ -328,7 +436,8 @@ func (r *Run) renderMainView() string {
 		if len(sections) == 0 {
 			centralColumn = renderLogoArt(w, layout.totalContentAreaHeight)
 		} else {
-			centralColumn = joinWithSeparators(sections, w)
+			centralColumn = joinWithSeparators(sections, w,
+				highlightedStackSeparator(r.drag.cue(), layout, len(sections)))
 		}
 	}
 	centralColumn = placeMainColumn(w, layout.totalContentAreaHeight, centralColumn)
@@ -345,6 +454,16 @@ func (r *Run) renderMainView() string {
 	return lipgloss.Place(r.width, r.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
+var liveDataSpinnerFrames = [...]string{
+	"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
+}
+
+func liveDataLoadingHint(now time.Time) string {
+	frame := now.UnixNano() / LivePulseFrame.Nanoseconds()
+	return liveDataSpinnerFrames[frame%int64(len(liveDataSpinnerFrames))] +
+		" Waiting for data..."
+}
+
 // buildMainViewWithSidebars builds the main view with sidebars.
 func (r *Run) buildMainViewWithSidebars(
 	gridView string,
@@ -356,8 +475,10 @@ func (r *Run) buildMainViewWithSidebars(
 	}
 
 	var parts []string
+	cue := r.drag.cue()
 
 	if leftWidth > 0 {
+		r.leftSidebar.SetDragCue(cue)
 		leftView := r.leftSidebar.View(contentHeight).Content
 		parts = append(parts, leftView)
 	}
@@ -365,7 +486,8 @@ func (r *Run) buildMainViewWithSidebars(
 	parts = append(parts, gridView)
 
 	if rightWidth > 0 {
-		rightView := r.rightSidebar.View(contentHeight)
+		rightView := r.rightSidebar.View(contentHeight,
+			cue.boundary == dragBoundaryRightSidebar)
 		parts = append(parts, rightView)
 	}
 
@@ -373,11 +495,12 @@ func (r *Run) buildMainViewWithSidebars(
 }
 
 // logPanic logs panics to the logger before re-panicking.
-func (m *Run) logPanic(context string) {
+func (m *Run) logPanic(ctx string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
 		m.logger.CaptureError(
-			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+			"leet",
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", ctx, r, stackTrace),
 		)
 		panic(r)
 	}
@@ -417,18 +540,23 @@ func (r *Run) renderLoadingScreen() string {
 
 // renderStatusBar creates the status bar.
 func (r *Run) renderStatusBar() string {
+	// The indicator is styled separately from the bar so its color codes
+	// don't reset the bar's own styling mid-line.
+	indicator := renderStateIndicator(r.runState)
+	barWidth := max(r.width-lipgloss.Width(indicator), 0)
+
 	statusText := r.buildStatusText()
 	helpText := r.buildHelpText()
 
-	innerWidth := max(r.width-2*StatusBarPadding, 0)
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
-	return statusBarStyle.
-		Width(r.width).
-		MaxWidth(r.width).
+	return indicator + statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(fullStatus)
 }
 
@@ -443,8 +571,14 @@ func (r *Run) buildStatusText() string {
 	if r.rightSidebar.IsFilterMode() {
 		return r.buildSystemMetricsFilterStatus()
 	}
+	if r.consoleLogsPane.IsFilterMode() {
+		return r.buildConsoleFilterStatus()
+	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
+	}
+	if r.lastError != "" {
+		return "Error: " + r.lastError
 	}
 	if r.isLoading {
 		return r.buildLoadingStatus()
@@ -494,6 +628,18 @@ func (r *Run) buildSystemMetricsFilterStatus() string {
 	)
 }
 
+func (r *Run) buildConsoleFilterStatus() string {
+	shown, total := r.consoleLogsPane.FilterCounts()
+	return fmt.Sprintf(
+		"Console filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		r.consoleLogsPane.FilterMode().String(),
+		r.consoleLogsPane.FilterQuery(),
+		string(mediumShadeBlock),
+		shown,
+		total,
+	)
+}
+
 // buildLoadingStatus builds status for loading mode.
 func (r *Run) buildLoadingStatus() string {
 	if r.recordsLoaded > 0 {
@@ -510,7 +656,7 @@ func (r *Run) buildActiveStatus() string {
 	// Add filter info if active.
 	if r.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): %q [%d/%d] (/ to change, Ctrl+L to clear)",
+			"Filter (%s): %q [%d/%d] (/ to change, ctrl+/ to clear)",
 			r.metricsGrid.FilterMode().String(),
 			r.metricsGrid.FilterQuery(),
 			r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount()))
@@ -518,7 +664,7 @@ func (r *Run) buildActiveStatus() string {
 
 	// Add overview filter info if active.
 	if r.leftSidebar.IsFiltering() {
-		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, Ctrl+K to clear)",
+		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, ctrl+o to clear)",
 			r.leftSidebar.FilterQuery(),
 			r.leftSidebar.FilterInfo(),
 		))
@@ -527,11 +673,22 @@ func (r *Run) buildActiveStatus() string {
 	if r.rightSidebar.IsFiltering() {
 		grid := r.rightSidebar.metricsGrid
 		parts = append(parts, fmt.Sprintf(
-			"System filter (%s): %q [%d/%d] (\\ to change, Ctrl+\\ to clear)",
+			"System filter (%s): %q [%d/%d] (\\ to change, ctrl+\\ to clear)",
 			grid.FilterMode().String(),
 			grid.FilterQuery(),
 			grid.FilteredChartCount(),
 			grid.ChartCount(),
+		))
+	}
+
+	if r.consoleLogsPane.IsFiltering() {
+		shown, total := r.consoleLogsPane.FilterCounts()
+		parts = append(parts, fmt.Sprintf(
+			"Console filter (%s): %q [%d/%d] (focus logs, / to change, ctrl+/ to clear)",
+			r.consoleLogsPane.FilterMode().String(),
+			r.consoleLogsPane.FilterQuery(),
+			shown,
+			total,
 		))
 	}
 
@@ -549,15 +706,21 @@ func (r *Run) buildActiveStatus() string {
 		}
 	}
 
+	if r.consoleLogsPane.Active() {
+		if r.linkConsole {
+			parts = append(parts, "linked to charts (l to unlink)")
+		} else {
+			parts = append(parts, "l: link to charts")
+		}
+	}
+
 	// Add focused chart name if a chart is focused.
 	focusedTitle := r.FocusedTitle()
 	if focusedTitle != "" {
 		parts = append(parts, focusedTitle)
 		switch r.focus.Type {
 		case FocusMainChart:
-			if scaleLabel := r.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-				parts = append(parts, scaleLabel)
-			}
+			parts[len(parts)-1] += r.metricsGrid.focusedChartLabels()
 		case FocusSystemChart:
 			if detail := r.rightSidebar.metricsGrid.FocusedChartTitleDetail(); detail != "" {
 				parts = append(parts, detail)
@@ -580,9 +743,7 @@ func (r *Run) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (r *Run) buildHelpText() string {
-	if r.metricsGrid.IsFilterMode() ||
-		r.leftSidebar.IsFilterMode() ||
-		r.rightSidebar.IsFilterMode() {
+	if r.IsFiltering() {
 		return ""
 	}
 	return "h: help"
@@ -591,7 +752,8 @@ func (r *Run) buildHelpText() string {
 func (r *Run) IsFiltering() bool {
 	return r.metricsGrid.IsFilterMode() ||
 		r.leftSidebar.IsFilterMode() ||
-		r.rightSidebar.IsFilterMode()
+		r.rightSidebar.IsFilterMode() ||
+		r.consoleLogsPane.IsFilterMode()
 }
 
 func (r *Run) MediaFullscreen() bool {
@@ -635,13 +797,43 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 		lowerTierH = maxH
 	}
 
+	o := r.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.Media, r.height, each),
+		paneHeightFor(o.Logs, r.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !mediaVisible {
+		heights[0] = 0
+	}
+	if !logsVisible {
+		heights[1] = 0
+	}
+	fitStackHeights(heights,
+		[]int{mediaPaneMinHeight, ConsoleLogsPaneMinHeight}, budget)
 	if mediaVisible {
-		r.mediaPane.SetExpandedHeight(each)
+		r.mediaPane.SetExpandedHeight(heights[0])
 	}
 	if logsVisible {
-		r.consoleLogsPane.SetExpandedHeight(each)
+		r.consoleLogsPane.SetExpandedHeight(heights[1])
 	}
+}
+
+func (r *Run) IsRemote() bool {
+	return r.runParams != nil && r.runParams.Remote != nil
+}
+
+// RunFile returns the path of the run's local .wandb transaction log,
+// or "" for remote runs.
+func (r *Run) RunFile() string {
+	if r.runParams == nil {
+		return ""
+	}
+	return r.runParams.RunFile
 }
 
 // Layout represents the computed layout dimensions for the main UI.
@@ -659,35 +851,17 @@ type Layout struct {
 	consoleLogsHeight      int
 }
 
-// effectiveSidebarWidths returns the widths that can actually be rendered
-// without starving the main content area.
-//
-// The visibility preferences remain unchanged: this method only clamps the
-// current render/layout pass and does not mutate animation state.
-func (r *Run) effectiveSidebarWidths() (leftW, rightW int) {
-	const minRunMainContentWidth = 10
-
-	leftW = r.leftSidebar.Width()
-	rightW = r.rightSidebar.Width()
-
-	if leftW+rightW < r.width-minRunMainContentWidth {
-		return leftW, rightW
-	}
-	if rightW > 0 {
-		rightW = 0
-	}
-	if leftW+rightW < r.width-minRunMainContentWidth {
-		return leftW, rightW
-	}
-	if leftW > 0 {
-		leftW = 0
-	}
-	return leftW, rightW
+// attachFilters restores the filters remembered for the run's wandb
+// directory and keeps them saved.
+func (r *Run) attachFilters(ds *dirState) {
+	ds.bind(&ds.Metrics, r.metricsGrid.filter, r.metricsGrid.ApplyFilter)
+	ds.bind(&ds.SystemMetrics,
+		r.rightSidebar.metricsGrid.filter, r.rightSidebar.metricsGrid.ApplyFilter)
 }
 
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
-	leftW, rightW := r.effectiveSidebarWidths()
+	leftW, rightW := fitSidebarWidths(r.width, r.leftSidebar.Width(), r.rightSidebar.Width())
 	contentW := max(r.width-leftW-rightW, 1)
 	totalH := max(r.height-StatusBarHeight, 0)
 
@@ -727,15 +901,7 @@ func (r *Run) Cleanup() {
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
 
-	if r.heartbeatMgr != nil {
-		r.heartbeatMgr.Stop()
-	}
-	if r.watcherMgr != nil {
-		r.watcherMgr.Finish()
-	}
-	if r.historySource != nil {
-		r.historySource.Close()
-	}
+	r.cleanup()
 }
 
 // timeit logs a debug timing line on exit for the given scope.

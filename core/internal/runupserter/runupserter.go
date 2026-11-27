@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -45,6 +46,7 @@ type RunUpserter struct {
 	operations         *wboperation.WandbOperations
 	graphqlClientOrNil graphql.Client
 	logger             *observability.CoreLogger
+	syncStateStore     runsyncstate.Store
 
 	// done is closed when Finish is called.
 	done chan struct{}
@@ -55,23 +57,33 @@ type RunUpserter struct {
 	isParamsDirty bool // whether params has un-uploaded changes
 	isConfigDirty bool // whether config has un-uploaded changes
 
+	// startRuntime is the initial value of params.Runtime.
+	//
+	// It's stored separately because params.Runtime can be updated in theory,
+	// even though it doesn't seem to be in practice. This can be removed if
+	// the Runtime field can be dropped from the RunRecord.
+	startRuntime time.Duration
+
+	// segmentID identifies the current run segment / transaction log.
+	segmentID string
+
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
-	metrics     *runmetric.RunConfigMetrics
+	metrics     *runmetric.MetricHandler
 	environment *runenvironment.RunEnvironment
 }
 
 type RunUpserterParams struct {
 	DebounceDelay time.Duration
 
-	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
+	SyncStateStore     runsyncstate.Store
 }
 
 func (params *RunUpserterParams) panicIfNotFilled() {
@@ -84,6 +96,8 @@ func (params *RunUpserterParams) panicIfNotFilled() {
 		panic("runupserter: FeatureProvider is nil")
 	case params.Logger == nil:
 		panic("runupserter: Logger is nil")
+	case params.SyncStateStore == nil:
+		panic("runupserter: SyncStateStore is nil")
 	}
 }
 
@@ -104,7 +118,7 @@ func InitRun(
 	}
 
 	// Initialize run environment info.
-	environment := runenvironment.New(params.ClientID)
+	environment := runenvironment.New(runRecord.SegmentId)
 
 	// Initialize the run config.
 	config := runconfig.New()
@@ -124,22 +138,28 @@ func InitRun(
 		environment.ToRunConfigData(),
 	)
 
-	// Initialize the run metrics.
-	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
-	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		params.BeforeRunEndCtx,
-		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
-	) {
-		params.Logger.Warn(
-			"runupserter: server does not expand metric globs" +
-				" but the x_server_side_expand_glob_metrics setting is set;" +
-				" ignoring")
-		enableServerExpandedMetrics = false
-	}
-	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
-
 	// Initialize other run metadata.
 	runParams := runbranch.NewRunParams(runRecord, params.Settings)
+
+	operation := params.Operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
+	defer operation.Finish()
+	ctx := operation.Context(params.BeforeRunEndCtx)
+
+	// Give up at the client's init timeout, so that the error being
+	// retried (if any) can be reported to the client while it is still
+	// listening: the client waits slightly longer than this timeout
+	// before giving up with a generic message.
+	//
+	// This must cover all requests made before the run is initialized,
+	// including the feature check below: any of them may be what's stuck
+	// retrying. The countdown starts when this record is processed, which
+	// is slightly after the client starts waiting.
+	if timeout := params.Settings.GetInitTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
@@ -149,21 +169,18 @@ func InitRun(
 		operations:         params.Operations,
 		graphqlClientOrNil: params.GraphqlClientOrNil,
 		logger:             params.Logger,
+		syncStateStore:     params.SyncStateStore,
 
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
 
+		segmentID:   runRecord.SegmentId,
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
-		metrics:     metrics,
+		metrics:     runmetric.New(),
 		environment: environment,
 	}
-
-	operation := upserter.operations.New(
-		fmt.Sprintf("setting up run %s", runParams.RunID))
-	defer operation.Finish()
-	ctx := operation.Context(upserter.beforeRunEndCtx)
 
 	// If resuming, rewinding or forking, we need to modify metadata
 	// in special ways before upserting the run.
@@ -174,13 +191,10 @@ func InitRun(
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
 	switch {
-	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
-
-		if err != nil {
+	case runParams.Resume || params.Settings.GetResume() != "":
+		if err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume()); err != nil {
 			return nil, ToRunUpdateError(err)
 		}
-
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -198,10 +212,24 @@ func InitRun(
 		}
 	}
 
-	// If we're offline, skip upserting.
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
 	if upserter.graphqlClientOrNil == nil {
 		return upserter, nil
 	}
+
+	startState, err := upserter.syncStateStore.GetOrInitStartState(
+		runsyncstate.StartState{
+			StartStep:    upserter.params.StartingStep,
+			StartRuntime: upserter.params.Runtime,
+		})
+	if err != nil {
+		return nil, ToRunUpdateError(err)
+	}
+	upserter.params.StartingStep = startState.StartStep
+	upserter.params.Runtime = startState.StartRuntime
+
+	upserter.startRuntime = upserter.params.Runtime
 
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
@@ -249,7 +277,9 @@ func (upserter *RunUpserter) UpdateConfig(config *spb.ConfigRecord) {
 	upserter.config.ApplyChangeRecord(config,
 		func(err error) {
 			upserter.logger.CaptureError(
-				fmt.Errorf("runupserter: error updating config: %v", err))
+				"runupserter",
+				fmt.Errorf("runupserter: error updating config: %v", err),
+			)
 		})
 
 	upserter.isConfigDirty = true
@@ -296,15 +326,16 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	defer upserter.mu.Unlock()
 
 	// Skip uploading expanded metrics if the server expands them itself.
-	if upserter.metrics.IsServerExpandGlobMetrics() &&
-		metric.GetExpandedFromGlob() {
+	if metric.GetExpandedFromGlob() {
 		return
 	}
 
 	err := upserter.metrics.ProcessRecord(metric)
 	if err != nil {
 		upserter.logger.CaptureError(
-			fmt.Errorf("runupserter: failed to process metric: %v", err))
+			"runupserter",
+			fmt.Errorf("runupserter: failed to process metric: %v", err),
+		)
 		return
 	}
 
@@ -338,6 +369,12 @@ func (upserter *RunUpserter) FillRunRecord(record *spb.RunRecord) {
 	}
 }
 
+// SegmentID returns the ID for the current run segment / transaction log.
+func (upserter *RunUpserter) SegmentID() string {
+	// No mutex because this field is immutable.
+	return upserter.segmentID
+}
+
 // RunPath returns the run's entity, project and run ID.
 func (upserter *RunUpserter) RunPath() runbranch.RunPath {
 	upserter.mu.Lock()
@@ -368,6 +405,36 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.environment.ToJSON()
+}
+
+// GitInfo returns the git commit and remote URL for this run.
+//
+// Returns nil if neither the commit nor the URL are available.
+func (upserter *RunUpserter) GitInfo() *spb.GitRepoRecord {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+
+	if upserter.params.Commit == "" && upserter.params.RemoteURL == "" {
+		return nil
+	}
+
+	return &spb.GitRepoRecord{
+		Commit:    upserter.params.Commit,
+		RemoteUrl: upserter.params.RemoteURL,
+	}
+}
+
+func (upserter *RunUpserter) StartingStep() int64 {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.StartingStep
+}
+
+// StartRuntime returns the run's initial `_runtime` metric.
+func (upserter *RunUpserter) StartRuntime() time.Duration {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.startRuntime
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {
@@ -419,11 +486,8 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
-		// Ignore the resume mode when offline.
-		//
-		// A warning is printed by the client during wandb.init().
-		//
-		// resume="auto" is always OK and is handled by the client.
+		// When offline, we cannot query the backend to reconcile resume state,
+		// so resume reconciliation is deferred to `wandb sync`.
 		return nil
 	}
 
@@ -431,6 +495,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
+		upserter.logger,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,
@@ -651,9 +716,10 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 	upserter.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
 
 	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
-		upserter.params.FileStreamOffset = filestream.FileStreamOffsetMap{
-			filestream.HistoryChunk: lineCount,
+		if upserter.params.FileStreamOffset == nil {
+			upserter.params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 		}
+		upserter.params.FileStreamOffset[filestream.HistoryChunk] = lineCount
 	}
 
 	if project := bucket.GetProject(); project == nil {

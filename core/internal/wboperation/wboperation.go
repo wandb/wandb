@@ -192,6 +192,19 @@ func (op *WandbOperation) ToProto() *spb.Operation {
 	return proto
 }
 
+// ErrorStatus returns the operation's error status message.
+//
+// It is empty if the operation has not encountered a problem.
+func (op *WandbOperation) ErrorStatus() string {
+	if op == nil {
+		return ""
+	}
+
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	return op.errorStatus
+}
+
 // ClearError clears the operation's error status.
 //
 // There should be one call to ClearError per call to a method that sets

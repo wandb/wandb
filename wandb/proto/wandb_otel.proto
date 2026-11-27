@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+option go_package = "core/pkg/service_go_proto";
+
+message OpenTelemetryRequest {
+  oneof request {
+    OpenTelemetryLogRequest open_telemetry_log_request = 1;
+    OpenTelemetryCounterRequest open_telemetry_counter_request = 2;
+  }
+}
+
+// A log record to forward through the OpenTelemetry proxy.
+message OpenTelemetryLogRequest {
+  string message = 1;
+  map<string, string> attributes = 2;
+  int32 severity = 3;
+}
+
+// Increment a counter metric by 1 with the provided attributes.
+message OpenTelemetryCounterRequest {
+  string name = 1;
+  LowCardinalityAttributes low_cardinality_attributes = 2;
+}
+
+message LowCardinalityAttributes {
+  optional string python_version = 1;
+  optional string python_runtime = 2;
+  optional string wandb_version = 3;
+  optional string exception_type = 4;
+}

@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
-from wandb.analytics import get_sentry
+from wandb.analytics import get_telemetry_recorder
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.lib.service import ipc_support
@@ -51,7 +51,7 @@ def start_detached(
         settings: SDK settings.
         idle_timeout: How long the service should stay alive with no connected
             clients before shutting down. This uses Go duration syntax, for
-            example ``30s`` or ``10m``. Use ``0`` to disable idle shutdown.
+            example `30s` or `10m`. Use `0` to disable idle shutdown.
 
     Returns:
         A handle to the process.
@@ -69,8 +69,6 @@ def _start(
     detached: bool,
     idle_timeout: str | None,
 ) -> ServiceProcess:
-    get_sentry().configure_scope(tags=dict(settings), process_context="service")
-
     try:
         return _launch_server(
             settings,
@@ -78,7 +76,7 @@ def _start(
             idle_timeout=idle_timeout,
         )
     except Exception as e:
-        get_sentry().reraise(e)
+        get_telemetry_recorder().reraise(e)
 
 
 class ServiceProcess:
@@ -126,7 +124,7 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
-            get_sentry().reraise(e)
+            get_telemetry_recorder().reraise(e)
 
         service_args.append(core_path)
 

@@ -4,6 +4,7 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
+from wandb.analytics import TelemetryRecorder
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import (
     _DEFAULT_BASE_IMAGE,
@@ -70,7 +71,11 @@ async def test_loop_capture_stack_trace(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     agent.run_job = AsyncMock()
     agent.run_job.side_effect = [None, None, Exception("test exception")]
     agent.pop_from_queue = AsyncMock(return_value=MagicMock())
@@ -81,49 +86,158 @@ async def test_loop_capture_stack_trace(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-async def test_run_job_secure_mode(mocker, clean_agent):
+@pytest.mark.parametrize(
+    "job,exception_type,error",
+    [
+        pytest.param(
+            {
+                "runSpec": {
+                    "resource_args": {
+                        "kubernetes": {
+                            "spec": {"template": {"spec": {"hostPID": True}}}
+                        }
+                    }
+                }
+            },
+            LaunchError,
+            "Unsafe resource_args.kubernetes option 'hostPID' is not allowed",
+            id="reject-host-pid",
+        ),
+        pytest.param(
+            {
+                "runSpec": {
+                    "resource_args": {
+                        "kubernetes": {
+                            "spec": {
+                                "template": {
+                                    "spec": {
+                                        "containers": [
+                                            {},
+                                            {"command": ["some", "code"]},
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ValueError,
+            'This agent is configured to lock "command" in container spec '
+            "but the job specification attempts to override it.",
+            id="reject-container-command",
+        ),
+        pytest.param(
+            {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
+            ValueError,
+            'This agent is configured to lock the "entrypoint" override '
+            "but the job specification attempts to override it.",
+            id="reject-entrypoint-override",
+        ),
+    ],
+)
+async def test_run_job_secure_mode(mocker, clean_agent, job, exception_type, error):
     _setup(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
         "secure_mode": True,
     }
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
 
-    jobs = [
-        {
-            "runSpec": {
-                "resource_args": {
-                    "kubernetes": {"spec": {"template": {"spec": {"hostPID": True}}}}
-                }
-            }
+    mock_file_saver = MagicMock()
+    with pytest.raises(exception_type, match=error):
+        await agent.run_job(job, "test-queue", mock_file_saver)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runner", ["sagemaker", "vertex"])
+async def test_run_job_secure_mode_rejects_cloud_args_before_scheduling(
+    mocker, clean_agent, runner
+):
+    _setup(mocker)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config={
+            "entity": "test-entity",
+            "project": "test-project",
+            "secure_mode": True,
         },
-        {
-            "runSpec": {
-                "resource_args": {
-                    "kubernetes": {
-                        "spec": {
-                            "template": {
-                                "spec": {
-                                    "containers": [{}, {"command": ["some", "code"]}]
-                                }
+        telemetry_recorder=TelemetryRecorder(),
+    )
+    task_run_job = mocker.patch.object(agent, "task_run_job", new=MagicMock())
+    create_task = mocker.patch("wandb.sdk.launch.agent.agent.asyncio.create_task")
+
+    with pytest.raises(
+        LaunchError, match=f"Unsupported resource_args runner '{runner}'"
+    ):
+        await agent.run_job(
+            {
+                "runSpec": {"resource": runner, "resource_args": {runner: {}}},
+                "runQueueItemId": "test-item",
+            },
+            "test-queue",
+            MagicMock(),
+        )
+
+    task_run_job.assert_not_called()
+    create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "resource_args,expected_field",
+    [
+        (
+            {"local-container": {"privileged": True}},
+            "Unsupported resource_args.local-container option 'privileged'",
+        ),
+        (
+            {
+                "kubernetes": {
+                    "spec": {
+                        "template": {
+                            "spec": {
+                                "containers": [
+                                    {"securityContext": {"privileged": True}}
+                                ]
                             }
                         }
                     }
                 }
-            }
-        },
-        {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
-    ]
-    errors = [
-        'This agent is configured to lock "hostPID" in pod spec but the job specification attempts to override it.',
-        'This agent is configured to lock "command" in container spec but the job specification attempts to override it.',
-        'This agent is configured to lock the "entrypoint" override but the job specification attempts to override it.',
-    ]
+            },
+            "Unsafe resource_args.kubernetes option 'securityContext'",
+        ),
+    ],
+)
+async def test_run_job_rejects_unsafe_resource_args_without_secure_mode(
+    mocker, clean_agent, resource_args, expected_field
+):
+    _setup(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_file_saver = MagicMock()
-    for job, error in zip(jobs, errors):
-        with pytest.raises(ValueError, match=error):
-            await agent.run_job(job, "test-queue", mock_file_saver)
+
+    with pytest.raises(
+        LaunchError,
+        match=expected_field,
+    ):
+        await agent.run_job(
+            {"runSpec": {"resource_args": resource_args}},
+            "test-queue",
+            mock_file_saver,
+        )
 
 
 def _setup_requeue(mocker):
@@ -177,7 +291,11 @@ async def test_requeue_on_preemption(mocker, clean_agent):
     }
     mock_launch_spec = {}
 
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
 
     job_tracker = JobAndRunStatusTracker(
         mock_job["runQueueItemId"], "test-queue", MagicMock(), entity="test-entity"
@@ -208,7 +326,11 @@ def test_team_entity_warning(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    _ = LaunchAgent(api=mocker.api, config=mock_config)
+    _ = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     assert "Agent is running on team entity" in mocker.termwarn.call_args[0][0]
 
 
@@ -219,7 +341,11 @@ def test_non_team_entity_no_warning(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    _ = LaunchAgent(api=mocker.api, config=mock_config)
+    _ = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     assert not mocker.termwarn.call_args
 
 
@@ -234,7 +360,11 @@ def test_max_scheduler_setup(mocker, num_schedulers, clean_agent):
         "project": "test-project",
         "max_schedulers": num_schedulers,
     }
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
 
     if num_schedulers is None:
         num_schedulers = 1  # default for none
@@ -258,7 +388,11 @@ def test_max_scheduler_setup_fail(mocker, num_schedulers, clean_agent):
         "max_schedulers": num_schedulers,
     }
     with pytest.raises(LaunchError):
-        LaunchAgent(api=mocker.api, config=mock_config)
+        LaunchAgent(
+            api=mocker.api,
+            config=mock_config,
+            telemetry_recorder=TelemetryRecorder(),
+        )
 
 
 def _setup_thread_finish(mocker):
@@ -283,7 +417,11 @@ async def test_thread_finish_no_fail(mocker, clean_agent):
     }
 
     mocker.api.get_run_state = MagicMock(return_value=lambda x: True)
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
@@ -306,7 +444,11 @@ async def test_thread_finish_sweep_fail(mocker, clean_agent):
 
     mocker.api.get_run_state = MagicMock(return_value="pending")
     mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
@@ -335,7 +477,11 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
 
     mocker.api.get_run_state.side_effect = CommError("failed")
     mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
@@ -365,7 +511,11 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
     mocker.api.get_run_state.side_effect = CommError("failed")
     mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
 
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
@@ -396,7 +546,11 @@ async def test_thread_finish_run_fail_different_entity(mocker, clean_agent):
         "project": "test-project",
     }
 
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
@@ -424,9 +578,18 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
         assert sweep == "test-sweep-id"
         assert state == "CANCELED"
 
-    mocker.api.set_sweep_state = mock_set_sweep_state
+    mocker.patch(
+        "wandb.apis.public.sweeps._set_sweep_state",
+        lambda api, sweep, state, *, entity, project: mock_set_sweep_state(
+            sweep, entity, project, state
+        ),
+    )
 
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "_queue", mock_saver)
     job.completed_status = "failed"
@@ -454,7 +617,11 @@ async def test_thread_finish_no_run(mocker, clean_agent):
         "project": "test-project",
     }
     mocker.api.get_run_state.side_effect = CommError("failed")
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
@@ -483,7 +650,11 @@ async def test_thread_failed_no_run(mocker, clean_agent):
         "project": "test-project",
     }
     mocker.api.get_run_state.side_effect = CommError("failed")
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
@@ -517,7 +688,11 @@ async def test_thread_finish_run_info_backoff(mocker, clean_agent):
     mocker.patch("asyncio.sleep", AsyncMock())
 
     mocker.api.get_run_state.side_effect = CommError("failed")
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     submitted_run = MagicMock()
     submitted_run.get_logs = AsyncMock(return_value="test logs")
     mock_saver = MagicMock()
@@ -555,7 +730,11 @@ async def test_thread_run_job_calls_finish_thread_id(mocker, exception, clean_ag
     job = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
     )
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
 
     def mock_thread_run_job(*args, **kwargs):
         if exception is not None:
@@ -583,14 +762,18 @@ async def test_inner_thread_run_job(mocker, clean_agent):
     job = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
     )
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_spec = {
         "docker": {"docker_image": "blah-blah:latest"},
         "entity": "user",
         "project": "test",
     }
 
-    mocker.api.check_stop_requested = True
+    mocker.api.check_stop_requested.return_value = True
 
     def _side_effect(*args, **kwargs):
         job.completed_status = True
@@ -633,7 +816,11 @@ async def test_raise_warnings(mocker, clean_agent):
     job = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), run=mocker.run
     )
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     mock_spec = {
         "docker": {"docker_image": "blah-blah:latest"},
         "entity": "user",
@@ -663,7 +850,11 @@ async def test_get_job_and_queue(mocker):
         "queues": ["queue-1", "queue-2", "queue-3"],
     }
     mock_job = {"test-key": "test-value"}
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent = LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
     agent.pop_from_queue = AsyncMock(return_value=mock_job)
 
     job_and_queue = await agent.get_job_and_queue()
@@ -682,7 +873,11 @@ def test_get_agent_name(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    LaunchAgent(api=mocker.api, config=mock_config)
+    LaunchAgent(
+        api=mocker.api,
+        config=mock_config,
+        telemetry_recorder=TelemetryRecorder(),
+    )
 
     assert LaunchAgent.name() == "test-name"
 
@@ -731,7 +926,7 @@ def test_agent_inf_jobs(mocker):
     mocker.patch(
         "wandb.sdk.launch.agent.agent.LaunchAgent._init_agent_run", lambda x: None
     )
-    agent = LaunchAgent(MagicMock(), config)
+    agent = LaunchAgent(MagicMock(), config, TelemetryRecorder())
     assert agent._max_jobs == float("inf")
 
 
@@ -751,7 +946,9 @@ async def test_run_job_api_key_redaction(mocker):
     }
 
     agent = LaunchAgent(
-        api=mocker.api, config={"entity": "test-entity", "project": "test-project"}
+        api=mocker.api,
+        config={"entity": "test-entity", "project": "test-project"},
+        telemetry_recorder=TelemetryRecorder(),
     )
     agent.update_status = AsyncMock()
     agent.task_run_job = AsyncMock()
@@ -827,7 +1024,11 @@ async def test_base_image_resolution(
     mocker.runner.run = AsyncMock(return_value=None)
 
     job_tracker = JobAndRunStatusTracker("rqi", "test-queue", MagicMock())
-    agent = LaunchAgent(api=mocker.api, config={"entity": "e", "project": "p"})
+    agent = LaunchAgent(
+        api=mocker.api,
+        config={"entity": "e", "project": "p"},
+        telemetry_recorder=TelemetryRecorder(),
+    )
 
     await agent._task_run_job(
         {"entity": "e", "project": "p", "resource": "kubernetes"},

@@ -14,7 +14,7 @@ import filecmp
 import os
 import subprocess
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from pathlib import Path, PurePath
 
 parser = argparse.ArgumentParser()
@@ -81,7 +81,7 @@ def format_files(paths: list[PurePath]) -> None:
 
 
 @contextlib.contextmanager
-def temp_fname() -> Iterator[PurePath]:
+def temp_fname() -> Generator[PurePath]:
     try:
         f = tempfile.NamedTemporaryFile(delete=False)
         tmp_name = f.name

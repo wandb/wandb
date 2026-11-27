@@ -1,3 +1,4 @@
+import shlex
 from unittest.mock import MagicMock
 
 import pytest
@@ -64,3 +65,34 @@ async def test_local_process_runner(
         "WANDB_ENTITY=test_entity python train.py --epochs 10"
     )
     assert mock_run_entry_point.call_args[0][1] == "/tmp/project_dir"
+
+
+@pytest.mark.asyncio
+async def test_local_process_runner_quotes_entrypoint_and_args(
+    test_settings,
+    test_api,
+    mock_launch_project,
+    mock_run_entry_point,
+):
+    """Entrypoint and override args are shell-quoted in the built command.
+
+    Both values originate from the job and are concatenated into the command
+    string, so every element must be quoted and preserved as a single token.
+    """
+    mock_launch_project.override_entrypoint = EntryPoint(
+        "train.py", ["python", "train.py; touch /tmp/pwned"]
+    )
+    mock_launch_project.override_args = ["--lr", "0.1; id"]
+
+    runner = LocalProcessRunner(test_api, {"SYNCHRONOUS": "true"})
+    await runner.run(mock_launch_project)
+
+    command_str = mock_run_entry_point.call_args[0][0]
+    # Each value must survive shell parsing as a single token rather than
+    # splitting on the embedded metacharacter. shlex.split mirrors how the
+    # command string is later tokenized by the shell.
+    tokens = shlex.split(command_str)
+    assert "train.py; touch /tmp/pwned" in tokens
+    assert "0.1; id" in tokens
+    # A bare metacharacter would create an extra token; quoting prevents that.
+    assert ";" not in tokens

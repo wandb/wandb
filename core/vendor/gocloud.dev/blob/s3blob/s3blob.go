@@ -46,10 +46,14 @@
 //   - ListOptions.BeforeList: *s3.ListObjectsV2Input or *[]func(*s3.Options), or *s3.ListObjectsInput
 //     when Options.UseLegacyList == true
 //   - Reader: s3.GetObjectOutput
-//   - ReaderOptions.BeforeRead: *s3.GetObjectInput or *[]func(*s3.Options)
+//   - ReaderOptions.BeforeRead: *s3.GetObjectInput or *[]func(*s3.Options).
+//     When Bucket.Download is called with an io.WriterAt destination, the
+//     download is performed with the transfer manager instead, and BeforeRead
+//     exposes *transfermanager.DownloadObjectInput or *transfermanager.Client.
 //   - Attributes: s3.HeadObjectOutput
 //   - CopyOptions.BeforeCopy: s3.CopyObjectInput
-//   - WriterOptions.BeforeWrite: *s3.PutObjectInput, *s3manager.Uploader
+//   - DeleteOptions.BeforeDelete: *s3.DeleteObjectInput
+//   - WriterOptions.BeforeWrite: *transfermanager.UploadObjectInput, *transfermanager.Client
 //   - SignedURLOptions.BeforeSign: *s3.GetObjectInput, when Options.Method == http.MethodGet, or
 //       *s3.PutObjectInput, when Options.Method == http.MethodPut
 
@@ -57,7 +61,6 @@ package s3blob // import "gocloud.dev/blob/s3blob"
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -69,7 +72,9 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -171,7 +176,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 		var err error
 		accelerate, err = strconv.ParseBool(accelerateParam)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value for %q: %v", accelerateParamKey, err)
+			return nil, fmt.Errorf("invalid value for %q: %w", accelerateParamKey, err)
 		}
 	}
 
@@ -184,7 +189,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 		q.Del(disableHTTPSParamKey)
 		value, err := strconv.ParseBool(disableHTTPSParam)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value for %q: %v", disableHTTPSParamKey, err)
+			return nil, fmt.Errorf("invalid value for %q: %w", disableHTTPSParamKey, err)
 		}
 		opts = append(opts, func(o *s3.Options) {
 			o.EndpointOptions.DisableHTTPS = value
@@ -195,7 +200,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 			q.Del(key)
 			value, err := strconv.ParseBool(usePathStyleParam)
 			if err != nil {
-				return nil, fmt.Errorf("invalid value for %q: %v", key, err)
+				return nil, fmt.Errorf("invalid value for %q: %w", key, err)
 			}
 			opts = append(opts, func(o *s3.Options) {
 				o.UsePathStyle = value
@@ -205,7 +210,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 
 	cfg, err := gcaws.V2ConfigFromURLParams(ctx, q)
 	if err != nil {
-		return nil, fmt.Errorf("open bucket %v: %v", u, err)
+		return nil, fmt.Errorf("open bucket %v: %w", u, err)
 	}
 	client := s3.NewFromConfig(cfg, opts...)
 
@@ -311,9 +316,9 @@ type writer struct {
 	// used to upload data.
 	upload bool
 
-	ctx      context.Context
-	uploader *s3manager.Uploader
-	req      *s3.PutObjectInput
+	ctx context.Context
+	tm  *transfermanager.Client
+	req *transfermanager.UploadObjectInput
 
 	donec chan struct{} // closed when done writing
 	// The following fields will be written before donec closes:
@@ -358,7 +363,7 @@ func (w *writer) open(r io.Reader, closePipeOnError bool) {
 		}
 		var err error
 		w.req.Body = r
-		_, err = w.uploader.Upload(w.ctx, w.req)
+		_, err = w.tm.UploadObject(w.ctx, w.req)
 		if err != nil {
 			if closePipeOnError {
 				w.pr.CloseWithError(err)
@@ -371,10 +376,14 @@ func (w *writer) open(r io.Reader, closePipeOnError bool) {
 // Close completes the writer and closes it. Any error occurring during write
 // will be returned. If a writer is closed before any Write is called, Close
 // will create an empty file at the given key.
-func (w *writer) Close() error {
+func (w *writer) Close() (err error) {
 	if !w.upload {
 		if w.pr != nil {
-			defer w.pr.Close()
+			defer func() {
+				if e := w.pr.Close(); e != nil && err == nil {
+					err = e
+				}
+			}()
 		}
 		if w.pw == nil {
 			// We never got any bytes written. We'll write an http.NoBody.
@@ -398,6 +407,8 @@ type bucket struct {
 	requestChecksumCalculation aws.RequestChecksumCalculation
 }
 
+var _ driver.DownloaderAt = (*bucket)(nil)
+
 func (b *bucket) Close() error {
 	return nil
 }
@@ -405,14 +416,16 @@ func (b *bucket) Close() error {
 func (b *bucket) ErrorCode(err error) gcerrors.ErrorCode {
 	var code string
 	var ae smithy.APIError
-	var oe *smithy.OperationError
-	if errors.As(err, &oe) && strings.Contains(oe.Error(), "301") {
-		// AWS returns an OperationError with a missing redirect for invalid buckets.
-		code = "NoSuchBucket"
-	} else if errors.As(err, &ae) {
+	var re *awshttp.ResponseError
+	if errors.As(err, &ae) {
 		code = ae.ErrorCode()
-	} else {
-		return gcerrors.Unknown
+	} else if errors.As(err, &re) {
+		c := re.HTTPStatusCode()
+		if c == http.StatusNotFound || c == http.StatusMovedPermanently {
+			return gcerrors.NotFound
+		} else if c == http.StatusUnauthorized || c == http.StatusForbidden {
+			return gcerrors.PermissionDenied
+		}
 	}
 	switch {
 	case code == "NoSuchBucket" || code == "NoSuchKey" || code == "NotFound" || code == "ObjectNotInActiveTierError":
@@ -668,6 +681,55 @@ func (b *bucket) NewRangeReader(ctx context.Context, key string, offset, length 
 	}, nil
 }
 
+// DownloadAt implements driver.DownloaderAt. It uses the S3 transfer manager to
+// fetch the object with concurrent ranged GETs, writing parts directly into w.
+// This driver already uses the transfer manager for uploads.
+//
+// Note: unlike NewRangeReader, opts.BeforeRead here exposes
+// *transfermanager.DownloadObjectInput and *transfermanager.Client, not
+// *s3.GetObjectInput.
+func (b *bucket) DownloadAt(ctx context.Context, key string, w io.WriterAt, opts *driver.ReaderOptions) error {
+	key = escapeKey(key)
+	tm := transfermanager.New(b.client, func(o *transfermanager.Options) {
+		// Thread the bucket's checksum setting through, matching the upload
+		// path; see NewTypedWriter for why this matters for S3-compatible
+		// stores.
+		o.RequestChecksumCalculation = b.requestChecksumCalculation
+		// RANGE uses byte-range GETs and works on any object; PART only works
+		// for objects that were uploaded in multiple parts.
+		o.GetObjectType = tmtypes.GetObjectRanges
+		if opts.BufferSize != 0 {
+			o.PartSizeBytes = int64(opts.BufferSize)
+		}
+		if opts.MaxConcurrency != 0 {
+			o.Concurrency = opts.MaxConcurrency
+		}
+	})
+	in := &transfermanager.DownloadObjectInput{
+		Bucket:   aws.String(b.name),
+		Key:      aws.String(key),
+		WriterAt: w,
+	}
+	if opts.BeforeRead != nil {
+		asFunc := func(i any) bool {
+			if p, ok := i.(**transfermanager.DownloadObjectInput); ok {
+				*p = in
+				return true
+			}
+			if p, ok := i.(**transfermanager.Client); ok {
+				*p = tm
+				return true
+			}
+			return false
+		}
+		if err := opts.BeforeRead(asFunc); err != nil {
+			return err
+		}
+	}
+	_, err := tm.DownloadObject(ctx, in)
+	return err
+}
+
 // etagToMD5 processes an ETag header and returns an MD5 hash if possible.
 // S3's ETag header is sometimes a quoted hexstring of the MD5. Other times,
 // notably when the object was uploaded in multiple parts, it is not.
@@ -738,15 +800,19 @@ func unescapeKey(key string) string {
 // NewTypedWriter implements driver.NewTypedWriter.
 func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, opts *driver.WriterOptions) (driver.Writer, error) {
 	key = escapeKey(key)
-	uploader := s3manager.NewUploader(b.client, func(u *s3manager.Uploader) {
+	tm := transfermanager.New(b.client, func(o *transfermanager.Options) {
+		// The transfer manager's own RequestChecksumCalculation takes precedence
+		// over the client's, so thread the bucket's setting through. Under
+		// when_required this leaves the upload checksum algorithm empty, and the
+		// request carries x-amz-content-sha256: UNSIGNED-PAYLOAD with no
+		// x-amz-checksum-* header — what third-party S3-compatible stores expect.
+		o.RequestChecksumCalculation = b.requestChecksumCalculation
 		if opts.BufferSize != 0 {
-			u.PartSize = int64(opts.BufferSize)
+			o.PartSizeBytes = int64(opts.BufferSize)
 		}
 		if opts.MaxConcurrency != 0 {
-			u.Concurrency = opts.MaxConcurrency
+			o.Concurrency = opts.MaxConcurrency
 		}
-
-		u.RequestChecksumCalculation = b.requestChecksumCalculation
 	})
 	md := make(map[string]string, len(opts.Metadata))
 	for k, v := range opts.Metadata {
@@ -758,13 +824,12 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		})
 		md[k] = url.PathEscape(v)
 	}
-	req := &s3.PutObjectInput{
+	req := &transfermanager.UploadObjectInput{
 		Bucket:      aws.String(b.name),
 		ContentType: aws.String(contentType),
 		Key:         aws.String(key),
 		Metadata:    md,
 	}
-
 	if opts.IfNotExist {
 		// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html
 		req.IfNoneMatch = aws.String("*")
@@ -781,32 +846,29 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 	if opts.ContentLanguage != "" {
 		req.ContentLanguage = aws.String(opts.ContentLanguage)
 	}
-	if len(opts.ContentMD5) > 0 {
-		req.ContentMD5 = aws.String(base64.StdEncoding.EncodeToString(opts.ContentMD5))
-	}
+	// S3 doesn't support ContentMD5 validation anymore.
 	if b.encryptionType != "" {
-		req.ServerSideEncryption = b.encryptionType
+		req.ServerSideEncryption = tmtypes.ServerSideEncryption(b.encryptionType)
 	}
 	if b.kmsKeyId != "" {
-		req.SSEKMSKeyId = aws.String(b.kmsKeyId)
+		req.SSEKMSKeyID = aws.String(b.kmsKeyId)
 	}
 	if opts.BeforeWrite != nil {
 		asFunc := func(i any) bool {
 			// Note that since the Go CDK Blob
 			// abstraction does not expose AWS's
-			// Uploader concept, there does not
+			// Transfer Manager concept, there does not
 			// appear to be any utility in
 			// exposing the options list to the v2
-			// Uploader's Upload() method.
+			// Transfer Manager's UploadObject() method.
 			// Instead, applications can
-			// manipulate the exposed *Uploader
-			// directly, including by setting
-			// ClientOptions if needed.
-			if p, ok := i.(**s3manager.Uploader); ok {
-				*p = uploader
+			// manipulate the exposed *Client
+			// directly.
+			if p, ok := i.(**transfermanager.Client); ok {
+				*p = tm
 				return true
 			}
-			if p, ok := i.(**s3.PutObjectInput); ok {
+			if p, ok := i.(**transfermanager.UploadObjectInput); ok {
 				*p = req
 				return true
 			}
@@ -817,10 +879,10 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		}
 	}
 	return &writer{
-		ctx:      ctx,
-		uploader: uploader,
-		req:      req,
-		donec:    make(chan struct{}),
+		ctx:   ctx,
+		tm:    tm,
+		req:   req,
+		donec: make(chan struct{}),
 	}, nil
 }
 
@@ -858,7 +920,11 @@ func (b *bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *driver.C
 }
 
 // Delete implements driver.Delete.
-func (b *bucket) Delete(ctx context.Context, key string) error {
+func (b *bucket) Delete(ctx context.Context, key string, opts *driver.DeleteOptions) error {
+	// S3 DeleteObject succeeds even if the key doesn't exist, so we check
+	// existence first to return NotFound. This happens before BeforeDelete,
+	// so it always checks the current object, even if the callback sets a
+	// VersionId on the DeleteObjectInput.
 	if _, err := b.Attributes(ctx, key); err != nil {
 		return err
 	}
@@ -866,6 +932,18 @@ func (b *bucket) Delete(ctx context.Context, key string) error {
 	input := &s3.DeleteObjectInput{
 		Bucket: aws.String(b.name),
 		Key:    aws.String(key),
+	}
+	if opts.BeforeDelete != nil {
+		asFunc := func(i any) bool {
+			if p, ok := i.(**s3.DeleteObjectInput); ok {
+				*p = input
+				return true
+			}
+			return false
+		}
+		if err := opts.BeforeDelete(asFunc); err != nil {
+			return err
+		}
 	}
 	_, err := b.client.DeleteObject(ctx, input)
 	return err

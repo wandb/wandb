@@ -9,6 +9,7 @@ import tensorboard.plugins.pr_curve.summary as pr_curve_plugins_summary
 import tensorboard.summary.v1 as tensorboard_summary_v1
 import tensorflow as tf
 import wandb
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 PR_CURVE_SPEC = {
     "panel_type": "Vega2",
@@ -62,8 +63,6 @@ def test_histogram(wandb_backend_spy):
         assert summary["activations"]["_type"] == "histogram"
         assert summary["initial_weights"]["_type"] == "histogram"
 
-    wandb.tensorboard.unpatch()
-
 
 def test_image(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run:
@@ -90,8 +89,6 @@ def test_image(wandb_backend_spy):
         assert summary["grayscale_image"]["height"] == 8
         assert summary["grayscale_image"]["format"] == "png"
 
-    wandb.tensorboard.unpatch()
-
 
 def test_batch_images(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run:
@@ -114,8 +111,6 @@ def test_batch_images(wandb_backend_spy):
         assert summary["Training data"]["count"] == 5
         for file_name in summary["Training data"]["filenames"]:
             assert os.path.exists(f"{run.dir}/{file_name}")
-
-    wandb.tensorboard.unpatch()
 
 
 def test_scalar(wandb_backend_spy):
@@ -141,8 +136,6 @@ def test_scalar(wandb_backend_spy):
             # So we use pytest.approx to compare the values.
             assert history[step]["loss"] == pytest.approx(scalars[step])
 
-    wandb.tensorboard.unpatch()
-
 
 def test_add_pr_curve(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run:
@@ -166,7 +159,6 @@ def test_add_pr_curve(wandb_backend_spy):
         assert (
             config["_wandb"]["value"]["visualize"]["test_pr/pr_curves"] == PR_CURVE_SPEC
         )
-    wandb.tensorboard.unpatch()
 
 
 def test_add_pr_curve_plugin(wandb_backend_spy):
@@ -198,8 +190,6 @@ def test_add_pr_curve_plugin(wandb_backend_spy):
         summary = snapshot.summary(run_id=run.id)
         assert summary["global_step"] == 0
         assert summary["test_pr/pr_curves"]["_type"] == "table-file"
-
-    wandb.tensorboard.unpatch()
 
 
 def test_compat_tensorboard(wandb_backend_spy):
@@ -241,8 +231,6 @@ def test_compat_tensorboard(wandb_backend_spy):
         history = snapshot.history(run_id=run.id)
         assert len(history) == 10
 
-    wandb.tensorboard.unpatch()
-
 
 def test_tb_sync_with_explicit_step_and_log(
     wandb_backend_spy,
@@ -275,4 +263,22 @@ def test_tb_sync_with_explicit_step_and_log(
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # sync_tensorboard
 
-    wandb.tensorboard.unpatch()
+
+def test_combines_steps(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init(sync_tensorboard=True) as run:
+        with tf.summary.create_file_writer("test/logs").as_default():
+            tf.summary.scalar("epoch_loss", 0.7, step=0)
+            tf.summary.scalar("epoch_learning_rate", 0.015, step=0)
+            tf.summary.scalar("epoch_loss", 0.5, step=1)
+            tf.summary.scalar("epoch_learning_rate", 0.014, step=1)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+
+        assert len(history) == 2
+        assert 0 in history
+        assert 1 in history
+        assert history[0]["epoch_loss"] == pytest.approx(0.7)
+        assert history[0]["epoch_learning_rate"] == pytest.approx(0.015)
+        assert history[1]["epoch_loss"] == pytest.approx(0.5)
+        assert history[1]["epoch_learning_rate"] == pytest.approx(0.014)

@@ -37,6 +37,8 @@ type HTTPWrapper interface {
 //
 //	Request -> wrapper3 -> wrapper2 -> wrapper1 -> send
 //	Response -> send -> wrapper1 -> wrapper2 -> wrapper3
+//
+// Nil wrappers are ignored.
 func Concat(wrappers ...HTTPWrapper) HTTPWrapper {
 	return wrapperList{wrappers}
 }
@@ -48,7 +50,9 @@ type wrapperList struct {
 // WrapHTTP implements HTTPWrapper.WrapHTTP.
 func (l wrapperList) WrapHTTP(send HTTPDoFunc) HTTPDoFunc {
 	for _, wrapper := range l.wrappers {
-		send = wrapper.WrapHTTP(send)
+		if wrapper != nil {
+			send = wrapper.WrapHTTP(send)
+		}
 	}
 
 	return send

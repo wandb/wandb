@@ -119,13 +119,11 @@ func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, v
 	c.applyRanges()
 }
 
-// Park minimizes canvas memory for off-screen charts.
-func (c *TimeSeriesLineChart) Park() {
-	c.EpochLineChart.Park()
-}
-
 // Resize updates the underlying chart size and reapplies the current view policy.
 func (c *TimeSeriesLineChart) Resize(width, height int) {
+	if c.Width() == width && c.Height() == height {
+		return
+	}
 	c.EpochLineChart.Resize(width, height)
 	c.applyRanges()
 }
@@ -216,6 +214,9 @@ func (c *TimeSeriesLineChart) UpdateInspectionAt(mouseX, _ int) {
 
 // SupportsHeatmap reports whether this chart can toggle into heatmap mode.
 func (c *TimeSeriesLineChart) SupportsHeatmap() bool { return false }
+
+// ScrollRows is unsupported for plain line charts.
+func (c *TimeSeriesLineChart) ScrollRows(int) bool { return false }
 
 // ToggleHeatmapMode is unsupported for plain line charts.
 func (c *TimeSeriesLineChart) ToggleHeatmapMode() bool { return false }

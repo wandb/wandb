@@ -40,9 +40,11 @@ type Reader struct {
 	// that Read from the same position.
 	lastReadOffset int64
 
-	// needsToVerifyHeader is true if the reader is positioned at start and
-	// the W&B header is yet to be successfully verified.
-	needsToVerifyHeader bool
+	// headerVerified is true if the header has been verified.
+	headerVerified bool
+
+	// headerError is an error from verifying the header, if any.
+	headerError error
 }
 
 // OpenReader opens a .wandb file for reading.
@@ -79,20 +81,30 @@ func NewReader(
 	reader := leveldb.NewReaderExt(source, leveldb.CRCAlgoIEEE)
 
 	return &Reader{
-		reader:              reader,
-		source:              source,
-		logger:              logger,
-		bufPool:             sync.Pool{New: func() any { return new(bytes.Buffer) }},
-		needsToVerifyHeader: true,
+		reader:  reader,
+		source:  source,
+		logger:  logger,
+		bufPool: sync.Pool{New: func() any { return new(bytes.Buffer) }},
 	}, nil
 }
 
 // SeekRecord seeks the underlying file to a specific offset.
 //
-// The offset should have come from a writer's LastRecordOffset().
+// The offset should have come from a writer's LastRecordOffset()
+// or the reader's NextRecordOffset().
 func (r *Reader) SeekRecord(offset int64) error {
-	r.needsToVerifyHeader = false // May not be at the start anymore.
 	return r.reader.SeekRecord(offset)
+}
+
+// NextRecordOffset returns the offset at which the next Read will start.
+//
+// Calling it before a successful Read yields that record's offset, which
+// is a valid input to SeekRecord. Returns 0 if the reader is closed.
+func (r *Reader) NextRecordOffset() int64 {
+	if r.reader == nil {
+		return 0
+	}
+	return r.reader.NextOffset()
 }
 
 // Read returns the next record from the transaction log.
@@ -100,10 +112,11 @@ func (r *Reader) SeekRecord(offset int64) error {
 // Returns nil and an error on failure.
 // On EOF, the error wraps io.EOF.
 //
-// Errors are not fatal, and calling Read again will attempt to skip
-// corrupt data. ResetLastRead can be used to attempt to read the same
-// position in the transaction log again. The error wraps EOF
-// or ErrUnexpectedEOF if it may be resolved by waiting for more data.
+// Record errors permit recovery, but unsupported file version is a fatal
+// error. Calling Read again attempts to skip corrupt records. ResetLastRead
+// can be used to attempt to read the same position in the transaction log
+// again. The error wraps EOF or ErrUnexpectedEOF if it may be resolved by
+// waiting for more data.
 func (r *Reader) Read() (*spb.Record, error) {
 	if r.reader == nil {
 		return nil, errors.New("transactionlog: reader is closed")
@@ -149,15 +162,24 @@ func (r *Reader) Read() (*spb.Record, error) {
 // verifyWBHeaderBeforeFirstRead verifies the W&B header if it hasn't yet been
 // verified.
 func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
-	if !r.needsToVerifyHeader {
+	if r.headerVerified {
 		return nil
 	}
+	if r.headerError != nil {
+		return r.headerError
+	}
 
-	if err := r.reader.VerifyWandbHeader(wandbStoreVersion); err != nil {
+	version, err := r.reader.VerifyWandbHeader()
+	if err != nil {
 		return fmt.Errorf("transactionlog: bad header: %w", err)
 	}
 
-	r.needsToVerifyHeader = false
+	if err := ensureSupportedVersion(version); err != nil {
+		r.headerError = err
+		return err
+	}
+
+	r.headerVerified = true
 	return nil
 }
 

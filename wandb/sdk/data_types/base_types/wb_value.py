@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from wandb import util
 from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -38,20 +37,12 @@ def _is_maybe_offline() -> bool:
     return singleton.settings._offline
 
 
-def _server_accepts_client_ids() -> bool:
-    from packaging.version import parse
+def _client_ids_allowed() -> bool:
+    """Whether media may reference artifact entries by client ID.
 
-    # There are versions of W&B Server that cannot accept client IDs. Those versions of
-    # the backend have a max_cli_version of less than "0.11.0." If the backend cannot
-    # accept client IDs, manifests and artifact data would never be resolvable and lead
-    # to failed uploads. Our position in 2021/06/29 was to never lose data - and instead take the
-    # tradeoff in the UI. The results in tables not displaying media correctly, but
-    # the table can still be accessed via the .artifact op.
-    #
-    # The latest SDK version that is < "0.11.0" was released on 2021/06/29.
-    # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
-    # client IDs.
-
+    Offline runs only resolve such references when `allow_offline_artifacts`
+    is set.
+    """
     if _is_maybe_offline():
         singleton = wandb_setup.singleton()
 
@@ -60,13 +51,7 @@ def _server_accepts_client_ids() -> bool:
         else:
             return singleton.settings.allow_offline_artifacts
 
-    # If the script is online, request the max_cli_version and ensure the server
-    # is of a high enough version.
-    max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
-        return False
-    accepts_client_ids: bool = parse(max_cli_version) >= parse("0.11.0")
-    return accepts_client_ids
+    return True
 
 
 class _WBValueArtifactSource:
@@ -239,27 +224,11 @@ class WBValue:
             and target.name
             and (client_id := target.artifact._client_id) is not None
             and target.artifact._final
-            and _server_accepts_client_ids()
+            and _client_ids_allowed()
         ):
             return (
                 f"wandb-client-artifact://{client_id}/{self.with_suffix(target.name)}"
             )
-
-        # Else if we do not support client IDs, but online, then block on upload
-        # Note: this is old behavior just to stay backwards compatible
-        # with older server versions. This code path should be removed
-        # once those versions are no longer supported. This path uses a .wait
-        # which blocks the user process on artifact upload.
-        if (
-            (target := self._artifact_target)
-            and target.name
-            and target.artifact._is_draft_save_started()
-            and not _is_maybe_offline()
-            and not _server_accepts_client_ids()
-        ):
-            target.artifact.wait()
-            ref_entry = target.artifact.get_entry(self.with_suffix(target.name))
-            return ref_entry.ref_url()
 
         return None
 
@@ -269,23 +238,8 @@ class WBValue:
             and target.name
             and (sequence_client_id := target.artifact._sequence_client_id) is not None
             and target.artifact._final
-            and _server_accepts_client_ids()
+            and _client_ids_allowed()
         ):
             return f"wandb-client-artifact://{sequence_client_id}:latest/{self.with_suffix(target.name)}"
 
-        # Else if we do not support client IDs, then block on upload
-        # Note: this is old behavior just to stay backwards compatible
-        # with older server versions. This code path should be removed
-        # once those versions are no longer supported. This path uses a .wait
-        # which blocks the user process on artifact upload.
-        if (
-            (target := self._artifact_target)
-            and target.name
-            and target.artifact._is_draft_save_started()
-            and not _is_maybe_offline()
-            and not _server_accepts_client_ids()
-        ):
-            target.artifact.wait()
-            ref_entry = target.artifact.get_entry(self.with_suffix(target.name))
-            return ref_entry.ref_url()
         return None

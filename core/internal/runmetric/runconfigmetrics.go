@@ -2,43 +2,16 @@ package runmetric
 
 import (
 	"github.com/wandb/wandb/core/internal/corelib"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-// RunConfigMetrics tracks a run's defined metrics in the run's config.
-type RunConfigMetrics struct {
-	// handler parses MetricRecords.
-	handler *MetricHandler
-
-	// serverExpandGlobMetrics indicates that server-side expansion is supported,
-	// so expanded metrics don't need to be added to the config.
-	serverExpandGlobMetrics bool
-}
-
-func NewRunConfigMetrics(serverExpandGlobMetrics bool) *RunConfigMetrics {
-	return &RunConfigMetrics{
-		handler:                 New(),
-		serverExpandGlobMetrics: serverExpandGlobMetrics,
-	}
-}
-
-func (rcm *RunConfigMetrics) IsServerExpandGlobMetrics() bool {
-	return rcm.serverExpandGlobMetrics
-}
-
-// ProcessRecord updates metric definitions.
-func (rcm *RunConfigMetrics) ProcessRecord(record *spb.MetricRecord) error {
-	return rcm.handler.ProcessRecord(record)
-}
 
 // ToRunConfigData returns the data to store in the "m" (metrics) field of
 // the run config.
-func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
+func (mh *MetricHandler) ToRunConfigData() []map[string]any {
 	var encodedMetrics []map[string]any
 	indexByName := make(map[string]int)
 
-	for name, metric := range rcm.handler.definedMetrics {
-		encodedMetrics = rcm.encodeToRunConfigData(
+	for name, metric := range mh.definedMetrics {
+		encodedMetrics = mh.encodeToRunConfigData(
 			name,
 			metric,
 			encodedMetrics,
@@ -47,22 +20,20 @@ func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 		)
 	}
 
-	if rcm.serverExpandGlobMetrics {
-		for name, metric := range rcm.handler.globMetrics {
-			encodedMetrics = rcm.encodeToRunConfigData(
-				name,
-				metric,
-				encodedMetrics,
-				indexByName,
-				true,
-			)
-		}
+	for name, metric := range mh.globMetrics {
+		encodedMetrics = mh.encodeToRunConfigData(
+			name,
+			metric,
+			encodedMetrics,
+			indexByName,
+			true,
+		)
 	}
 
 	return encodedMetrics
 }
 
-func (rcm *RunConfigMetrics) encodeToRunConfigData(
+func (mh *MetricHandler) encodeToRunConfigData(
 	name string,
 	metric definedMetric,
 	encodedMetrics []map[string]any,
@@ -88,10 +59,10 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 
 	if metric.Step != "" {
 		// Ensure step has an index.
-		encodedMetrics = rcm.encodeToRunConfigData(
+		encodedMetrics = mh.encodeToRunConfigData(
 			metric.Step,
 			// If it doesn't exist, then it's an empty definition which is OK.
-			rcm.handler.definedMetrics[metric.Step],
+			mh.definedMetrics[metric.Step],
 			encodedMetrics,
 			indexByName,
 			// Step metrics are never interpreted as globs.

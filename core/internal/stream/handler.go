@@ -1,18 +1,20 @@
 package stream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -20,12 +22,12 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -53,7 +55,9 @@ type HandlerFactory struct {
 	Logger               *observability.CoreLogger
 	Mailbox              *mailbox.Mailbox
 	Operations           *wboperation.WandbOperations
+	RunHandle            *runhandle.RunHandle
 	Settings             *settings.Settings
+	Stats                *filestreamstats.Stats
 	SystemMonitorFactory *monitor.SystemMonitorFactory
 	TerminalPrinter      *observability.Printer
 }
@@ -69,8 +73,16 @@ type Handler struct {
 	// fwdChan is the channel for forwarding messages to the next component
 	fwdChan chan runwork.Work
 
+	// receivedExitCh is closed once the Handler receives an Exit record.
+	//
+	// This happens before the Handler's input channel is closed.
+	receivedExitCh chan struct{}
+
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
+
+	// beforeExitWG has to complete before the Exit record can be processed.
+	beforeExitWG sync.WaitGroup
 
 	mailbox *mailbox.Mailbox
 
@@ -90,15 +102,6 @@ type Handler struct {
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
 
-	// runHistorySampler tracks samples of all metrics in the run's history.
-	//
-	// This is used to display the sparkline in the terminal at the end of
-	// the run.
-	runHistorySampler *runhistory.RunHistorySampler
-
-	// runRecord is the runRecord record received from the server
-	runRecord *spb.RunRecord
-
 	// runSummary contains summaries of the run's metrics.
 	//
 	// These summaries are up-to-date with respect to the current request being
@@ -107,11 +110,14 @@ type Handler struct {
 	// which may be arbitrarily far behind the Handler.
 	runSummary *runsummary.RunSummary
 
-	// runTimer is used to track the run start and execution times
-	runTimer *timer.Timer
+	// runHandle contains the run's `_runtime` timer.
+	runHandle *runhandle.RunHandle
 
 	// settings is the settings for the handler
 	settings *settings.Settings
+
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
@@ -131,15 +137,16 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		commit:               f.Commit,
 		fileTransferStats:    f.FileTransferStats,
 		fwdChan:              make(chan runwork.Work, BufferSize),
+		receivedExitCh:       make(chan struct{}),
 		logger:               f.Logger,
 		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
 		operations:           f.Operations,
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
-		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
-		runTimer:             timer.New(0),
+		runHandle:            f.RunHandle,
 		settings:             f.Settings,
+		stats:                f.Stats,
 		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
 	}
@@ -152,10 +159,33 @@ func (h *Handler) OutChan() <-chan runwork.Work {
 
 // Do processes all work on the input channel.
 //
-//gocyclo:ignore
+// An Exit record must be pushed to the channel before it is closed.
 func (h *Handler) Do(allWork <-chan runwork.Work) {
-	defer h.logger.Reraise()
+	defer h.logger.Reraise("stream")
 	h.logger.Info("handler: started")
+
+	// Start the system monitor and generate the code/patch records after
+	// the run initializes.
+	h.beforeExitWG.Go(func() {
+		defer h.logger.Reraise("stream")
+
+		select {
+		case <-h.receivedExitCh:
+			return
+		case <-h.runHandle.ReadyOrFailed():
+		}
+
+		if _, err := h.runHandle.Upserter(); err != nil {
+			return
+		}
+
+		h.systemMonitor.Start()
+		if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
+			h.handleCodeSave()
+			h.handlePatchSave()
+		}
+	})
+
 	for work := range allWork {
 		h.logger.Debug("handler: got work", "work", work)
 
@@ -163,6 +193,15 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 			h.fwdWork(work)
 		}
 	}
+
+	select {
+	case <-h.receivedExitCh: // expected
+	default:
+		h.logger.CaptureError("stream", errors.New("handler: no exit"))
+		close(h.receivedExitCh)
+		h.beforeExitWG.Wait()
+	}
+
 	h.Close()
 }
 
@@ -217,6 +256,7 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_History:
 	case *spb.Record_Output:
 	case *spb.Record_OutputRaw:
+	case *spb.Record_OutputLogger:
 	case *spb.Record_Preempting:
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
@@ -229,17 +269,21 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Header:
 		h.handleHeader(record)
 	case *spb.Record_Metric:
-		h.handleMetric(record)
+		h.handleMetric(x.Metric)
 	case *spb.Record_Request:
 		h.handleRequest(record, request)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handler: handleRecord: record type is nil"))
+			"stream",
+			errors.New("handler: handleRecord: record type is nil"),
+		)
 	default:
 		h.logger.CaptureFatalAndPanic(
-			fmt.Errorf("handler: handleRecord: unknown record type %T", x))
+			"stream",
+			fmt.Errorf("handler: handleRecord: unknown record type %T", x),
+		)
 	}
 }
 
@@ -280,12 +324,12 @@ func (h *Handler) handleRequest(
 		h.handleRequestGetSummary(record, request)
 	case *spb.Request_NetworkStatus:
 		h.handleRequestNetworkStatus(record, request)
+	case *spb.Request_HistoryStep:
+		h.handleHistoryStepRequest(x.HistoryStep, request)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
 		h.handleRequestPollExit(record, request)
-	case *spb.Request_RunStart:
-		h.handleRequestRunStart(record, x.RunStart, request)
 	case *spb.Request_SampledHistory:
 		h.handleRequestSampledHistory(record, request)
 	case *spb.Request_PythonPackages:
@@ -309,7 +353,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record, request)
 	case *spb.Request_InternalMessages:
-		h.handleRequestInternalMessages(record, request)
+		h.handleRequestInternalMessages(x.InternalMessages, request)
 	case *spb.Request_SyncFinish:
 		h.handleRequestSyncFinish(record, request)
 	case *spb.Request_SenderRead:
@@ -322,10 +366,14 @@ func (h *Handler) handleRequest(
 		h.handleRequestProbeSystemInfo(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handler: handleRequest: request type is nil"))
+			"stream",
+			errors.New("handler: handleRequest: request type is nil"),
+		)
 	default:
 		h.logger.CaptureFatalAndPanic(
-			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
+			"stream",
+			fmt.Errorf("handler: handleRequest: unknown request type %T", x),
+		)
 	}
 }
 
@@ -363,18 +411,13 @@ func (h *Handler) handleRequestShutdown(
 	h.respond(request, &spb.Response{})
 }
 
-func (h *Handler) handleMetric(record *spb.Record) {
-	metric := record.GetMetric()
-	if metric == nil {
-		h.logger.CaptureError(
-			errors.New("handler: bad record type for handleMetric"))
-		return
-	}
-
+func (h *Handler) handleMetric(metric *spb.MetricRecord) {
 	if err := h.metricHandler.ProcessRecord(metric); err != nil {
 		h.logger.CaptureError(
+			"stream",
 			fmt.Errorf("handler: cannot add metric: %v", err),
-			"metric", metric)
+			"metric", metric,
+		)
 		return
 	}
 
@@ -472,50 +515,17 @@ func (h *Handler) handleHeader(record *spb.Record) {
 	h.fwdRecord(record, nil)
 }
 
-func (h *Handler) handleRequestRunStart(
-	record *spb.Record,
-	req *spb.RunStartRequest,
-	request *runwork.Request,
-) {
-	var ok bool
-	run := req.Run
-
-	// Add on to the previous run time for branched runs.
-	offset := time.Duration(run.Runtime) * time.Second
-	h.runTimer = timer.New(offset)
-
-	// start the timer
-	h.runTimer.Start()
-
-	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
-		h.logger.CaptureFatalAndPanic(
-			errors.New("handleRunStart: failed to clone run"))
-	}
-	h.fwdRecord(record, request)
-
-	// TODO: Move computation of git state to wandb-core.
-	var git *spb.GitRepoRecord
-	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
-		git = &spb.GitRepoRecord{
-			RemoteUrl: run.GetGit().GetRemoteUrl(),
-			Commit:    run.GetGit().GetCommit(),
-		}
-	}
-
-	// start the system monitor
-	h.systemMonitor.Start(git)
-
-	// save code and patch
-	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
-		h.handleCodeSave()
-		h.handlePatchSave()
-	}
-
-	h.respond(request, &spb.Response{})
-}
-
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
-	h.systemMonitor.Probe()
+	var git *spb.GitRepoRecord
+
+	// TODO: Read Git stuff in wandb-core instead of the Python client.
+	if upserter, err := h.runHandle.Upserter(); err != nil {
+		h.logger.Error("handler: git info unavailable", "error", err)
+	} else {
+		git = upserter.GitInfo()
+	}
+
+	h.systemMonitor.Probe(git)
 }
 
 func (h *Handler) handleRequestPythonPackages(
@@ -615,7 +625,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	git := gitops.New(h.settings.GetRootDir(), h.logger)
+	git := gitops.New(h.settings.GetGitRoot(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}
@@ -669,12 +679,36 @@ func (h *Handler) handleRequestAttach(
 	record *spb.Record,
 	request *runwork.Request,
 ) {
-	h.respond(request, &spb.Response{
-		ResponseType: &spb.Response_AttachResponse{
-			AttachResponse: &spb.AttachResponse{
-				Run: h.runRecord,
+	h.beforeExitWG.Go(func() {
+		defer h.logger.Reraise("stream")
+
+		select {
+		case <-request.Context().Done():
+			return
+		case <-h.receivedExitCh:
+			request.WillNotRespond()
+			return
+
+		case <-h.runHandle.ReadyOrFailed():
+		}
+
+		upserter, err := h.runHandle.Upserter()
+		if err != nil {
+			request.WillNotRespond()
+			h.logger.CaptureError("stream",
+				fmt.Errorf("handler: handleRequestAttach: %v", err))
+			return
+		}
+
+		runRecord := &spb.RunRecord{}
+		upserter.FillRunRecord(runRecord)
+		h.respond(request, &spb.Response{
+			ResponseType: &spb.Response_AttachResponse{
+				AttachResponse: &spb.AttachResponse{
+					Run: runRecord,
+				},
 			},
-		},
+		})
 	})
 }
 
@@ -687,12 +721,12 @@ func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.runTimer.Stop()
+	h.runHandle.PauseRunTimer()
 	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.runTimer.Start()
+	h.runHandle.ResumeRunTimer()
 	h.systemMonitor.Resume()
 }
 
@@ -701,9 +735,19 @@ func (h *Handler) handleExit(
 	exit *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
-	// stop the run timer and set the runtime
-	h.runTimer.Stop()
-	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
+	select {
+	case <-h.receivedExitCh:
+		h.logger.CaptureError("stream", errors.New("handler: already got exit"))
+		request.WillNotRespond()
+		return
+	default:
+	}
+
+	close(h.receivedExitCh)
+	h.beforeExitWG.Wait()
+
+	relativeTimeMs := h.runHandle.RelativeTime().Milliseconds()
+	exit.RelativeTimeMs = &relativeTimeMs
 
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
@@ -719,13 +763,6 @@ func (h *Handler) handleExit(
 	} else {
 		h.flushPartialHistory(true, h.partialHistoryStep+1)
 	}
-
-	if record.Control == nil {
-		record.Control = &spb.Control{}
-	}
-	record.Control.AlwaysSend = true
-
-	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleRequestGetSummary(
@@ -740,7 +777,9 @@ func (h *Handler) handleRequestGetSummary(
 	// able to produce.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run summary: %v", err))
+			"stream",
+			fmt.Errorf("handler: error flattening run summary: %v", err),
+		)
 	}
 
 	response.ResponseType = &spb.Response_GetSummaryResponse{
@@ -785,10 +824,28 @@ func (h *Handler) handleRequestGetSystemMetrics(
 }
 
 func (h *Handler) handleRequestInternalMessages(
-	record *spb.Record,
+	record *spb.InternalMessagesRequest,
 	request *runwork.Request,
 ) {
-	messages := h.terminalPrinter.Read()
+	if request == nil {
+		return
+	}
+
+	go h.popInternalMessages(record, request)
+}
+
+// popInternalMessages responds to the internal messages request,
+// possibly blocking until messages are available.
+func (h *Handler) popInternalMessages(
+	record *spb.InternalMessagesRequest,
+	request *runwork.Request,
+) {
+	var messages []observability.PrinterMessage
+	if record.Wait {
+		messages = h.terminalPrinter.ReadWait(request.Context())
+	} else {
+		messages = h.terminalPrinter.Read()
+	}
 
 	// TODO: Respect message severity in the InternalMessages request.
 	messageContents := make([]string, 0, len(messages))
@@ -830,10 +887,18 @@ func (h *Handler) handleRequestJobInput(
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
 func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
-	if err := runsummary.FromProto(summary).Apply(h.runSummary); err != nil {
+	updates, err := runsummary.FromProto(summary)
+
+	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error processing summary: %v", err))
+			"stream",
+			fmt.Errorf("handler: error processing summary: %v", err),
+		)
+
+		// Continue, partial success is possible.
 	}
+
+	updates.Apply(h.runSummary)
 }
 
 // updateRunTiming updates the `_wandb.runtime` summary metric which
@@ -841,7 +906,7 @@ func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 //
 // This emits a summary record that is written to the transaction log.
 func (h *Handler) updateRunTiming() {
-	runtime := int(h.runTimer.Elapsed().Seconds())
+	runtime := int(h.runHandle.Runtime().Seconds())
 	record := &spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
@@ -868,6 +933,31 @@ func (h *Handler) handleRequestNetworkStatus(
 	request *runwork.Request,
 ) {
 	h.fwdRecord(record, request)
+}
+
+// handleHistoryStepRequest responds with the current W&B step.
+func (h *Handler) handleHistoryStepRequest(
+	_ *spb.HistoryStepRequest, // proves 'request' is a history step request
+	request *runwork.Request,
+) {
+	if h.settings.IsSharedMode() {
+		request.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: "Cannot read the W&B step in shared mode.",
+				},
+			},
+		})
+		return
+	}
+
+	h.respond(request, &spb.Response{
+		ResponseType: &spb.Response_HistoryStepResponse{
+			HistoryStepResponse: &spb.HistoryStepResponse{
+				Step: h.partialHistoryStep,
+			},
+		},
+	})
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for
@@ -897,15 +987,32 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	//
 	// We do this on a best-effort basis: errors are logged and problematic
 	// metrics are ignored.
+	ingestStart := time.Now()
+	var readCounts filestreamstats.HistoryReadCounts
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 
 		if err != nil {
 			h.logger.CaptureError(
+				"stream",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+				"item", item,
+			)
+		} else {
+			readCounts.Add(item)
 		}
 	}
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		filestreamstats.StreamHistory,
+		time.Since(ingestStart),
+	)
+	h.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		readCounts,
+	)
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
 		h.flushPartialHistory(false, 0)
@@ -920,7 +1027,23 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		h.partialHistory = runhistory.New()
-		h.partialHistoryStep = h.runRecord.GetStartingStep()
+
+		// TODO: Remove this when we don't need steps in the transaction log.
+		//
+		// This sets up the initial step for resumed/forked/rewound runs.
+		// It assumes that no records are sent until the initial RunRecord
+		// gets a response. This is true for now, but will be false when
+		// `wandb.init()` becomes async.
+		upserter, err := h.runHandle.Upserter()
+		if err != nil {
+			h.logger.CaptureError(
+				"stream",
+				fmt.Errorf("handler: got history before run initialized"),
+			)
+			h.partialHistoryStep = 0
+		} else {
+			h.partialHistoryStep = upserter.StartingStep()
+		}
 	}
 
 	if request.GetStep() != nil {
@@ -947,14 +1070,31 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
+	ingestStart := time.Now()
+	var readCounts filestreamstats.HistoryReadCounts
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
 			h.logger.CaptureError(
+				"stream",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+				"item", item,
+			)
+		} else {
+			readCounts.Add(item)
 		}
 	}
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		filestreamstats.StreamHistory,
+		time.Since(ingestStart),
+	)
+	h.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		readCounts,
+	)
 
 	var shouldFlush bool
 	if request.GetAction() != nil {
@@ -987,7 +1127,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.partialHistory.SetFloat(
 		pathtree.PathOf("_runtime"),
-		h.runTimer.Elapsed().Seconds(),
+		h.runHandle.Runtime().Seconds(),
 	)
 
 	if !h.settings.IsSharedMode() && useStep {
@@ -997,20 +1137,15 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
+	// Expand any new metrics that match a `define_metric()` glob.
 	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
-		// We don't mark the record 'Local' because partial history updates
-		// are not already written to the transaction log.
 		newMetric.ExpandedFromGlob = true
-		rec := &spb.Record{
-			RecordType: &spb.Record_Metric{Metric: newMetric},
-		}
-		h.handleMetric(rec)
-		h.fwdRecord(rec, nil)
+		_ = h.metricHandler.ProcessRecord(newMetric)
+		h.metricHandler.UpdateSummary(newMetric.Name, h.runSummary)
 	}
-	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
-	h.runHistorySampler.SampleNext(h.partialHistory)
+	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
@@ -1018,7 +1153,19 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.updateSummary()
 	}
 
-	items, err := h.partialHistory.ToRecords()
+	emitStart := time.Now()
+	items, err := h.partialHistory.ToRecords(
+		h.settings.IsHistoryValueEncodingTyped(),
+		h.settings.IsHistoryValueEncodingJSON(),
+	)
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerEmit,
+		filestreamstats.StreamHistory,
+		time.Since(emitStart),
+	)
+	h.stats.RecordHistoryEmitted(context.Background(), items)
+
 	currentStep := h.partialHistoryStep
 
 	h.partialHistory = runhistory.New()
@@ -1029,7 +1176,9 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run history: %v", err))
+			"stream",
+			fmt.Errorf("handler: error flattening run history: %v", err),
+		)
 		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
@@ -1037,7 +1186,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
-	historyRecord := &spb.HistoryRecord{Item: items}
+	relativeTimeMs := h.runHandle.RelativeTime().Milliseconds()
+	historyRecord := &spb.HistoryRecord{
+		Item:           items,
+		RelativeTimeMs: &relativeTimeMs,
+	}
 	if useStep {
 		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
 	}
@@ -1057,7 +1210,9 @@ func (h *Handler) updateSummary() {
 	// We continue despite errors to update as much of the summary as we can.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error updating summary: %v", err))
+			"stream",
+			fmt.Errorf("handler: error updating summary: %v", err),
+		)
 	}
 
 	if len(updates) == 0 {
@@ -1075,20 +1230,9 @@ func (h *Handler) updateSummary() {
 	}, nil)
 }
 
-// samples history items and updates the history record with the sampled values
-//
-// This function samples history items and updates the history record with the
-// sampled values. It is used to display a subset of the history items in the
-// terminal. The sampling is done using a reservoir sampling algorithm.
 func (h *Handler) handleRequestSampledHistory(
 	record *spb.Record,
 	request *runwork.Request,
 ) {
-	h.respond(request, &spb.Response{
-		ResponseType: &spb.Response_SampledHistoryResponse{
-			SampledHistoryResponse: &spb.SampledHistoryResponse{
-				Item: h.runHistorySampler.Get(),
-			},
-		},
-	})
+	h.fwdRecord(record, request)
 }

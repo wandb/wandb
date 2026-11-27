@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
 from urllib import parse
 
 
@@ -17,7 +16,7 @@ class RunMoment:
     run: str
     """run ID"""
 
-    value: Union[int, float]
+    value: int | float
     """Value of the metric."""
 
     metric: str = "_step"

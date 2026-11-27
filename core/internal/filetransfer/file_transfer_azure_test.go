@@ -323,10 +323,9 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 
 	// Headers to be tested
 	contentMD5 := base64.StdEncoding.EncodeToString([]byte("test"))
-	headers := []string{
-		"Content-MD5:" + contentMD5,
-		"Content-Type:text/plain",
-	}
+	headers := http.Header{}
+	headers.Set("Content-MD5", contentMD5)
+	headers.Set("Content-Type", "text/plain")
 
 	mockAzureBlockBlobClient := mockAzureBlockBlobClient{
 		t:               t,
@@ -408,7 +407,7 @@ func TestAzureFileTransfer_UploadClientError(t *testing.T) {
 	// According to Azure docs, `uploadStream` returns an error if the connection is closed
 	// or the context is cancelled.
 	contentExpected := []byte("")
-	headers := []string{}
+	headers := http.Header{}
 
 	mockAzureBlockBlobClient := mockAzureBlockBlobClient{
 		t:               t,

@@ -3,7 +3,6 @@ package leet
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"strings"
@@ -97,17 +96,6 @@ func (p *runOverviewPreloader) MarkDone(runKey string) {
 	delete(p.pending, runKey)
 }
 
-func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
-	wandbDir := w.wandbDir
-	if delay < 0 {
-		delay = 0
-	}
-	return tea.Tick(delay, func(time.Time) tea.Msg {
-		runKeys, err := scanWandbRunDirs(wandbDir)
-		return WorkspaceRunDirsMsg{RunKeys: runKeys, Err: err}
-	})
-}
-
 func scanWandbRunDirs(wandbDir string) ([]string, error) {
 	if wandbDir == "" {
 		return nil, nil
@@ -165,31 +153,68 @@ func parseRunDirTimestamp(name string) time.Time {
 	return t
 }
 
-func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
-	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
+func (w *Workspace) handleWorkspaceRunDiscovery(msg WorkspaceRunDiscoveryMsg) tea.Cmd {
+	nextDiscoveryCmd := w.backend.NextDiscoveryCmd()
 
+	w.discoveryErr = msg.Err
 	if msg.Err != nil {
-		w.logger.CaptureError(fmt.Errorf("workspace: wandb dir scan: %v", msg.Err))
-		return pollCmd
+		// The discovery loop retries and re-reports on every tick, so keep
+		// this out of error telemetry.
+		w.logger.Error(fmt.Sprintf("workspace: run discovery: %v", msg.Err))
+		return nextDiscoveryCmd
 	}
 
-	var selectLatestCmd tea.Cmd
+	var restoreCmd tea.Cmd
 	if !w.runKeysEqual(msg.RunKeys) {
 		w.applyRunKeys(msg.RunKeys)
-		// Auto-select the latest run on initial workspace load.
-		w.autoSelectLatestRunOnLoad.Do(
-			func() { selectLatestCmd = w.toggleRunSelected(msg.RunKeys[0]) })
+		w.restoreRunsOnLoad.Do(func() { restoreCmd = w.restoreRuns(msg.RunKeys) })
 	}
+	w.applyListedRuns(msg.Runs)
 	// Enqueue missing run overviews (even if the run list is unchanged).
 	// This makes new run overviews eventually consistent even if the .wandb file
 	// wasn't readable on the first scan.
 	w.enqueueMissingRunOverviews(msg.RunKeys)
 
 	startCmd := w.startRunOverviewPreloadsCmd()
-	if startCmd == nil {
-		return pollCmd
+	return batchCmds(nextDiscoveryCmd, startCmd, restoreCmd, w.ensureLivePulseCmd())
+}
+
+// applyListedRuns records the metadata that came with a project listing.
+// Selected runs keep the metadata they stream.
+func (w *Workspace) applyListedRuns(runs map[string]RunMsg) {
+	for key := range runs {
+		if _, streaming := w.runsByKey[key]; streaming {
+			continue
+		}
+		w.getOrCreateRunOverview(key).ProcessRunMsg(runs[key])
+		w.indexRunFilterData(key, runs[key])
 	}
-	return tea.Batch(pollCmd, startCmd, selectLatestCmd)
+	if len(runs) > 0 && w.filter.Query() != "" {
+		w.applyRunFilter()
+	}
+}
+
+// restoreRuns selects the runs remembered for the directory that still
+// exist. The newest run is selected too when it appeared since the last
+// session, or when nothing else is selected.
+func (w *Workspace) restoreRuns(runKeys []string) tea.Cmd {
+	var cmds []tea.Cmd
+	for _, key := range w.dirState.SelectedRuns {
+		if slices.Contains(runKeys, key) {
+			cmds = append(cmds, w.selectRun(key))
+		}
+	}
+	w.pinnedRun = ""
+	if w.selectedRuns[w.dirState.PinnedRun] {
+		w.pinnedRun = w.dirState.PinnedRun
+	}
+	newest := runKeys[0]
+	isNew := parseRunDirTimestamp(newest).After(parseRunDirTimestamp(w.dirState.LatestRun))
+	if (isNew || len(w.selectedRuns) == 0) && !w.selectedRuns[newest] {
+		cmds = append(cmds, w.selectRun(newest))
+	}
+	w.rememberRuns()
+	return batchCmds(cmds...)
 }
 
 // enqueueMissingRunOverviews queues runs that don't yet have overview state and
@@ -212,45 +237,9 @@ func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
 	}
 	cmds := make([]tea.Cmd, 0, len(runKeys))
 	for _, runKey := range runKeys {
-		cmds = append(cmds, w.preloadRunOverviewCmd(runKey))
+		cmds = append(cmds, w.backend.PreloadOverviewCmd(runKey))
 	}
 	return tea.Batch(cmds...)
-}
-
-// preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the
-// first RunMsg with a populated run ID.
-//
-// HistorySource.Read batches records into ChunkedBatchMsg, so the preloader
-// must search inside the batch rather than expecting a direct RunMsg.
-func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
-	wandbFile := runWandbFile(w.wandbDir, runKey)
-	logger := w.logger
-
-	return func() tea.Msg {
-		if runKey == "" || wandbFile == "" {
-			return WorkspaceRunOverviewPreloadedMsg{
-				RunKey: runKey,
-				Err:    errRunRecordNotFound,
-			}
-		}
-
-		reader, err := NewLevelDBHistorySource(wandbFile, logger)
-		if err != nil {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-		}
-		defer reader.Close()
-
-		msg, err := reader.Read(maxRecordsToScan, maxRecordsToScanTimeout)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-		}
-
-		if rm, ok := FindRunMsg(msg); ok {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
-		}
-
-		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
-	}
 }
 
 func FindRunMsg(msg tea.Msg) (RunMsg, bool) {
@@ -279,22 +268,32 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 ) tea.Cmd {
 	w.overviewPreloader.MarkDone(msg.RunKey)
 
-	if msg.Err == nil && msg.Run != nil && msg.Run.ID != "" {
+	if msg.Run != nil {
+		sessionRuns.observe(*msg.Run, false)
+	}
+
+	_, streaming := w.runsByKey[msg.RunKey]
+
+	switch {
+	case msg.Err == nil && msg.Run != nil && msg.Run.ID != "" && streaming:
+		// A selected run streams its own records; don't let a stale preload
+		// snapshot overwrite the live overview (e.g., reset its state).
+
+	case msg.Err == nil && msg.Run != nil && msg.Run.ID != "":
 		ro := w.getOrCreateRunOverview(msg.RunKey)
-		if msg.Run != nil {
-			ro.ProcessRunMsg(*msg.Run)
-			w.indexRunFilterData(msg.RunKey, *msg.Run)
-		}
+		ro.ProcessRunMsg(*msg.Run)
+		w.indexRunFilterData(msg.RunKey, *msg.Run)
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
 		// We don't know the final state of this run after a pre-load.
 		ro.SetRunState(RunStateUnknown)
-	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
-		// Best-effort logging for unexpected failures; avoid spamming for
-		// "file not ready yet" or missing run records.
-		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
-		w.logger.CaptureError(err)
+
+	case msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err):
+		// Truncated or partially written .wandb files fail here on every
+		// scan, so keep this out of error telemetry.
+		w.logger.Error(fmt.Sprintf(
+			"workspace: preload run overview for %s: %v", msg.RunKey, msg.Err))
 	}
 
 	// Keep draining the queue.
@@ -370,20 +369,20 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 
 	w.setRunItems(runKeys)
 
-	if w.runColors != nil {
-		for _, runKey := range runKeys {
-			w.runColors.Assign(w.runPathForKey(runKey))
-		}
-	}
-
 	if prevCursorKey != "" {
 		w.restoreRunCursor(prevCursorKey)
 	}
 	w.syncRunsPage()
+
+	// Dropped runs may have emptied the focused pane. Availability reads
+	// the panes' own state, which is normally re-pointed at the cursor run
+	// during View — sync first so Resolve sees the post-drop state.
+	w.syncCurrentRunContext()
+	w.focusMgr.Resolve()
 }
 
 func (w *Workspace) setRunItems(runKeys []string) {
-	items := w.runs.Items[:0]
+	items := make([]KeyValuePair, 0, len(runKeys))
 	for _, key := range runKeys {
 		items = append(items, KeyValuePair{Key: key})
 	}

@@ -160,7 +160,11 @@ class WandbCallback(TrackerCallback):
         logs = {
             name: stat
             for name, stat in list(
-                zip(self.learn.recorder.names, [epoch, smooth_loss] + last_metrics)
+                zip(
+                    self.learn.recorder.names,
+                    [epoch, smooth_loss] + last_metrics,
+                    strict=False,
+                )
             )
         }
         wandb.log(logs)

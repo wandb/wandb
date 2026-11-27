@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import multiprocessing.dummy
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from wandb.errors.term import termlog
 

@@ -1,13 +1,10 @@
-import json
-from datetime import datetime, timedelta
-from pathlib import Path
-from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
-from wandb.sdk.lib.credentials import _expires_at_fmt
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +37,31 @@ def test_login_no_terminput():
         wandb.login()
 
 
+def test_login_no_prompt_without_credentials():
+    assert wandb.login(prompt=False) is False
+    assert wandb.setup().settings.mode == "online"
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_login_no_prompt_preserves_saved_settings_without_credentials():
+    settings = wandb_setup.singleton().settings.read_system_settings()
+    settings.set("base_url", "https://existing.invalid", globally=True)
+    settings.set("project", "existing-project", globally=True)
+    settings.save()
+
+    assert wandb.login(host="https://other.invalid", prompt=False) is False
+
+    saved_settings = wandb_setup.singleton().settings.read_system_settings()
+    assert saved_settings.all() == settings.all()
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_login_no_prompt_with_env_key(monkeypatch, dummy_api_key):
+    monkeypatch.setenv("WANDB_API_KEY", dummy_api_key)
+
+    assert wandb.login(prompt=False) is True
+
+
 def test_login_timeout_choose(emulated_terminal):
     emulated_terminal.queue_input("3")
 
@@ -69,6 +91,7 @@ def test_login_timeout_env_invalid(emulated_terminal, monkeypatch):
         wandb.login()
 
 
+@pytest.mark.usefixtures("skip_verify_login")
 def test_relogin_timeout(emulated_terminal, dummy_api_key):
     assert wandb.login(relogin=True, key=dummy_api_key)
     terminal_state1 = emulated_terminal.read_stderr()
@@ -80,6 +103,7 @@ def test_relogin_timeout(emulated_terminal, dummy_api_key):
     assert terminal_state1 == terminal_state2
 
 
+@pytest.mark.usefixtures("skip_verify_login")
 def test_login_key(emulated_terminal):
     wandb.login(key="A" * 40)
 
@@ -109,43 +133,65 @@ def test_login_sets_api_base_url():
     assert wandb_setup.singleton().settings.base_url == base_url
 
 
-def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "wandb.apis.internal.Api.validate_api_key",
-        lambda self: False,
-    )
-    wandb.ensure_configured()
+def test_login_verify_wraps_service_errors(monkeypatch: pytest.MonkeyPatch):
+    """Any verification failure surfaces as the documented AuthenticationError.
 
+    Failures to start or connect to the wandb-core service raise exception
+    types other than WandbApiFailedError.
+    """
+
+    def raise_service_error(self, *args, **kwargs):
+        raise ConnectionRefusedError("the service process is not running")
+
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
+        raise_service_error,
+    )
     with pytest.raises(wandb.errors.AuthenticationError):
         wandb.login(key="X" * 40, verify=True)
 
 
-# TODO: Make this a system test that runs agains the local-testcontainer?
-@pytest.mark.skip(reason="Test has network calls")
-def test_login_with_token_file(tmp_path: Path):
-    token_file = str(tmp_path / "jwt.txt")
-    credentials_file = str(tmp_path / "credentials.json")
-    base_url = "https://api.wandb.ai"
+def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
+    def reject_credentials(self, *args, **kwargs):
+        raise WandbApiFailedError("invalid credentials")
 
-    with open(token_file, "w") as f:
-        f.write("eyaksdcmlasfm")
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
+        reject_credentials,
+    )
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
 
-    expires_at = datetime.now() + timedelta(days=5)
-    data = {
-        "credentials": {
-            base_url: {
-                "access_token": "wb_at_ksdfmlaskfm",
-                "expires_at": expires_at.strftime(_expires_at_fmt),
-            }
-        }
-    }
-    with open(credentials_file, "w") as f:
-        json.dump(data, f)
 
-    with mock.patch.dict(
-        "os.environ",
-        WANDB_IDENTITY_TOKEN_FILE=token_file,
-        WANDB_CREDENTIALS_FILE=credentials_file,
-    ):
-        wandb.login()
-        assert wandb.api.is_authenticated
+def test_login_explicit_invalid_key_does_not_update_netrc(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An explicit key rejected by the server must not be saved to .netrc."""
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
+        MagicMock(side_effect=WandbApiFailedError("invalid credentials")),
+    )
+    write_netrc = MagicMock()
+    monkeypatch.setattr("wandb.sdk.lib.wbauth.write_netrc_auth", write_netrc)
+
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
+
+    write_netrc.assert_not_called()
+
+
+def test_login_explicit_valid_key_updates_netrc(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An explicit key accepted by the server is saved to .netrc."""
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
+        MagicMock(),
+    )
+    write_netrc = MagicMock()
+    monkeypatch.setattr("wandb.sdk.lib.wbauth.write_netrc_auth", write_netrc)
+
+    wandb.login(key="X" * 40, verify=True)
+
+    write_netrc.assert_called_once()
+    assert write_netrc.call_args.kwargs["api_key"] == "X" * 40

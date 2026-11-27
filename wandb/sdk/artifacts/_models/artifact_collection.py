@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing_extensions import Self
 
-from wandb._pydantic import field_validator
+from wandb._pydantic import GQLId
 
 from .base_model import ArtifactsBase
 
@@ -38,22 +38,32 @@ class ArtifactCollectionData(ArtifactsBase):
     type: str
     """The artifact type of this collection."""
 
-    description: Optional[str] = None
+    description: str | None = None
     """The description, if any, for this collection."""
 
     created_at: str = Field(frozen=True)
     """When this collection was created."""
 
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
     """When this collection was last updated."""
 
     project: str = Field(frozen=True)
     """The name of this collection's project."""
 
+    project_id: str = Field(frozen=True, repr=False)
+    """The encoded GraphQL ID for this collection's project."""
+
+    project_internal_id: GQLId | None = Field(default=None, frozen=True, repr=False)
+    """The GraphQL `internalId` for this collection's backing project, if fetched.
+
+    This is a base64-encoded global ID. When decoded, it looks like
+    `Project:123` or `ProjectInternalId:123`.
+    """
+
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""
 
-    aliases: Optional[Tuple[str, ...]] = Field(default=None, frozen=True)
+    aliases: tuple[str, ...] | None = Field(default=None, frozen=True)
     """All aliases assigned to artifact versions within this collection.
 
     Deliberately immutable since this should be a read-only attribute.
@@ -65,7 +75,7 @@ class ArtifactCollectionData(ArtifactsBase):
         any reason, NOT that aliases are absent in this collection.
     """
 
-    tags: List[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     """The tags assigned to this collection.
 
     Note that this is distinct from tags assigned to individual artifact
@@ -108,6 +118,8 @@ class ArtifactCollectionData(ArtifactsBase):
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             project=obj.project.name,
+            project_id=obj.project.id,
+            project_internal_id=obj.project.internal_id,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
             aliases=None,

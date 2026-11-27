@@ -30,8 +30,8 @@ import contextvars
 import logging
 import sys
 import threading
-from collections.abc import Iterator
-from typing import IO, AnyStr, Callable, Protocol
+from collections.abc import Callable, Generator
+from typing import IO, AnyStr, Protocol
 
 from . import wb_logging
 
@@ -204,7 +204,7 @@ def _patch(
 @contextlib.contextmanager
 def _enter_callbacks(
     callbacks: dict[int, _WriteCallback],
-) -> Iterator[list[_WriteCallback]]:
+) -> Generator[list[_WriteCallback]]:
     """Returns a list of callbacks to invoke.
 
     This prevents deadlocks and some infinite loops by returning an empty list
@@ -272,7 +272,7 @@ def _enter_callbacks(
 
 
 @contextlib.contextmanager
-def _reset_on_exception() -> Iterator[None]:
+def _reset_on_exception() -> Generator[None]:
     """Clear all callbacks on any exception, suppressing it.
 
     This prevents infinite loops:

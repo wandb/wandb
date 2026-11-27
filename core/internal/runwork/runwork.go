@@ -169,7 +169,7 @@ func (rw *runWork) AddWorkOrCancel(
 
 		case <-rw.closed:
 			// Here, Close() must have been called, so we should drop the record.
-			rw.logger.CaptureError(errRecordAfterClose, "work", work)
+			rw.logger.CaptureError("runwork", errRecordAfterClose, "work", work)
 			work.Request.WillNotRespond()
 			return
 

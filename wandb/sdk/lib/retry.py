@@ -9,8 +9,8 @@ import os
 import random
 import threading
 import time
-from collections.abc import Awaitable
-from typing import Any, Callable, Generic, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, Generic, TypeVar
 
 import wandb
 import wandb.errors
@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 NOW_FN = datetime.datetime.now
 SLEEP_FN = time.sleep
 SLEEP_ASYNC_FN = asyncio.sleep
+
+# Jitter must not consume the global generator, which user code may have seeded.
+_random = random.SystemRandom()
 
 
 class RetryCancelledError(wandb.errors.Error):
@@ -81,15 +84,6 @@ class Retry(Generic[_R]):
         self.retry_callback = retry_callback
 
         self._num_iter = 0
-
-    def _sleep_check_cancelled(
-        self, wait_seconds: float, cancel_event: threading.Event | None
-    ) -> bool:
-        if not cancel_event:
-            SLEEP_FN(wait_seconds)
-            return False
-        cancelled = cancel_event.wait(wait_seconds)
-        return cancelled
 
     @property
     def num_iters(self) -> int:
@@ -296,7 +290,7 @@ class _RetryLoop:
         Raises:
             RetryCancelledError: If the operation is cancelled.
         """
-        sleep_amount = self._next_sleep_time * (1 + random.random() * 0.25)
+        sleep_amount = self._next_sleep_time * (1 + _random.random() * 0.25)
 
         if self._cancel_event:
             cancelled = self._cancel_event.wait(sleep_amount)
@@ -360,23 +354,10 @@ class ExponentialBackoff(Backoff):
 
         result, self._next_sleep = (
             self._next_sleep,
-            min(self._max_sleep, self._next_sleep * (1 + random.random())),
+            min(self._max_sleep, self._next_sleep * (1 + _random.random())),
         )
 
         return result
-
-
-class FilteredBackoff(Backoff):
-    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff."""
-
-    def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
-        self._filter = filter
-        self._wrapped = wrapped
-
-    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
-        if not self._filter(exc):
-            raise exc
-        return self._wrapped.next_sleep_or_reraise(exc)
 
 
 async def retry_async(

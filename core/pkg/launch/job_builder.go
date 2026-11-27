@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/randomid"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -555,6 +556,7 @@ func (j *JobBuilder) Build(
 	ctx context.Context,
 	client graphql.Client,
 	runConfig map[string]any,
+	runPath runbranch.RunPath,
 	output map[string]interface{},
 ) (artifact *spb.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
@@ -670,9 +672,9 @@ func (j *JobBuilder) Build(
 	}
 
 	baseArtifact := &spb.ArtifactRecord{
-		Entity:           j.settings.GetEntity(),
-		Project:          j.settings.GetProject(),
-		RunId:            j.settings.GetRunID(),
+		Entity:           runPath.Entity,
+		Project:          runPath.Project,
+		RunId:            runPath.RunID,
 		Name:             *name,
 		Metadata:         metadataString,
 		Type:             "job",

@@ -24,13 +24,13 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	require.NoError(t, os.WriteFile(runFile, nil, 0o644))
 
 	var model tea.Model = leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	// Seed workspace run list.
-	model, _ = model.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runDir}})
+	model, _ = model.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runDir}})
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Workspace: set metrics filter to "train".
@@ -57,6 +57,82 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	require.NotContains(t, view, `"trainx"`)
 }
 
+func TestModel_FiltersPersistPerWandbDir(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	wandbDir := t.TempDir()
+	open := func() tea.Model {
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+		var model tea.Model = leet.NewModel(leet.ModelParams{
+			Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+			Config:  cfg,
+			Logger:  logger,
+		})
+		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		return model
+	}
+
+	model := open()
+	model, _ = model.Update(keyPressMsg('/'))
+	for _, r := range "train" {
+		model, _ = model.Update(keyPressMsg(r))
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	reopened := open()
+	require.Contains(t, stripANSI(reopened.View().Content), `"train"`)
+}
+
+func TestModel_SelectedRunsPersistPerWandbDir(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	wandbDir := t.TempDir()
+	run1 := "run-20250731_170601-aaaaaaaa"
+	run2 := "run-20250731_170602-bbbbbbbb"
+	run3 := "run-20250731_170603-cccccccc"
+	run4 := "run-20250731_170604-dddddddd"
+	open := func(runKeys ...string) *leet.Model {
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+		model := leet.NewModel(leet.ModelParams{
+			Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+			Config:  cfg,
+			Logger:  logger,
+		})
+		model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		model.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: runKeys})
+		return model
+	}
+
+	// Deselect run3, which was selected as the latest; select run2 and
+	// run1, pin run1.
+	model := open(run3, run2, run1)
+	model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model.Update(tea.KeyPressMsg{Code: 'p'})
+
+	// run2 is gone; run3 is not new, so it stays deselected.
+	w := open(run3, run1).TestWorkspace()
+	require.Equal(t, 1, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run1))
+	require.Equal(t, run1, w.TestPinnedRun())
+
+	// run4 started since the last session.
+	w = open(run4, run3, run1).TestWorkspace()
+	require.Equal(t, 2, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run1))
+	require.True(t, w.TestIsRunSelected(run4))
+
+	// run4 is gone and run3 is older, so run3 is not new; unpin run1.
+	model = open(run3, run1)
+	require.Equal(t, 1, model.TestWorkspace().TestSelectedRunCount())
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: 'p'})
+
+	w = open(run3, run1).TestWorkspace()
+	require.Equal(t, "", w.TestPinnedRun())
+}
+
 func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -68,12 +144,12 @@ func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	require.NoError(t, os.WriteFile(runFile, nil, 0o644))
 
 	var model tea.Model = leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
-	model, _ = model.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runDir}})
+	model, _ = model.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runDir}})
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Workspace: set filter to "train".
@@ -101,11 +177,11 @@ func TestWorkspace_View_SystemMetricsPaneShowsRunLabel(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandSystemMetricsPane(20)
 	require.True(t, w.TestSystemMetricsPane().IsVisible())
@@ -121,11 +197,11 @@ func TestWorkspace_View_SystemMetricsPaneShowsSelectHint(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	// Deselect the run if auto-selected.
 	if w.TestIsRunSelected(runKey) {
@@ -145,11 +221,11 @@ func TestWorkspace_View_ConsoleLogsPaneRendersWhenVisible(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandConsoleLogsPane(10)
 	require.True(t, w.TestConsoleLogsPaneExpanded())
@@ -164,11 +240,11 @@ func TestWorkspace_View_ConsoleLogsPaneShowsNoDataWithoutLogs(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandConsoleLogsPane(10)
 
@@ -177,12 +253,42 @@ func TestWorkspace_View_ConsoleLogsPaneShowsNoDataWithoutLogs(t *testing.T) {
 		"bottom bar should show 'No data.' when no console logs exist")
 }
 
+func TestWorkspace_EmptyMetricsWaitForDataWhileRunIsLive(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	run := leet.TestNewWorkspaceRun("run-key")
+	w.TestAttachRun(run, true)
+
+	w.TestHandleWorkspaceRecord(run, leet.RunMsg{ID: "abc123"})
+	require.Contains(t, stripANSI(w.View().Content), "Waiting for data...")
+
+	finished := leet.RunStateFinished
+	w.TestHandleWorkspaceRecord(run, leet.RunMsg{ID: "abc123", State: &finished})
+	require.Contains(t, stripANSI(w.View().Content), "No scalar metrics logged.")
+}
+
+func TestWorkspace_NarrowTerminalKeepsMainColumnUsable(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceOverviewVisible(true)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
+
+	w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	left, right := w.TestLayoutWidths()
+	require.GreaterOrEqual(t, 80-left-right, 24,
+		"the sidebars must leave room for the main content column")
+	require.Positive(t, left, "the runs list stays when only one sidebar fits")
+}
+
 func TestWorkspace_View_HiddenPanesNotRendered(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	require.False(t, w.TestSystemMetricsPane().IsVisible())
@@ -198,11 +304,11 @@ func TestWorkspace_View_BothPanesVisibleSimultaneously(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 80})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandSystemMetricsPane(15)
 	w.TestForceExpandConsoleLogsPane(10)
@@ -214,4 +320,73 @@ func TestWorkspace_View_BothPanesVisibleSimultaneously(t *testing.T) {
 		"console logs should be in view")
 	require.Contains(t, view, runKey,
 		"run label should appear in view")
+}
+
+// closeTrackingHistorySource records whether Close was called.
+type closeTrackingHistorySource struct {
+	stubHistorySource
+	closed bool
+}
+
+func (s *closeTrackingHistorySource) Close() { s.closed = true }
+
+func TestWorkspace_Cleanup_ReleasesRunResources(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
+
+	src := &closeTrackingHistorySource{}
+	run := &leet.WorkspaceRun{Key: "run-1", Reader: src}
+	run.TestSetWatcherStarted(true)
+	w.TestAttachRun(run, true)
+
+	// Arm the heartbeat via a live record, as during normal streaming.
+	w.TestHandleWorkspaceRecord(run, leet.RunMsg{ID: "run-1", DisplayName: "test"})
+	w.TestHandleWorkspaceRecord(run, leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{0.5}},
+		},
+	})
+	require.True(t, w.TestHeartbeatTimerArmed())
+
+	w.Cleanup()
+
+	require.False(t, w.TestHeartbeatTimerArmed(), "heartbeat should be stopped")
+	require.False(t, run.TestWatcherActive(), "watcher should be stopped")
+	require.True(t, src.closed, "reader should be closed")
+
+	// Cleanup is idempotent.
+	w.Cleanup()
+}
+
+// A selected run whose state is still Unknown after the initial drain (its
+// Run record hasn't been flushed to disk yet) must keep being watched, or
+// it would never stream.
+func TestWorkspaceBoot_WatchesUnknownStateRun(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	workspace := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
+	defer workspace.Cleanup()
+
+	wandbFile := filepath.Join(t.TempDir(), "run-abc.wandb")
+	require.NoError(t, os.WriteFile(wandbFile, nil, 0o644))
+
+	workspace.TestAttachRun(leet.TestNewWorkspaceRun("run-1"), true)
+	workspace.Update(leet.WorkspaceRunInitMsg{
+		RunKey:  "run-1",
+		RunPath: wandbFile,
+		Reader:  &stubHistorySource{msg: leet.ChunkedBatchMsg{}},
+	})
+
+	// Initial drain ends with no records: the run's state is Unknown.
+	workspace.Update(leet.WorkspaceChunkedBatchMsg{
+		RunKey: "run-1",
+		Batch:  leet.ChunkedBatchMsg{HasMore: false},
+	})
+
+	run := workspace.TestRunByKey("run-1")
+	require.NotNil(t, run)
+	require.Equal(t, leet.RunStateUnknown, run.TestState())
+	require.True(t, run.TestWatcherActive(),
+		"unknown-state run must stay watched so it streams once data lands")
 }

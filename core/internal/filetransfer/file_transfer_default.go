@@ -3,10 +3,12 @@ package filetransfer
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -59,6 +61,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		err := file.Close()
 		if err != nil {
 			ft.logger.CaptureError(
+				"filetransfer",
 				fmt.Errorf(
 					"file transfer: upload: error closing file %s: %v",
 					task.Path,
@@ -76,17 +79,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	if err != nil {
 		return err
 	}
-	for _, header := range task.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) != 2 {
-			ft.logger.Error(
-				"file transfer: upload: invalid header",
-				"header", header,
-			)
-			continue
-		}
-		req.Header.Set(parts[0], parts[1])
-	}
+	maps.Copy(req.Header, task.Headers)
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}
@@ -126,7 +119,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		"path", task.Path,
 		"url", task.Url,
 	)
-	dir := path.Dir(task.Path)
+	dir := filepath.Dir(task.Path)
 
 	// Check if the directory already exists
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -140,15 +133,28 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, ensureSafeURL(task.Url), nil)
 	if err != nil {
 		return err
+	}
+	if task.Context != nil {
+		req = req.WithContext(task.Context)
 	}
 	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
 	task.Response = resp
+
+	// Close the body on every return path, including the non-2xx case below.
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return attachErrorResponseBody(
+			"file transfer: download: failed to download: status: "+resp.Status,
+			resp,
+		)
+	}
 
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
@@ -158,6 +164,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	defer func(file *os.File) {
 		if err := file.Close(); err != nil {
 			ft.logger.CaptureError(
+				"filetransfer",
 				fmt.Errorf(
 					"file transfer: download: error closing file %s: %v",
 					task.Path,
@@ -166,19 +173,12 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		}
 	}(file)
 
-	defer func(file io.ReadCloser) {
-		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: download: error closing response reader: %v",
-					err,
-				))
-		}
-	}(resp.Body)
-
 	progress, err := wboperation.Get(task.Context).NewProgress()
 	if err != nil {
-		ft.logger.CaptureError(fmt.Errorf("file transfer: download: %v", err))
+		ft.logger.CaptureError(
+			"filetransfer",
+			fmt.Errorf("file transfer: download: %v", err),
+		)
 	}
 
 	// If Size is not set, try to get it from Content-Length header
@@ -257,7 +257,10 @@ func getUploadRequestBody(
 
 		progress, err := wboperation.Get(task.Context).NewProgress()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("file transfer: %v", err))
+			logger.CaptureError(
+				"filetransfer",
+				fmt.Errorf("file transfer: %v", err),
+			)
 		}
 
 		requestBody = NewProgressReader(
@@ -280,4 +283,15 @@ func getUploadRequestBody(
 		)
 	}
 	return requestBody, nil
+}
+
+// ensureSafeURL returns a download URL that is safe to use.
+//
+// A URL that net/url already accepts is returned unchanged. Otherwise the
+// URL is repaired by percent-encoding every '%' as "%25".
+func ensureSafeURL(rawURL string) string {
+	if _, err := url.Parse(rawURL); err == nil {
+		return rawURL
+	}
+	return strings.ReplaceAll(rawURL, "%", "%25")
 }

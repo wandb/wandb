@@ -7,8 +7,7 @@ import contextlib
 import itertools
 import platform
 import sys
-from collections.abc import Iterator
-from typing import Callable
+from collections.abc import Callable, Generator
 
 import click
 from typing_extensions import override
@@ -29,15 +28,6 @@ WARN = WARNING
 INFO = 20
 DEBUG = 10
 NOTSET = 0
-
-_level_to_name = {
-    CRITICAL: "CRITICAL",
-    ERROR: "ERROR",
-    WARNING: "WARNING",
-    INFO: "INFO",
-    DEBUG: "DEBUG",
-    NOTSET: "NOTSET",
-}
 
 _name_to_level = {
     "CRITICAL": CRITICAL,
@@ -117,7 +107,7 @@ class Printer(abc.ABC):
 
     @contextlib.contextmanager
     @abc.abstractmethod
-    def dynamic_text(self) -> Iterator[DynamicText | None]:
+    def dynamic_text(self) -> Generator[DynamicText | None]:
         """A context manager providing a handle to a block of changeable text.
 
         Since `wandb` may be outputting to a terminal, it's important to only
@@ -275,8 +265,8 @@ class DynamicText(abc.ABC):
 
         Args:
             text: The text to put in the block, with lines separated
-                by \n characters. The text should not end in \n unless
-                a blank line at the end of the block is desired.
+                by \n characters. A single \n at the end is ignored; to include
+                a blank line at the end, the text must end with \n\n.
                 May include styled output from methods on the Printer
                 that created this.
         """
@@ -290,7 +280,7 @@ class _PrinterTerm(Printer):
 
     @override
     @contextlib.contextmanager
-    def dynamic_text(self) -> Iterator[DynamicText | None]:
+    def dynamic_text(self) -> Generator[DynamicText | None]:
         if self._settings and self._settings.silent:
             yield None
             return
@@ -446,7 +436,7 @@ class _PrinterJupyter(Printer):
 
     @override
     @contextlib.contextmanager
-    def dynamic_text(self) -> Iterator[DynamicText | None]:
+    def dynamic_text(self) -> Generator[DynamicText | None]:
         if self._settings and self._settings.silent:
             yield None
             return

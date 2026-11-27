@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from typing import NoReturn
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -71,7 +71,7 @@ async def loop_printing_operation_stats(
 def progress_printer(
     printer: p.Printer,
     default_text: str,
-) -> Iterator[ProgressPrinter]:
+) -> Generator[ProgressPrinter]:
     """Context manager providing an object for printing run progress.
 
     Args:

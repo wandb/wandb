@@ -98,6 +98,10 @@ func init() {
 // blob.DefaultMux.
 const Scheme = "file"
 
+var (
+	ifNotExistLock sync.Mutex
+)
+
 // URLOpener opens file bucket URLs like "file:///foo/bar/baz".
 //
 // The URL's host is ignored unless it is ".", which is used to signal a
@@ -112,7 +116,9 @@ const Scheme = "file"
 //     if it does not already exist.
 //   - dir_file_mode: any directories that are created (the base directory when create_dir
 //     is true, or subdirectories for keys) are created using this os.FileMode, parsed
-//     using os.Parseuint. Defaults to 0777.
+//     using strconv.ParseUint with base 0. A leading "0" or "0o" is interpreted as
+//     octal (e.g. "0777"), matching the conventional notation for file modes.
+//     Defaults to 0777.
 //   - no_tmp_dir: (any non-empty value) temporary files are created next to the final
 //     path instead of in os.TempDir.
 //   - base_url: the base URL to use to construct signed URLs; see URLSignerHMAC
@@ -152,7 +158,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 	}
 	opts, err := o.forParams(ctx, u.Query())
 	if err != nil {
-		return nil, fmt.Errorf("open bucket %v: %v", u, err)
+		return nil, fmt.Errorf("open bucket %v: %w", u, err)
 	}
 	return OpenBucket(filepath.FromSlash(path), opts)
 }
@@ -203,9 +209,13 @@ func (o *URLOpener) forParams(ctx context.Context, q url.Values) (*Options, erro
 		opts.CreateDir = true
 	}
 	if fms := q.Get("dir_file_mode"); fms != "" {
-		fm, err := strconv.ParseUint(fms, 10, 32)
+		// Use base 0 so that the value is interpreted according to its prefix:
+		// a leading "0" or "0o" means octal, which is how file modes are
+		// conventionally written (e.g. "0777"). Without this, "0777" would be
+		// parsed as decimal 777, yielding unexpected permission bits.
+		fm, err := strconv.ParseUint(fms, 0, 32)
 		if err != nil {
-			return nil, fmt.Errorf("fileblob.OpenBucket: invalid dir_file_mode %q: %v", fms, err)
+			return nil, fmt.Errorf("fileblob.OpenBucket: invalid dir_file_mode %q: %w", fms, err)
 		}
 		opts.DirFileMode = os.FileMode(fm)
 	}
@@ -279,7 +289,7 @@ func openBucket(dir string, opts *Options) (driver.Bucket, error) {
 
 	absdir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert %s into an absolute path: %v", dir, err)
+		return nil, fmt.Errorf("failed to convert %s into an absolute path: %w", dir, err)
 	}
 	info, err := os.Stat(absdir)
 
@@ -287,7 +297,7 @@ func openBucket(dir string, opts *Options) (driver.Bucket, error) {
 	if err != nil && opts.CreateDir && os.IsNotExist(err) {
 		err = os.MkdirAll(absdir, opts.DirFileMode)
 		if err != nil {
-			return nil, fmt.Errorf("tried to create directory but failed: %v", err)
+			return nil, fmt.Errorf("tried to create directory but failed: %w", err)
 		}
 		info, err = os.Stat(absdir)
 	}
@@ -369,6 +379,10 @@ func (b *bucket) ErrorCode(err error) gcerrors.ErrorCode {
 // path returns the full path for a key
 func (b *bucket) path(key string) (string, error) {
 	path := filepath.Join(b.dir, escapeKey(key))
+	// Ensure that the key hasn't escaped the bucket root.
+	if b.isEscapingPath(path, true) {
+		return "", fmt.Errorf("fileblob: key %q escapes bucket root", key)
+	}
 	if strings.HasSuffix(path, attrsExt) {
 		return "", errAttrsExt
 	}
@@ -421,6 +435,11 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 		root = filepath.Join(root, opts.Prefix[:i])
 	}
 
+	// Ensure that the Prefix hasn't escaped the bucket root.
+	if b.isEscapingPath(root, false) {
+		return nil, fmt.Errorf("fileblob: key %q escapes bucket root", opts.Prefix)
+	}
+
 	// Do a full recursive scan of the root directory.
 	var result driver.ListPage
 	err := filepath.WalkDir(root, func(path string, info fs.DirEntry, err error) error {
@@ -442,6 +461,7 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 		if b.dir != "/" {
 			prefixLen++
 		}
+		absPath := path
 		path = path[prefixLen:]
 		// Unescape the path to get the key.
 		key := unescapeKey(path)
@@ -469,7 +489,7 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 			return nil
 		}
 		var md5 []byte
-		if xa, err := getAttrs(path); err == nil {
+		if xa, err := getAttrs(absPath); err == nil {
 			// Note: we only have the MD5 hash for blobs that we wrote.
 			// For other blobs, md5 will remain nil.
 			md5 = xa.MD5
@@ -521,11 +541,13 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 			return nil
 		}
 		// If we've already got a full page of results, set NextPageToken and stop.
-		// Unless the current object is a directory, in which case there may
-		// still be objects coming that are alphabetically before it (since
-		// we appended the delimiter). In that case, keep going; we'll trim the
-		// extra entries (if any) before returning.
-		if len(result.Objects) == pageSize && !obj.IsDir {
+		// We can only stop if this object is guaranteed to belong after the page,
+		// i.e. it sorts after the last object in it. That isn't always the case:
+		// adding the delimiter can make an object sort before one we've already
+		// added (e.g., the file "a-b" sorts before the "directory" "a/", but is
+		// visited after it), so keep going in that case; we'll trim the extra
+		// entries before returning.
+		if len(result.Objects) == pageSize && !obj.IsDir && obj.Key > result.Objects[pageSize-1].Key {
 			result.NextPageToken = []byte(result.Objects[pageSize-1].Key)
 			return io.EOF
 		}
@@ -627,11 +649,13 @@ func (b *bucket) NewRangeReader(ctx context.Context, key string, offset, length 
 			*p = f
 			return true
 		}); err != nil {
+			_ = f.Close()
 			return nil, err
 		}
 	}
 	if offset > 0 {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			_ = f.Close()
 			return nil, err
 		}
 	}
@@ -648,6 +672,16 @@ func (b *bucket) NewRangeReader(ctx context.Context, key string, offset, length 
 			Size:        info.Size(),
 		},
 	}, nil
+}
+
+func (b *bucket) isEscapingPath(path string, isKey bool) bool {
+	cleanedPath := filepath.Clean(path) + string(os.PathSeparator)
+	bucketRootPath := b.dir + string(os.PathSeparator) // b.dir is already Cleaned via Abs in the constructor.
+	if isKey && cleanedPath == bucketRootPath {
+		// A key shouldn't point to the bucket itself.
+		return true
+	}
+	return b.dir != string(os.PathSeparator) && !strings.HasPrefix(cleanedPath, bucketRootPath)
 }
 
 type reader struct {
@@ -734,6 +768,9 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 			*p = f
 			return true
 		}); err != nil {
+			name := f.Name()
+			_ = f.Close()
+			_ = os.Remove(name)
 			return nil, err
 		}
 	}
@@ -744,7 +781,6 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 			File:       f,
 			path:       path,
 			ifNotExist: opts.IfNotExist,
-			mu:         &sync.Mutex{},
 		}
 		return w, nil
 	}
@@ -769,7 +805,6 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		contentMD5: opts.ContentMD5,
 		md5hash:    md5.New(),
 		ifNotExist: opts.IfNotExist,
-		mu:         &sync.Mutex{},
 	}
 	return w, nil
 }
@@ -785,7 +820,6 @@ type writerWithSidecar struct {
 	// not for verification.
 	md5hash    hash.Hash
 	ifNotExist bool
-	mu         *sync.Mutex
 }
 
 func (w *writerWithSidecar) Write(p []byte) (n int, err error) {
@@ -817,21 +851,21 @@ func (w *writerWithSidecar) Close() error {
 		return err
 	}
 
-	md5sum := w.md5hash.Sum(nil)
-	w.attrs.MD5 = md5sum
-
-	// Write the attributes file.
-	if err := setAttrs(w.path, w.attrs); err != nil {
-		return err
-	}
-
 	if w.ifNotExist {
-		w.mu.Lock()
-		defer w.mu.Unlock()
+		// Note that the lock is held until the function returns, by which time
+		// the atributes file has been written and the Rename has happened.
+		ifNotExistLock.Lock()
+		defer ifNotExistLock.Unlock()
 		_, err = os.Stat(w.path)
 		if err == nil {
-			return gcerr.New(gcerrors.FailedPrecondition, err, 1, "File already exist")
+			return gcerr.New(gcerrors.FailedPrecondition, fmt.Errorf("blob %q already exists", w.path), 1, "fileblob: IfNotExist precondition failed")
 		}
+	}
+	// Write the attributes file.
+	md5sum := w.md5hash.Sum(nil)
+	w.attrs.MD5 = md5sum
+	if err := setAttrs(w.path, w.attrs); err != nil {
+		return err
 	}
 	// Rename the temp file to path.
 	if err := os.Rename(w.f.Name(), w.path); err != nil {
@@ -850,7 +884,6 @@ type writer struct {
 	ctx        context.Context
 	path       string
 	ifNotExist bool
-	mu         *sync.Mutex
 }
 
 func (w *writer) Upload(r io.Reader) error {
@@ -866,7 +899,7 @@ func (w *writer) Close() error {
 	// Always delete the temp file. On success, it will have been renamed so
 	// the Remove will fail.
 	tempname := w.File.Name()
-	defer os.Remove(tempname)
+	defer func() { _ = os.Remove(tempname) }()
 
 	// Check if the write was cancelled.
 	if err := w.ctx.Err(); err != nil {
@@ -874,11 +907,13 @@ func (w *writer) Close() error {
 	}
 
 	if w.ifNotExist {
-		w.mu.Lock()
-		defer w.mu.Unlock()
+		// Note that the lock is held until the function returns, by which time
+		// the Rename has happened.
+		ifNotExistLock.Lock()
+		defer ifNotExistLock.Unlock()
 		_, err = os.Stat(w.path)
 		if err == nil {
-			return gcerr.New(gcerrors.FailedPrecondition, err, 1, "File already exist")
+			return gcerr.New(gcerrors.FailedPrecondition, fmt.Errorf("blob %q already exists", w.path), 1, "fileblob: IfNotExist precondition failed")
 		}
 	}
 
@@ -890,7 +925,7 @@ func (w *writer) Close() error {
 }
 
 // Copy implements driver.Copy.
-func (b *bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *driver.CopyOptions) error {
+func (b *bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *driver.CopyOptions) (err error) {
 	// Note: we could use NewRangeReader here, but since we need to copy all of
 	// the metadata (from xa), it's more efficient to do it directly.
 	srcPath, _, xa, err := b.forKey(srcKey)
@@ -901,7 +936,11 @@ func (b *bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *driver.C
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if e := f.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
 
 	// We'll write the copy using Writer, to avoid re-implementing making of a
 	// temp file, cleaning up after partial failures, etc.
@@ -924,14 +963,21 @@ func (b *bucket) Copy(ctx context.Context, dstKey, srcKey string, opts *driver.C
 	_, err = io.Copy(w, f)
 	if err != nil {
 		cancel() // cancel before Close cancels the write
-		w.Close()
+		_ = w.Close()
 		return err
 	}
 	return w.Close()
 }
 
 // Delete implements driver.Delete.
-func (b *bucket) Delete(ctx context.Context, key string) error {
+func (b *bucket) Delete(ctx context.Context, key string, opts *driver.DeleteOptions) error {
+	if opts.BeforeDelete != nil {
+		// fileblob exposes no driver-specific delete type; the hook is still
+		// invoked exactly once so portable callers behave consistently.
+		if err := opts.BeforeDelete(func(any) bool { return false }); err != nil {
+			return err
+		}
+	}
 	path, err := b.path(key)
 	if err != nil {
 		return err

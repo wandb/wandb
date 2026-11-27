@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -35,16 +36,17 @@ func TestParseHistory_StepAndMetrics(t *testing.T) {
 		{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		{NestedKey: []string{"_runtime"}, ValueJson: "1.2"},
 	}}
-	msg := leet.ParseHistory("/some/run/path", h).(leet.HistoryMsg)
+	msg := leet.ParseHistory("/some/run/path", h, runmetric.New()).(leet.HistoryMsg)
 	require.Equal(t, 2.0, msg.Metrics["loss"].X[0])
 	require.Equal(t, 0.5, msg.Metrics["loss"].Y[0])
+	require.NotContains(t, msg.Metrics, "_runtime")
 }
 
 func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "chunky.wandb")
 
 	// Write a valid header + two records (history, exit).
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	h := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -76,10 +78,70 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	assert.EqualValues(t, 0, batch.Msgs[1].(leet.FileCompleteMsg).ExitCode)
 }
 
+func TestLevelDBHistorySource_CustomXAxis(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "custom-x.wandb")
+
+	w, err := transactionlog.OpenWriter(path, 0)
+	require.NoError(t, err)
+	// Logged before the definition, so dropped.
+	require.NoError(t, w.Write(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "0"},
+					{NestedKey: []string{"train/loss"}, ValueJson: "0.6"},
+				},
+			},
+		},
+	}))
+	require.NoError(t, w.Write(&spb.Record{
+		RecordType: &spb.Record_Metric{
+			Metric: &spb.MetricRecord{
+				GlobName:   "train/*",
+				StepMetric: "train/step",
+			},
+		},
+	}))
+	require.NoError(t, w.Write(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "0"},
+					{NestedKey: []string{"train/step"}, ValueJson: "100"},
+					{NestedKey: []string{"train/loss"}, ValueJson: "0.5"},
+				},
+			},
+		},
+	}))
+	require.NoError(t, w.Write(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "1"},
+					{NestedKey: []string{"train/loss"}, ValueJson: "0.4"},
+				},
+			},
+		},
+	}))
+	require.NoError(t, w.Close())
+
+	s, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+	defer s.Close()
+
+	msg, err := s.Read(leet.BootLoadChunkSize, leet.BootLoadMaxTime)
+	require.NoError(t, err)
+	batch := msg.(leet.ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 1)
+	hist := batch.Msgs[0].(leet.HistoryMsg)
+	require.Equal(t, []float64{100}, hist.Metrics["train/loss"].X)
+	require.Equal(t, "train/step", hist.Metrics["train/loss"].XAxisMetric)
+}
+
 func TestLevelDBHistorySource_FileCompleteEmittedOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "complete-once.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	require.NoError(t,
 		w.Write(&spb.Record{
@@ -110,7 +172,7 @@ func TestLevelDBHistorySource_FileCompleteEmittedOnce(t *testing.T) {
 func TestLevelDBHistorySource_UnsupportedRecordsKeepChunking(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "unsupported-then-history.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 	for range 2 {
 		require.NoError(t,
@@ -159,7 +221,7 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "readnext.wandb")
 
 	// Write valid header and various record types
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	records := []struct {
@@ -346,7 +408,7 @@ func TestParseStats_ComplexMetrics(t *testing.T) {
 func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "batch.wandb")
 
-	w, err := transactionlog.OpenWriter(path)
+	w, err := transactionlog.OpenWriter(path, 0)
 	require.NoError(t, err)
 
 	// Write many history records

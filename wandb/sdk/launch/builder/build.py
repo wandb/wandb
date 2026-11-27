@@ -1,22 +1,24 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
 import os
 import pathlib
+import re
 import shlex
 import shutil
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.env
 from wandb import docker
-from wandb.apis.internal import Api
 from wandb.sdk.launch.loader import (
     builder_from_config,
     environment_from_config,
     registry_from_config,
 )
-from wandb.util import get_module
+from wandb.util import docker_image_regex, get_module
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import ExecutionError, LaunchError
@@ -29,10 +31,39 @@ from .templates.dockerfile import (
     USER_CREATE_TEMPLATE,
 )
 
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
+
 _logger = logging.getLogger(__name__)
 
 
 _WANDB_DOCKERFILE_NAME = "Dockerfile.wandb"
+_DOCKER_IMAGE_REF_UNSAFE_CHARS = re.compile(r"[\s#]")
+_DOCKER_IMAGE_SHA256_DIGEST = re.compile(r"sha256:[0-9a-fA-F]{64}")
+
+
+def _validate_accelerator_base_image(base_image: str) -> str:
+    """Validate accelerator base image before inserting it into a Dockerfile."""
+    if _DOCKER_IMAGE_REF_UNSAFE_CHARS.search(base_image):
+        raise LaunchError(
+            "Invalid accelerator base image. Docker image references cannot "
+            "contain whitespace or '#'."
+        )
+
+    image_name, digest_sep, digest = base_image.partition("@")
+    if digest_sep and not _DOCKER_IMAGE_SHA256_DIGEST.fullmatch(digest):
+        raise LaunchError(
+            "Invalid accelerator base image. Expected digest to match "
+            "sha256:<64 hex characters>."
+        )
+
+    if not image_name or not docker_image_regex(image_name):
+        raise LaunchError(
+            "Invalid accelerator base image. Expected a valid Docker image "
+            "reference name."
+        )
+
+    return base_image
 
 
 async def validate_docker_installation() -> None:
@@ -57,7 +88,7 @@ def join(split_command: list[str]) -> str:
 
 async def build_image_from_project(
     launch_project: LaunchProject,
-    api: Api,
+    api: LaunchApi,
     launch_config: dict[str, Any],
 ) -> str:
     """Construct a docker image from a project and returns the URI of the image.
@@ -152,9 +183,10 @@ def get_base_setup(
     else:
         python_base_image = f"python:{py_version}-bookworm"
     if launch_project.accelerator_base_image:
-        _logger.info(
-            f"Using accelerator base image: {launch_project.accelerator_base_image}"
+        accelerator_base_image = _validate_accelerator_base_image(
+            launch_project.accelerator_base_image
         )
+        _logger.info("Using accelerator base image: %s", accelerator_base_image)
         python_packages = [
             f"python{py_version}",
             f"libpython{py_version}",
@@ -162,7 +194,7 @@ def get_base_setup(
             "python3-setuptools",
         ]
         base_setup = ACCELERATOR_SETUP_TEMPLATE.format(
-            accelerator_base_image=launch_project.accelerator_base_image,
+            accelerator_base_image=accelerator_base_image,
             python_packages=" \\\n".join(python_packages),
             py_version=py_version,
         )

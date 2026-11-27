@@ -51,3 +51,9 @@ mutation CreateProject($input: UpsertModelInput!) {
     inserted
   }
 }
+
+query IsProjectReadOnly($entity: String!, $project: String!) {
+  project(entityName: $entity, name: $project) {
+    readOnly
+  }
+}

@@ -191,6 +191,114 @@ type AnalyticsS3BucketDestination struct {
 	noSmithyDocumentSerde
 }
 
+// Describes a single annotation attached to an object, including its name, last
+// modified time, size, ETag, checksum algorithm, and replication status. Returned
+// in the response from ListObjectAnnotations .
+type AnnotationEntry struct {
+
+	// The name of the annotation.
+	//
+	// This member is required.
+	AnnotationName *string
+
+	// The date and time the annotation was last modified.
+	//
+	// This member is required.
+	LastModified *time.Time
+
+	// The size of the annotation payload, in bytes.
+	//
+	// This member is required.
+	Size *int64
+
+	// The checksum algorithm used for the annotation.
+	ChecksumAlgorithm []ChecksumAlgorithm
+
+	// The entity tag of the annotation.
+	ETag *string
+
+	// The replication status of the annotation.
+	ReplicationStatus ReplicationStatus
+
+	noSmithyDocumentSerde
+}
+
+// Specifies the configuration for the annotation table associated with a bucket's
+// Amazon S3 Metadata configuration. The annotation table is an Iceberg table that
+// records annotation events for objects in the bucket.
+type AnnotationTableConfiguration struct {
+
+	// The state of the annotation table. Valid values are ENABLED and DISABLED .
+	//
+	// This member is required.
+	ConfigurationState AnnotationConfigurationState
+
+	//  The encryption settings for an S3 Metadata journal table or inventory table
+	// configuration.
+	EncryptionConfiguration *MetadataTableEncryptionConfiguration
+
+	// The ARN of the IAM role used to manage the annotation table.
+	Role *string
+
+	noSmithyDocumentSerde
+}
+
+// Contains the current state of the annotation table associated with a bucket's
+// Amazon S3 Metadata configuration, including its provisioning status and
+// identifiers.
+type AnnotationTableConfigurationResult struct {
+
+	// The current configuration state of the annotation table.
+	//
+	// This member is required.
+	ConfigurationState AnnotationConfigurationState
+
+	//  If an S3 Metadata V1 CreateBucketMetadataTableConfiguration or V2
+	// CreateBucketMetadataConfiguration request succeeds, but S3 Metadata was unable
+	// to create the table, this structure contains the error code and error message.
+	//
+	// If you created your S3 Metadata configuration before July 15, 2025, we
+	// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+	// can expire journal table records and create a live inventory table.
+	//
+	// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
+	Error *ErrorDetails
+
+	// The ARN of the IAM role associated with the annotation table.
+	Role *string
+
+	// The ARN of the annotation table.
+	TableArn *string
+
+	// The name of the annotation table.
+	TableName *string
+
+	// The provisioning status of the annotation table. Possible values: CREATING ,
+	// BACKFILLING , ACTIVE , FAILED .
+	TableStatus *string
+
+	noSmithyDocumentSerde
+}
+
+// Specifies updates to apply to the annotation table configuration. Used as the
+// request body for UpdateBucketMetadataAnnotationTableConfiguration .
+type AnnotationTableConfigurationUpdates struct {
+
+	// The new configuration state to apply.
+	//
+	// This member is required.
+	ConfigurationState AnnotationConfigurationState
+
+	//  The encryption settings for an S3 Metadata journal table or inventory table
+	// configuration.
+	EncryptionConfiguration *MetadataTableEncryptionConfiguration
+
+	// The new IAM role ARN to apply.
+	Role *string
+
+	noSmithyDocumentSerde
+}
+
 // A bucket-level setting for Amazon S3 general purpose buckets used to prevent
 // the upload of new objects encrypted with the specified server-side encryption
 // type. For example, blocking an encryption type will block PutObject , CopyObject
@@ -560,7 +668,7 @@ type ContinuationEvent struct {
 type CopyObjectResult struct {
 
 	// The Base64 encoded, 32-bit CRC32 checksum of the object. This checksum is only
-	// present if the object was uploaded with the object. For more information, see [Checking object integrity]
+	// present if the checksum was uploaded with the object. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -931,6 +1039,11 @@ type DefaultRetention struct {
 	// Must be used with Mode .
 	Days *int32
 
+	// The default event hold duration to be applied to new objects placed in the
+	// specified bucket. When configured, new objects will automatically have an event
+	// hold enabled with this duration.
+	DefaultEventHold *EventHoldDuration
+
 	// The default Object Lock retention mode you want to apply to new objects placed
 	// in the specified bucket. Must be used with either Days or Years .
 	Mode ObjectLockRetentionMode
@@ -1017,10 +1130,10 @@ type DeleteMarkerEntry struct {
 
 // Specifies whether Amazon S3 replicates delete markers. If you specify a Filter
 // in your replication configuration, you must also include a
-// DeleteMarkerReplication element. If your Filter includes a Tag element, the
-// DeleteMarkerReplication Status must be set to Disabled, because Amazon S3 does
-// not support replicating delete markers for tag-based rules. For an example
-// configuration, see [Basic Rule Configuration].
+// DeleteMarkerReplication element. If your Filter includes a Tag element,
+// including within a Not or Or element, the DeleteMarkerReplication Status must
+// be set to Disabled, because Amazon S3 does not support replicating delete
+// markers for tag-based rules. For an example configuration, see [Basic Rule Configuration].
 //
 // For more information about delete marker replication, see [Basic Rule Configuration].
 //
@@ -1157,6 +1270,10 @@ type EncryptionConfiguration struct {
 	// [Asymmetric keys in Amazon Web Services KMS]: https://docs.aws.amazon.com/kms/latest/developerguide/symmetric-asymmetric.html
 	ReplicaKmsKeyID *string
 
+	// Specifies whether Amazon S3 uses the related multi-Region KMS key in the
+	// destination Amazon Web Services Region to encrypt the replica.
+	UseSourceMultiRegionKey *UseSourceMultiRegionKey
+
 	noSmithyDocumentSerde
 }
 
@@ -1167,7 +1284,11 @@ type EndEvent struct {
 	noSmithyDocumentSerde
 }
 
+// For information about using the Amazon S3 API—including error handling—see the [Amazon S3 Developer Guide].
+//
 // Container for all error elements.
+//
+// [Amazon S3 Developer Guide]: https://docs.aws.amazon.com/AmazonS3/latest/developerguide/Welcome.html
 type Error struct {
 
 	// The error code is a string that uniquely identifies an error condition. It is
@@ -1181,8 +1302,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: AccountProblem
 	//
 	//   - Description: There is a problem with your Amazon Web Services account that
@@ -1191,8 +1310,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: AllAccessDisabled
 	//
 	//   - Description: All access to this Amazon S3 resource has been disabled.
@@ -1200,16 +1317,12 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: AmbiguousGrantByEmailAddress
 	//
 	//   - Description: The email address you provided is associated with more than
 	//   one account.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: AuthorizationHeaderMalformed
 	//
@@ -1225,8 +1338,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: BucketAlreadyExists
 	//
 	//   - Description: The requested bucket name is not available. The bucket
@@ -1234,8 +1345,6 @@ type Error struct {
 	//   and try again.
 	//
 	//   - HTTP Status Code: 409 Conflict
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: BucketAlreadyOwnedByYou
 	//
@@ -1247,23 +1356,17 @@ type Error struct {
 	//
 	//   - Code: 409 Conflict (in all Regions except the North Virginia Region)
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: BucketNotEmpty
 	//
 	//   - Description: The bucket you tried to delete is not empty.
 	//
 	//   - HTTP Status Code: 409 Conflict
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: CredentialsNotSupported
 	//
 	//   - Description: This request does not support credentials.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: CrossLocationLoggingProhibited
 	//
@@ -1272,8 +1375,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: EntityTooSmall
 	//
 	//   - Description: Your proposed upload is smaller than the minimum allowed
@@ -1281,23 +1382,17 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: EntityTooLarge
 	//
 	//   - Description: Your proposed upload exceeds the maximum allowed object size.
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: ExpiredToken
 	//
 	//   - Description: The provided token has expired.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: IllegalVersioningConfigurationException
 	//
@@ -1306,8 +1401,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: IncompleteBody
 	//
 	//   - Description: You did not provide the number of bytes specified by the
@@ -1315,15 +1408,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: IncorrectNumberOfFilesInPostRequest
 	//
 	//   - Description: POST requires exactly one file upload per request.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InlineDataTooLarge
 	//
@@ -1331,15 +1420,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InternalError
 	//
 	//   - Description: We encountered an internal error. Please try again.
 	//
 	//   - HTTP Status Code: 500 Internal Server Error
-	//
-	//   - SOAP Fault Code Prefix: Server
 	//
 	//   - Code: InvalidAccessKeyId
 	//
@@ -1348,15 +1433,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidAddressingHeader
 	//
 	//   - Description: You must specify the Anonymous role.
 	//
 	//   - HTTP Status Code: N/A
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidArgument
 	//
@@ -1364,15 +1445,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidBucketName
 	//
 	//   - Description: The specified bucket is not valid.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidBucketState
 	//
@@ -1380,15 +1457,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 409 Conflict
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidDigest
 	//
 	//   - Description: The Content-MD5 you specified is not valid.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidEncryptionAlgorithmError
 	//
@@ -1397,8 +1470,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidLocationConstraint
 	//
 	//   - Description: The specified location constraint is not valid. For more
@@ -1406,15 +1477,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidObjectState
 	//
 	//   - Description: The action is not valid for the current state of the object.
 	//
 	//   - HTTP Status Code: 403 Forbidden
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidPart
 	//
@@ -1424,16 +1491,12 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidPartOrder
 	//
 	//   - Description: The list of parts was not in ascending order. Parts list must
 	//   be specified in order by part number.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidPayer
 	//
@@ -1442,8 +1505,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidPolicyDocument
 	//
 	//   - Description: The content of the form does not meet the conditions specified
@@ -1451,15 +1512,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidRange
 	//
 	//   - Description: The requested range cannot be satisfied.
 	//
 	//   - HTTP Status Code: 416 Requested Range Not Satisfiable
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidRequest
 	//
@@ -1468,14 +1525,6 @@ type Error struct {
 	//   - HTTP Status Code: 400 Bad Request
 	//
 	//   - Code: N/A
-	//
-	//   - Code: InvalidRequest
-	//
-	//   - Description: SOAP requests must be made over an HTTPS connection.
-	//
-	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidRequest
 	//
@@ -1544,23 +1593,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
-	//   - Code: InvalidSOAPRequest
-	//
-	//   - Description: The SOAP request body is invalid.
-	//
-	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidStorageClass
 	//
 	//   - Description: The storage class you specified is not valid.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidTargetBucketForLogging
 	//
@@ -1569,15 +1606,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: InvalidToken
 	//
 	//   - Description: The provided token is malformed or otherwise invalid.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: InvalidURI
 	//
@@ -1585,15 +1618,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: KeyTooLongError
 	//
 	//   - Description: Your key is too long.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: MalformedACLError
 	//
@@ -1602,16 +1631,12 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: MalformedPOSTRequest
 	//
 	//   - Description: The body of your POST request is not well-formed
 	//   multipart/form-data.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: MalformedXML
 	//
@@ -1622,15 +1647,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: MaxMessageLengthExceeded
 	//
 	//   - Description: Your request was too big.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: MaxPostPreDataLengthExceededError
 	//
@@ -1639,15 +1660,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: MetadataTooLarge
 	//
 	//   - Description: Your metadata headers exceed the maximum allowed metadata size.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: MethodNotAllowed
 	//
@@ -1655,23 +1672,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 405 Method Not Allowed
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
-	//   - Code: MissingAttachment
-	//
-	//   - Description: A SOAP attachment was expected, but none were found.
-	//
-	//   - HTTP Status Code: N/A
-	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: MissingContentLength
 	//
 	//   - Description: You must provide the Content-Length HTTP header.
 	//
 	//   - HTTP Status Code: 411 Length Required
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: MissingRequestBodyError
 	//
@@ -1680,23 +1685,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
-	//   - Code: MissingSecurityElement
-	//
-	//   - Description: The SOAP 1.1 request is missing a security element.
-	//
-	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: MissingSecurityHeader
 	//
 	//   - Description: Your request is missing a required header.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: NoLoggingStatusForKey
 	//
@@ -1705,15 +1698,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: NoSuchBucket
 	//
 	//   - Description: The specified bucket does not exist.
 	//
 	//   - HTTP Status Code: 404 Not Found
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: NoSuchBucketPolicy
 	//
@@ -1721,23 +1710,17 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 404 Not Found
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: NoSuchKey
 	//
 	//   - Description: The specified key does not exist.
 	//
 	//   - HTTP Status Code: 404 Not Found
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: NoSuchLifecycleConfiguration
 	//
 	//   - Description: The lifecycle configuration does not exist.
 	//
 	//   - HTTP Status Code: 404 Not Found
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: NoSuchUpload
 	//
@@ -1746,8 +1729,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 404 Not Found
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: NoSuchVersion
 	//
 	//   - Description: Indicates that the version ID specified in the request does
@@ -1755,16 +1736,12 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 404 Not Found
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: NotImplemented
 	//
 	//   - Description: A header you provided implies functionality that is not
 	//   implemented.
 	//
 	//   - HTTP Status Code: 501 Not Implemented
-	//
-	//   - SOAP Fault Code Prefix: Server
 	//
 	//   - Code: NotSignedUp
 	//
@@ -1774,16 +1751,12 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: OperationAborted
 	//
 	//   - Description: A conflicting conditional action is currently in progress
 	//   against this resource. Try again.
 	//
 	//   - HTTP Status Code: 409 Conflict
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: PermanentRedirect
 	//
@@ -1792,15 +1765,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 301 Moved Permanently
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: PreconditionFailed
 	//
 	//   - Description: At least one of the preconditions you specified did not hold.
 	//
 	//   - HTTP Status Code: 412 Precondition Failed
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: Redirect
 	//
@@ -1808,23 +1777,17 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 307 Moved Temporarily
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: RestoreAlreadyInProgress
 	//
 	//   - Description: Object restore is already in progress.
 	//
 	//   - HTTP Status Code: 409 Conflict
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: RequestIsNotMultiPartContent
 	//
 	//   - Description: Bucket POST must be of the enclosure-type multipart/form-data.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: RequestTimeout
 	//
@@ -1833,8 +1796,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: RequestTimeTooSkewed
 	//
 	//   - Description: The difference between the request time and the server's time
@@ -1842,25 +1803,19 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 403 Forbidden
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: RequestTorrentOfBucketError
 	//
 	//   - Description: Requesting the torrent file of a bucket is not permitted.
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: SignatureDoesNotMatch
 	//
 	//   - Description: The request signature we calculated does not match the
 	//   signature you provided. Check your Amazon Web Services secret access key and
-	//   signing method. For more information, see [REST Authentication]and [SOAP Authentication]for details.
+	//   signing method. For more information, see [REST Authentication]for details.
 	//
 	//   - HTTP Status Code: 403 Forbidden
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: ServiceUnavailable
 	//
@@ -1868,15 +1823,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 503 Service Unavailable
 	//
-	//   - SOAP Fault Code Prefix: Server
-	//
 	//   - Code: SlowDown
 	//
 	//   - Description: Reduce your request rate.
 	//
 	//   - HTTP Status Code: 503 Slow Down
-	//
-	//   - SOAP Fault Code Prefix: Server
 	//
 	//   - Code: TemporaryRedirect
 	//
@@ -1884,15 +1835,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 307 Moved Temporarily
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: TokenRefreshRequired
 	//
 	//   - Description: The provided token must be refreshed.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: TooManyBuckets
 	//
@@ -1900,15 +1847,11 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: UnexpectedContent
 	//
 	//   - Description: This request does not support content.
 	//
 	//   - HTTP Status Code: 400 Bad Request
-	//
-	//   - SOAP Fault Code Prefix: Client
 	//
 	//   - Code: UnresolvableGrantByEmailAddress
 	//
@@ -1917,8 +1860,6 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	//   - Code: UserKeyMustBeSpecified
 	//
 	//   - Description: The bucket POST must contain the specified field name. If it
@@ -1926,13 +1867,10 @@ type Error struct {
 	//
 	//   - HTTP Status Code: 400 Bad Request
 	//
-	//   - SOAP Fault Code Prefix: Client
-	//
 	// [How to Select a Region for Your Buckets]: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro
 	// [Error responses]: https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
 	// [REST Authentication]: https://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html
 	// [Amazon S3]: http://aws.amazon.com/s3
-	// [SOAP Authentication]: https://docs.aws.amazon.com/AmazonS3/latest/dev/SOAPAuthentication.html
 	Code *string
 
 	// The error key.
@@ -2155,6 +2093,21 @@ type ErrorDocument struct {
 
 // A container for specifying the configuration for Amazon EventBridge.
 type EventBridgeConfiguration struct {
+	noSmithyDocumentSerde
+}
+
+// Contains the event hold duration configuration, specified in either days or
+// years.
+type EventHoldDuration struct {
+
+	// The number of days for the event hold duration. The minimum value is 1 and the
+	// maximum value is 36,500.
+	Days *int32
+
+	// The number of years for the event hold duration. The minimum value is 1 and the
+	// maximum value is 100.
+	Years *int32
+
 	noSmithyDocumentSerde
 }
 
@@ -3018,6 +2971,10 @@ type MetadataConfiguration struct {
 	// This member is required.
 	JournalTableConfiguration *JournalTableConfiguration
 
+	// Optional annotation table configuration to include with the metadata
+	// configuration.
+	AnnotationTableConfiguration *AnnotationTableConfiguration
+
 	//  The inventory table configuration for a metadata configuration.
 	InventoryTableConfiguration *InventoryTableConfiguration
 
@@ -3031,6 +2988,9 @@ type MetadataConfigurationResult struct {
 	//
 	// This member is required.
 	DestinationResult *DestinationResult
+
+	// The annotation table configuration result, if an annotation table is configured.
+	AnnotationTableConfigurationResult *AnnotationTableConfigurationResult
 
 	//  The inventory table configuration for a metadata configuration.
 	InventoryTableConfigurationResult *InventoryTableConfigurationResult
@@ -3273,6 +3233,14 @@ type MultipartUpload struct {
 
 	// Upload ID that identifies the multipart upload.
 	UploadId *string
+
+	// Version ID of the object.
+	//
+	// Returns the Version ID of the object for the multipart upload, if bucket
+	// versioning is enabled.
+	//
+	// This functionality is not supported for directory buckets.
+	VersionId *string
 
 	noSmithyDocumentSerde
 }
@@ -3543,6 +3511,14 @@ type ObjectLockLegalHold struct {
 // A Retention configuration for an object.
 type ObjectLockRetention struct {
 
+	// The event hold status for the object. Set to ON to enable an event hold or OFF
+	// to disable it.
+	EventHold ObjectLockEventHold
+
+	// The event hold duration for the object. Specifies how long the object remains
+	// protected after the event hold is released.
+	EventHoldDuration *EventHoldDuration
+
 	// Indicates the Retention mode for the specified object.
 	Mode ObjectLockRetentionMode
 
@@ -3555,10 +3531,15 @@ type ObjectLockRetention struct {
 // The container element for an Object Lock rule.
 type ObjectLockRule struct {
 
-	// The default Object Lock retention mode and period that you want to apply to new
-	// objects placed in the specified bucket. Bucket settings require both a mode and
-	// a period. The period can be either Days or Years but you must select one. You
-	// cannot specify Days and Years at the same time.
+	// The default Object Lock retention settings for new objects in this bucket. You
+	// can specify:
+	//
+	//   - A default retention period, by using Days or Years .
+	//
+	//   - A default event hold duration, by using DefaultEventHold . This setting also
+	//   uses days or years.
+	//
+	// You can set one or both. You cannot use days and years in the same setting.
 	DefaultRetention *DefaultRetention
 
 	noSmithyDocumentSerde
@@ -4156,10 +4137,10 @@ type ReplicationRule struct {
 
 	// Specifies whether Amazon S3 replicates delete markers. If you specify a Filter
 	// in your replication configuration, you must also include a
-	// DeleteMarkerReplication element. If your Filter includes a Tag element, the
-	// DeleteMarkerReplication Status must be set to Disabled, because Amazon S3 does
-	// not support replicating delete markers for tag-based rules. For an example
-	// configuration, see [Basic Rule Configuration].
+	// DeleteMarkerReplication element. If your Filter includes a Tag element,
+	// including within a Not or Or element, the DeleteMarkerReplication Status must
+	// be set to Disabled, because Amazon S3 does not support replicating delete
+	// markers for tag-based rules. For an example configuration, see [Basic Rule Configuration].
 	//
 	// For more information about delete marker replication, see [Basic Rule Configuration].
 	//
@@ -4179,7 +4160,7 @@ type ReplicationRule struct {
 	ExistingObjectReplication *ExistingObjectReplication
 
 	// A filter that identifies the subset of objects to which the replication rule
-	// applies. A Filter must specify exactly one Prefix , Tag , or an And child
+	// applies. A Filter must specify exactly one Prefix , Tag , And , or Not child
 	// element.
 	Filter *ReplicationRuleFilter
 
@@ -4232,6 +4213,10 @@ type ReplicationRule struct {
 //     And tag.
 type ReplicationRuleAndOperator struct {
 
+	// A container for specifying filters that exclude matching objects from the
+	// replication rule.
+	Not *ReplicationRuleNotOperator
+
 	// An object key name prefix that identifies the subset of objects to which the
 	// rule applies.
 	Prefix *string
@@ -4243,7 +4228,7 @@ type ReplicationRuleAndOperator struct {
 }
 
 // A filter that identifies the subset of objects to which the replication rule
-// applies. A Filter must specify exactly one Prefix , Tag , or an And child
+// applies. A Filter must specify exactly one Prefix , Tag , And , or Not child
 // element.
 type ReplicationRuleFilter struct {
 
@@ -4258,6 +4243,10 @@ type ReplicationRuleFilter struct {
 	//   And tag.
 	And *ReplicationRuleAndOperator
 
+	// A container for specifying filters that exclude matching objects from the
+	// replication rule.
+	Not *ReplicationRuleNotOperator
+
 	// An object key name prefix that identifies the subset of objects to which the
 	// rule applies.
 	//
@@ -4271,6 +4260,36 @@ type ReplicationRuleFilter struct {
 	//
 	// The rule applies only to objects that have the tag in their tag set.
 	Tag *Tag
+
+	noSmithyDocumentSerde
+}
+
+// A container for specifying a filter that excludes matching objects from the
+// replication rule. Specify exactly one Prefix , Tag , or Or child element.
+type ReplicationRuleNotOperator struct {
+
+	// A container for specifying prefixes and tags. An object is excluded from the
+	// replication rule if it matches any of the specified filters.
+	Or *ReplicationRuleOrOperator
+
+	// An object key name prefix that identifies objects to exclude from the
+	// replication rule.
+	Prefix *string
+
+	// A tag key and value that identify objects to exclude from the replication rule.
+	Tag *Tag
+
+	noSmithyDocumentSerde
+}
+
+// A container for specifying one or more prefix or tag filters.
+type ReplicationRuleOrOperator struct {
+
+	// An array of object key name prefixes.
+	Prefixes []string
+
+	// An array of tags containing key and value pairs.
+	Tags []Tag
 
 	noSmithyDocumentSerde
 }
@@ -5134,19 +5153,29 @@ type Transition struct {
 	Date *time.Time
 
 	// Indicates the number of days after creation when objects are transitioned to
-	// the specified storage class. If the specified storage class is
-	// INTELLIGENT_TIERING , GLACIER_IR , GLACIER , or DEEP_ARCHIVE , valid values are
-	// 0 or positive integers. If the specified storage class is STANDARD_IA or
-	// ONEZONE_IA , valid values are positive integers greater than 30 . Be aware that
-	// some storage classes have a minimum storage duration and that you're charged for
-	// transitioning objects before their minimum storage duration. For more
-	// information, see [Constraints and considerations for transitions]in the Amazon S3 User Guide.
+	// the specified storage class. The value can be 0 or any positive integer. Be
+	// aware that some storage classes have a minimum storage duration and that you're
+	// charged for transitioning objects before their minimum storage duration. For
+	// more information, see [Constraints and considerations for transitions]in the Amazon S3 User Guide.
 	//
 	// [Constraints and considerations for transitions]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-transition-general-considerations.html#lifecycle-configuration-constraints
 	Days *int32
 
 	// The storage class to which you want the object to transition.
 	StorageClass TransitionStorageClass
+
+	noSmithyDocumentSerde
+}
+
+// A container for configuring the use of the related multi-Region KMS key in the
+// destination Amazon Web Services Region for replication.
+type UseSourceMultiRegionKey struct {
+
+	// Specifies whether Amazon S3 uses the related multi-Region KMS key in the
+	// destination Amazon Web Services Region to encrypt the replica.
+	//
+	// This member is required.
+	Status UseSourceMultiRegionKeyStatus
 
 	noSmithyDocumentSerde
 }

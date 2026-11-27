@@ -323,7 +323,7 @@ class PayloadGenerator:
                 dtype=np.uint8,
             )
             video_obj = wandb.Video(
-                frames, fps=fps, caption=f"Randomly generated video {i}"
+                frames, format="mp4", fps=fps, caption=f"Randomly generated video {i}"
             )
 
             payloads.append(

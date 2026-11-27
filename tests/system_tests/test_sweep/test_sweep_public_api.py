@@ -1,9 +1,13 @@
+import json
+
 import pytest
 import wandb
 from wandb import Api
-from wandb.apis.public.sweeps import Sweep
-from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb_gql import gql
+from wandb.apis.public.sweeps import Sweep, _upsert_sweep
+from wandb.errors import UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
+
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -14,8 +18,7 @@ from .test_wandb_sweep import (
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
-SWEEP_QUERY = gql(
-    """
+SWEEP_QUERY = """
 query Sweep($project: String, $entity: String, $name: String!) {
     project(name: $project, entityName: $entity) {
         sweep(sweepName: $name) {
@@ -37,7 +40,6 @@ query Sweep($project: String, $entity: String, $name: String!) {
     }
 }
 """
-)
 
 
 @pytest.mark.parametrize(
@@ -70,8 +72,15 @@ def test_sweep_api_expected_run_count(
         )
 
     api = Api()
-    sweep = Sweep.get(api.client, user, _project, sweep_id, query=SWEEP_QUERY)
+    sweep = Sweep.get(
+        api,
+        user,
+        _project,
+        sweep_id,
+        query=SWEEP_QUERY,
+    )
 
+    assert sweep is not None
     assert sweep.expected_run_count == expected_run_count
     assert len(sweep._attrs["priorRuns"]["edges"]) == 1
     assert sweep._attrs["priorRuns"]["edges"][0]["node"]["name"] == run_id
@@ -142,8 +151,9 @@ def test_sweep_with_edited_display_name(use_local_wandb_backend, user):
     edited_display_name = "Updated Sweep Name"
     # Use internal API to update display name because there's no public API for it right now.
     # (It can currently only be edited in the UI.)
-    InternalApi().upsert_sweep(
-        config=sweep_config,
+    _upsert_sweep(
+        Api(),
+        sweep_config,
         obj_id=original_sweep._attrs[
             "id"
         ],  # Use the internal ID to update existing sweep
@@ -185,3 +195,67 @@ def test_to_html(user):
     sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
     sweep = api.from_path(f"{user}/test/sweeps/{sweep_id}")
     assert f"{user}/test/sweeps/{sweep_id}?jupyter=true" in sweep.to_html()
+
+
+def _stub_sweeps_query_filtering(spy: WandbBackendSpy, *, enabled: bool) -> None:
+    """Stub the server's reported support for the SWEEPS_QUERY_FILTERING feature."""
+    features = (
+        [{"name": pb.ServerFeature.Name(pb.SWEEPS_QUERY_FILTERING), "isEnabled": True}]
+        if enabled
+        else []
+    )
+    gql = spy.gql
+    spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.Constant(content={"data": {"serverInfo": {"features": features}}}),
+    )
+
+
+def test_project_sweeps_filtering_unsupported(wandb_backend_spy, user):
+    """Filtering fails fast when the server doesn't support SWEEPS_QUERY_FILTERING."""
+    sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    _stub_sweeps_query_filtering(wandb_backend_spy, enabled=False)
+
+    project = Api().from_path(f"{user}/test")
+
+    # Listing sweeps without filters still works (the `filters` arg is omitted).
+    assert len(project.sweeps()) == 1
+
+    # Requesting filters fails fast rather than silently returning everything.
+    with pytest.raises(
+        UnsupportedError,
+        match="Filtering sweeps is not supported on this W&B server version",
+    ):
+        project.sweeps(filters={"name": sweep_id})
+
+
+def test_project_sweeps_filtering_supported(wandb_backend_spy, user):
+    """When supported, the `filters` arg is forwarded to the server."""
+    wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    _stub_sweeps_query_filtering(wandb_backend_spy, enabled=True)
+
+    gql = wandb_backend_spy.gql
+    get_sweeps = gql.Constant(
+        content={
+            "data": {
+                "project": {
+                    "totalSweeps": 1,
+                    "sweeps": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "edges": [],
+                    },
+                }
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetSweeps"), get_sweeps)
+
+    project = Api().from_path(f"{user}/test")
+    filters = {"name": "my-sweep"}
+    assert len(project.sweeps(filters=filters)) == 1
+
+    # The filter was forwarded to the server as the `filters` argument.
+    assert get_sweeps.total_calls >= 1
+    request = get_sweeps.requests[0]
+    assert "filters" in request.query
+    assert json.loads(request.variables["filters"]) == filters

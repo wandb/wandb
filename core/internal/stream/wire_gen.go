@@ -28,12 +28,12 @@ import (
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
-	clientID := sharedmode.RandomClientID()
+func InjectStream(commit GitCommitHash, symonResourceManager *monitor.SymonResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
-	sentryContext := streamSentryContext(settings2)
-	coreLogger := streamLogger(streamStreamLoggerFile, sentryContext, settings2, logLevel)
+	openTelemetryProxy := streamOTelProxy(settings2)
+	coreLogger := streamLogger(streamStreamLoggerFile, openTelemetryProxy, settings2, logLevel)
 	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
+	clientID := sharedmode.RandomClientID()
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2)
@@ -46,22 +46,25 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
+	stats := streamFileStreamStats(coreLogger, settings2)
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
-		Logger:             coreLogger,
-		RunHandle:          runHandle,
-		Settings:           settings2,
-		XPUResourceManager: xpuResourceManager,
-		GraphqlClient:      client,
-		WriterID:           clientID,
+		Logger:               coreLogger,
+		RunHandle:            runHandle,
+		Settings:             settings2,
+		SymonResourceManager: symonResourceManager,
+		GraphqlClient:        client,
+		WriterID:             clientID,
 	}
-	printer := observability.NewPrinter()
+	printer := providePrinter()
 	handlerFactory := &HandlerFactory{
 		Commit:               commit,
 		FileTransferStats:    fileTransferStats,
 		Logger:               coreLogger,
 		Mailbox:              mailboxMailbox,
 		Operations:           wandbOperations,
+		RunHandle:            runHandle,
 		Settings:             settings2,
+		Stats:                stats,
 		SystemMonitorFactory: systemMonitorFactory,
 		TerminalPrinter:      printer,
 	}
@@ -75,11 +78,13 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Settings:           settings2,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
-		BaseURL:    wbBaseURL,
-		Logger:     coreLogger,
-		Operations: wandbOperations,
-		Printer:    printer,
-		Settings:   settings2,
+		BaseURL:         wbBaseURL,
+		FeatureProvider: featureProvider,
+		Logger:          coreLogger,
+		Operations:      wandbOperations,
+		Printer:         printer,
+		Settings:        settings2,
+		Stats:           stats,
 	}
 	fileTransferManager := NewFileTransferManager(wbBaseURL, fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
@@ -110,6 +115,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
+		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
@@ -118,8 +124,9 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	writerFactory := &WriterFactory{
 		Logger:   coreLogger,
 		Settings: settings2,
+		Stats:    stats,
 	}
-	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
+	stream := NewStream(debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
 	return stream
 }
 
@@ -127,11 +134,17 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 
 var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings,
-	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
+	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, fileStreamStatsProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
-	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,
+	NewGraphQLClient,
+	provideFileWatcher,
+	providePrinter,
 	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
 )
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

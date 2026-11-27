@@ -3,13 +3,12 @@ import socket
 import tempfile
 import threading
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Callable
 
 import jupyter_core
 import nbformat
-import nest_asyncio
+import nest_asyncio2
 import pytest
 import requests
 from jupyter_client.blocking.client import BlockingKernelClient
@@ -17,7 +16,7 @@ from jupyter_server.serverapp import ServerApp
 
 # Since Jupyter uses asyncio, this is necessary to allow the server to run
 # with wandb_backend which uses asyncio as well.
-nest_asyncio.apply()
+nest_asyncio2.apply()
 
 
 class JupyterServerManager:
@@ -54,7 +53,7 @@ class JupyterServerManager:
                 "--no-browser",
                 f"--ServerApp.root_dir={server_dir}",
                 "--ServerApp.disable_check_xsrf=True",
-                "--allow-root",  # CircleCI runs as root
+                "--allow-root",  # Jupyter refuses to start as root, which tests in containers are.
             ]
         )
         self.server_thread = threading.Thread(target=self.server_app.start, daemon=True)
@@ -80,7 +79,7 @@ class JupyterServerManager:
         timeout = 30
         while True:
             self.port = self.server_app.port
-            self.server_url = self.server_app.connection_url
+            self.server_url = self.server_app.connection_url.rstrip("/")
             self.token = self.server_app.token
             try:
                 response = requests.get(

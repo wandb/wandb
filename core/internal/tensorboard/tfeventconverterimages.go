@@ -27,10 +27,13 @@ func processImages(
 
 	default:
 		logger.CaptureError(
+			"tensorboard",
 			fmt.Errorf(
 				"tensorboard: expected images summary to use 'image'"+
 					" or 'tensor' field but its type is %T",
-				value.GetValue()))
+				value.GetValue(),
+			),
+		)
 	}
 }
 
@@ -43,10 +46,13 @@ func processImagesTensor(
 ) {
 	if len(tensorValue.StringVal) < 3 {
 		logger.CaptureError(
+			"tensorboard",
 			fmt.Errorf(
 				"tensorboard: expected images tensor string_val"+
 					" to have at least 3 values, but it has %d",
-				len(tensorValue.StringVal)))
+				len(tensorValue.StringVal),
+			),
+		)
 		return
 	}
 
@@ -55,9 +61,12 @@ func processImagesTensor(
 	height, err2 := strconv.Atoi(string(tensorValue.StringVal[1]))
 	if err1 != nil || err2 != nil {
 		logger.CaptureError(
+			"tensorboard",
 			fmt.Errorf(
 				"tensorboard: couldn't parse image dimensions: %v",
-				errors.Join(err1, err2)))
+				errors.Join(err1, err2),
+			),
+		)
 		return
 	}
 
@@ -97,7 +106,9 @@ func emitImages(
 		image, err := wbvalue.ImageFromData(width, height, encodedData)
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: failed to read image: %v", err))
+				"tensorboard",
+				fmt.Errorf("tensorboard: failed to read image: %v", err),
+			)
 		} else {
 			wbImages = append(wbImages, image)
 		}
@@ -107,7 +118,9 @@ func emitImages(
 		err := emitter.EmitImages(pathtree.PathOf(tag), wbImages)
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: couldn't emit image: %v", err))
+				"tensorboard",
+				fmt.Errorf("tensorboard: couldn't emit image: %v", err),
+			)
 		}
 	}
 }

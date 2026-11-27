@@ -1,19 +1,17 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+import time
+from collections.abc import Callable
+from typing import TypeAlias
 
 import matplotlib
 import numpy as np
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises
-from typing_extensions import TypeAlias
 from wandb import Api
 from wandb.data_types import Table, WBValue
 from wandb.sdk.data_types._dtypes import TypedDictType
 from wandb.sdk.internal import incremental_table_util
-
-if TYPE_CHECKING:
-    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 matplotlib.use("Agg")
 
@@ -36,6 +34,27 @@ def filter_artifacts_by_type(run, *artifact_types):
         List of artifacts matching the specified type(s).
     """
     return [art for art in run.logged_artifacts() if art.type in artifact_types]
+
+
+def wait_for_artifacts_by_type(
+    api: Api,
+    run_path: str,
+    *artifact_types: str,
+    expected_count: int,
+    timeout_seconds: float = 10,
+):
+    deadline = time.monotonic() + timeout_seconds
+    artifacts = []
+
+    while time.monotonic() < deadline:
+        api.flush()
+        api_run = api.run(run_path)
+        artifacts = filter_artifacts_by_type(api_run, *artifact_types)
+        if len(artifacts) == expected_count:
+            break
+        time.sleep(0.5)
+
+    return artifacts
 
 
 @fixture
@@ -88,8 +107,12 @@ def test_log_dataframe(user: str, api: Api, test_settings: SettingsFactory):
         cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
         run.log({"results_df": cv_results})
 
-    api_run = api.run(f"uncategorized/{run.id}")
-    table_artifacts = filter_artifacts_by_type(api_run, "run_table")
+    table_artifacts = wait_for_artifacts_by_type(
+        api,
+        f"uncategorized/{run.id}",
+        "run_table",
+        expected_count=1,
+    )
     assert len(table_artifacts) == 1
 
 
@@ -109,28 +132,7 @@ def test_table_logged_from_run_with_special_characters_in_name(
         run.log({"my-table": table}, step=1)
 
 
-@mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
-def test_reference_table_logging(
-    user: str,
-    test_settings: SettingsFactory,
-    wandb_backend_spy: WandbBackendSpy,
-    max_cli_version: str,
-):
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerInfo"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {
-                        "cliVersionInfo": {"max_cli_version": max_cli_version}
-                    }
-                }
-            },
-            status=200,
-        ),
-    )
-
+def test_reference_table_logging(user: str, test_settings: SettingsFactory):
     with wandb.init(settings=test_settings()) as run:
         t = wandb.Table(
             columns=["a"],
@@ -140,24 +142,7 @@ def test_reference_table_logging(
         run.log({"logged_table": t})
 
 
-def test_reference_table_artifacts(
-    user: str,
-    test_settings: SettingsFactory,
-    wandb_backend_spy: WandbBackendSpy,
-):
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerInfo"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}
-                }
-            },
-            status=200,
-        ),
-    )
-
+def test_reference_table_artifacts(user: str, test_settings: SettingsFactory):
     with wandb.init(settings=test_settings()) as run:
         t = wandb.Table(
             columns=["a"],

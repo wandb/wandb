@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class UpdateUserRegistryRole(GQLResult):
-    result: Optional[UpdateUserRegistryRoleResult]
+    result: UpdateUserRegistryRoleResult | None
 
 
 class UpdateUserRegistryRoleResult(GQLResult):

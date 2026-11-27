@@ -2,10 +2,7 @@ from __future__ import annotations
 
 
 class QueryGenerator:
-    """QueryGenerator is a helper object to write filters for runs.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """QueryGenerator is a helper object to write filters for runs."""
 
     INDIVIDUAL_OP_TO_MONGO = {
         "!=": "$ne",

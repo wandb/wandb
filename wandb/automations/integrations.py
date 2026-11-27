@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Union
+from typing import Annotated
 
 from pydantic import Field, TypeAdapter
 
@@ -24,7 +24,7 @@ class WebhookIntegration(WebhookIntegrationFields):
 
 
 Integration = Annotated[
-    Union[SlackIntegration, WebhookIntegration],
+    SlackIntegration | WebhookIntegration,
     Field(discriminator="typename__"),
 ]
 

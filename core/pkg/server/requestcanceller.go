@@ -2,11 +2,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
-
-	"github.com/getsentry/sentry-go"
 )
 
 // requestCountWarnInterval is the default RequestCanceller.warnInterval value.
@@ -14,7 +11,11 @@ const requestCountWarnInterval = 100
 
 // RequestCanceller manages contexts for cancellable requests to wandb-core.
 type RequestCanceller struct {
-	mu sync.Mutex
+	mu     sync.Mutex
+	logger *slog.Logger
+
+	// ctx is the parent context for all requests.
+	ctx context.Context
 
 	// requestCtxCancel maps some active server request IDs to functions
 	// that can be used to cancel their operations.
@@ -27,8 +28,13 @@ type RequestCanceller struct {
 	warnInterval, lastWarnCount int
 }
 
-func NewRequestCanceller() *RequestCanceller {
+func NewRequestCanceller(
+	ctx context.Context,
+	logger *slog.Logger,
+) *RequestCanceller {
 	return &RequestCanceller{
+		logger:           logger,
+		ctx:              ctx,
 		requestCtxCancel: make(map[string]func()),
 		warnInterval:     requestCountWarnInterval,
 	}
@@ -50,23 +56,23 @@ func (rc *RequestCanceller) SetWarnInterval(warnInterval int) {
 // A context leak is a goroutine leak; enough of these can crash the program,
 // so it's important to make designs that support a `defer cancel()`.
 //
-// If the request ID is empty, this returns a background context and a no-op
+// If the request ID is empty, this returns the root context and a no-op
 // cancellation function. If a previous request's ID is given, an error is
-// logged and a background context is returned.
+// logged and the root context is returned.
 func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 	if id == "" {
-		return context.Background(), func() {}
+		return rc.ctx, func() {}
 	}
 
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
 	if _, exists := rc.requestCtxCancel[id]; exists {
-		slog.Error("requestcanceller: request ID already exists", "id", id)
-		return context.Background(), func() {}
+		rc.logger.Error("requestcanceller: request ID already exists", "id", id)
+		return rc.ctx, func() {}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(rc.ctx)
 	rc.requestCtxCancel[id] = cancel
 
 	// Clear the map once the context is cancelled.
@@ -82,12 +88,7 @@ func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 		rc.lastWarnCount = count
 
 		message := "server: requestcanceller: many unfinished requests"
-		slog.Warn(message, "count", count)
-
-		sentry.WithScope(func(scope *sentry.Scope) {
-			scope.SetTag("count", fmt.Sprintf("%d", count))
-			sentry.CaptureMessage(message)
-		})
+		rc.logger.Warn(message, "count", count)
 	}
 
 	return ctx, cancel

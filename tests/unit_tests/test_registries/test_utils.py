@@ -1,13 +1,66 @@
-import pytest
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING, Annotated
+
+from pydantic import TypeAdapter
+from pytest import fixture, mark, param, raises
+from wandb._filters import FilterValidator
+from wandb._pydantic import FilterDict
 from wandb.apis.public.registries._utils import (
-    ensure_registry_prefix_on_names,
+    prefix_registry_name,
     prepare_artifact_types_input,
 )
+from wandb.apis.public.registries.registries_search import (
+    Collections,
+    Registries,
+    Versions,
+)
+from wandb.errors import UnsupportedError
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
 
-@pytest.mark.parametrize(
-    "artifact_types, expected_output",
+    from pytest_mock import MockerFixture
+    from wandb.apis.paginator import RelayPaginator
+
+
+REGISTRY_FILTER_ADAPTER = TypeAdapter(
+    Annotated[
+        FilterDict,
+        FilterValidator(transforms={"name": prefix_registry_name}),
+    ]
+)
+
+
+@fixture
+def service_api(mocker: MockerFixture) -> MagicMock:
+    from wandb.apis.public.service_api import ServiceApi
+
+    return mocker.Mock(spec=ServiceApi)
+
+
+@fixture
+def disable_advanced_search(service_api: MagicMock) -> None:
+    service_api.feature_enabled.return_value = False
+    service_api.execute_graphql.return_value = None
+
+
+@fixture
+def enable_advanced_search(service_api: MagicMock) -> None:
+    from wandb.sdk.artifacts._generated import FetchAdvancedRegistryFeatures
+
+    service_api.feature_enabled.return_value = True
+    service_api.execute_graphql.return_value = (
+        FetchAdvancedRegistryFeatures.model_validate(
+            {"organization": {"advancedRegistryFeatures": {"advancedSearch": True}}}
+        )
+    )
+
+
+@mark.parametrize(
+    ("artifact_types", "expected_output"),
     [
         # Valid case
         (["my-valid-type_123"], [{"name": "my-valid-type_123"}]),
@@ -26,7 +79,7 @@ def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
     assert result == expected_output
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "artifact_types",
     [
         # Invalid characters
@@ -39,71 +92,317 @@ def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
 )
 def test_format_gql_artifact_types_input_error(artifact_types):
     """Test artifact type name validation raises errors for invalid inputs."""
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         prepare_artifact_types_input(artifact_types=artifact_types)
 
 
-def test_simple_name_transform():
-    query = {"name": "model"}
-    expected = {"name": f"{REGISTRY_PREFIX}model"}
-    assert ensure_registry_prefix_on_names(query) == expected
-
-    query = {"name": f"{REGISTRY_PREFIX}model"}
-    expected = {"name": f"{REGISTRY_PREFIX}model"}
-    assert ensure_registry_prefix_on_names(query) == expected
-
-
-def test_list_handling():
-    query = {"$or": [{"name": "model1"}, {"tag": "prod"}]}
-    expected = {
-        "$or": [
-            {"name": f"{REGISTRY_PREFIX}model1"},
-            {"tag": "prod"},
-        ]
-    }
-    assert ensure_registry_prefix_on_names(query) == expected
-
-
-def test_regex_skip_transform():
-    query = {"name": {"$regex": "model.*"}}
-    assert ensure_registry_prefix_on_names(query) == query
-
-
-def test_mixed_types():
-    query = {"id": 1, "name": "model", "description": None}
-    expected = {
-        "id": 1,
-        "name": f"{REGISTRY_PREFIX}model",
-        "description": None,
-    }
-    assert ensure_registry_prefix_on_names(query) == expected
-
-
-@pytest.mark.parametrize(
-    "bad_filter",
-    ["string", {}, 123, None, True],
+@mark.parametrize(
+    ("raw", "expected"),
+    [
+        param(
+            {"name": "model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="bare-name-is-prefixed",
+        ),
+        param(
+            {"name": f"{REGISTRY_PREFIX}model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="prefixed-name-is-unchanged",
+        ),
+        param(
+            {"$or": [{"name": "model1"}, {"tag": "prod"}]},
+            {"$or": [{"name": f"{REGISTRY_PREFIX}model1"}, {"tag": "prod"}]},
+            id="nested-list",
+        ),
+        param(
+            {"name": {"$regex": "model.*"}},
+            {"name": {"$regex": "model.*"}},
+            id="regex-operand-is-unchanged",
+        ),
+        param(
+            {"$unknownOp": {"name": "opaque"}, "name": "visible"},
+            {
+                "$unknownOp": {"name": "opaque"},
+                "name": f"{REGISTRY_PREFIX}visible",
+            },
+            id="unknown-operator-operand-is-unchanged",
+        ),
+        param(
+            {"name": {"$unknownOp": {"name": "opaque"}}},
+            {"name": {"$unknownOp": {"name": "opaque"}}},
+            id="unknown-name-operator-operand-is-unchanged",
+        ),
+        param(
+            {"metadata": {"name": "not-a-registry-name"}},
+            {"metadata": {"name": "not-a-registry-name"}},
+            id="nested-name-in-another-field-is-unchanged",
+        ),
+        param(
+            {"id": 1, "name": "model", "description": None},
+            {"id": 1, "name": f"{REGISTRY_PREFIX}model", "description": None},
+            id="mixed-fields-and-types",
+        ),
+        param(
+            {
+                "name": {
+                    "$in": [
+                        "project1",
+                        f"{REGISTRY_PREFIX}project2",
+                    ],
+                    "$or": [
+                        {"$regex": "project3"},
+                        {"$eq": "project4"},
+                        {"$eq": f"{REGISTRY_PREFIX}project5"},
+                    ],
+                }
+            },
+            {
+                "name": {
+                    "$in": [
+                        f"{REGISTRY_PREFIX}project1",
+                        f"{REGISTRY_PREFIX}project2",
+                    ],
+                    "$or": [
+                        {"$regex": "project3"},
+                        {"$eq": f"{REGISTRY_PREFIX}project4"},
+                        {"$eq": f"{REGISTRY_PREFIX}project5"},
+                    ],
+                }
+            },
+            id="nested-dict",
+        ),
+        param(
+            {"name": {"one": {"two": [{"three": "model"}]}}},
+            {"name": {"one": {"two": [{"three": f"{REGISTRY_PREFIX}model"}]}}},
+            id="deeply-nested-name-operand",
+        ),
+        param({}, {}, id="empty-dict"),
+    ],
 )
-def test_empty_or_non_dict_input(bad_filter):
-    assert ensure_registry_prefix_on_names(bad_filter) == bad_filter
+def test_registry_filter_normalization(raw, expected):
+    assert REGISTRY_FILTER_ADAPTER.validate_python(raw) == expected
 
 
-def test_nested_structure():
-    query = {
-        "name": {
-            "$in": [
-                "project1",
-                f"{REGISTRY_PREFIX}project2",
-                {"$regex": "project3"},
-            ]
-        }
-    }
-    expected = {
-        "name": {
-            "$in": [
-                f"{REGISTRY_PREFIX}project1",
-                f"{REGISTRY_PREFIX}project2",
-                {"$regex": "project3"},
-            ]
-        }
-    }
-    assert ensure_registry_prefix_on_names(query) == expected
+def test_basic_paginators_normalize_filters(service_api: MagicMock):
+    registries = Registries(
+        service_api,
+        organization="org",
+        filter={"name": "model", "id": 1},
+    )
+    collections = Collections(
+        service_api,
+        organization="org",
+        registry_filter={"name": "model"},
+        collection_filter={"collection_id": 2, "tag": "prod"},
+    )
+
+    expected_registries_filter = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
+    expected_registry_filter = {"name": f"{REGISTRY_PREFIX}model"}
+    expected_collection_filter = {"artifact_collection_id": 2, "tag": "prod"}
+
+    assert json.loads(registries.variables["filters"]) == expected_registries_filter
+    assert (
+        json.loads(collections.variables["registryFilter"]) == expected_registry_filter
+    )
+    assert (
+        json.loads(collections.variables["collectionFilter"])
+        == expected_collection_filter
+    )
+
+
+def test_versions_uses_basic_filter_fields(
+    service_api: MagicMock,
+    disable_advanced_search: None,
+):
+    versions = Versions(
+        service_api,
+        organization="org",
+        registry_filter={"name": "model", "id": 1},
+        collection_filter={"collection_id": 2, "tag": "prod"},
+        artifact_filter={
+            "metadata.owner": "alice",
+            "version": 3,
+        },
+    )
+
+    gql_vars = versions.variables
+
+    expected_registry_filter = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
+    expected_collection_filter = {"artifact_collection_id": 2, "tag": "prod"}
+    expected_artifact_filter = {"metadata.owner": "alice", "version": 3}
+
+    assert json.loads(gql_vars["registryFilter"]) == expected_registry_filter
+    assert json.loads(gql_vars["collectionFilter"]) == expected_collection_filter
+    assert json.loads(gql_vars["artifactFilter"]) == expected_artifact_filter
+
+
+@mark.parametrize(
+    ("arg", "expected"),
+    [
+        ("created_at", "artifact_created_at"),
+        ("artifact_size", "artifact_size"),
+        ("linked_at", "acm_created_at"),
+        ("acm_created_at", "acm_created_at"),
+    ],
+)
+def test_versions_uses_advanced_filter_fields(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    arg: str,
+    expected: str,
+):
+    versions = Versions(
+        service_api,
+        organization="org",
+        artifact_filter={arg: "x"},
+    )
+    assert json.loads(versions.variables["artifactFilter"]) == {expected: "x"}
+
+
+@mark.parametrize(
+    ("field"),
+    [
+        param("updated_at", id="advanced-rejects-basic-only-field"),
+        param("unsupported_field", id="advanced-rejects-unknown-field"),
+    ],
+)
+def test_versions_rejects_invalid_filter_field_for_advanced_search_mode(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    field: str,
+):
+    with raises(ValueError, match="Invalid filter fields"):
+        Versions(service_api, organization="org", artifact_filter={field: "x"})
+
+
+def test_versions_rejects_order_for_basic_search(
+    service_api: MagicMock,
+    disable_advanced_search: None,
+):
+    with raises(
+        UnsupportedError,
+        match="Ordering registry versions is not supported for this organization",
+    ):
+        Versions(service_api, organization="org", order="created_at")
+
+
+@mark.parametrize(
+    ("arg", "expected"),
+    [
+        ("created_at", "+artifact_created_at"),
+        ("-created_at", "-artifact_created_at"),
+        ("-artifact_created_at", "-artifact_created_at"),
+        ("linked_at", "+acm_created_at"),
+        ("-acm_created_at", "-acm_created_at"),
+        ("artifact_size", "+artifact_size"),
+        (None, None),
+    ],
+)
+def test_versions_uses_advanced_order_fields(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    arg: str | None,
+    expected: str | None,
+):
+    versions = Versions(service_api, organization="org", order=arg)
+    assert versions.variables.get("order") == expected
+
+
+@mark.parametrize(
+    ("order"),
+    [
+        param("updated_at", id="advanced-rejects-basic-only-field"),
+        param("unsupported_field", id="advanced-rejects-unknown-field"),
+    ],
+)
+def test_versions_rejects_invalid_order_for_advanced_search_mode(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    order: str,
+):
+    with raises(ValueError, match="Invalid order field"):
+        Versions(service_api, organization="org", order=order)
+
+
+@mark.parametrize(
+    ("order"),
+    [
+        param("artifact_size", id="basic-rejects-advanced-only-field"),
+        param("updated_at", id="basic-rejects-basic-filter-field"),
+    ],
+)
+def test_versions_rejects_order_for_basic_search_mode(
+    service_api: MagicMock,
+    disable_advanced_search: None,
+    order: str | None,
+):
+    with raises(
+        UnsupportedError,
+        match="Ordering registry versions is not supported for this organization",
+    ):
+        Versions(service_api, organization="org", order=order)
+
+
+@mark.parametrize("cls", [Registries, Collections])
+@mark.parametrize(
+    ("arg", "expected"),
+    [
+        # Unsigned fields default to ascending ("+")
+        ("name", "+name"),
+        ("updated_at", "+updated_at"),
+        # Explicit signs are retained
+        ("+name", "+name"),
+        ("-created_at", "-created_at"),
+        # Explicit None is untouched
+        (None, None),
+    ],
+)
+def test_paginator_with_valid_order(
+    service_api: MagicMock,
+    cls: type[RelayPaginator],
+    arg: str,
+    expected: str,
+):
+    """A supported `order` string is validated and normalized into the GraphQL variables."""
+    paginator = cls(service_api=service_api, organization="org", order=arg)
+    assert paginator.variables.get("order") == expected
+
+
+@mark.parametrize("cls", [Registries, Collections])
+def test_paginator_order_defaults_to_none(
+    service_api: MagicMock, cls: type[RelayPaginator]
+):
+    """Omitting `order` leaves it unset in the GraphQL variables."""
+    paginator = cls(service_api=service_api, organization="org")
+    assert paginator.variables.get("order") is None
+
+
+@mark.parametrize("cls", [Registries, Collections])
+@mark.parametrize(
+    "order",
+    [
+        # A field the paginator doesn't allow, with and without a sign.
+        "unsupported_field",
+        "-unsupported_field",
+        "+unsupported_field",
+        # Field names are currently case-sensitive
+        "NAME",
+        "+Name",
+        "-cReated_At",
+        # Invalid field names, ordering syntax, or both.
+        "123name",
+        "+123name",
+        "-123name",
+        "name desc",
+        "multi\nline",
+        "++name",
+        "--name",
+        "",
+    ],
+)
+def test_paginator_with_invalid_order(
+    service_api: MagicMock, cls: type[RelayPaginator], order: str
+):
+    """An unsupported or malformed `order` arg raises before any request."""
+    with raises(ValueError):
+        cls(service_api=service_api, organization="org", order=order)

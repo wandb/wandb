@@ -1,0 +1,375 @@
+"""Runs a sweep scheduler: wandb-core drives, this process optimizes.
+
+The client initializes a scheduler session in wandb-core, builds the
+optimizer from the sweep facts core returns, and exchanges tasks until the
+scheduler is done. Signals are handled here: only this process receives
+ctrl-c (wandb-core runs in its own session), so the first one is
+translated into a graceful stop request and the second one force-quits.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import inspect
+import logging
+import pathlib
+import signal
+from collections.abc import Callable
+from types import FrameType
+from typing import TYPE_CHECKING, Any, cast
+
+import yaml
+
+import wandb
+from wandb.analytics import get_telemetry_recorder
+from wandb.errors import term
+from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
+from wandb.sdk import wandb_setup
+from wandb.sdk.lib import wbauth
+from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange, describe_done
+from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
+from wandb.sdk.sweeps.sweep_info import SweepInfo
+
+if TYPE_CHECKING:
+    from wandb.sdk.lib import asyncio_manager
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
+
+# Init is one wandb-core round trip to the W&B backend, registering the
+# scheduler and fetching the sweep's config, so allow for a slow network.
+_INIT_TIMEOUT_SECONDS = 30
+
+OptimizerFactory = Callable[[SweepInfo], Optimizer]
+"""Builds the optimizer once the sweep's config is known."""
+
+# matches return type of signal.signal
+_SignalHandler = Callable[[int, FrameType | None], Any] | int | signal.Handlers | None
+
+
+def run_scheduler(
+    *,
+    entity: str,
+    project: str,
+    sweep_id: str,
+    make_optimizer: OptimizerFactory,
+    batch_size: int,
+    poll_interval: float,
+) -> sspb.SweepSchedulerServerDoneTask:
+    """Drive a sweep until its scheduler stops.
+
+    Args:
+        entity: The entity that owns the sweep.
+        project: The project the sweep belongs to.
+        sweep_id: The sweep's short id.
+        make_optimizer: Builds the optimizer from the sweep's facts.
+        batch_size: Number of runs to keep in flight at once.
+        poll_interval: Seconds between polls of the sweep's runs.
+
+    Returns:
+        The scheduler's Done task, describing why it stopped.
+
+    Raises:
+        wandb.Error: If the scheduler stopped because of a failure.
+
+    Raises:
+        ValueError: If entity, project or sweep_id is empty.
+    """
+    if not entity or not project or not sweep_id:
+        raise ValueError("entity, project and sweep_id must be non-empty")
+
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "sweep_scheduler",
+            "sweep_id": sweep_id,
+            "entity": entity,
+            "project": project,
+        }
+    )
+
+    singleton = wandb_setup.singleton()
+
+    # wandb-core makes every backend call for the scheduler, so the
+    # session's credentials must be resolved before it starts: without
+    # them the sweep simply looks missing.
+    if not wbauth.authenticate_session(
+        host=singleton.settings.base_url,
+        source="wandb sweep-scheduler",
+        no_offline=True,
+    ):
+        raise wandb.Error(
+            "Not authenticated. Run `wandb login` to run a sweep scheduler."
+        )
+
+    service = singleton.ensure_service()
+
+    async def init() -> sspb.SweepSchedulerServerInitResponse:
+        handle = await service.init_sweep_scheduler(
+            singleton.settings,
+            entity=entity,
+            project=project,
+            sweep_id=sweep_id,
+            batch_size=batch_size,
+            poll_interval_seconds=poll_interval,
+        )
+        return await handle.wait_async(timeout=_INIT_TIMEOUT_SECONDS)
+
+    try:
+        init_response = singleton.asyncer.run(init)
+    except Exception as e:
+        term.termerror(f"Sweep scheduler for {sweep_id} failed to initialize: {e}")
+        raise wandb.Error(f"The sweep scheduler failed to initialize: {e}") from e
+
+    sweep = SweepInfo(
+        id=sweep_id,
+        name=init_response.display_name or sweep_id,
+        entity=entity,
+        project=project,
+        config=yaml.safe_load(init_response.sweep_config) or {},
+        controller_run_name=init_response.controller_run_name,
+    )
+    try:
+        optimizer = make_optimizer(sweep)
+    except wandb.Error as e:
+        term.termerror(f"Sweep scheduler for {sweep.name} failed to start: {e}")
+        raise
+
+    logger = _TermForwarder(
+        label="scheduler",
+        entity=sweep.entity,
+        project=sweep.project,
+        run_name=sweep.controller_run_name,
+        level=logging.INFO,
+    )
+
+    config = sweep.config.get("scheduler", {})
+
+    telemetry_recorder = telemetry_recorder.with_context(
+        high_cardinality_attributes={
+            "engine": optimizer.engine,
+            "optimizer": config.get("optimizer", ""),
+            "search_space": config.get("search_space", ""),
+            "use_terminator": str(optimizer.has_terminator()).lower(),
+        }
+    )
+    exchange = SchedulerTaskExchange(
+        service,
+        init_response.session_id,
+        optimizer,
+        logger,
+        telemetry_recorder,
+    )
+
+    previous_handler = _install_sigint_handler(
+        singleton.asyncer, service, init_response.session_id
+    )
+    restore_library_logs = optimizer.route_library_logs(logger)
+    try:
+        done = singleton.asyncer.run(exchange.run)
+    finally:
+        restore_library_logs()
+        logger.close()
+        if previous_handler is not None:
+            signal.signal(signal.SIGINT, previous_handler)
+
+    message, is_error = describe_done(done)
+    if is_error:
+        term.termerror(f"Sweep scheduler for {sweep.name} exited: {message}.")
+        raise wandb.Error(f"The sweep scheduler failed: {message}.")
+
+    term.termlog(f"Sweep scheduler for {sweep.name} exited: {message}.")
+    telemetry_recorder.increment_counter_and_log_event(
+        "sweep_scheduler.successful_exit",
+        attributes={
+            "reason": message,
+        },
+    )
+    return done
+
+
+class _TermForwarder(logging.Handler):
+    """Prints a search library's log records through `term`."""
+
+    def __init__(
+        self, label: str, entity: str, project: str, run_name: str, level: int
+    ) -> None:
+        super().__init__(level=level)
+        self.run = wandb.init(
+            # don't impact any existing references to the controller run
+            reinit="create_new",
+            settings=wandb.Settings(
+                # avoid duplication: send full log lines
+                console="off",
+                # avoid printing controller run name to the console
+                silent=True,
+                # disable uploading metadata json to the run config
+                x_primary=False,
+                # disable git metadata
+                disable_git=True,
+                # disable machine stats
+                x_disable_machine_info=True,
+                x_disable_stats=True,
+                # do not update controller run state on finish or crash
+                x_update_finish_state=False,
+                # enables filter by label in the UI
+                x_label=label,
+            ),
+            id=run_name,
+            entity=entity,
+            project=project,
+        )
+
+    def close(self) -> None:
+        self.run.finish()
+        super().close()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            message = record.getMessage()
+            self.run.write_logs(message)
+            if record.levelno >= logging.ERROR:
+                term.termerror(message)
+            elif record.levelno >= logging.WARNING:
+                term.termwarn(message)
+            else:
+                term.termlog(message)
+        except Exception:
+            self.handleError(record)
+
+
+def _install_sigint_handler(
+    asyncer: asyncio_manager.AsyncioManager,
+    service: ServiceConnection,
+    scheduler_id: str,
+) -> _SignalHandler:
+    """Translate the first ctrl-c into a graceful stop.
+
+    The scheduler finishes its current step and answers the outstanding
+    poll with a Done task, so the task exchange exits cleanly and the
+    sweep stays resumable. A second ctrl-c raises KeyboardInterrupt as
+    usual, which cancels the exchange.
+
+    Only the main thread may install a handler, so off it the scheduler
+    runs without this translation.
+
+    Returns:
+        The previous SIGINT handler to restore, or None if none was
+        installed.
+    """
+    state = {"interrupted": False}
+
+    def on_sigint(_s: int, _f: FrameType | None) -> None:
+        if state["interrupted"]:
+            raise KeyboardInterrupt
+        state["interrupted"] = True
+
+        term.termlog(
+            "Interrupted. Finishing the current scheduler step; "
+            "press ctrl-c again to force quit."
+        )
+        asyncer.run_soon(
+            lambda: service.stop_sweep_scheduler(scheduler_id),
+            daemon=True,
+        )
+
+    try:
+        return signal.signal(signal.SIGINT, on_sigint)
+    except ValueError:
+        # Not the main thread, where alone a handler may be installed. The
+        # scheduler still stops when its client exits, just without the
+        # finish-this-step handshake.
+        return None
+
+
+def load_source_object(source: str, name: str) -> Any:
+    """Import the python file at `source` and return its `name` attribute.
+
+    Used to load a user-defined `search_space` (define-by-run trial
+    constructor) or `optimizer` (engine object and optional terminator
+    factory) referenced by name from a sweep's scheduler config.
+    """
+    if not source:
+        raise ValueError(
+            f"scheduler.source must name the python file that defines "
+            f"{name!r}, but is missing or empty."
+        )
+    module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
+    spec = importlib.util.spec_from_file_location(module_name, source)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not import source file: {source}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        return getattr(module, name)
+    except AttributeError:
+        raise ValueError(f"{source} has no attribute {name!r}") from None
+
+
+def load_optimizer_config(
+    source: str, name: str, optimizer_class: type, sweep: SweepInfo
+) -> tuple[Any, Callable[[Any], bool] | None]:
+    """Run a configured optimizer factory and normalize its return value.
+
+    The factory takes the sweep's SweepInfo and returns either an instance
+    of `optimizer_class` or an `(optimizer, terminator)` tuple. A terminator,
+    when present, must be callable.
+
+    Args:
+        source: The python file that defines the factory.
+        name: The factory's name in `source`.
+        optimizer_class: The engine's optimizer type, such as optuna's Study.
+        sweep: The sweep to pass to the factory.
+
+    Raises:
+        ValueError: If the factory or what it returns has the wrong type.
+    """
+    optimizer_type = _public_type_name(optimizer_class)
+    terminator_type = f"Callable[[{optimizer_type}], bool]"
+    # TODO: link to documentation with scheduler.optimizer examples.
+    requirement = (
+        f"scheduler.optimizer must name a function that takes a"
+        f" SweepInfo argument and returns an instance of"
+        f" {optimizer_type} or a ({optimizer_type}, {terminator_type}) tuple."
+    )
+
+    factory = load_source_object(source, name)
+    if not callable(factory):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} is {type(factory).__name__}, not a function."
+            f" {requirement}"
+        )
+    try:
+        inspect.signature(factory).bind(sweep)
+    except TypeError:
+        raise ValueError(
+            f"{name!r} in {source} cannot be called with one SweepInfo argument."
+            f" {requirement}"
+        ) from None
+
+    configured: object = factory(sweep)
+    optimizer, terminator = configured, None
+    if isinstance(configured, tuple):
+        parts = cast("tuple[object, ...]", configured)
+        if len(parts) != 2:
+            raise ValueError(
+                f"{name!r} in {source} returned a tuple of {len(parts)} items."
+                f" {requirement}"
+            )
+        optimizer, terminator = parts
+
+    if not isinstance(optimizer, optimizer_class):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} in {source} returned {type(optimizer).__name__} instead"
+            f" of {optimizer_type}. {requirement}"
+        )
+    if terminator is not None and not callable(terminator):
+        raise ValueError(
+            f"The terminator returned by {name!r} in {source} is"
+            f" {type(terminator).__name__} instead of {terminator_type}."
+            f" {requirement}"
+        )
+    # Only callability can be checked; the signature is the user's contract.
+    return optimizer, cast("Callable[[Any], bool] | None", terminator)
+
+
+def _public_type_name(cls: type) -> str:
+    """Name a class by its top-level package, e.g. optuna.Study or ax.Client."""
+    return f"{cls.__module__.split('.')[0]}.{cls.__qualname__}"

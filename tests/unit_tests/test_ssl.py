@@ -3,9 +3,8 @@ import dataclasses
 import http.server
 import ssl
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from pathlib import Path
-from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -36,7 +35,7 @@ def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
 
 
 @pytest.fixture(scope="session")
-def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
+def ssl_server(ssl_creds: SSLCredPaths) -> Generator[http.server.HTTPServer]:
     class MyServer(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -50,7 +49,10 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
             self.wfile.write(body)
             self.wfile.flush()
 
-    httpd = http.server.HTTPServer(("localhost", 0), MyServer)
+    # The known loopback name avoids slow reverse DNS on macOS runners.
+    # https://github.com/actions/runner-images/issues/14409
+    with patch("socket.getfqdn", return_value="localhost"):
+        httpd = http.server.HTTPServer(("localhost", 0), MyServer)
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certfile=str(ssl_creds.cert), keyfile=str(ssl_creds.key))

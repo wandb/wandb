@@ -1,8 +1,10 @@
 package observability
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,11 +21,22 @@ const (
 
 // Printer stores console messages to display to the user.
 type Printer struct {
-	mu       sync.Mutex
-	messages []PrinterMessage
+	// messages is the buffered channel of messages.
+	//
+	// Messages beyond the buffer limit are discarded.
+	messages chan PrinterMessage
 
-	// For rate-limited messages, this is the next time a message may be sent.
-	rateLimits map[string]time.Time
+	// done is closed when the printer is closed.
+	done chan struct{}
+
+	// discarded is true if a warning about discarded messages should be
+	// emitted on the next read.
+	discarded atomic.Bool
+
+	// rateLimits maps message templates to their unblock times
+	// for rate limiting.
+	rateLimits   map[string]time.Time
+	rateLimitsMu sync.Mutex
 
 	// getNow allows stubbing out [time.Now] in tests.
 	getNow func() time.Time
@@ -34,8 +47,13 @@ type PrinterMessage struct {
 	Content  string
 }
 
-func NewPrinter() *Printer {
+// NewPrinter creates a new printer with the given buffer size.
+//
+// Messages that don't fit in the buffer are discarded.
+func NewPrinter(buffer int) *Printer {
 	printer := &Printer{
+		messages:   make(chan PrinterMessage, buffer),
+		done:       make(chan struct{}),
 		rateLimits: make(map[string]time.Time),
 		getNow:     time.Now,
 	}
@@ -43,31 +61,78 @@ func NewPrinter() *Printer {
 	// Occasionally clean up the rateLimits map.
 	go func() {
 		for {
-			<-time.After(time.Minute)
+			select {
+			case <-printer.done:
+				return // clean up this goroutine if the printer is done
 
-			printer.mu.Lock()
+			case <-time.After(time.Minute):
+			}
+
+			printer.rateLimitsMu.Lock()
 			now := printer.getNow()
 			for msg, blockUntil := range printer.rateLimits {
 				if now.After(blockUntil) {
 					delete(printer.rateLimits, msg)
 				}
 			}
-			printer.mu.Unlock()
+			printer.rateLimitsMu.Unlock()
 		}
 	}()
 
 	return printer
 }
 
-// Read returns all buffered messages and clears the buffer.
+// Close closes the printer.
+//
+// Calling this more than once panics.
+//
+// This must be called to unblock calls to ReadWait().
+// After this, new messages can still be added, but ReadWait() will no longer
+// block to wait for them.
+func (p *Printer) Close() {
+	close(p.done)
+}
+
+// Read pops and returns all buffered messages.
 func (p *Printer) Read() []PrinterMessage {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	polledMessages := p.messages
-	p.messages = make([]PrinterMessage, 0)
+	return p.ReadWait(ctx)
+}
 
-	return polledMessages
+// ReadWait waits for at least one message, then returns all buffered messages.
+//
+// It returns an empty slice only if the context ends or the printer is closed.
+func (p *Printer) ReadWait(ctx context.Context) []PrinterMessage {
+	var messages []PrinterMessage
+
+	// Wait for an initial message.
+	select {
+	case message := <-p.messages:
+		messages = append(messages, message)
+	case <-p.done:
+	case <-ctx.Done():
+	}
+
+loop: // Pop all buffered messages.
+	for {
+		select {
+		case message := <-p.messages:
+			messages = append(messages, message)
+		default:
+			break loop
+		}
+	}
+
+	if p.discarded.Swap(false) {
+		messages = append(messages, PrinterMessage{
+			Severity: Warning,
+			Content:  "Some messages exceeded the buffer and were not printed.",
+		})
+	}
+
+	return messages
 }
 
 // Infof writes a Sprintf-formatted message at INFO level.
@@ -87,12 +152,16 @@ func (p *Printer) Errorf(format string, args ...any) {
 
 // writef adds a Sprintf-formatted message to the console.
 func (p *Printer) writef(severity Severity, format string, args ...any) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.messages = append(p.messages, PrinterMessage{
+	message := PrinterMessage{
 		Severity: severity,
 		Content:  fmt.Sprintf(format, args...),
-	})
+	}
+
+	select {
+	case p.messages <- message:
+	default:
+		p.discarded.Store(true)
+	}
 }
 
 // AtMostEvery allows rate-limiting how often a message is printed.
@@ -142,23 +211,29 @@ func (dsl writeDSL) Errorf(format string, args ...any) {
 
 // See [Printer.writef].
 func (dsl writeDSL) writef(severity Severity, format string, args ...any) {
-	dsl.printer.mu.Lock()
-	defer dsl.printer.mu.Unlock()
-
-	if dsl.rateLimitPeriod > 0 {
-		blockUntil := dsl.printer.rateLimits[format]
-
-		now := dsl.printer.getNow()
-		if now.Before(blockUntil) {
-			return
-		}
-
-		dsl.printer.rateLimits[format] = now.Add(dsl.rateLimitPeriod)
+	if !dsl.rateLimitAllowed(format) {
+		return
 	}
 
-	dsl.printer.messages = append(dsl.printer.messages,
-		PrinterMessage{
-			Severity: severity,
-			Content:  fmt.Sprintf(format, args...),
-		})
+	dsl.printer.writef(severity, format, args...)
+}
+
+// rateLimitAllowed returns whether the format string is allowed by rate limits
+// to be printed, and updates its rate limits.
+func (dsl writeDSL) rateLimitAllowed(format string) bool {
+	if dsl.rateLimitPeriod <= 0 {
+		return true
+	}
+
+	dsl.printer.rateLimitsMu.Lock()
+	defer dsl.printer.rateLimitsMu.Unlock()
+
+	blockUntil := dsl.printer.rateLimits[format]
+	now := dsl.printer.getNow()
+	if now.Before(blockUntil) {
+		return false
+	}
+
+	dsl.printer.rateLimits[format] = now.Add(dsl.rateLimitPeriod)
+	return true
 }

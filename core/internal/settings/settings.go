@@ -2,12 +2,13 @@
 package settings
 
 import (
+	"net/http"
+	"net/url"
 	"path/filepath"
-	"sync"
+	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/wrapperspb"
-
+	"github.com/wandb/wandb/core/internal/clients"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -15,9 +16,6 @@ import (
 //
 // This is derived from the Settings proto and adapted for use in Go.
 type Settings struct {
-	// Mutex to protect access to fields that may be updated.
-	mu sync.Mutex
-
 	// The source proto.
 	//
 	// DO NOT ADD USAGES. Used to refactor incrementally.
@@ -77,6 +75,12 @@ func (s *Settings) IsSkipTransactionLog() bool {
 	return s.Proto.XSkipTransactionLog.GetValue()
 }
 
+// Interval at which to flush the transaction log, or zero to write it only
+// when a buffer fills or the run finishes.
+func (s *Settings) GetTransactionLogFlushInterval() time.Duration {
+	return time.Duration(s.Proto.XTransactionLogFlushInterval.GetValue() * float64(time.Second))
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,
@@ -85,10 +89,41 @@ func (s *Settings) IsSharedMode() bool {
 	return s.Proto.XShared.GetValue()
 }
 
+// IsHistoryValueEncodingTyped reports whether history records include typed values.
+//
+// Defaults to false if no encoding is specified.
+func (s *Settings) IsHistoryValueEncodingTyped() bool {
+	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
+	for _, form := range forms {
+		if strings.ToLower(strings.TrimSpace(form)) == "typed" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsHistoryValueEncodingJSON reports whether history records include JSON values.
+//
+// Defaults to true if no encoding is specified.
+func (s *Settings) IsHistoryValueEncodingJSON() bool {
+	forms := strings.Split(s.Proto.GetXHistoryValueEncoding().GetValue(), ",")
+	hasJSON := false
+	hasTyped := false
+	for _, form := range forms {
+		trimmed := strings.ToLower(strings.TrimSpace(form))
+		switch trimmed {
+		case "json":
+			hasJSON = true
+		case "typed":
+			hasTyped = true
+		}
+	}
+	return hasJSON || !hasTyped
+}
+
 // The ID of the run.
 func (s *Settings) GetRunID() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.Proto.RunId.GetValue()
 }
 
@@ -97,35 +132,20 @@ func (s *Settings) GetRunURL() string {
 	return s.Proto.RunUrl.GetValue()
 }
 
-// The W&B project ID.
-func (s *Settings) GetProject() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.Proto.Project.GetValue()
-}
-
-// The W&B entity, like a user or a team.
-func (s *Settings) GetEntity() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.Proto.Entity.GetValue()
-}
-
-// The name of the run.
-func (s *Settings) GetDisplayName() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.Proto.RunName.GetValue()
-}
-
 // The timeout for finishing a run after receiving an exit record.
 //
 // If not positive, there is no timeout.
 func (s *Settings) GetFinishTimeout() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	timeoutMs := int64(s.Proto.FinishTimeout.GetValue() * 1000)
+	return time.Duration(timeoutMs) * time.Millisecond
+}
+
+// The time the client waits for the response to a run initialization
+// request, after which it gives up.
+//
+// If not positive, there is no timeout.
+func (s *Settings) GetInitTimeout() time.Duration {
+	timeoutMs := int64(s.Proto.InitTimeout.GetValue() * 1000)
 	return time.Duration(timeoutMs) * time.Millisecond
 }
 
@@ -171,6 +191,11 @@ func (s *Settings) GetFilesDir() string {
 	return filepath.Join(s.GetSyncDir(), "files")
 }
 
+// The root directory of the Git repository.
+func (s *Settings) GetGitRoot() string {
+	return s.Proto.GitRoot.GetValue()
+}
+
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
@@ -200,9 +225,23 @@ func (s *Settings) GetFileStreamMaxBytes() int32 {
 	return s.Proto.XFileStreamMaxBytes.GetValue()
 }
 
+// Whether to gzip filestream request bodies.
+func (s *Settings) IsFileStreamGzipEnabled() bool {
+	return !s.Proto.XFileStreamNoGzip.GetValue()
+}
+
 // Additional headers to add to all outgoing HTTP requests.
-func (s *Settings) GetExtraHTTPHeaders() map[string]string {
-	return s.Proto.XExtraHttpHeaders.GetValue()
+func (s *Settings) GetExtraHTTPHeaders() http.Header {
+	extraHeaders := s.Proto.XExtraHttpHeaders.GetValue()
+	if len(extraHeaders) == 0 {
+		return nil
+	}
+
+	h := make(http.Header, len(extraHeaders))
+	for key, value := range extraHeaders {
+		h.Set(key, value)
+	}
+	return h
 }
 
 // Maximum number of retries for filestream operations.
@@ -281,14 +320,27 @@ func (s *Settings) GetGraphQLTimeout() time.Duration {
 		s.Proto.XGraphqlTimeoutSeconds.GetValue())
 }
 
-// Custom proxy for http requests to W&B.
-func (s *Settings) GetHTTPProxy() string {
-	return s.Proto.HttpProxy.GetValue()
+// Custom proxy for HTTP and HTTPS requests to W&B.
+func (s *Settings) GetProxyFn() func(*http.Request) (*url.URL, error) {
+	return clients.ProxyFn(
+		s.Proto.HttpProxy.GetValue(),
+		s.Proto.HttpsProxy.GetValue(),
+	)
 }
 
-// Custom proxy for https requests to W&B.
-func (s *Settings) GetHTTPSProxy() string {
-	return s.Proto.HttpsProxy.GetValue()
+// Header to send on CONNECT requests to proxies, generally for authorization.
+func (s *Settings) GetProxyConnectHeader() http.Header {
+	authHeaderKey := http.CanonicalHeaderKey("Proxy-Authorization")
+
+	for key, value := range s.Proto.XExtraHttpHeaders.GetValue() {
+		if http.CanonicalHeaderKey(key) == authHeaderKey && value != "" {
+			h := http.Header{}
+			h.Set(authHeaderKey, value)
+			return h
+		}
+	}
+
+	return nil
 }
 
 // Whether to disable SSL verification.
@@ -489,10 +541,6 @@ func (s *Settings) IsEnableServerSideDerivedSummary() bool {
 	return s.Proto.XServerSideDerivedSummary.GetValue()
 }
 
-func (s *Settings) IsEnableServerSideExpandGlobMetrics() bool {
-	return s.Proto.XServerSideExpandGlobMetrics.GetValue()
-}
-
 // Determines whether to save internal wandb files and metadata.
 //
 // In a distributed setting, this is useful for avoiding file overwrites from secondary processes
@@ -567,15 +615,11 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 
 // The scheme and hostname for contacting the CoreWeave metadata server.
 func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
 }
 
 // The relative path on the CoreWeave metadata server to which to make requests.
 func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
 }
 
@@ -604,67 +648,17 @@ func (s *Settings) GetStatsTrackProcessTree() bool {
 	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
+// Whether to skip cgroup resource limits for system metric percentages.
+func (s *Settings) GetStatsNoCgroup() bool {
+	return s.Proto.XStatsNoCgroup.GetValue()
+}
+
+// Whether to report the CPU and memory used by wandb's own processes.
+func (s *Settings) GetStatsSelfUsage() bool {
+	return s.Proto.XStatsSelfUsage.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
-}
-
-// Update methods.
-//
-// These are used to update the settings in the proto.
-
-// Updates the start time of the run.
-func (s *Settings) UpdateStartTime(startTime time.Time) {
-	s.Proto.XStartTime = &wrapperspb.DoubleValue{
-		Value: float64(startTime.UnixNano()) / 1e9,
-	}
-}
-
-// Updates the run's entity name.
-func (s *Settings) UpdateEntity(entity string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
-}
-
-// Updates the run's project name.
-func (s *Settings) UpdateProject(project string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.Project = &wrapperspb.StringValue{Value: project}
-}
-
-// Updates the run's display name.
-func (s *Settings) UpdateDisplayName(displayName string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
-}
-
-// Updates the run ID.
-func (s *Settings) UpdateRunID(runID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
-}
-
-// Update server-side derived summary computation setting.
-func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
-}
-
-// Updates the scheme and hostname for contacting the CoreWeave metadata server.
-func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
-}
-
-// Updates the relative path on the CoreWeave metadata server to which to make requests.
-func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }

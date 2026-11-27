@@ -227,7 +227,7 @@ class ImageMask(Media):
         return cls._log_type
 
     def validate(self, val: dict) -> bool:
-        np = util.get_module("numpy", required="Image mask support requires numpy")
+        util.get_module("numpy", required="Image mask support requires numpy")
         # 2D Make this work with all tensor(like) types
         if "mask_data" not in val:
             raise TypeError(
@@ -238,9 +238,7 @@ class ImageMask(Media):
             shape = val["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
-            if not (
-                (val["mask_data"] >= 0).all() and (val["mask_data"] <= 255).all()
-            ) and issubclass(val["mask_data"].dtype.type, np.integer):
+            if not ((val["mask_data"] >= 0).all() and (val["mask_data"] <= 255).all()):
                 raise TypeError("Mask data must be integers between 0 and 255")
 
         # Optional argument

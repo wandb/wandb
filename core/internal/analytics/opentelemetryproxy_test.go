@@ -1,0 +1,641 @@
+package analytics_test
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	otellogapi "go.opentelemetry.io/otel/log"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wandb/wandb/core/internal/analytics"
+	"github.com/wandb/wandb/core/internal/analyticstest"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.IncrementCounterAndLogEvent(
+		t.Context(),
+		"default_attrs_event",
+		nil,
+		&analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// Both logs and metrics carry the default low-cardinality attributes.
+	log, ok := proxy.FindLog("default_attrs_event")
+	require.True(t, ok, "expected a log for the event")
+	metric, ok := proxy.FindMetric("default_attrs_event")
+	require.True(t, ok, "expected a metric for the event")
+	for _, attrs := range []map[string]string{log.Attributes, metric.Attributes} {
+		assert.Equal(t, version.Version, attrs["wandb_version"])
+		assert.Equal(t, runtime.Version(), attrs["go_version"])
+		assert.Equal(t, runtime.GOOS, attrs["operating_system"])
+	}
+}
+
+func TestTelemetryRecorder_With_OnlyProvidedLowCardinalityAttributes(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.TelemetryContext{},
+	)
+
+	derived := recorder.With(
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
+		nil,
+	)
+	derived.IncrementCounterAndLogEvent(
+		t.Context(),
+		"low_card_event",
+		nil,
+		&analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	log, ok := proxy.FindLog("low_card_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(
+		t,
+		map[string]string{"error.originator": "MyFunction"},
+		log.Attributes,
+	)
+
+	metric, ok := proxy.FindMetric("low_card_event")
+	require.True(t, ok, "expected a metric for the event")
+	assert.Equal(
+		t,
+		map[string]string{"error.originator": "MyFunction"},
+		metric.Attributes,
+	)
+}
+
+func TestTelemetryRecorder_With_InheritsAndIgnoresEmptyFields(
+	t *testing.T,
+) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	// Chained derivation: each child inherits its parent's attributes,
+	// and empty fields must not overwrite inherited or default values.
+	derived := recorder.With(
+		&analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
+		nil,
+	)
+	derived = derived.With(&analytics.LowCardinalityAttributes{}, nil)
+	derived = derived.With(
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
+		nil,
+	)
+	derived.Log(
+		t.Context(),
+		"empty_fields_event",
+		nil,
+		otellogapi.SeverityInfo,
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	log, ok := proxy.FindLog("empty_fields_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
+	assert.Equal(t, runtime.Version(), log.Attributes["go_version"])
+	assert.Equal(t, "MyFunction", log.Attributes["error.originator"])
+}
+
+func TestTelemetryRecorder_With_HighCardinalityLogsOnly(
+	t *testing.T,
+) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	derived := recorder.With(
+		&analytics.LowCardinalityAttributes{},
+		map[string]string{"arbitrary_key": "value"},
+	)
+	derived.IncrementCounterAndLogEvent(
+		t.Context(),
+		"high_card_event",
+		nil,
+		&analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// High-cardinality attributes are attached to log records...
+	log, ok := proxy.FindLog("high_card_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "value", log.Attributes["arbitrary_key"])
+
+	// ...but never to metrics, where they would blow up cardinality.
+	metric, ok := proxy.FindMetric("high_card_event")
+	require.True(t, ok, "expected a metric for the event")
+	assert.NotContains(t, metric.Attributes, "arbitrary_key")
+}
+
+func TestTelemetryRecorder_With_DoesNotAffectParent(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.With(
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "ChildFunction"},
+		map[string]string{"child_key": "child-value"},
+	)
+	recorder.IncrementCounterAndLogEvent(
+		t.Context(),
+		"parent_event",
+		nil,
+		&analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// Records emitted through the parent must not carry the
+	// child's attributes.
+	log, ok := proxy.FindLog("parent_event")
+	require.True(t, ok, "expected a log for the parent event")
+	assert.NotContains(t, log.Attributes, "child_key")
+	assert.NotContains(t, log.Attributes, "error.originator")
+
+	metric, ok := proxy.FindMetric("parent_event")
+	require.True(t, ok, "expected a metric for the parent event")
+	assert.NotContains(t, metric.Attributes, "error.originator")
+}
+
+func TestTelemetryRecorder_With_SharesShutdown(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	derived := recorder.With(&analytics.LowCardinalityAttributes{}, nil)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// After the root proxy shuts down, derived recorders are no-ops.
+	derived.Log(
+		t.Context(),
+		"after_shutdown",
+		nil,
+		otellogapi.SeverityInfo,
+	)
+
+	_, ok := proxy.FindLog("after_shutdown")
+	assert.False(t, ok, "expected no log from a derived recorder after shutdown")
+}
+
+func TestTelemetryRecorder_PerRecordAttributesOverrideContext(
+	t *testing.T,
+) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	derived := recorder.With(
+		&analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
+		map[string]string{"test_key": "from-context"},
+	)
+	derived.IncrementCounterAndLogEvent(
+		t.Context(),
+		"override_event",
+		map[string]string{"test_key": "from-argument"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "from-argument"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	log, ok := proxy.FindLog("override_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "from-context", log.Attributes["wandb_version"])
+	assert.Equal(t, "from-argument", log.Attributes["test_key"])
+
+	metric, ok := proxy.FindMetric("override_event")
+	require.True(t, ok, "expected a metric for the event")
+	assert.Equal(t, "from-argument", metric.Attributes["wandb_version"])
+}
+
+func TestTelemetryRecorder_PerRecordAttributesDoNotPersist(
+	t *testing.T,
+) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.IncrementCounterAndLogEvent(
+		t.Context(),
+		"with_overrides",
+		map[string]string{"test_key": "per-record"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "per-record"},
+	)
+	recorder.Log(
+		t.Context(),
+		"without_overrides",
+		nil,
+		otellogapi.SeverityInfo,
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// Per-record attributes must not leak into the telemetry context
+	// and affect subsequent records.
+	log, ok := proxy.FindLog("without_overrides")
+	require.True(t, ok, "expected a log for the second record")
+	assert.Equal(t, version.Version, log.Attributes["wandb_version"])
+	assert.NotContains(t, log.Attributes, "test_key")
+}
+
+func TestTelemetryRecorder_RecordLog(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.Log(
+		t.Context(),
+		"hello world",
+		map[string]string{"custom": "value"},
+		otellogapi.SeverityInfo,
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	log, ok := proxy.FindLog("hello world")
+	require.True(t, ok, "expected a log with the recorded body")
+	assert.Equal(t, otellogapi.SeverityInfo, log.Severity)
+	assert.Equal(t, "value", log.Attributes["custom"])
+	assert.Equal(t, version.Version, log.Attributes["wandb_version"])
+}
+
+func TestTelemetryRecorder_RecordMetricAndLogEvent(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.IncrementCounterAndLogEvent(
+		t.Context(),
+		"an_event",
+		map[string]string{
+			"custom": "value",
+		},
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "X"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// verify metric emitted
+	metric, ok := proxy.FindMetric("an_event")
+	require.True(t, ok, "expected a metric named after the event")
+	assert.Equal(t, int64(1), metric.Value)
+	assert.Equal(t, "X", metric.Attributes["error.originator"])
+
+	// verify log emitted
+	log, ok := proxy.FindLog("an_event")
+	require.True(t, ok, "expected a log named after the event")
+	assert.Equal(t, otellogapi.SeverityInfo, log.Severity)
+	assert.Equal(t, "value", log.Attributes["custom"])
+}
+
+func TestTelemetryRecorder_RecordHistogram(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	).With(
+		&analytics.LowCardinalityAttributes{LeetMode: "inspect"},
+		nil,
+	)
+	err := recorder.DefineHistogram(
+		"session_duration",
+		analytics.UnitSeconds,
+		"Duration of one session.",
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025,
+			0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	)
+	require.NoError(t, err)
+
+	recorder.RecordHistogram(
+		t.Context(),
+		"session_duration",
+		1.5,
+		&analytics.LowCardinalityAttributes{
+			ExecutionContext: "local",
+		},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("session_duration")
+	require.True(t, ok, "expected a duration histogram")
+	assert.Equal(t, "s", metric.Unit)
+	assert.Equal(t, uint64(1), metric.HistogramCount)
+	assert.InDelta(t, 1.5, metric.HistogramSum, 0.0001)
+	assert.Equal(t, "inspect", metric.Attributes["leet_mode"])
+	assert.Equal(t, "local", metric.Attributes["execution_context"])
+}
+
+func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	err := recorder.DefineHistogram(
+		"encode_duration",
+		analytics.UnitSeconds,
+		"Duration of one encode operation.",
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025,
+			0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	)
+	require.NoError(t, err)
+
+	for _, d := range []time.Duration{
+		200 * time.Microsecond,
+		3 * time.Millisecond,
+		40 * time.Millisecond,
+		700 * time.Millisecond,
+	} {
+		recorder.RecordHistogram(
+			t.Context(),
+			"encode_duration",
+			d.Seconds(),
+			&analytics.LowCardinalityAttributes{},
+		)
+	}
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("encode_duration")
+	require.True(t, ok)
+	require.NotEmpty(t, metric.HistogramBounds)
+	assert.Equal(t, metric.HistogramBounds[0], 0.0001,
+		"the lowest boundary must be 0.0001")
+
+	// Each of the four durations belongs to a different bucket.
+	assert.Equal(t, metric.HistogramBucketCounts, []uint64{
+		0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+	})
+}
+
+func TestTelemetryRecorder_ErrorLog(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	recorder = recorder.With(
+		&analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
+		map[string]string{"request_id": "test-request"},
+	)
+
+	const wantErrorOriginator = "TestTelemetryRecorder_Error"
+	recorder.ErrorLog(
+		t.Context(),
+		"error-message",
+		assert.AnError,
+		wantErrorOriginator,
+		map[string]string{"custom-attribute": "test-attribute"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// verify log emitted
+	log, ok := proxy.FindLog("error-message")
+	require.True(t, ok, "expected an error log")
+	assert.Equal(t, otellogapi.SeverityError, log.Severity)
+	assert.Equal(t, wantErrorOriginator, log.Attributes["error.originator"])
+	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
+	assert.Equal(t, "test-request", log.Attributes["request_id"])
+	assert.Equal(t, "test-attribute", log.Attributes["custom-attribute"])
+	assert.Equal(t, assert.AnError.Error(), log.Attributes["error.message"])
+	assert.NotEmpty(t, log.Attributes["error.stacktrace"])
+}
+
+func TestTelemetryRecorder_ErrorMetric(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.ErrorMetric(
+		t.Context(),
+		"error-message",
+		assert.AnError,
+		"TestTelemetryRecorder_ErrorMetric",
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("error")
+	require.True(t, ok, "expected an error metric")
+	assert.Equal(t, int64(1), metric.Value)
+	assert.Equal(
+		t,
+		"TestTelemetryRecorder_ErrorMetric",
+		metric.Attributes["error.originator"],
+	)
+}
+func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// A second shutdown should not error.
+	require.NoError(t, proxy.Shutdown(context.Background()))
+}
+
+func TestOpenTelemetryProxy_UnsupportedServer_DropsRecords(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			http.NotFound(w, r)
+		},
+	))
+	defer server.Close()
+
+	proxy := analytics.NewOpenTelemetryProxy(
+		t.Context(),
+		settings.From(&spb.Settings{BaseUrl: wrapperspb.String(server.URL)}),
+		"wandb-core",
+	)
+	require.NotNil(t, proxy)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.Log(t.Context(), "test", nil, otellogapi.SeverityInfo)
+
+	// Neither construction nor recording touches the network.
+	assert.Zero(t, requests.Load())
+
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// The final flush probes the server once and drops the record.
+	assert.Equal(t, int32(1), requests.Load())
+}
+
+func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	recorder.Log(
+		t.Context(),
+		"after",
+		nil,
+		otellogapi.SeverityInfo,
+	)
+
+	_, ok := proxy.FindLog("after")
+	assert.False(t, ok, "expected no log to be exported after shutdown")
+}
+
+func TestTelemetryRecorder_AddToCounter(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.AddToCounter(
+		t.Context(),
+		"request_count",
+		1,
+		&analytics.LowCardinalityAttributes{},
+	)
+	recorder.AddToCounter(
+		t.Context(),
+		"request_count",
+		4,
+		&analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("request_count")
+	require.True(t, ok)
+	assert.Equal(t, int64(5), metric.Value)
+}
+
+func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	bounds := []float64{1024, 1048576, 16777216}
+	require.NoError(t, recorder.DefineHistogram(
+		"request_size",
+		analytics.UnitBytes,
+		"Size of one request body.",
+		bounds,
+	))
+
+	recorder.RecordHistogram(
+		t.Context(),
+		"request_size",
+		2*1024*1024,
+		&analytics.LowCardinalityAttributes{ExecutionContext: "ssh"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("request_size")
+	require.True(t, ok)
+	assert.Equal(t, "By", metric.Unit)
+	assert.InDelta(t, float64(2*1024*1024), metric.HistogramSum, 1)
+	assert.Equal(t, "ssh", metric.Attributes["execution_context"])
+	assert.Equal(t, bounds, metric.HistogramBounds,
+		"the declared boundaries must reach the exporter")
+}
+
+func TestTelemetryRecorder_DefineHistogram_RejectsBadDefinitions(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	assert.Error(t, recorder.DefineHistogram(
+		"", analytics.UnitSeconds, "", []float64{1}), "no name")
+	assert.Error(t, recorder.DefineHistogram(
+		"a", "", "", []float64{1}), "no unit")
+	assert.Error(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", nil), "no boundaries")
+	assert.Error(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", []float64{1, 3, 2}),
+		"non-monotonic boundaries are dropped by the SDK")
+
+	require.NoError(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", []float64{1, 2, 3}))
+	assert.Error(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", []float64{4, 5, 6}),
+		"a second definition would be silently ignored by the SDK")
+}
+
+func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	err := recorder.DefineHistogram(
+		"encode_duration",
+		analytics.UnitSeconds,
+		"Duration of one encode operation.",
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01,
+			0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	)
+	require.NoError(t, err)
+
+	for _, executionContext := range []string{"local", "ssh"} {
+		recorder.RecordHistogram(
+			t.Context(),
+			"encode_duration",
+			0.01,
+			&analytics.LowCardinalityAttributes{
+				ExecutionContext: executionContext,
+			},
+		)
+	}
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	assert.Len(t, proxy.FindMetrics("encode_duration"), 2,
+		"each distinct attribute set is its own data point")
+
+	render, ok := proxy.FindMetricWith("encode_duration", map[string]string{
+		"execution_context": "ssh",
+	})
+	require.True(t, ok)
+	assert.Equal(t, "ssh", render.Attributes["execution_context"])
+}

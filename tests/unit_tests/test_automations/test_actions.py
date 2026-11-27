@@ -2,13 +2,26 @@ import json
 
 from hypothesis import given
 from hypothesis.strategies import dictionaries, sampled_from, text
-from pytest import mark
-from wandb._pydantic import IS_PYDANTIC_V2
-from wandb.automations import ActionType, SendNotification, SendWebhook
-from wandb.automations._generated import AlertSeverity, TriggeredActionType
+from pydantic import ValidationError
+from pytest import fixture, mark, raises
+from wandb.automations import (
+    ActionType,
+    SendNotification,
+    SendPromptToAria,
+    SendWebhook,
+)
+from wandb.automations._generated import (
+    AlertSeverity,
+    TriggeredActionType,
+    TriggerFields,
+)
+from wandb.automations.actions import SavedAriaAction, SavedPushNotificationAction
+from wandb.automations.automations import Automation
 from wandb.sdk.wandb_alerts import AlertLevel
 
-from ._strategies import gql_ids, jsonables, printable_text
+from tests.unit_tests.test_filters._strategies import printable_text
+
+from ._strategies import gql_ids, jsonables
 
 VALID_ALERT_SEVERITY_ARG_VALUES = (
     # Where possible, accept both enum and (case-insensitive) string types for `severity`.
@@ -30,14 +43,10 @@ def test_public_action_type_enum_is_subset_of_generated():
     assert public_enum_values.issubset(generated_enum_values)
 
 
-@mark.skipif(
-    not IS_PYDANTIC_V2,
-    reason="Unsupported in Pydantic v1: non-essential enhancement",
-)
 @given(
     integration_id=gql_ids(prefix="Integration"),
-    title=printable_text,
-    message=printable_text,
+    title=printable_text(),
+    message=printable_text(),
     severity=sampled_from(VALID_ALERT_SEVERITY_ARG_VALUES),
 )
 def test_notification_input_action_accepts_legacy_alert_args(
@@ -91,3 +100,75 @@ def test_webhook_input_action_accepts_deserialized_payload(integration_id, paylo
 
     assert isinstance(serialized_payload, str)
     assert json.loads(serialized_payload) == payload
+
+
+@fixture
+def trigger_node():
+    def _trigger_node(action: dict) -> dict:
+        return {
+            "__typename": "Trigger",
+            "id": "VHJpZ2dlcjoX",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": None,
+            "name": "test-automation",
+            "description": None,
+            "enabled": True,
+            "scope": {
+                "__typename": "Project",
+                "id": "UHJvamVjdDox",
+                "name": "my-project",
+            },
+            "event": {
+                "__typename": "FilterEventTriggeringCondition",
+                "eventType": "CREATE_ARTIFACT",
+                "filter": json.dumps({"filter": {"$or": [{"$and": []}]}}),
+            },
+            "action": action,
+        }
+
+    return _trigger_node
+
+
+def test_aria_action_parses_when_listing(trigger_node):
+    node = trigger_node({"__typename": "ARIATriggeredAction", "prompt": "Investigate"})
+    trigger = TriggerFields.model_validate(node)
+    automation = Automation.model_validate(trigger)
+    assert isinstance(automation.action, SavedAriaAction)
+    assert automation.action.prompt == "Investigate"
+    assert automation.action.action_type is ActionType.ARIA
+
+
+def test_send_prompt_to_aria_is_public():
+    action = SendPromptToAria(prompt="  Summarize this run  ")
+    assert action.action_type is ActionType.ARIA
+    assert action.prompt == "Summarize this run"
+
+
+@mark.parametrize(
+    "prompt",
+    ["", "   ", "x" * 4001, "é" * 2001],
+    ids=["empty", "whitespace", "over-byte-limit", "multibyte-over-limit"],
+)
+def test_send_prompt_to_aria_rejects_invalid_prompts(prompt):
+    with raises(ValidationError):
+        SendPromptToAria(prompt=prompt)
+
+
+def test_send_prompt_to_aria_accepts_max_prompt_size():
+    action = SendPromptToAria(prompt="x" * 4000)
+    assert action.prompt == "x" * 4000
+
+
+def test_push_notification_action_parses_when_listing(trigger_node):
+    node = trigger_node(
+        {
+            "__typename": "PushNotificationTriggeredAction",
+            "title": "Run failed",
+            "body": None,
+        }
+    )
+    trigger = TriggerFields.model_validate(node)
+    automation = Automation.model_validate(trigger)
+    assert isinstance(automation.action, SavedPushNotificationAction)
+    assert automation.action.title == "Run failed"
+    assert automation.action.action_type is ActionType.PUSH_NOTIFICATION

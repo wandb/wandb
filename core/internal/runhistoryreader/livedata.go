@@ -4,13 +4,56 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 )
+
+// LiveDataReader reads unexported run history directly from the W&B backend.
+type LiveDataReader struct {
+	graphqlClient graphql.Client
+	entity        string
+	project       string
+	runId         string
+	keys          []string
+}
+
+// NewLiveDataReader returns a reader for unexported run history.
+func NewLiveDataReader(
+	entity string,
+	project string,
+	runId string,
+	graphqlClient graphql.Client,
+	keys []string,
+) *LiveDataReader {
+	return &LiveDataReader{
+		graphqlClient: graphqlClient,
+		entity:        entity,
+		project:       project,
+		runId:         runId,
+		keys:          slices.Clone(keys),
+	}
+}
+
+// GetHistorySteps gets live history rows in the given step range.
+func (r *LiveDataReader) GetHistorySteps(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, error) {
+	if len(r.keys) == 0 {
+		return r.getLiveDataForAllKeys(ctx, minStep, maxStep)
+	}
+	return r.getLiveDataForSpecificKeys(ctx, minStep, maxStep)
+}
+
+// Release implements the history reader interface.
+func (r *LiveDataReader) Release() {}
 
 // GetLiveData gets live data from the W&B backend for a run
 // which hasn't been written to parquet files yet.
@@ -18,38 +61,24 @@ func (h *HistoryReader) getLiveData(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
-	selectAllKeys bool,
 ) ([]parquet.KeyValueList, error) {
-	requireLiveDataQuery := minStep >= h.minLiveStep || maxStep > h.minLiveStep
+	// A page must be served from the live endpoints when it extends past the
+	// boundary where exported parquet data ends. The fallback case covers runs
+	// whose history exists but the backend reported neither a live-step boundary
+	// nor any exported parquet files: the data is then only reachable live, so
+	// query it instead of silently returning no rows.
+	hasLiveRangeBoundary := h.minLiveStep != math.MaxInt64
+	hasExportedData := len(h.parquetReaders) > 0
+	requireLiveDataQuery := maxStep > h.minLiveStep ||
+		(!hasLiveRangeBoundary && !hasExportedData)
 	if !requireLiveDataQuery {
 		return []parquet.KeyValueList{}, nil
 	}
 
-	if selectAllKeys {
-		results, err := h.getLiveDataForAllKeys(
-			ctx,
-			minStep,
-			maxStep,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		return results, nil
-	} else {
-		results, err := h.getLiveDataForSpecificKeys(
-			ctx,
-			minStep,
-			maxStep,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return results, nil
-	}
+	return h.liveDataReader.GetHistorySteps(ctx, minStep, maxStep)
 }
 
-func (h *HistoryReader) getLiveDataForAllKeys(
+func (r *LiveDataReader) getLiveDataForAllKeys(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
@@ -57,10 +86,10 @@ func (h *HistoryReader) getLiveDataForAllKeys(
 	pageSize := maxStep - minStep
 	response, err := gql.HistoryPage(
 		ctx,
-		h.graphqlClient,
-		h.entity,
-		h.project,
-		h.runId,
+		r.graphqlClient,
+		r.entity,
+		r.project,
+		r.runId,
 		minStep,
 		maxStep,
 		int(pageSize),
@@ -70,7 +99,7 @@ func (h *HistoryReader) getLiveDataForAllKeys(
 	}
 
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no history found for run %s", h.runId)
+		return nil, fmt.Errorf("no history found for run %s", r.runId)
 	}
 
 	history := response.GetProject().GetRun().GetHistory()
@@ -86,18 +115,23 @@ func (h *HistoryReader) getLiveDataForAllKeys(
 	return results, nil
 }
 
-func (h *HistoryReader) getLiveDataForSpecificKeys(
+func (r *LiveDataReader) getLiveDataForSpecificKeys(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
-	keys := append(slices.Clone(h.keys), parquet.StepKey)
+	keys := append(slices.Clone(r.keys), parquet.StepKey)
 
 	spec := map[string]any{
 		"keys":    keys,
 		"minStep": minStep,
-		"maxStep": maxStep,
 		"samples": maxStep - minStep,
+
+		// SampledHistory marks the max step as inclusive,
+		// This affects the sample window size, causing 1 data point to be dropped.
+		// To keep this inline with the HistoryPage query,
+		// we subtract 1 from the max step to make it exclusive.
+		"maxStep": maxStep - 1,
 	}
 	specJSON, err := simplejsonext.MarshalToString(spec)
 	if err != nil {
@@ -107,10 +141,10 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 
 	response, err := gql.SampledHistoryPage(
 		ctx,
-		h.graphqlClient,
-		h.entity,
-		h.project,
-		h.runId,
+		r.graphqlClient,
+		r.entity,
+		r.project,
+		r.runId,
 		specJSON,
 	)
 	if err != nil {
@@ -118,10 +152,8 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 		return nil, err
 	}
 
-	slog.Info("sampled history response", "response", response)
-
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no history found for run %s", h.runId)
+		return nil, fmt.Errorf("no history found for run %s", r.runId)
 	}
 
 	results := make(

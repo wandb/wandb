@@ -6,10 +6,12 @@ import os
 import re
 import sys
 import tempfile
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
-from wandb.apis.internal import Api
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._gqlutils import create_artifact_version
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.git_reference import GitReference
@@ -21,6 +23,9 @@ from wandb.sdk.launch.utils import (
 )
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
@@ -53,7 +58,7 @@ def create_job(
         name (Optional[str]): Name of the job.
         description (Optional[str]): Description of the job.
         aliases (Optional[List[str]]): Aliases for the job.
-        runtime (Optional[str]): Python runtime of the job, like 3.9.
+        runtime (Optional[str]): Python runtime of the job, like 3.10.
         entrypoint (Optional[str]): Entrypoint of the job. If build_context is
             provided, path is relative to build_context.
         git_hash (Optional[str]): Git hash of a specific commit, when using git type jobs.
@@ -75,14 +80,16 @@ def create_job(
             name="my-train-job",
             description="My training job",
             aliases=["train"],
-            runtime="3.9",
+            runtime="3.10",
             entrypoint="train.py",
         )
         # then run the newly created job
         artifact_job.call()
         ```
     """
-    api = Api()
+    from wandb.sdk.launch.api import LaunchApi
+
+    api = LaunchApi()
 
     artifact_job, _action, _aliases = _create_job(
         api,
@@ -104,7 +111,7 @@ def create_job(
 
 
 def _create_job(
-    api: Api,
+    api: LaunchApi,
     job_type: str,
     path: str,
     entity: str | None = None,
@@ -132,7 +139,7 @@ def _create_job(
     if runtime is not None and not re.match(r"^3\.\d+$", runtime):
         wandb.termerror(
             f"Runtime (-r, --runtime) must be a minor version of Python 3, "
-            f"e.g. 3.9 or 3.10, received {runtime}"
+            f"e.g. 3.10 or 3.11, received {runtime}"
         )
         return None, "", []
     aliases = aliases or []
@@ -192,7 +199,7 @@ def _create_job(
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build(
-        api.api,
+        api,
         dockerfile=dockerfile,
         build_context=build_context,
         base_image=base_image,
@@ -218,10 +225,12 @@ def _create_job(
             }
         }
 
-    res, _ = api.create_artifact(
+    res, _ = create_artifact_version(
+        api._service_api,
         artifact_type_name="job",
         artifact_collection_name=name,
         digest=artifact.digest,
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_MD5,
         client_id=artifact._client_id,
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
@@ -229,7 +238,6 @@ def _create_job(
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
         metadata=metadata,
-        is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
     action = "No changes detected for"
@@ -434,7 +442,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
 
 
 def _make_code_artifact(
-    api: Api,
+    api: LaunchApi,
     job_builder: JobBuilder,
     run: wandb.Run,
     path: str,
@@ -454,10 +462,11 @@ def _make_code_artifact(
     # wandb job create.
     entrypoint_file = entrypoint_list[-1]
     artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
-    code_artifact = wandb.Artifact(
+    code_artifact = InternalArtifact(
         name=artifact_name,
         type="code",
         description="Code artifact for job",
+        digest_algorithm="MD5",
     )
 
     try:
@@ -477,10 +486,12 @@ def _make_code_artifact(
         except FileNotFoundError:
             pass
 
-    res, _ = api.create_artifact(
+    res, _ = create_artifact_version(
+        api._service_api,
         artifact_type_name="code",
         artifact_collection_name=artifact_name,
         digest=code_artifact.digest,
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_MD5,
         client_id=code_artifact._client_id,
         sequence_client_id=code_artifact._sequence_client_id,
         entity_name=entity,
@@ -488,7 +499,6 @@ def _make_code_artifact(
         run_name=run.id,  # run will be deleted after creation
         description="Code artifact for job",
         metadata={"codePath": path, "entrypoint": entrypoint_file},
-        is_user_created=True,
         aliases=[
             {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]
         ],

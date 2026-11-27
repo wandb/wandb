@@ -1,0 +1,15 @@
+mutation UpsertSweepState(
+    $id: ID!,
+    $state: String!,
+) {
+    upsertSweep(
+        input: {
+            id: $id,
+            state: $state,
+        }
+    ) {
+        sweep {
+            state
+        }
+    }
+}

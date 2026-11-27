@@ -37,6 +37,65 @@ func TestEpochLineChart_Range(t *testing.T) {
 	require.LessOrEqual(t, math.Abs(c.ViewMaxX()-30), 1e-9)
 }
 
+func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(100, 10)
+
+	// A diverged loss logs NaN/Inf mid-run; the Y range must stay finite
+	// and continue tracking the finite samples.
+	c.AddData(m, leet.MetricData{
+		X: []float64{0, 1, 2, 3},
+		Y: []float64{0.5, math.NaN(), math.Inf(1), 2.0},
+	})
+
+	require.True(t, c.ViewMinY() < 0.5 && !math.IsNaN(c.ViewMinY()))
+	require.True(t, c.ViewMaxY() > 2.0 && !math.IsInf(c.ViewMaxY(), 1))
+
+	// Later finite samples keep extending the range as usual.
+	c.AddData(m, leet.MetricData{X: []float64{4}, Y: []float64{3.0}})
+	require.Greater(t, c.ViewMaxY(), 3.0)
+	require.False(t, math.IsNaN(c.ViewMinY()))
+}
+
+func TestEpochLineChart_ChartGuidesStyles(t *testing.T) {
+	// plotRows renders a 48x10 chart and returns its 8 plot-area rows,
+	// excluding the X axis row, which always contains '─'. The single Y
+	// tick row of this chart is at index 3.
+	plotRows := func(guides string) []string {
+		chart := leet.NewEpochLineChart("loss")
+		chart.Resize(48, 10)
+		chart.SetChartGuides(guides)
+		chart.AddData("loss", leet.MetricData{
+			X: []float64{0, 1, 2, 3},
+			Y: []float64{0.2, 0.4, 0.6, 0.8},
+		})
+		chart.Draw()
+		return strings.Split(stripANSI(chart.View()), "\n")[:chart.GraphHeight()]
+	}
+
+	for y, row := range plotRows(leet.ChartGuidesOff) {
+		require.NotContains(t, row, "·", "off: row %d", y)
+		require.NotContains(t, row, "─", "off: row %d", y)
+	}
+
+	dotRows := plotRows(leet.ChartGuidesDots)
+	require.Contains(t, strings.Join(dotRows, "\n"), "·")
+	for y, row := range dotRows {
+		require.NotContains(t, row, "─", "dots: row %d", y)
+	}
+
+	// Horizontal guides sit on the Y tick rows and nowhere else.
+	for y, row := range plotRows(leet.ChartGuidesHorizontal) {
+		require.NotContains(t, row, "·", "horizontal: row %d", y)
+		if y == 3 {
+			require.Contains(t, row, "─", "horizontal: tick row")
+		} else {
+			require.NotContains(t, row, "─", "horizontal: row %d", y)
+		}
+	}
+}
+
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 	m := "acc"
 	c := leet.NewEpochLineChart(m)
@@ -385,4 +444,35 @@ func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
 	require.True(t, ch.ToggleYScale())
 	require.True(t, ch.TestIsLogY())
 	require.Equal(t, "10%", ch.TestFormatYTick(1))
+}
+
+func TestEpochLineChart_YLabelsFitTopTick(t *testing.T) {
+	c := leet.NewEpochLineChart("norm")
+	c.AddData("run", leet.MetricData{X: []float64{0, 1, 2}, Y: []float64{0, 500, 1090}})
+
+	// Height 10 adds a top tick whose label is wider than the stepped ones.
+	c.Resize(30, 10)
+	c.Draw()
+	require.Contains(t, stripANSI(c.View()), "1.2e+03│")
+
+	// Height 8 has no top tick, so the column stays as wide as "999".
+	c.Resize(30, 8)
+	c.Draw()
+	require.Contains(t, stripANSI(c.View()), "\n  0└")
+}
+
+func TestEpochLineChart_OneXAxisPerChart(t *testing.T) {
+	c := leet.NewEpochLineChart("train/loss")
+	c.Resize(80, 12)
+	c.AddData("step-run", leet.MetricData{X: []float64{0, 1}, Y: []float64{1, 2}})
+	c.HandleZoom("in", 40)
+	c.AddData("tokens-run", leet.MetricData{
+		X: []float64{4096, 8192}, Y: []float64{3, 4}, XAxisMetric: "custom/tokens",
+	})
+	c.AddData("step-run", leet.MetricData{X: []float64{2}, Y: []float64{5}})
+
+	require.Equal(t, "custom/tokens", c.XAxisMetric())
+	require.Equal(t, []string{"tokens-run"}, c.DrawOrder())
+	require.Equal(t, 4096.0, c.MinX())
+	require.Equal(t, 4096.0, c.ViewMinX())
 }

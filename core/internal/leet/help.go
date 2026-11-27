@@ -91,6 +91,9 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 	case viewModeSymon:
 		entries = append(entries, helpEntriesFromCategories(SymonKeyBindings())...)
 		entries = append(entries, symonTipsEntries()...)
+	case viewModeInspect:
+		entries = append(entries, helpEntriesFromCategories(InspectorKeyBindings())...)
+		entries = append(entries, inspectorTipsEntries()...)
 	default:
 		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
 		entries = append(entries, tipsEntries()...)
@@ -103,7 +106,7 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 func tipsEntries() []HelpEntry {
 	return []HelpEntry{
 		{Key: "Tips", Description: ""},
-		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "wandb leet config", Description: "Open the interactive config editor"},
 		{Key: "Runs filter", Description: "Bare terms search run key/name/id/project/tags/notes. " +
 			"Qualifiers: project:, name:, id:, tag:, note:, config:, cfg.<path>:, has:. " +
 			"Boolean: space/AND, OR or |, -/!/NOT."},
@@ -116,8 +119,17 @@ func tipsEntries() []HelpEntry {
 func symonTipsEntries() []HelpEntry {
 	return []HelpEntry{
 		{Key: "Tips", Description: ""},
-		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "wandb leet config", Description: "Open the interactive config editor"},
 		{Key: "SYMON", Description: "Live system monitor"},
+		blankLine,
+	}
+}
+
+func inspectorTipsEntries() []HelpEntry {
+	return []HelpEntry{
+		{Key: "Tips", Description: ""},
+		{Key: "Printing", Description: "Pipe or redirect to print records as text, " +
+			"e.g. wandb leet inspect | less"},
 		blankLine,
 	}
 }
@@ -130,6 +142,8 @@ func (h *HelpModel) modeLabel() string {
 		return "single run"
 	case viewModeSymon:
 		return "symon"
+	case viewModeInspect:
+		return "record inspector"
 	default:
 		return "unknown"
 	}
@@ -155,7 +169,10 @@ func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
 	h.height = height - StatusBarHeight
 	h.viewport.SetWidth(width)
-	h.viewport.SetHeight(h.height)
+	// Leave room for helpContentStyle's margins: without this the rendered
+	// help view exceeds h.height and the status bar below it is pushed off
+	// screen (bubbletea v2's altscreen renderer clips the bottom).
+	h.viewport.SetHeight(max(h.height-helpContentStyle.GetVerticalFrameSize(), 0))
 
 	if h.active {
 		h.viewport.SetContent(h.generateHelpContent())

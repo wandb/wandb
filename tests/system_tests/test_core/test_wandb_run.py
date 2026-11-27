@@ -1,14 +1,23 @@
 import math
 import os
+import pathlib
 import pickle
+import signal
+import subprocess
 import sys
+import threading
 from pathlib import Path
+from textwrap import dedent
 
 import numpy as np
 import PIL.Image
 import pytest
 import wandb
+from wandb import env
 from wandb.errors import UsageError
+from wandb.sdk.lib import json_util
+from wandb.sdk.lib.service import service_port_file
+from wandb.util import get_core_path
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
@@ -222,6 +231,24 @@ def test_network_fault_graphql(wandb_backend_spy):
         assert "config.yaml" in uploaded_files
 
 
+def test_summary_file(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init() as run:
+        run.log({"x": 1})
+        run.define_metric("y", summary="max")
+        run.log({"y": 2})
+        run.summary.update({"z": 3})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["x"] == 1
+        assert summary["y"] == {"max": 2}
+        assert summary["z"] == 3
+
+        assert summary == json_util.loads(
+            pathlib.Path(run.dir, "wandb-summary.json").read_text(),
+        )
+
+
 def test_summary_update(wandb_backend_spy):
     with wandb.init() as run:
         run.summary.update({"a": 1})
@@ -387,3 +414,169 @@ def test_pin_config_keys_empty_list(wandb_backend_spy: WandbBackendSpy):
     with wandb_backend_spy.freeze() as snapshot:
         config = snapshot.config(run_id=run.id)
         assert config["_wandb"]["value"]["pinned_keys"] == []
+
+
+def test_step__returns_the_current_step():
+    with wandb.init(mode="offline") as run:
+        assert run.step == 0
+
+        run.log({"x": 1})
+        assert run.step == 1
+
+        run.log({"x": 2}, step=3)
+        assert run.step == 3
+
+
+def test_backup_sync_dir_callback(tmp_path, monkeypatch):
+    backups = []
+    callback_finished = threading.Event()
+
+    def backup(sync_dir: Path) -> None:
+        transaction_log = next(sync_dir.glob("run-*.wandb"))
+        backups.append((sync_dir, transaction_log.read_bytes()))
+        callback_finished.set()
+
+    with wandb.init(
+        dir=tmp_path,
+        mode="offline",
+        settings=wandb.Settings(backup_sync_dir_fn=backup),
+    ) as run:
+        run.log({"backup_callback_marker": 123})
+        sync_dir = Path(run.sync_dir)
+        wait_with_progress = wandb.sdk.wandb_run.wait_with_progress
+
+        def wait_after_backup(*args, **kwargs):
+            assert callback_finished.wait(timeout=5)
+            return wait_with_progress(*args, **kwargs)
+
+        monkeypatch.setattr(
+            wandb.sdk.wandb_run,
+            "wait_with_progress",
+            wait_after_backup,
+        )
+
+    assert len(backups) == 1
+    assert backups[0][0] == sync_dir
+    assert b"backup_callback_marker" in backups[0][1]
+
+
+def test_backup_sync_dir_waits_for_finish(tmp_path, monkeypatch):
+    backups = []
+    run = wandb.init(
+        dir=tmp_path,
+        mode="offline",
+        settings=wandb.Settings(backup_sync_dir_fn=backups.append),
+    )
+    sync_dir = Path(run.sync_dir)
+    interface = run._interface
+    flush_handle = run._backup_sync_dir_handle
+    assert interface is not None
+    assert flush_handle is not None
+
+    exit_handle = interface.deliver_exit(0)
+    flush_handle.wait_or(timeout=10)
+    assert backups == []
+
+    monkeypatch.setattr(interface, "deliver_exit", lambda _: exit_handle)
+    run.finish()
+    assert backups == [sync_dir]
+
+
+def test_backup_sync_dir_callback_reports_failures(tmp_path, monkeypatch):
+    errors = []
+    monkeypatch.setattr(wandb, "termerror", errors.append)
+
+    def backup(sync_dir: Path) -> None:
+        raise RuntimeError("backup failed")
+
+    with wandb.init(
+        dir=tmp_path,
+        mode="offline",
+        settings=wandb.Settings(backup_sync_dir_fn=backup),
+    ):
+        pass
+
+    assert any("backup failed" in error for error in errors)
+
+
+@pytest.mark.usefixtures("user")
+def test_step__raises_in_shared_mode():
+    with wandb.init(mode="shared") as run:
+        with pytest.raises(match="Cannot read the W&B step in shared mode"):
+            _ = run.step
+
+
+@pytest.mark.usefixtures("user")
+def test_log__no_step_in_shared_mode(wandb_backend_spy):
+    with wandb.init(mode="shared") as run:
+        run.log({"x": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert set(history[0].keys()) == {"x", "_runtime", "_timestamp"}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Requires POSIX SIGTERM")
+def test_sigterm_shuts_down_core_with_an_unfinished_run(tmp_path, wandb_backend_spy):
+    port_file = tmp_path / "core-port.txt"
+    script = dedent("""\
+        import os
+        import signal
+        import sys
+
+        import wandb
+
+        run = wandb.init(dir=sys.argv[1], mode="offline")
+        run.log({"sigterm_marker": 123})
+        assert run.summary["sigterm_marker"] == 123
+        os.kill(os.getpid(), signal.SIGTERM)
+        """)
+
+    with subprocess.Popen(
+        [
+            get_core_path(),
+            "--detached",
+            "--no-observability",
+            "--port-filename",
+            str(port_file),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    ) as core:
+        try:
+            token = service_port_file.poll_for_token(port_file, core, timeout=20)
+            client = subprocess.run(
+                [sys.executable, "-c", script, str(tmp_path)],
+                env={**os.environ, env.SERVICE: token.env_value},
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            assert client.returncode == -signal.SIGTERM, client.stderr
+
+            core.send_signal(signal.SIGTERM)
+            output, _ = core.communicate(timeout=20)
+        finally:
+            if core.poll() is None:
+                core.kill()
+
+    # verify core handled the signal and finished the run before exiting.
+    assert core.returncode == 128, output
+    (log_path,) = tmp_path.glob("wandb/offline-run-*/run-*.wandb")
+
+    replay = subprocess.run(
+        ["wandb", "beta", "sync", "--live", str(log_path)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert replay.returncode == 0, replay.stderr
+    assert log_path.with_suffix(".wandb.synced").exists(), replay.stderr
+
+    run_id = log_path.stem.removeprefix("run-")
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run_id)
+        assert [row["sigterm_marker"] for row in history.values()] == [123]
+        assert snapshot.completed(run_id=run_id)
+        assert snapshot.exit_code(run_id=run_id) == 1

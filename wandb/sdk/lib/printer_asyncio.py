@@ -1,5 +1,6 @@
 import asyncio
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_compat, printer

@@ -19,6 +19,45 @@ func (AnalyticsS3ExportFileFormat) Values() []AnalyticsS3ExportFileFormat {
 	}
 }
 
+type AnnotationConfigurationState string
+
+// Enum values for AnnotationConfigurationState
+const (
+	AnnotationConfigurationStateEnabled  AnnotationConfigurationState = "ENABLED"
+	AnnotationConfigurationStateDisabled AnnotationConfigurationState = "DISABLED"
+)
+
+// Values returns all known values for AnnotationConfigurationState. Note that
+// this can be expanded in the future, and so it is only as up to date as the
+// client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (AnnotationConfigurationState) Values() []AnnotationConfigurationState {
+	return []AnnotationConfigurationState{
+		"ENABLED",
+		"DISABLED",
+	}
+}
+
+type AnnotationDirective string
+
+// Enum values for AnnotationDirective
+const (
+	AnnotationDirectiveCopy    AnnotationDirective = "COPY"
+	AnnotationDirectiveExclude AnnotationDirective = "EXCLUDE"
+)
+
+// Values returns all known values for AnnotationDirective. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (AnnotationDirective) Values() []AnnotationDirective {
+	return []AnnotationDirective{
+		"COPY",
+		"EXCLUDE",
+	}
+}
+
 type ArchiveStatus string
 
 // Enum values for ArchiveStatus
@@ -464,6 +503,10 @@ const (
 	EventS3ObjectTagging                                Event = "s3:ObjectTagging:*"
 	EventS3ObjectTaggingPut                             Event = "s3:ObjectTagging:Put"
 	EventS3ObjectTaggingDelete                          Event = "s3:ObjectTagging:Delete"
+	EventS3ObjectAnnotation                             Event = "s3:ObjectAnnotation:*"
+	EventS3ObjectAnnotationPut                          Event = "s3:ObjectAnnotation:Put"
+	EventS3ObjectAnnotationDelete                       Event = "s3:ObjectAnnotation:Delete"
+	EventS3ObjectRetentionPut                           Event = "s3:ObjectRetention:Put"
 )
 
 // Values returns all known values for Event. Note that this can be expanded in
@@ -499,6 +542,10 @@ func (Event) Values() []Event {
 		"s3:ObjectTagging:*",
 		"s3:ObjectTagging:Put",
 		"s3:ObjectTagging:Delete",
+		"s3:ObjectAnnotation:*",
+		"s3:ObjectAnnotation:Put",
+		"s3:ObjectAnnotation:Delete",
+		"s3:ObjectRetention:Put",
 	}
 }
 
@@ -739,22 +786,25 @@ type InventoryOptionalField string
 
 // Enum values for InventoryOptionalField
 const (
-	InventoryOptionalFieldSize                         InventoryOptionalField = "Size"
-	InventoryOptionalFieldLastModifiedDate             InventoryOptionalField = "LastModifiedDate"
-	InventoryOptionalFieldStorageClass                 InventoryOptionalField = "StorageClass"
-	InventoryOptionalFieldETag                         InventoryOptionalField = "ETag"
-	InventoryOptionalFieldIsMultipartUploaded          InventoryOptionalField = "IsMultipartUploaded"
-	InventoryOptionalFieldReplicationStatus            InventoryOptionalField = "ReplicationStatus"
-	InventoryOptionalFieldEncryptionStatus             InventoryOptionalField = "EncryptionStatus"
-	InventoryOptionalFieldObjectLockRetainUntilDate    InventoryOptionalField = "ObjectLockRetainUntilDate"
-	InventoryOptionalFieldObjectLockMode               InventoryOptionalField = "ObjectLockMode"
-	InventoryOptionalFieldObjectLockLegalHoldStatus    InventoryOptionalField = "ObjectLockLegalHoldStatus"
-	InventoryOptionalFieldIntelligentTieringAccessTier InventoryOptionalField = "IntelligentTieringAccessTier"
-	InventoryOptionalFieldBucketKeyStatus              InventoryOptionalField = "BucketKeyStatus"
-	InventoryOptionalFieldChecksumAlgorithm            InventoryOptionalField = "ChecksumAlgorithm"
-	InventoryOptionalFieldObjectAccessControlList      InventoryOptionalField = "ObjectAccessControlList"
-	InventoryOptionalFieldObjectOwner                  InventoryOptionalField = "ObjectOwner"
-	InventoryOptionalFieldLifecycleExpirationDate      InventoryOptionalField = "LifecycleExpirationDate"
+	InventoryOptionalFieldSize                            InventoryOptionalField = "Size"
+	InventoryOptionalFieldLastModifiedDate                InventoryOptionalField = "LastModifiedDate"
+	InventoryOptionalFieldStorageClass                    InventoryOptionalField = "StorageClass"
+	InventoryOptionalFieldETag                            InventoryOptionalField = "ETag"
+	InventoryOptionalFieldIsMultipartUploaded             InventoryOptionalField = "IsMultipartUploaded"
+	InventoryOptionalFieldReplicationStatus               InventoryOptionalField = "ReplicationStatus"
+	InventoryOptionalFieldEncryptionStatus                InventoryOptionalField = "EncryptionStatus"
+	InventoryOptionalFieldObjectLockRetainUntilDate       InventoryOptionalField = "ObjectLockRetainUntilDate"
+	InventoryOptionalFieldObjectLockMode                  InventoryOptionalField = "ObjectLockMode"
+	InventoryOptionalFieldObjectLockLegalHoldStatus       InventoryOptionalField = "ObjectLockLegalHoldStatus"
+	InventoryOptionalFieldObjectLockEventHoldStatus       InventoryOptionalField = "ObjectLockEventHoldStatus"
+	InventoryOptionalFieldObjectLockEventHoldDuration     InventoryOptionalField = "ObjectLockEventHoldDuration"
+	InventoryOptionalFieldIntelligentTieringAccessTier    InventoryOptionalField = "IntelligentTieringAccessTier"
+	InventoryOptionalFieldBucketKeyStatus                 InventoryOptionalField = "BucketKeyStatus"
+	InventoryOptionalFieldChecksumAlgorithm               InventoryOptionalField = "ChecksumAlgorithm"
+	InventoryOptionalFieldObjectAccessControlList         InventoryOptionalField = "ObjectAccessControlList"
+	InventoryOptionalFieldObjectOwner                     InventoryOptionalField = "ObjectOwner"
+	InventoryOptionalFieldLifecycleExpirationDate         InventoryOptionalField = "LifecycleExpirationDate"
+	InventoryOptionalFieldIntelligentTieringReferenceDate InventoryOptionalField = "IntelligentTieringReferenceDate"
 )
 
 // Values returns all known values for InventoryOptionalField. Note that this can
@@ -773,12 +823,15 @@ func (InventoryOptionalField) Values() []InventoryOptionalField {
 		"ObjectLockRetainUntilDate",
 		"ObjectLockMode",
 		"ObjectLockLegalHoldStatus",
+		"ObjectLockEventHoldStatus",
+		"ObjectLockEventHoldDuration",
 		"IntelligentTieringAccessTier",
 		"BucketKeyStatus",
 		"ChecksumAlgorithm",
 		"ObjectAccessControlList",
 		"ObjectOwner",
 		"LifecycleExpirationDate",
+		"IntelligentTieringReferenceDate",
 	}
 }
 
@@ -967,6 +1020,25 @@ func (ObjectLockEnabled) Values() []ObjectLockEnabled {
 	}
 }
 
+type ObjectLockEventHold string
+
+// Enum values for ObjectLockEventHold
+const (
+	ObjectLockEventHoldOn  ObjectLockEventHold = "ON"
+	ObjectLockEventHoldOff ObjectLockEventHold = "OFF"
+)
+
+// Values returns all known values for ObjectLockEventHold. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (ObjectLockEventHold) Values() []ObjectLockEventHold {
+	return []ObjectLockEventHold{
+		"ON",
+		"OFF",
+	}
+}
+
 type ObjectLockLegalHoldStatus string
 
 // Enum values for ObjectLockLegalHoldStatus
@@ -1049,19 +1121,21 @@ type ObjectStorageClass string
 
 // Enum values for ObjectStorageClass
 const (
-	ObjectStorageClassStandard           ObjectStorageClass = "STANDARD"
-	ObjectStorageClassReducedRedundancy  ObjectStorageClass = "REDUCED_REDUNDANCY"
-	ObjectStorageClassGlacier            ObjectStorageClass = "GLACIER"
-	ObjectStorageClassStandardIa         ObjectStorageClass = "STANDARD_IA"
-	ObjectStorageClassOnezoneIa          ObjectStorageClass = "ONEZONE_IA"
-	ObjectStorageClassIntelligentTiering ObjectStorageClass = "INTELLIGENT_TIERING"
-	ObjectStorageClassDeepArchive        ObjectStorageClass = "DEEP_ARCHIVE"
-	ObjectStorageClassOutposts           ObjectStorageClass = "OUTPOSTS"
-	ObjectStorageClassGlacierIr          ObjectStorageClass = "GLACIER_IR"
-	ObjectStorageClassSnow               ObjectStorageClass = "SNOW"
-	ObjectStorageClassExpressOnezone     ObjectStorageClass = "EXPRESS_ONEZONE"
-	ObjectStorageClassFsxOpenzfs         ObjectStorageClass = "FSX_OPENZFS"
-	ObjectStorageClassFsxOntap           ObjectStorageClass = "FSX_ONTAP"
+	ObjectStorageClassStandard             ObjectStorageClass = "STANDARD"
+	ObjectStorageClassReducedRedundancy    ObjectStorageClass = "REDUCED_REDUNDANCY"
+	ObjectStorageClassGlacier              ObjectStorageClass = "GLACIER"
+	ObjectStorageClassStandardIa           ObjectStorageClass = "STANDARD_IA"
+	ObjectStorageClassOnezoneIa            ObjectStorageClass = "ONEZONE_IA"
+	ObjectStorageClassIntelligentTiering   ObjectStorageClass = "INTELLIGENT_TIERING"
+	ObjectStorageClassDeepArchive          ObjectStorageClass = "DEEP_ARCHIVE"
+	ObjectStorageClassOutposts             ObjectStorageClass = "OUTPOSTS"
+	ObjectStorageClassGlacierIr            ObjectStorageClass = "GLACIER_IR"
+	ObjectStorageClassSnow                 ObjectStorageClass = "SNOW"
+	ObjectStorageClassExpressOnezone       ObjectStorageClass = "EXPRESS_ONEZONE"
+	ObjectStorageClassFsxOpenzfs           ObjectStorageClass = "FSX_OPENZFS"
+	ObjectStorageClassFsxOntap             ObjectStorageClass = "FSX_ONTAP"
+	ObjectStorageClassAwsBackupWarm        ObjectStorageClass = "AWS_BACKUP_WARM"
+	ObjectStorageClassAwsBackupLowCostWarm ObjectStorageClass = "AWS_BACKUP_LOW_COST_WARM"
 )
 
 // Values returns all known values for ObjectStorageClass. Note that this can be
@@ -1083,6 +1157,8 @@ func (ObjectStorageClass) Values() []ObjectStorageClass {
 		"EXPRESS_ONEZONE",
 		"FSX_OPENZFS",
 		"FSX_ONTAP",
+		"AWS_BACKUP_WARM",
+		"AWS_BACKUP_LOW_COST_WARM",
 	}
 }
 
@@ -1396,6 +1472,7 @@ type ServerSideEncryption string
 const (
 	ServerSideEncryptionAes256     ServerSideEncryption = "AES256"
 	ServerSideEncryptionAwsFsx     ServerSideEncryption = "aws:fsx"
+	ServerSideEncryptionAwsBackup  ServerSideEncryption = "aws:backup"
 	ServerSideEncryptionAwsKms     ServerSideEncryption = "aws:kms"
 	ServerSideEncryptionAwsKmsDsse ServerSideEncryption = "aws:kms:dsse"
 )
@@ -1408,6 +1485,7 @@ func (ServerSideEncryption) Values() []ServerSideEncryption {
 	return []ServerSideEncryption{
 		"AES256",
 		"aws:fsx",
+		"aws:backup",
 		"aws:kms",
 		"aws:kms:dsse",
 	}
@@ -1456,19 +1534,21 @@ type StorageClass string
 
 // Enum values for StorageClass
 const (
-	StorageClassStandard           StorageClass = "STANDARD"
-	StorageClassReducedRedundancy  StorageClass = "REDUCED_REDUNDANCY"
-	StorageClassStandardIa         StorageClass = "STANDARD_IA"
-	StorageClassOnezoneIa          StorageClass = "ONEZONE_IA"
-	StorageClassIntelligentTiering StorageClass = "INTELLIGENT_TIERING"
-	StorageClassGlacier            StorageClass = "GLACIER"
-	StorageClassDeepArchive        StorageClass = "DEEP_ARCHIVE"
-	StorageClassOutposts           StorageClass = "OUTPOSTS"
-	StorageClassGlacierIr          StorageClass = "GLACIER_IR"
-	StorageClassSnow               StorageClass = "SNOW"
-	StorageClassExpressOnezone     StorageClass = "EXPRESS_ONEZONE"
-	StorageClassFsxOpenzfs         StorageClass = "FSX_OPENZFS"
-	StorageClassFsxOntap           StorageClass = "FSX_ONTAP"
+	StorageClassStandard             StorageClass = "STANDARD"
+	StorageClassReducedRedundancy    StorageClass = "REDUCED_REDUNDANCY"
+	StorageClassStandardIa           StorageClass = "STANDARD_IA"
+	StorageClassOnezoneIa            StorageClass = "ONEZONE_IA"
+	StorageClassIntelligentTiering   StorageClass = "INTELLIGENT_TIERING"
+	StorageClassGlacier              StorageClass = "GLACIER"
+	StorageClassDeepArchive          StorageClass = "DEEP_ARCHIVE"
+	StorageClassOutposts             StorageClass = "OUTPOSTS"
+	StorageClassGlacierIr            StorageClass = "GLACIER_IR"
+	StorageClassSnow                 StorageClass = "SNOW"
+	StorageClassExpressOnezone       StorageClass = "EXPRESS_ONEZONE"
+	StorageClassFsxOpenzfs           StorageClass = "FSX_OPENZFS"
+	StorageClassFsxOntap             StorageClass = "FSX_ONTAP"
+	StorageClassAwsBackupWarm        StorageClass = "AWS_BACKUP_WARM"
+	StorageClassAwsBackupLowCostWarm StorageClass = "AWS_BACKUP_LOW_COST_WARM"
 )
 
 // Values returns all known values for StorageClass. Note that this can be
@@ -1490,6 +1570,8 @@ func (StorageClass) Values() []StorageClass {
 		"EXPRESS_ONEZONE",
 		"FSX_OPENZFS",
 		"FSX_ONTAP",
+		"AWS_BACKUP_WARM",
+		"AWS_BACKUP_LOW_COST_WARM",
 	}
 }
 
@@ -1635,5 +1717,25 @@ func (Type) Values() []Type {
 		"CanonicalUser",
 		"AmazonCustomerByEmail",
 		"Group",
+	}
+}
+
+type UseSourceMultiRegionKeyStatus string
+
+// Enum values for UseSourceMultiRegionKeyStatus
+const (
+	UseSourceMultiRegionKeyStatusEnabled  UseSourceMultiRegionKeyStatus = "Enabled"
+	UseSourceMultiRegionKeyStatusDisabled UseSourceMultiRegionKeyStatus = "Disabled"
+)
+
+// Values returns all known values for UseSourceMultiRegionKeyStatus. Note that
+// this can be expanded in the future, and so it is only as up to date as the
+// client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (UseSourceMultiRegionKeyStatus) Values() []UseSourceMultiRegionKeyStatus {
+	return []UseSourceMultiRegionKeyStatus{
+		"Enabled",
+		"Disabled",
 	}
 }

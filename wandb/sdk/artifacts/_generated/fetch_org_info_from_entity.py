@@ -3,24 +3,22 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import OrgInfoFragment
 
 
 class FetchOrgInfoFromEntity(GQLResult):
-    entity: Optional[FetchOrgInfoFromEntityEntity]
+    entity: FetchOrgInfoFromEntityEntity | None
 
 
 class FetchOrgInfoFromEntityEntity(GQLResult):
-    organization: Optional[OrgInfoFragment]
-    user: Optional[FetchOrgInfoFromEntityEntityUser]
+    organization: OrgInfoFragment | None
+    user: FetchOrgInfoFromEntityEntityUser | None
 
 
 class FetchOrgInfoFromEntityEntityUser(GQLResult):
-    organizations: List[OrgInfoFragment]
+    organizations: list[OrgInfoFragment]
 
 
 FetchOrgInfoFromEntity.model_rebuild()

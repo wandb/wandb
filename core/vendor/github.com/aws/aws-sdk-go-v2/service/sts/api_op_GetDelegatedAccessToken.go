@@ -4,11 +4,10 @@ package sts
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/sts/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Exchanges a trade-in token for temporary Amazon Web Services credentials with
@@ -41,6 +40,18 @@ type GetDelegatedAccessTokenInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetDelegatedAccessTokenInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetDelegatedAccessTokenRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetDelegatedAccessTokenInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.TradeInToken != nil {
+		s.WriteString(schemas.GetDelegatedAccessTokenRequest_TradeInToken, *v.TradeInToken)
+	}
+}
+
 type GetDelegatedAccessTokenOutput struct {
 
 	// The Amazon Resource Name (ARN) of the principal that was assumed when obtaining
@@ -51,10 +62,9 @@ type GetDelegatedAccessTokenOutput struct {
 	// Amazon Web Services credentials for API authentication.
 	Credentials *types.Credentials
 
-	// The percentage of the maximum policy size that is used by the session policy.
-	// The policy size is calculated as the sum of all the session policies and
-	// permission boundaries attached to the session. If the packed size exceeds 100%,
-	// the request fails.
+	// This field is deprecated. It is not populated for GetDelegatedAccessToken .
+	//
+	// Deprecated: Deprecated. This field is not populated for GetDelegatedAccessToken.
 	PackedPolicySize *int32
 
 	// Metadata pertaining to the operation's result.
@@ -63,77 +73,62 @@ type GetDelegatedAccessTokenOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetDelegatedAccessTokenOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetDelegatedAccessTokenResponse)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetDelegatedAccessTokenOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AssumedPrincipal != nil {
+		s.WriteString(schemas.GetDelegatedAccessTokenResponse_AssumedPrincipal, *v.AssumedPrincipal)
+	}
+	if v.Credentials != nil {
+		s.WriteStruct(schemas.GetDelegatedAccessTokenResponse_Credentials)
+		v.Credentials.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.PackedPolicySize != nil {
+		s.WriteInt32(schemas.GetDelegatedAccessTokenResponse_PackedPolicySize, *v.PackedPolicySize)
+	}
+}
+func (v *GetDelegatedAccessTokenOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.GetDelegatedAccessTokenResponse, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.GetDelegatedAccessTokenResponse_AssumedPrincipal:
+			v.AssumedPrincipal = new(string)
+			return d.ReadString(schemas.GetDelegatedAccessTokenResponse_AssumedPrincipal, v.AssumedPrincipal)
+		case schemas.GetDelegatedAccessTokenResponse_Credentials:
+			v.Credentials = &types.Credentials{}
+			return v.Credentials.Deserialize(d)
+		case schemas.GetDelegatedAccessTokenResponse_PackedPolicySize:
+			v.PackedPolicySize = new(int32)
+			return d.ReadInt32(schemas.GetDelegatedAccessTokenResponse_PackedPolicySize, v.PackedPolicySize)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationGetDelegatedAccessTokenMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetDelegatedAccessToken, schemas.GetDelegatedAccessTokenRequest, schemas.GetDelegatedAccessTokenResponse)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsquery_serializeOpGetDelegatedAccessToken{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetDelegatedAccessToken, schemas.GetDelegatedAccessTokenRequest, schemas.GetDelegatedAccessTokenResponse), output: &GetDelegatedAccessTokenOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsquery_deserializeOpGetDelegatedAccessToken{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "GetDelegatedAccessToken"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpGetDelegatedAccessTokenValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetDelegatedAccessToken(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -148,22 +143,8 @@ func (c *Client) addOperationGetDelegatedAccessTokenMiddlewares(stack *middlewar
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opGetDelegatedAccessToken(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "GetDelegatedAccessToken",
-	}
 }

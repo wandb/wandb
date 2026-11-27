@@ -43,12 +43,15 @@ func (wm *WatcherManager) Start(runPath string) error {
 		case wm.outChan <- FileChangedMsg{}:
 			wm.logger.Debug("watcher: FileChangedMsg sent")
 		default:
-			wm.logger.CaptureWarn("watcher: outChan full, dropping FileChangedMsg")
+			wm.logger.Warn("watcher: outChan full, dropping FileChangedMsg")
 		}
 	})
 
 	if err != nil {
-		wm.logger.CaptureError(fmt.Errorf("watcher: error starting: %v", err))
+		wm.logger.CaptureError(
+			"leet",
+			fmt.Errorf("watcher: error starting: %v", err),
+		)
 		return err
 	}
 

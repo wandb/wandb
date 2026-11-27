@@ -1,179 +1,194 @@
 package leet
 
 const (
-	// Maximum heights for each section type.
-	// TODO: dynamically upscale if more space is available.
-	sectionMaxHeightEnvironment = 12
-	sectionMaxHeightConfig      = 20
-	sectionMaxHeightSummary     = 25
+	// Each section's default share of the sidebar's vertical space when
+	// the sections want more rows than fit. The shares sum to 1, so a
+	// value reads directly as that section's slice of the area, in the
+	// same unit as the dragged overview_* fractions.
+	sectionWeightEnvironment = 0.20
+	sectionWeightConfig      = 0.35
+	sectionWeightSummary     = 0.45
 
 	// Minimum section height when visible (title + 1 item).
 	sectionMinHeight = 2
 )
 
-// updateSectionHeights dynamically allocates heights to sections.
+// sectionWeights returns each visible section's share of the section area:
+// the user-dragged fraction where set, otherwise the built-in default.
+// proportionalShares normalizes the weights, so dragged sections keep their
+// exact shares while all of them are set and every section degrades
+// proportionally when the data changes underneath.
+func (s *RunOverviewSidebar) sectionWeights(needs []int) []float64 {
+	defaults := []float64{
+		sectionWeightEnvironment,
+		sectionWeightConfig,
+		sectionWeightSummary,
+	}
+
+	var o LayoutOverrides
+	if s.overridesSource != nil {
+		o = s.overridesSource()
+	}
+	fracs := o.overviewFractions()
+
+	weights := make([]float64, len(needs))
+	for i, need := range needs {
+		if need <= 0 {
+			continue
+		}
+		if fracs[i] > 0 {
+			weights[i] = fracs[i]
+		} else {
+			weights[i] = defaults[i]
+		}
+	}
+	return weights
+}
+
+// sectionNeeds returns the rows each section can usefully fill (title +
+// items), 0 for empty sections.
+func (s *RunOverviewSidebar) sectionNeeds() []int {
+	needs := make([]int, len(s.sections))
+	for i := range s.sections {
+		if itemCount := len(s.sections[i].FilteredItems); itemCount > 0 {
+			needs[i] = itemCount + 1 // Title line.
+		}
+	}
+	return needs
+}
+
+// updateSectionHeights divides the sidebar rows below the header among the
+// sections and re-derives every section's page size from its height.
 func (s *RunOverviewSidebar) updateSectionHeights() {
 	if s.height == 0 {
 		return
 	}
 
-	totalAvailable := s.availableHeight()
-	if totalAvailable <= 0 {
-		return
-	}
-
-	desired := s.calculateDesiredHeights()
-	totalDesired := s.sumDesiredHeights(desired)
-
-	if totalDesired > totalAvailable {
-		s.scaleHeightsProportionally(desired, totalAvailable)
-	} else {
-		s.allocateDesiredHeights(desired)
-		s.distributeExtraSpace(totalAvailable, totalDesired)
+	needs := s.sectionNeeds()
+	heights := flexSectionHeights(s.sectionsArea(needs), s.sectionWeights(needs), needs)
+	for i := range s.sections {
+		s.sections[i].Height = heights[i]
 	}
 
 	s.updateItemsPerPage()
 }
 
-// availableHeight returns the height available for sections.
-func (s *RunOverviewSidebar) availableHeight() int {
-	availableHeight := s.height - s.headerLineCount()
-
-	activeSections := s.countActiveSections()
-	if activeSections == 0 {
-		return 0
-	}
-
-	// Account for spacing between sections.
-	spacingBetweenSections := 0
-	if activeSections > 1 {
-		spacingBetweenSections = activeSections - 1
-	}
-
-	// Ensure minimum space for all active sections.
-	minRequired := activeSections * sectionMinHeight
-	return max(availableHeight-spacingBetweenSections, minRequired)
-}
-
-// countActiveSections returns the number of sections with items.
-func (s *RunOverviewSidebar) countActiveSections() int {
-	count := 0
-	for i := range s.sections {
-		if len(s.sections[i].FilteredItems) > 0 {
-			count++
+// sectionsArea returns the rows available to sections: the sidebar height
+// minus the header block and one spacing row between adjacent sections.
+func (s *RunOverviewSidebar) sectionsArea(needs []int) int {
+	visible := 0
+	for _, need := range needs {
+		if need > 0 {
+			visible++
 		}
 	}
-	return count
+	return s.height - s.headerLineCount() - max(visible-1, 0)
 }
 
-// calculateDesiredHeights calculates the desired height for each section.
-func (s *RunOverviewSidebar) calculateDesiredHeights() []int {
-	maxHeights := []int{
-		sectionMaxHeightEnvironment,
-		sectionMaxHeightConfig,
-		sectionMaxHeightSummary,
+// flexSectionHeights divides area rows among sections proportionally to
+// weights. Sections with need 0 are hidden and get no rows. A visible
+// section is capped at its need (title + items) so surplus rows go to
+// sections that can still grow, and floored at sectionMinHeight so it stays
+// usable when squeezed. When even the minimums do not fit, the total
+// overflows area and the renderer crops it (tiny-terminal degradation).
+func flexSectionHeights(area int, weights []float64, needs []int) []int {
+	heights := make([]int, len(needs))
+	active := make([]int, 0, len(needs))
+	for i, need := range needs {
+		if need > 0 {
+			active = append(active, i)
+		}
 	}
 
-	desired := make([]int, len(s.sections))
+	remaining := area
+	for len(active) > 0 {
+		shares := proportionalShares(active, weights, remaining)
 
-	for i := range s.sections {
-		itemCount := len(s.sections[i].FilteredItems)
-		if itemCount == 0 {
-			s.sections[i].Height = 0
-			desired[i] = 0
+		// Sections offered more rows than their items can fill keep only
+		// their need; the surplus re-divides among the rest next pass.
+		if next := settleSections(active, heights, &remaining, func(k, i int) (int, bool) {
+			return needs[i], shares[k] >= float64(needs[i])
+		}); len(next) < len(active) {
+			active = next
 			continue
 		}
 
-		// Desired height is item count + 1 (for title), capped at max.
-		maxHeight := maxHeights[i]
-		desired[i] = max(min(itemCount+1, maxHeight), sectionMinHeight)
+		// Sections offered fewer rows than the minimum take the minimum
+		// anyway; the deficit comes out of the rest next pass.
+		if next := settleSections(active, heights, &remaining, func(k, i int) (int, bool) {
+			return min(sectionMinHeight, needs[i]), shares[k] < sectionMinHeight
+		}); len(next) < len(active) {
+			active = next
+			continue
+		}
+
+		// Steady state: every share fits between its minimum and its need.
+		roundShares(active, shares, heights, remaining)
+		break
 	}
 
-	return desired
+	return heights
 }
 
-// sumDesiredHeights returns the sum of all desired heights.
-func (s *RunOverviewSidebar) sumDesiredHeights(desired []int) int {
-	total := 0
-	for _, h := range desired {
-		total += h
+// proportionalShares splits remaining rows across the active sections in
+// proportion to their weights (evenly, if the weights sum to zero).
+func proportionalShares(active []int, weights []float64, remaining int) []float64 {
+	var weightSum float64
+	for _, i := range active {
+		weightSum += weights[i]
 	}
-	return total
-}
 
-// scaleHeightsProportionally scales section heights when total exceeds available.
-func (s *RunOverviewSidebar) scaleHeightsProportionally(desired []int, totalAvailable int) {
-	totalDesired := s.sumDesiredHeights(desired)
-	scaleFactor := float64(totalAvailable) / float64(totalDesired)
-
-	allocated := 0
-	for i := range s.sections {
-		if desired[i] > 0 {
-			scaled := int(float64(desired[i]) * scaleFactor)
-			// Enforce minimum height for visible sections.
-			if scaled < sectionMinHeight && len(s.sections[i].FilteredItems) > 0 {
-				scaled = sectionMinHeight
-			}
-			s.sections[i].Height = scaled
-			allocated += scaled
+	shares := make([]float64, len(active))
+	for k, i := range active {
+		if weightSum > 0 {
+			shares[k] = float64(remaining) * weights[i] / weightSum
 		} else {
-			s.sections[i].Height = 0
+			shares[k] = float64(remaining) / float64(len(active))
 		}
 	}
-
-	// Distribute remainder to last section with items.
-	if allocated < totalAvailable {
-		remainder := totalAvailable - allocated
-		s.allocateRemainder(remainder)
-	}
+	return shares
 }
 
-// allocateDesiredHeights sets each section to its desired height.
-func (s *RunOverviewSidebar) allocateDesiredHeights(desired []int) {
-	for i := range s.sections {
-		s.sections[i].Height = desired[i]
+// settleSections assigns a final height to each active section that decide
+// settles and returns the still-active rest.
+func settleSections(
+	active []int,
+	heights []int,
+	remaining *int,
+	decide func(k, i int) (int, bool),
+) []int {
+	rest := make([]int, 0, len(active))
+	for k, i := range active {
+		if h, settled := decide(k, i); settled {
+			heights[i] = h
+			*remaining -= h
+		} else {
+			rest = append(rest, i)
+		}
 	}
+	return rest
 }
 
-// distributeExtraSpace distributes unused space to sections that can use it.
-func (s *RunOverviewSidebar) distributeExtraSpace(totalAvailable, totalDesired int) {
-	maxHeights := []int{
-		sectionMaxHeightEnvironment,
-		sectionMaxHeightConfig,
-		sectionMaxHeightSummary,
+// roundShares converts fractional shares to whole rows, handing the leftover
+// rows to the largest fractional remainders (ties to the earlier section).
+func roundShares(active []int, shares []float64, heights []int, remaining int) {
+	leftover := remaining
+	fracs := make([]float64, len(active))
+	for k, i := range active {
+		heights[i] = int(shares[k])
+		fracs[k] = shares[k] - float64(heights[i])
+		leftover -= heights[i]
 	}
 
-	extraSpace := totalAvailable - totalDesired
-
-	// Try to expand sections from bottom to top (summary, config, env).
-	for i := 2; i >= 0 && extraSpace > 0; i-- {
-		section := &s.sections[i]
-		if section.Height == 0 {
-			continue
+	for ; leftover > 0; leftover-- {
+		best := 0
+		for k := range fracs {
+			if fracs[k] > fracs[best] {
+				best = k
+			}
 		}
-
-		itemCount := len(section.FilteredItems)
-		currentItems := section.Height - 1 // Subtract title line
-
-		// Only expand if we have more items to show.
-		if currentItems < itemCount {
-			maxIncrease := min(maxHeights[i]-section.Height, itemCount+1-section.Height)
-			increase := min(maxIncrease, extraSpace)
-
-			section.Height += increase
-			extraSpace -= increase
-		}
-	}
-}
-
-// allocateRemainder distributes remaining space to the last section with items.
-func (s *RunOverviewSidebar) allocateRemainder(remainder int) {
-	// Try sections from bottom to top.
-	for i := 2; i >= 0; i-- {
-		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].Height > 0 {
-			s.sections[i].Height += remainder
-			return
-		}
+		heights[active[best]]++
+		fracs[best] = -1
 	}
 }
 

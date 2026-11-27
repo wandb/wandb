@@ -919,10 +919,13 @@ func TestVerifyWandbHeader_Good(t *testing.T) {
 	data := []byte(":W&B\xE1\xBE\x0Dleveldb stuff")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0x0D)
+	version, err := r.VerifyWandbHeader()
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != 0x0D {
+		t.Fatalf("unexpected version: %d", version)
 	}
 }
 
@@ -930,7 +933,7 @@ func TestVerifyWandbHeader_TooShort(t *testing.T) {
 	data := []byte("short")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0)
+	_, err := r.VerifyWandbHeader()
 
 	if err != io.ErrUnexpectedEOF {
 		t.Fatalf("wrong error: %v", err)
@@ -941,7 +944,7 @@ func TestVerifyWandbHeader_InvalidIdent(t *testing.T) {
 	data := []byte("oops123")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0)
+	_, err := r.VerifyWandbHeader()
 
 	if !strings.Contains(err.Error(), `invalid W&B identifier: 6F6F7073 ("oops")`) {
 		t.Fatalf("wrong error: %v", err)
@@ -952,20 +955,53 @@ func TestVerifyWandbHeader_InvalidMagic(t *testing.T) {
 	data := []byte(":W&Bbad")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0)
+	_, err := r.VerifyWandbHeader()
 
 	if !strings.Contains(err.Error(), "invalid W&B magic") {
 		t.Fatalf("wrong error: %v", err)
 	}
 }
 
-func TestVerifyWandbHeader_InvalidVersion(t *testing.T) {
-	data := []byte(":W&B\xE1\xBE\x01")
-	r := NewReader(bytes.NewReader(data))
-
-	err := r.VerifyWandbHeader(0)
-
-	if !strings.Contains(err.Error(), "expected W&B version 0 but got 1") {
-		t.Fatalf("wrong error: %v", err)
+func TestVerifyWandbHeader_AfterSeekPastFirstBlock(t *testing.T) {
+	var writtenVersion uint8 = 0x0D
+	buf := new(bytes.Buffer)
+	w := NewWriterExt(buf, CRCAlgoIEEE, writtenVersion)
+	first := strings.Repeat("x", blockSize)
+	second := strings.Repeat("y", blockSize)
+	for _, record := range []string{first, second} {
+		ww, err := w.Next()
+		require.NoError(t, err)
+		_, err = ww.Write([]byte(record))
+		require.NoError(t, err)
 	}
+	offset, err := w.LastRecordOffset()
+	require.NoError(t, err)
+	require.Greater(t, offset, int64(blockSize))
+	require.NoError(t, w.Close())
+
+	r := NewReaderExt(bytes.NewReader(buf.Bytes()), CRCAlgoIEEE)
+	require.NoError(t, r.SeekRecord(offset))
+
+	version, err := r.VerifyWandbHeader()
+
+	require.NoError(t, err)
+	assert.EqualValues(t, writtenVersion, version)
+	assert.Equal(t, offset, r.NextOffset())
+	record, err := r.Next()
+	require.NoError(t, err)
+	data, err := io.ReadAll(record)
+	require.NoError(t, err)
+	assert.Equal(t, second, string(data))
+}
+
+func TestVerifyWandbHeader_AfterSeekPastFirstBlock_InvalidHeader(t *testing.T) {
+	data := make([]byte, 2*blockSize)
+	copy(data, "oops123")
+	r := NewReader(bytes.NewReader(data))
+	require.NoError(t, r.SeekRecord(blockSize))
+
+	_, err := r.VerifyWandbHeader()
+
+	assert.ErrorContains(t, err, "invalid W&B identifier")
+	assert.EqualValues(t, blockSize, r.NextOffset())
 }

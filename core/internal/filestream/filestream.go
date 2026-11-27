@@ -13,6 +13,8 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -69,6 +71,7 @@ type FileStream interface {
 		entity string,
 		project string,
 		runID string,
+		segmentID string,
 		offsetMap FileStreamOffsetMap,
 	)
 
@@ -96,6 +99,13 @@ type fileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
+	// segmentID identifies the segment of run data being uploaded.
+	//
+	// When the same data is reuploaded by syncing a .wandb file, the same
+	// ID is used. If this is the empty string, then no ID was assigned,
+	// like when syncing a .wandb file from a previous SDK version.
+	segmentID string
+
 	mu              sync.Mutex
 	isFinished      bool
 	beforeRunEndCtx context.Context
@@ -114,6 +124,9 @@ type fileStream struct {
 
 	// A way to print console messages to the user.
 	printer *observability.Printer
+
+	// featureProvider indicates which features the server supports.
+	featureProvider *featurechecker.FeatureProvider
 
 	// The client for making API requests.
 	apiClient api.RetryableClient
@@ -134,6 +147,11 @@ type fileStream struct {
 	//
 	// Once it becomes true, it does not switch back to false.
 	stopState atomic.Bool
+
+	// stats measures the cost of the upload pipeline for this run.
+	//
+	// It may be nil, in which case nothing is measured.
+	stats *filestreamstats.Stats
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -142,11 +160,13 @@ var FileStreamProviders = wire.NewSet(
 )
 
 type FileStreamFactory struct {
-	BaseURL    api.WBBaseURL
-	Logger     *observability.CoreLogger
-	Operations *wboperation.WandbOperations
-	Printer    *observability.Printer
-	Settings   *settings.Settings
+	BaseURL         api.WBBaseURL
+	FeatureProvider *featurechecker.FeatureProvider
+	Logger          *observability.CoreLogger
+	Operations      *wboperation.WandbOperations
+	Printer         *observability.Printer
+	Settings        *settings.Settings
+	Stats           *filestreamstats.Stats
 }
 
 // New returns a new FileStream.
@@ -158,6 +178,8 @@ func (f *FileStreamFactory) New(
 ) FileStream {
 	// Panic early to avoid surprises. These fields are required.
 	switch {
+	case f.FeatureProvider == nil:
+		panic("filestream: nil feature provider")
 	case f.Logger == nil:
 		panic("filestream: nil logger")
 	case f.Printer == nil:
@@ -167,6 +189,7 @@ func (f *FileStreamFactory) New(
 	fs := &fileStream{
 		beforeRunEndCtx: beforeRunEndCtx,
 		settings:        f.Settings,
+		featureProvider: f.FeatureProvider,
 		logger:          f.Logger,
 		operations:      f.Operations,
 		printer:         f.Printer,
@@ -176,6 +199,7 @@ func (f *FileStreamFactory) New(
 		feedbackWait:    &sync.WaitGroup{},
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
+		stats:           f.Stats,
 	}
 
 	fs.heartbeatPeriod = heartbeatPeriod
@@ -195,10 +219,12 @@ func (fs *fileStream) Start(
 	entity string,
 	project string,
 	runID string,
+	segmentID string,
 	offsetMap FileStreamOffsetMap,
 ) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
 
+	fs.segmentID = segmentID
 	fs.path = fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",
 		entity,
@@ -218,7 +244,10 @@ func (fs *fileStream) StreamUpdate(update Update) {
 	defer fs.mu.Unlock()
 
 	if fs.isFinished {
-		fs.logger.CaptureError(fmt.Errorf("filestream: StreamUpdate after Finish"))
+		fs.logger.CaptureError(
+			"filestream",
+			fmt.Errorf("filestream: StreamUpdate after Finish"),
+		)
 		return
 	}
 
@@ -239,6 +268,7 @@ func (fs *fileStream) FinishWithExit(exitCode int32) {
 func (fs *fileStream) FinishWithoutExit() {
 	fs.mu.Lock()
 	if fs.isFinished {
+		fs.mu.Unlock()
 		return
 	}
 	fs.isFinished = true
@@ -262,7 +292,10 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 		fs.stopState.Store(true)
 	}
 
-	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
+	fs.logger.CaptureFatal(
+		"filestream",
+		fmt.Errorf("filestream: fatal error: %v", err),
+	)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
 		fs.printer.Errorf(

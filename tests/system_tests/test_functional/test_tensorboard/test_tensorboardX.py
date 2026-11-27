@@ -18,8 +18,6 @@ def test_add_scalar(wandb_backend_spy):
         assert summary["global_step"] == 10
         assert summary["loss"] == 9 / 64
 
-    wandb.tensorboard.unpatch()
-
 
 def test_add_image(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run:
@@ -40,8 +38,6 @@ def test_add_image(wandb_backend_spy):
         assert summary["example"]["width"] == 28
         assert summary["example"]["height"] == 28
         assert summary["example"]["format"] == "png"
-
-    wandb.tensorboard.unpatch()
 
 
 def test_add_gif(wandb_backend_spy):
@@ -65,5 +61,3 @@ def test_add_gif(wandb_backend_spy):
         assert summary["example"]["width"] == 1
         assert summary["example"]["height"] == 1
         assert summary["example"]["format"] == "gif"
-
-    wandb.tensorboard.unpatch()

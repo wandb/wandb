@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/pkg/server/listeners"
 )
 
@@ -36,18 +37,29 @@ type Server struct {
 	// stopServer cancels serverLifetimeCtx.
 	stopServer context.CancelFunc
 
+	// shutdownOnce selects the initial shutdown mode and exit code.
+	shutdownOnce sync.Once
+	exitCode     atomic.Int32
+
+	// forceShutdown interrupts graceful shutdown without waiting for work.
+	forceShutdown     chan struct{}
+	forceShutdownOnce sync.Once
+
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
 
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
 
-	// xpuResourceManager manages costly resources for accelerator system metrics.
-	xpuResourceManager *monitor.XPUResourceManager
+	// sweepSchedBroker implements `wandb sweep-scheduler` sessions.
+	sweepSchedBroker *scheduler.IPCSessionBroker
 
-	// wg is the WaitGroup to wait for all connections to finish
+	// symonResourceManager manages the system metrics sidecar.
+	symonResourceManager *monitor.SymonResourceManager
+
+	// connectionsWG is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
-	wg sync.WaitGroup
+	connectionsWG sync.WaitGroup
 
 	// parentPID is parent process's ID.
 	//
@@ -88,6 +100,33 @@ type Server struct {
 	logLevel slog.Level
 }
 
+// Shutdown requests a graceful server shutdown with the given run exit code.
+// It does not wait for connections or streams to finish.
+// The first shutdown request sets the exit code for streams still open.
+func (s *Server) Shutdown(exitCode int32) {
+	s.beginShutdown(exitCode, false)
+}
+
+func (s *Server) beginShutdown(exitCode int32, forceShutdown bool) {
+	s.shutdownOnce.Do(func() {
+		if forceShutdown {
+			s.interruptShutdown()
+		}
+		s.exitCode.Store(exitCode)
+		s.stopServer()
+	})
+}
+
+// ForceStop shuts down the server without waiting for in-flight work.
+func (s *Server) ForceStop() {
+	s.interruptShutdown()
+	s.Shutdown(1)
+}
+
+func (s *Server) interruptShutdown() {
+	s.forceShutdownOnce.Do(func() { close(s.forceShutdown) })
+}
+
 type ServerParams struct {
 	Commit              string
 	EnableDCGMProfiling bool
@@ -103,20 +142,21 @@ func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx: serverLifetimeCtx,
-		stopServer:        stopServer,
-		streamMux:         stream.NewStreamMux(),
-		runSyncManager:    runsync.NewRunSyncManager(),
-		xpuResourceManager: monitor.NewXPUResourceManager(
-			params.EnableDCGMProfiling),
-		wg:                sync.WaitGroup{},
-		parentPID:         params.ParentPID,
-		detached:          params.Detached,
-		idleTimeout:       params.IdleTimeout,
-		commit:            params.Commit,
-		listenOnLocalhost: params.ListenOnLocalhost,
-		loggerPath:        params.LoggerPath,
-		logLevel:          params.LogLevel,
+		serverLifetimeCtx:    serverLifetimeCtx,
+		stopServer:           stopServer,
+		forceShutdown:        make(chan struct{}),
+		streamMux:            stream.NewStreamMux(),
+		runSyncManager:       runsync.NewRunSyncManager(),
+		sweepSchedBroker:     scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
+		symonResourceManager: monitor.NewSymonResourceManager(params.EnableDCGMProfiling),
+		connectionsWG:        sync.WaitGroup{},
+		parentPID:            params.ParentPID,
+		detached:             params.Detached,
+		idleTimeout:          params.IdleTimeout,
+		commit:               params.Commit,
+		listenOnLocalhost:    params.ListenOnLocalhost,
+		loggerPath:           params.LoggerPath,
+		logLevel:             params.LogLevel,
 	}
 }
 
@@ -128,11 +168,19 @@ func (s *Server) exitWhenParentIsGone() {
 		time.Sleep(IntervalCheckParentPidMilliseconds * time.Millisecond)
 	}
 
-	slog.Info("server: parent process exited, terminating service process")
+	slog.Info("server: parent process exited")
 
-	// The user process has exited, so there's no need to sync
-	// uncommitted data, and we can quit immediately.
-	os.Exit(1)
+	// Exit immediately if the parent was lost before shutdown began, but
+	// leave an existing graceful shutdown to finish on its own deadline.
+	s.beginShutdown(1, true)
+}
+
+func closeAll(listenerList []net.Listener) {
+	for idx, listener := range listenerList {
+		if err := listener.Close(); err != nil {
+			slog.Error("server: failed to close listener", "index", idx, "error", err)
+		}
+	}
 }
 
 func (s *Server) Serve(portFile string) error {
@@ -140,9 +188,16 @@ func (s *Server) Serve(portFile string) error {
 		ParentPID:         s.parentPID,
 		ListenOnLocalhost: s.listenOnLocalhost,
 	}.MakeListeners()
+
 	if err != nil {
 		return err
 	}
+
+	var closeAllOnce sync.Once
+	closeListeners := func() {
+		closeAllOnce.Do(func() { closeAll(listenerList) })
+	}
+	defer closeListeners()
 
 	if err := portInfo.WriteToFile(portFile); err != nil {
 		return err
@@ -158,28 +213,37 @@ func (s *Server) Serve(portFile string) error {
 	}
 
 	for _, listener := range listenerList {
-		s.wg.Go(func() {
+		s.connectionsWG.Go(func() {
 			s.acceptConnections(listener)
 		})
 	}
 
 	// Wait for the signal to shut down.
 	<-s.serverLifetimeCtx.Done()
-	slog.Info("server is shutting down")
+	slog.Info("server: is shutting down")
 
 	s.stopIdleTimer()
 
 	// Stop accepting new connections.
-	for idx, listener := range listenerList {
-		if err := listener.Close(); err != nil {
-			slog.Error("failed to Close listener", "index", idx, "error", err)
+	closeListeners()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.connectionsWG.Wait()
+		select {
+		case <-s.forceShutdown:
+			return
+		default:
 		}
+		slog.Info("server: all connections closed")
+		s.streamMux.FinishAndCloseAllStreams(s.exitCode.Load())
+	}()
+	select {
+	case <-s.forceShutdown:
+		slog.Info("server: forced shutdown")
+	case <-done:
 	}
-
-	// Wait for asynchronous work to finish.
-	s.wg.Wait()
-
-	slog.Info("server is closed")
 	return nil
 }
 
@@ -221,11 +285,11 @@ func (s *Server) acceptConnections(listener net.Listener) {
 		// Give up and shut down on any unexpected error.
 		if err != nil {
 			slog.Error("server: unknown error accepting connection", "error", err)
-			s.stopServer()
+			s.Shutdown(1)
 			return
 		}
 
-		s.wg.Go(func() {
+		s.connectionsWG.Go(func() {
 			s.onConnectionStart()
 			defer s.onConnectionEnd()
 			s.handleConnection(conn)
@@ -246,16 +310,17 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	NewConnection(
 		s.serverLifetimeCtx,
-		s.stopServer,
+		func() { s.Shutdown(1) },
 		ConnectionParams{
-			ID:                 id,
-			Conn:               conn,
-			StreamMux:          s.streamMux,
-			RunSyncManager:     s.runSyncManager,
-			XPUResourceManager: s.xpuResourceManager,
-			Commit:             s.commit,
-			LoggerPath:         s.loggerPath,
-			LogLevel:           s.logLevel,
+			ID:                   id,
+			Conn:                 conn,
+			StreamMux:            s.streamMux,
+			RunSyncManager:       s.runSyncManager,
+			SweepSchedBroker:     s.sweepSchedBroker,
+			SymonResourceManager: s.symonResourceManager,
+			Commit:               s.commit,
+			LoggerPath:           s.loggerPath,
+			LogLevel:             s.logLevel,
 		},
 	).ManageConnectionData()
 }
@@ -298,9 +363,7 @@ func (s *Server) startIdleTimer() {
 		s.idleTimerMu.Unlock()
 
 		slog.Info("server: idle timeout reached, shutting down", "idle-timeout", s.idleTimeout)
-		s.stopServer()
-		// Gracefully finish and close all streams.
-		s.streamMux.FinishAndCloseAllStreams(0)
+		s.Shutdown(0)
 	})
 }
 

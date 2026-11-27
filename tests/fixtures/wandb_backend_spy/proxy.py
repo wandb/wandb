@@ -5,7 +5,7 @@ import contextlib
 import socket
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 
 import fastapi
 import httpx
@@ -18,7 +18,7 @@ from .spy import WandbBackendSpy
 def spy_proxy(
     target_host: str,
     target_port: int,
-) -> Iterator[WandbBackendProxy]:
+) -> Generator[WandbBackendProxy]:
     """A context manager that proxies a W&B backend.
 
     The proxy server will be available at 127.0.0.1 on a port chosen by the
@@ -93,6 +93,7 @@ def _wait_for_server(server: uvicorn.Server) -> None:
 
 _RELAYABLE_REQUEST_HEADERS = {
     "authorization",
+    "content-encoding",
     "x-wandb-username",
     "user-agent",
     "content-type",
@@ -119,7 +120,7 @@ class WandbBackendProxy:
         self.port = local_port
 
     @contextlib.contextmanager
-    def spy(self) -> Iterator[WandbBackendSpy]:
+    def spy(self) -> Generator[WandbBackendSpy]:
         """A context manager for intercepting W&B requests.
 
         Args:
@@ -226,6 +227,7 @@ class WandbBackendProxy:
                 entity=entity,
                 project=project,
                 run_id=run_id,
+                content_encoding=request.headers.get("content-encoding"),
             )
 
         return response

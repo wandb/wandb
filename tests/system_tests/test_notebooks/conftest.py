@@ -18,11 +18,15 @@ from nbclient import NotebookClient
 from nbclient.client import CellExecutionError
 from typing_extensions import Any, Generator, override
 from wandb.sdk.lib import ipython
+from wandb.sdk.lib.runid import generate_id
 
 _NOTEBOOK_LOCKFILE = os.path.join(
     os.path.dirname(__file__),
     ".test_notebooks.lock",
 )
+
+_RESERVED_RUN_ID_CHARS = re.compile(r"[:;,#?/']+")
+_MAX_RUN_ID_PREFIX_LEN = 64
 
 
 @pytest.fixture
@@ -146,9 +150,11 @@ class WandbNotebookClient(NotebookClient):
 
 
 @pytest.fixture
-def run_id() -> str:
-    """A fixed run ID for testing."""
-    return "lovely-dawn-32"
+def run_id(request: pytest.FixtureRequest) -> str:
+    """A unique, human-readable run ID for the current test."""
+    prefix = _RESERVED_RUN_ID_CHARS.sub("-", request.node.name)
+    prefix = prefix[:_MAX_RUN_ID_PREFIX_LEN].strip("-")
+    return f"{prefix}-{generate_id(4)}"
 
 
 @pytest.fixture

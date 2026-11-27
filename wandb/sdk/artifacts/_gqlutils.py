@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+import json
 from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from wandb_gql import gql
-
+from wandb import util
 from wandb._iterutils import one
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
 if TYPE_CHECKING:
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
@@ -20,24 +21,30 @@ if TYPE_CHECKING:
 
 @lru_cache(maxsize=16)
 def org_info_from_entity(
-    client: RetryingClient, entity: str
+    service_api: ServiceApi, entity: str
 ) -> FetchOrgInfoFromEntityEntity | None:
     """Returns the organization info for a given entity."""
     from ._generated import FETCH_ORG_INFO_FROM_ENTITY_GQL, FetchOrgInfoFromEntity
 
-    gql_op = gql(FETCH_ORG_INFO_FROM_ENTITY_GQL)
-    data = client.execute(gql_op, variable_values={"entity": entity})
-    return FetchOrgInfoFromEntity.model_validate(data).entity
+    result = service_api.execute_graphql(
+        FETCH_ORG_INFO_FROM_ENTITY_GQL,
+        variables={"entity": entity},
+        parse=FetchOrgInfoFromEntity.model_validate_json,
+    )
+    return result.entity
 
 
 @lru_cache(maxsize=16)
-def _server_features(client: RetryingClient) -> dict[str, bool]:
+def _server_features(service_api: ServiceApi) -> dict[str, bool]:
     """Returns a mapping of `{server_feature_name (str) -> is_enabled (bool)}`.
 
-    Results are cached per client instance.
+    Results are cached per service API instance.
     """
     try:
-        response = client.execute(gql(SERVER_FEATURES_QUERY_GQL))
+        result = service_api.execute_graphql(
+            SERVER_FEATURES_QUERY_GQL,
+            parse=ServerFeaturesQuery.model_validate_json,
+        )
     except Exception as e:
         # Unfortunately we currently have to match on the text of the error message,
         # as the `gql` client raises `Exception` rather than a more specific error.
@@ -45,13 +52,12 @@ def _server_features(client: RetryingClient) -> dict[str, bool]:
             return {}
         raise
 
-    result = ServerFeaturesQuery.model_validate(response)
     if (server_info := result.server_info) and (features := server_info.features):
         return {feat.name: feat.is_enabled for feat in features if feat}
     return {}
 
 
-def server_supports(client: RetryingClient, feature: str | int) -> bool:
+def server_supports(service_api: ServiceApi, feature: str | int) -> bool:
     """Return whether the current server supports the given feature.
 
     NOTE: This is deprecated. Please use `ServiceApi.feature_enabled()` when
@@ -68,7 +74,7 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
         name = ServerFeature.Name(feature) if isinstance(feature, int) else feature
     except ValueError:
         return False  # Invalid int-like value, assume unsupported
-    return _server_features(client).get(name) or False
+    return _server_features(service_api).get(name) or False
 
 
 @dataclass(frozen=True)
@@ -80,25 +86,21 @@ class OrgInfo:
         return other in {self.org_name, self.entity_name}
 
 
-def resolve_org_entity_name(
-    client: RetryingClient,
+def _resolve_org_info(
+    service_api: ServiceApi,
     non_org_entity: str | None,
     org_or_entity: str | None = None,
-) -> str:
-    # Resolve the portfolio's org entity name.
+) -> OrgInfo:
+    # Resolve an entity's organization to an `OrgInfo` (carrying both the org's
+    # display name and its org-entity name).
     #
-    # The `org_or_org_entity` parameter may be empty, an org display name, or an
-    # org entity name.
-    #
-    # If the server cannot fetch the portfolio's org name, return the provided
-    # value or raise an error if it is empty. Otherwise, return the fetched
-    # value after validating that the given organization, if provided, matches
-    # either the display or entity name.
+    # The `org_or_entity` parameter may be empty, an org display name, or an org
+    # entity name. When provided, it's validated against the entity's org(s).
     if not non_org_entity:
         raise ValueError("Entity name is required to resolve org entity name.")
 
-    # Fetch candidate orgs to verify or identify the correct orgEntity name.
-    entity = org_info_from_entity(client, non_org_entity)
+    # Fetch candidate orgs to verify or identify the correct organization.
+    entity = org_info_from_entity(service_api, non_org_entity)
 
     # Parse possible organization(s) from the response...
     # ----------------------------------------------------------------------------
@@ -106,10 +108,10 @@ def resolve_org_entity_name(
     # the team/org entity type.
     if entity and (org := entity.organization) and (org_entity := org.org_entity):
         # Ensure the provided name, if given, matches the org or org entity name before
-        # returning the org entity.
+        # returning the org.
         org_info = OrgInfo(org_name=org.name, entity_name=org_entity.name)
         if (not org_or_entity) or (org_or_entity in org_info):
-            return org_entity.name
+            return org_info
 
     # ----------------------------------------------------------------------------
     # If a personal entity was provided, the user may belong to multiple
@@ -122,9 +124,7 @@ def resolve_org_entity_name(
         ]
         if org_or_entity:
             with suppress(StopIteration):
-                return next(
-                    info.entity_name for info in org_infos if (org_or_entity in info)
-                )
+                return next(info for info in org_infos if (org_or_entity in info))
 
             if len(org_infos) == 1:
                 raise ValueError(
@@ -145,7 +145,7 @@ def resolve_org_entity_name(
             # - multiple orgs, because we cannot determine which one to use.
             # - no orgs, because there's nothing to use.
             return one(
-                (org.entity_name for org in org_infos),
+                org_infos,
                 too_short=ValueError(
                     f"Unable to resolve an organization associated with personal entity: {non_org_entity!r}. "
                     "This could be because its a personal entity that doesn't belong to any organizations. "
@@ -159,3 +159,250 @@ def resolve_org_entity_name(
             )
 
     raise ValueError(f"Unable to find organization for entity {non_org_entity!r}.")
+
+
+def resolve_org_entity_name(
+    service_api: ServiceApi,
+    non_org_entity: str | None,
+    org_or_entity: str | None = None,
+) -> str:
+    """Resolve an entity's organization to its org **entity** name."""
+    return _resolve_org_info(service_api, non_org_entity, org_or_entity).entity_name
+
+
+def resolve_org_name(
+    service_api: ServiceApi,
+    non_org_entity: str | None,
+    org_or_entity: str | None = None,
+) -> str:
+    """Resolve an entity's organization to its **display** name."""
+    return _resolve_org_info(service_api, non_org_entity, org_or_entity).org_name
+
+
+def is_project_read_only(
+    service_api: ServiceApi, entity: str, project: str
+) -> bool | None:
+    """Return whether *project* is read-only for the caller, or None if invisible."""
+    from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
+
+    result = service_api.execute_graphql(
+        IS_PROJECT_READ_ONLY_GQL,
+        variables={"entity": entity, "project": project},
+        parse=IsProjectReadOnly.model_validate_json,
+    )
+    if not (result and (proj := result.project)):
+        return None
+    return proj.read_only
+
+
+def omit_artifact_fields(service_api: ServiceApi) -> set[str]:
+    """Return Artifact fields to omit from GraphQL requests for compatibility."""
+    omit_fields = set()
+    if not service_api.feature_enabled(ServerFeature.ARTIFACT_DIGEST_ALGORITHM):
+        omit_fields.add("digestAlgorithm")
+
+    return omit_fields
+
+
+def link_artifact_gql_options(
+    service_api: ServiceApi, gql_vars: dict[str, Any]
+) -> tuple[set[str], set[str]]:
+    """Return `(omit_fields, omit_variables)` for a LinkArtifact request.
+
+    Mutates `gql_vars` in place to skip the `includeAliases`-gated nested
+    alias selection when the response already includes `artifactMembership`,
+    since `Artifact._assign_attrs` only reads the fetched artifact's aliases
+    when no membership is passed in.
+    """
+    omit_fields = omit_artifact_fields(service_api)
+    omit_variables = {"includeAliases"}
+
+    if service_api.feature_enabled(
+        ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+    ):
+        omit_variables.discard("includeAliases")
+        gql_vars["includeAliases"] = False
+    else:
+        omit_fields.add("artifactMembership")
+
+    return omit_fields, omit_variables
+
+
+def record_artifact_use(
+    service_api: ServiceApi,
+    *,
+    artifact_id: str | None,
+    entity_name: str | None,
+    project_name: str | None,
+    run_name: str | None,
+    artifact_entity_name: str | None = None,
+    artifact_project_name: str | None = None,
+    use_as: str | None = None,
+) -> dict[str, Any] | None:
+    """Declare an artifact as an input of a run."""
+    query_vars = [
+        "$entityName: String!",
+        "$projectName: String!",
+        "$runName: String!",
+        "$artifactID: ID!",
+    ]
+    query_args = [
+        "entityName: $entityName",
+        "projectName: $projectName",
+        "runName: $runName",
+        "artifactID: $artifactID",
+    ]
+    variables: dict[str, Any] = {
+        "entityName": entity_name,
+        "projectName": project_name,
+        "runName": run_name,
+        "artifactID": artifact_id,
+        "usedAs": use_as,
+    }
+    if use_as:
+        query_vars.append("$usedAs: String")
+        query_args.append("usedAs: $usedAs")
+    if service_api.feature_enabled(
+        ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
+    ):
+        query_vars += ["$artifactEntityName: String", "$artifactProjectName: String"]
+        query_args += [
+            "artifactEntityName: $artifactEntityName",
+            "artifactProjectName: $artifactProjectName",
+        ]
+        variables["artifactEntityName"] = artifact_entity_name
+        variables["artifactProjectName"] = artifact_project_name
+
+    mutation = f"""
+        mutation UseArtifact({", ".join(query_vars)}) {{
+            useArtifact(input: {{{", ".join(query_args)}}}) {{
+                artifact {{
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    metadata
+                }}
+            }}
+        }}
+        """
+    response = service_api.execute_graphql(mutation, variables)
+    return response["useArtifact"]["artifact"] or None
+
+
+def create_artifact_version(
+    service_api: ServiceApi,
+    *,
+    artifact_type_name: str,
+    artifact_collection_name: str,
+    digest: str,
+    digest_algorithm: ArtifactDigestAlgorithm,
+    entity_name: str,
+    project_name: str,
+    run_name: str | None,
+    client_id: str | None = None,
+    sequence_client_id: str | None = None,
+    description: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    aliases: list[dict[str, str]] | None = None,
+    tags: list[dict[str, str]] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Create an artifact version from a digest.
+
+    Returns the created artifact and the collection's latest artifact before
+    the call, which is None for a new collection.
+    """
+    mutation = """
+        mutation CreateArtifact(
+            $artifactTypeName: String!,
+            $artifactCollectionNames: [String!],
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String,
+            $description: String,
+            $digest: String!,
+            $digestAlgorithm: ArtifactDigestAlgorithm!,
+            $aliases: [ArtifactAliasInput!],
+            $metadata: JSONString,
+            $clientID: ID,
+            $sequenceClientID: ID,
+            $tags: [TagInput!],
+        ) {
+            createArtifact(input: {
+                artifactTypeName: $artifactTypeName,
+                artifactCollectionNames: $artifactCollectionNames,
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                description: $description,
+                digest: $digest,
+                digestAlgorithm: $digestAlgorithm,
+                aliases: $aliases,
+                metadata: $metadata,
+                clientID: $clientID,
+                sequenceClientID: $sequenceClientID,
+                enableDigestDeduplication: true,
+                tags: $tags,
+            }) {
+                artifact {
+                    id
+                    state
+                    artifactSequence {
+                        id
+                        latestArtifact {
+                            id
+                            versionIndex
+                        }
+                    }
+                }
+            }
+        }
+        """
+    response = service_api.execute_graphql(
+        mutation,
+        {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "artifactTypeName": artifact_type_name,
+            "artifactCollectionNames": [artifact_collection_name],
+            "clientID": client_id,
+            "sequenceClientID": sequence_client_id,
+            "digest": digest,
+            "digestAlgorithm": digest_algorithm,
+            "description": description,
+            "aliases": list(aliases or []),
+            "tags": list(tags or []),
+            "metadata": json.dumps(util.make_safe_for_json(metadata))
+            if metadata
+            else None,
+        },
+    )
+    artifact = response["createArtifact"]["artifact"]
+    return artifact, artifact["artifactSequence"].get("latestArtifact")
+
+
+def update_artifact_metadata(
+    service_api: ServiceApi, artifact_id: str, metadata: dict[str, Any]
+) -> dict[str, Any]:
+    """Set the metadata of the given artifact version."""
+    mutation = """
+    mutation UpdateArtifact(
+        $artifactID: ID!,
+        $metadata: JSONString,
+    ) {
+        updateArtifact(input: {
+            artifactID: $artifactID,
+            metadata: $metadata,
+        }) {
+            artifact {
+                id
+            }
+        }
+    }
+    """
+    response = service_api.execute_graphql(
+        mutation, {"artifactID": artifact_id, "metadata": json.dumps(metadata)}
+    )
+    return response["updateArtifact"]["artifact"]

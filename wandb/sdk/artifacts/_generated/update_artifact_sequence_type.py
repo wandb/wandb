@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,11 +11,11 @@ from .fragments import ArtifactCollectionFragment
 
 
 class UpdateArtifactSequenceType(GQLResult):
-    result: Optional[UpdateArtifactSequenceTypeResult]
+    result: UpdateArtifactSequenceTypeResult | None
 
 
 class UpdateArtifactSequenceTypeResult(GQLResult):
-    artifact_collection: Optional[ArtifactCollectionFragment] = Field(
+    artifact_collection: ArtifactCollectionFragment | None = Field(
         alias="artifactCollection"
     )
 

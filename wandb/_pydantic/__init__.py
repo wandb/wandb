@@ -1,7 +1,6 @@
 """Internal utilities for working with pydantic."""
 
 __all__ = [
-    "IS_PYDANTIC_V2",
     "CompatBaseModel",
     "JsonableModel",
     "GQLBase",
@@ -10,7 +9,10 @@ __all__ = [
     "Connection",
     "ConnectionWithTotal",
     "Edge",
+    "FilterDict",
     "PageInfo",
+    "OrderValidator",
+    "PaginatorVars",
     "Typename",
     "GQLId",
     "AliasChoices",
@@ -22,20 +24,34 @@ __all__ = [
     "to_json",
     "from_json",
     "gql_typename",
+    "default_if_none",
     "ValidationError",
 ]
 
-# Available in all supported Pydantic versions.
-from pydantic import ValidationError
-
-from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
-from .field_types import GQLId, Typename
-from .pagination import Connection, ConnectionWithTotal, Edge, PageInfo
-from .utils import IS_PYDANTIC_V2, from_json, gql_typename, pydantic_isinstance, to_json
-from .v1_compat import (
+from pydantic import (
     AliasChoices,
+    ValidationError,
     computed_field,
     field_validator,
     model_validator,
-    to_camel,
+)
+from pydantic.alias_generators import to_camel
+
+from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
+from .field_types import GQLId, Typename
+from .pagination import (
+    Connection,
+    ConnectionWithTotal,
+    Edge,
+    FilterDict,
+    OrderValidator,
+    PageInfo,
+    PaginatorVars,
+)
+from .utils import (
+    default_if_none,
+    from_json,
+    gql_typename,
+    pydantic_isinstance,
+    to_json,
 )

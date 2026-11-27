@@ -2,19 +2,17 @@ package httplayers
 
 import "net/http"
 
-// ExtraHeaders adds default headers to every request.
-//
-// Headers already present on the request are preserved.
-func ExtraHeaders(headers http.Header) HTTPWrapper {
-	return extraHeaders{headers}
+// DefaultHeaders sets headers not present on a request to default values.
+func DefaultHeaders(headers http.Header) HTTPWrapper {
+	return defaultHeaders{headers}
 }
 
-type extraHeaders struct {
+type defaultHeaders struct {
 	headers http.Header
 }
 
 // WrapHTTP implements HTTPWrapper.WrapHTTP.
-func (h extraHeaders) WrapHTTP(send HTTPDoFunc) HTTPDoFunc {
+func (h defaultHeaders) WrapHTTP(send HTTPDoFunc) HTTPDoFunc {
 	if len(h.headers) == 0 {
 		return send
 	}

@@ -16,6 +16,12 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// DefaultMaxPoints is the global sanity limit for point interpolation.
+// It is set high enough to cover massive terminals but low enough to
+// prevent OOM crashes on scaling errors or malformed data.
+// Apps may override this at init() time before constructing models.
+var DefaultMaxPoints = 10000
+
 // BrailleGrid wraps a runes.PatternDotsGrid
 // to implements a 2D grid with (X, Y) floating point coordinates
 // used to display Braille Pattern runes.
@@ -431,6 +437,118 @@ func DrawColumnBottomToTop(m *canvas.Model, p canvas.Point, v float64, s lipglos
 	}
 }
 
+// DrawColumnTopToBottom draws block element runes going down from given point,
+// for bars that extend below an axis. The value of float64 is the number of
+// characters to draw going down. Full blocks are drawn for the integer part.
+// The fractional part is drawn in the last cell as the inverse lower block
+// element in reverse video, so the bar color fills the top of that cell.
+// If that last cell already holds a full block from a longer column drawn
+// earlier (stacked segments), the two foreground colors are combined
+// instead: the new color fills the top and the existing color the bottom.
+// If both segments end in the same fractional cell, its total extent is
+// preserved using the larger segment's color (the new segment wins ties).
+// Applies style to all block runes.
+// Coordinates (0,0) is top left of canvas.
+func DrawColumnTopToBottom(m *canvas.Model, p canvas.Point, v float64, s lipgloss.Style) {
+	if v <= 0 {
+		return
+	}
+	n := math.Floor(v)
+	fb := canvas.NewCellWithStyle(runes.FullBlock, s)
+	end := int(n)
+	for i := 0; i < end; i++ {
+		m.SetCell(canvas.Point{X: p.X, Y: p.Y + i}, fb)
+	}
+	r := runes.LowerBlockElementFromFloat64(v - n)
+	if r == runes.Null {
+		return
+	}
+	last := canvas.Point{X: p.X, Y: p.Y + end}
+	if r == runes.FullBlock {
+		m.SetCell(last, fb)
+		return
+	}
+	drawInverseEndRune(m, last, runes.InverseLowerBlockElement(r), s)
+}
+
+// DrawRowRightToLeft draws block element runes going left from given point,
+// for bars that extend left of an axis. The value of float64 is the number of
+// characters to draw going left. Full blocks are drawn for the integer part.
+// The fractional part is drawn in the last cell as the inverse left block
+// element in reverse video, so the bar color fills the right of that cell.
+// If that last cell already holds a full block from a longer row drawn
+// earlier (stacked segments), the two foreground colors are combined
+// instead: the new color fills the right and the existing color the left.
+// If both segments end in the same fractional cell, its total extent is
+// preserved using the larger segment's color (the new segment wins ties).
+// Applies style to all block runes.
+// Coordinates (0,0) is top left of canvas.
+func DrawRowRightToLeft(m *canvas.Model, p canvas.Point, v float64, s lipgloss.Style) {
+	if v <= 0 {
+		return
+	}
+	n := math.Floor(v)
+	fb := canvas.NewCellWithStyle(runes.FullBlock, s)
+	end := int(n)
+	for i := 0; i < end; i++ {
+		m.SetCell(canvas.Point{X: p.X - i, Y: p.Y}, fb)
+	}
+	r := runes.LeftBlockElementFromFloat64(v - n)
+	if r == runes.Null {
+		return
+	}
+	last := canvas.Point{X: p.X - end, Y: p.Y}
+	if r == runes.FullBlock {
+		m.SetCell(last, fb)
+		return
+	}
+	drawInverseEndRune(m, last, runes.InverseLeftBlockElement(r), s)
+}
+
+// drawInverseEndRune draws the fractional end cell of a column or row that
+// grows away from an axis in the downward or leftward direction. The rune
+// is the inverse block element, so its glyph covers the part of the cell
+// that is NOT the bar. Over an existing full block the glyph takes the
+// existing color and the background takes the new color; over anything
+// else the glyph is drawn in reverse video so the terminal background
+// shows through the glyph and the bar color fills the rest.
+// When two segments and the background share a fractional cell, only two
+// colors can be represented. Preserve the existing extent and use the
+// segment occupying more of that extent (the new segment wins ties).
+func drawInverseEndRune(m *canvas.Model, p canvas.Point, r rune, s lipgloss.Style) {
+	c := m.Cell(p)
+	if c.Rune == runes.FullBlock {
+		rs := s.Copy().Foreground(c.Style.GetForeground()).Background(s.GetForeground())
+		m.SetCell(p, canvas.NewCellWithStyle(r, rs))
+		return
+	}
+	sameDirection := (runes.IsLowerBlockElement(r) && runes.IsLowerBlockElement(c.Rune)) ||
+		(runes.IsLeftBlockElement(r) && runes.IsLeftBlockElement(c.Rune))
+	if sameDirection {
+		if !c.Style.GetReverse() {
+			// This cell already joins two segments. Retain the outer color
+			// instead of replacing it with the terminal background.
+			rs := s.Copy().Foreground(c.Style.GetForeground()).Background(s.GetForeground()).Reverse(false)
+			m.SetCell(p, canvas.NewCellWithStyle(r, rs))
+			return
+		}
+		filled := func(block rune) int {
+			if runes.IsLowerBlockElement(block) {
+				return int(runes.FullBlock - block)
+			}
+			return int(block - runes.FullBlock)
+		}
+		oldFill, newFill := filled(c.Rune), filled(r)
+		if newFill < oldFill {
+			if newFill*2 >= oldFill {
+				m.SetCell(p, canvas.NewCellWithStyle(c.Rune, s.Copy().Reverse(true)))
+			}
+			return
+		}
+	}
+	m.SetCell(p, canvas.NewCellWithStyle(r, s.Copy().Reverse(true)))
+}
+
 // DrawColumnRune draws a column rune on to the canvas at given (X,Y) coordinates with given style.
 // The function checks for existing column runes already on the canvas and attempts to
 // draws runes such that the runes appear overlapping.
@@ -593,12 +711,33 @@ func abs(i int) int {
 
 // GetFullCirclePoints returns a []canvas.Point containing points
 // that approximates a filled circle of radius r for center Point c.
-func GetFullCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
+// If more than DefaultMaxPoints are produced, nil is returned.
+func GetFullCirclePoints(c canvas.Point, r int) []canvas.Point {
+	return GetFullCirclePointsWithLimit(c, r, DefaultMaxPoints)
+}
+
+// GetFullCirclePointsWithLimit returns a []canvas.Point containing points
+// that approximates a filled circle of radius r for center Point c.
+// If limit is <= 0, DefaultMaxPoints is used. Returns nil if limit is exceeded.
+func GetFullCirclePointsWithLimit(c canvas.Point, r int, limit int) (p []canvas.Point) {
 	if r <= 0 {
 		return
 	}
+	if limit <= 0 {
+		limit = DefaultMaxPoints
+	}
+
+	// Fast fail: area of a circle is approx pi * r^2.
+	// Using 3 * r^2 as a conservative lower bound for the check.
+	if 3*r*r > limit {
+		return nil
+	}
+
 	// sort points
-	cPoints := GetCirclePoints(c, r)
+	cPoints := GetCirclePointsWithLimit(c, r, limit)
+	if cPoints == nil {
+		return nil
+	}
 	sort.Slice(cPoints, func(i, j int) bool {
 		a := cPoints[i]
 		b := cPoints[j]
@@ -614,11 +753,17 @@ func GetFullCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
 		// if new row, draw line between previous row first and last points
 		if v.Y != l.Y {
 			for i := f.X; i < l.X; i++ {
+				if len(p) >= limit {
+					return nil
+				}
 				p = append(p, canvas.Point{X: i, Y: l.Y})
 			}
 			f = v
 		}
 		l = v
+		if len(p) >= limit {
+			return nil
+		}
 		p = append(p, v)
 	}
 	return
@@ -626,23 +771,48 @@ func GetFullCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
 
 // GetCirclePoints returns a []canvas.Point containing points
 // that approximates a circle of radius r for center Point c.
-func GetCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
+// If more than DefaultMaxPoints are produced, nil is returned.
+func GetCirclePoints(c canvas.Point, r int) []canvas.Point {
+	return GetCirclePointsWithLimit(c, r, DefaultMaxPoints)
+}
+
+// GetCirclePointsWithLimit returns a []canvas.Point containing points
+// that approximates a circle of radius r for center Point c.
+// If limit is <= 0, DefaultMaxPoints is used. Returns nil if limit is exceeded.
+func GetCirclePointsWithLimit(c canvas.Point, r int, limit int) (p []canvas.Point) {
 	if r <= 0 {
 		return
 	}
+	if limit <= 0 {
+		limit = DefaultMaxPoints
+	}
+
+	// Fast fail: Bresenham's 8-way symmetry produces ~5.66*r points
+	// (8 per iteration over ~r/sqrt(2) iterations). 4*r is a conservative
+	// lower bound on the actual count, so if it already exceeds the limit
+	// the real output certainly will.
+	if 4*r > limit {
+		return nil
+	}
+
 	t1 := r / 16
 	t2 := 0
 	x := r
 	y := 0
 	for x >= y {
-		p = append(p, c.Add(canvas.Point{X: x, Y: y}))
-		p = append(p, c.Add(canvas.Point{X: x, Y: -y}))
-		p = append(p, c.Add(canvas.Point{X: -x, Y: y}))
-		p = append(p, c.Add(canvas.Point{X: -x, Y: -y}))
-		p = append(p, c.Add(canvas.Point{X: y, Y: x}))
-		p = append(p, c.Add(canvas.Point{X: y, Y: -x}))
-		p = append(p, c.Add(canvas.Point{X: -y, Y: x}))
-		p = append(p, c.Add(canvas.Point{X: -y, Y: -x}))
+		if len(p)+8 > limit {
+			return nil
+		}
+		p = append(p,
+			c.Add(canvas.Point{X: x, Y: y}),
+			c.Add(canvas.Point{X: x, Y: -y}),
+			c.Add(canvas.Point{X: -x, Y: y}),
+			c.Add(canvas.Point{X: -x, Y: -y}),
+			c.Add(canvas.Point{X: y, Y: x}),
+			c.Add(canvas.Point{X: y, Y: -x}),
+			c.Add(canvas.Point{X: -y, Y: x}),
+			c.Add(canvas.Point{X: -y, Y: -x}),
+		)
 		y++
 		t1 += y
 		t2 = t1 - x
@@ -656,8 +826,32 @@ func GetCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
 
 // GetLinePoints returns a []canvas.Point containing points
 // that approximates a line between points p1 and p2.
+// If more than DefaultMaxPoints are produced, nil is returned.
 func GetLinePoints(p1 canvas.Point, p2 canvas.Point) []canvas.Point {
-	if abs(p2.Y-p1.Y) < abs(p2.X-p1.X) {
+	return GetLinePointsWithLimit(p1, p2, DefaultMaxPoints)
+}
+
+// GetLinePointsWithLimit returns a []canvas.Point containing points
+// that approximates a line between points p1 and p2.
+// If limit is <= 0, DefaultMaxPoints is used. Returns nil if limit is exceeded.
+func GetLinePointsWithLimit(p1 canvas.Point, p2 canvas.Point, limit int) []canvas.Point {
+	if limit <= 0 {
+		limit = DefaultMaxPoints
+	}
+
+	// Fast fail: Bresenham's line algorithm produces exactly one point
+	// per unit of the longest axis.
+	dx := abs(p2.X - p1.X)
+	dy := abs(p2.Y - p1.Y)
+	count := dx
+	if dy > dx {
+		count = dy
+	}
+	if count+1 > limit {
+		return nil
+	}
+
+	if dy < dx {
 		if p1.X > p2.X {
 			return getLinePointsLow(p2, p1)
 		} else {
@@ -807,6 +1001,106 @@ func DrawCandlestickBottomToTop(m *canvas.Model, p canvas.Point, l, bl, bh, h fl
 		DrawCandlestickRune(m, canvas.Point{X: p.X, Y: p.Y - i}, runes.LineVertical, s)
 	}
 	DrawCandlestickRune(m, canvas.Point{X: p.X, Y: p.Y - int(hf)}, hr, s)
+}
+
+// DrawCandlestickBottomToTopWide draws a candle whose body spans `width`
+// columns centered on p.X; the wick renders only in the center column.
+// Side columns are drawn as body-only candles (l=bl, h=bh), so the body
+// runes compose from the existing single-column primitive. width < 1 is
+// treated as 1; width 1 is exactly DrawCandlestickBottomToTop. Even widths
+// render as the next lower odd width plus one extra column on the right.
+// Columns outside the canvas are clipped by the underlying rune drawing.
+func DrawCandlestickBottomToTopWide(m *canvas.Model, p canvas.Point, width int, l, bl, bh, h float64, s lipgloss.Style) {
+	if width < 1 {
+		width = 1
+	}
+	left := p.X - (width-1)/2
+	for x := left; x < left+width; x++ {
+		q := canvas.Point{X: x, Y: p.Y}
+		if x == p.X {
+			DrawCandlestickBottomToTop(m, q, l, bl, bh, h, s)
+		} else {
+			DrawCandlestickBottomToTop(m, q, bl, bl, bh, bh, s)
+		}
+	}
+}
+
+// DrawCandlestickBlockBottomToTop draws a candle with a solid block body:
+// interior body cells are FullBlock, and each body boundary cell renders
+// the same POST-MERGE rune the line style would render at that junction —
+// a half block (▄/▀) where the line style keeps a half-tip, or FullBlock
+// where the line style upgrades the junction to a full heavy line (┃) —
+// so multi-cell bodies never show a half-cell slit against the interior.
+// Wick cells use the light line runes (│ ╵ ╷), again matching the line
+// style's post-merge rune where a wick tip adjoins the body. Where a body
+// boundary and a wick would share a cell, the block wins and the wick
+// continues in the adjacent cell. A body confined to a single cell renders
+// as one FullBlock. Value semantics of l, bl, bh, h match
+// DrawCandlestickBottomToTop; coordinates (0,0) is top left of canvas.
+func DrawCandlestickBlockBottomToTop(m *canvas.Model, p canvas.Point, l, bl, bh, h float64, s lipgloss.Style) {
+	set := func(row int, r rune) {
+		m.SetCell(canvas.Point{X: p.X, Y: p.Y - row}, canvas.NewCellWithStyle(r, s))
+	}
+	lf, blf := int(math.Floor(l)), int(math.Floor(bl))
+	bhf, hf := int(math.Floor(bh)), int(math.Floor(h))
+
+	// bottom wick — only rows below the body (the block wins shared cells).
+	// The line style merges this tip's ╷ with the body's upward segment
+	// into │ (graph.go DrawCandlestickBottomToTop, lines 845-851); mirror
+	// that merge here so the wick doesn't leave a slit against the body.
+	if lf < blf {
+		lr := runes.LineUp
+		if l-math.Floor(l) < 0.5 {
+			lr = runes.LineVertical // merged ╷ → │
+		}
+		set(lf, lr)
+		for i := lf + 1; i < blf; i++ {
+			set(i, runes.LineVertical)
+		}
+	}
+
+	// body
+	if blf == bhf {
+		set(blf, runes.FullBlock)
+	} else {
+		// The line style merges the body-bottom boundary's ╻ with the
+		// body-interior segment above it into ┃ (lines 863-868); mirror
+		// that merge as a full block so there's no slit against the
+		// interior. frac(bl) >= 0.5 is not merged by the line style, so
+		// it keeps the half-block (▀).
+		blr := runes.UpperHalfBlock // line style ╹
+		if bl-math.Floor(bl) < 0.5 {
+			blr = runes.FullBlock // merged ╻ → ┃
+		}
+		set(blf, blr)
+		for i := blf + 1; i < bhf; i++ {
+			set(i, runes.FullBlock)
+		}
+		// The line style merges the body-top boundary's ╹ with the
+		// body-interior segment below it into ┃ (lines 858-862); mirror
+		// that merge as a full block. frac(bh) < 0.5 is not merged by the
+		// line style, so it keeps the half-block (▄).
+		bhr := runes.LowerBlockFour // line style ╻ → ▄
+		if bh-math.Floor(bh) >= 0.5 {
+			bhr = runes.FullBlock // merged ╹ → ┃
+		}
+		set(bhf, bhr)
+	}
+
+	// top wick — only rows above the body. The line style merges this
+	// tip's ╵ with the body's downward segment into │ (lines 881-887);
+	// mirror that merge here so the wick doesn't leave a slit against
+	// the body.
+	if bhf < hf {
+		hr := runes.LineDown
+		if h-math.Floor(h) >= 0.5 {
+			hr = runes.LineVertical // merged ╵ → │
+		}
+		for i := bhf + 1; i < hf; i++ {
+			set(i, runes.LineVertical)
+		}
+		set(hf, hr)
+	}
 }
 
 // DrawCandlestickRune draws a canndlestick rune on to the canvas

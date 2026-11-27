@@ -1,8 +1,10 @@
 package leet
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
+	"strings"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -25,9 +27,18 @@ type SystemMetricsGrid struct {
 
 	// Charts state.
 	byBaseKey   map[string]systemMetricChart // baseKey -> chart
-	ordered     []systemMetricChart          // charts sorted by title
+	ordered     []systemMetricChart          // charts sorted by rank, then title
 	filtered    []systemMetricChart          // charts matching current filter
 	currentPage [][]systemMetricChart        // current page view
+
+	// classified caches MatchMetricDef results per metric name; stats records
+	// repeat the same names and the match scans ~115 regexes.
+	classified map[string]metricClassification
+
+	// rank orders charts by base key ahead of the title sort; nil sorts
+	// by title alone. ranks caches it per chart.
+	rank  func(baseKey string) int
+	ranks map[systemMetricChart]int
 
 	// Filter state.
 	filter *Filter
@@ -59,6 +70,8 @@ func NewSystemMetricsGrid(
 		byBaseKey:  make(map[string]systemMetricChart),
 		ordered:    make([]systemMetricChart, 0),
 		filtered:   make([]systemMetricChart, 0),
+		classified: make(map[string]metricClassification),
+		ranks:      make(map[systemMetricChart]int),
 		filter:     filter,
 		focus:      focusState,
 		width:      width,
@@ -76,6 +89,11 @@ func NewSystemMetricsGrid(
 		width, height, size.Rows, size.Cols))
 
 	return smg
+}
+
+// SetChartRank orders charts by rank of their base key, then by title.
+func (g *SystemMetricsGrid) SetChartRank(rank func(baseKey string) int) {
+	g.rank = rank
 }
 
 // calculateChartDimensions computes dimensions for system metric charts.
@@ -158,6 +176,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		ColorProvider: g.anchoredSeriesColorProvider(baseIdx),
 		Now:           now,
 	})
+	lineChart.SetChartGuides(g.config.ChartGuides())
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
 
 	if !def.Percentage {
@@ -171,7 +190,11 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		Colors: FrenchFriesColors(g.config.FrenchFriesColorScheme()),
 		Now:    now,
 	})
-	return newFrenchFriesToggleChart(lineChart, frenchFriesChart)
+	chart := newFrenchFriesToggleChart(lineChart, frenchFriesChart)
+	if def.ChartKind == MetricChartKindFrenchFries {
+		chart.ToggleHeatmapMode()
+	}
+	return chart
 }
 
 // AddDataPoint adds a new data point to the appropriate metric chart.
@@ -202,28 +225,34 @@ func (g *SystemMetricsGrid) ProcessStats(msg StatsMsg) {
 	}
 }
 
+// metricClassification is one metric name's cached definition lookup.
+type metricClassification struct {
+	def        *MetricDef // nil for unrecognized metrics
+	baseKey    string
+	seriesName string
+}
+
 // addDataPoint adds a sample and reports whether the chart set changed.
 func (g *SystemMetricsGrid) addDataPoint(
 	metricName string,
 	timestamp int64,
 	value float64,
 ) bool {
-	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
-		metricName, timestamp, value))
-
-	def := MatchMetricDef(metricName)
-	if def == nil {
-		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s", metricName))
+	cls, ok := g.classified[metricName]
+	if !ok {
+		cls.def = MatchMetricDef(metricName)
+		if cls.def != nil {
+			cls.baseKey = ExtractBaseKey(metricName)
+			cls.seriesName = ExtractSeriesName(metricName)
+		}
+		g.classified[metricName] = cls
+	}
+	if cls.def == nil {
 		return false
 	}
 
-	baseKey := ExtractBaseKey(metricName)
-	seriesName := ExtractSeriesName(metricName)
-
-	chart, created := g.getOrCreateChart(baseKey, def)
-	chart.AddDataPoint(seriesName, timestamp, value)
+	chart, created := g.getOrCreateChart(cls.baseKey, cls.def)
+	chart.AddDataPoint(cls.seriesName, timestamp, value)
 	return created
 }
 
@@ -237,6 +266,9 @@ func (g *SystemMetricsGrid) getOrCreateChart(
 		g.logger.Debug(fmt.Sprintf("systemmetricsgrid: creating new chart for baseKey=%s", baseKey))
 		chart = g.createMetricChart(def)
 		g.byBaseKey[baseKey] = chart
+		if g.rank != nil {
+			g.ranks[chart] = g.rank(baseKey)
+		}
 		g.addChart(chart)
 		return chart, true
 	}
@@ -246,8 +278,11 @@ func (g *SystemMetricsGrid) getOrCreateChart(
 // addChart adds a chart to the ordered list.
 func (g *SystemMetricsGrid) addChart(chart systemMetricChart) {
 	g.ordered = append(g.ordered, chart)
-	sort.Slice(g.ordered, func(i, j int) bool {
-		return g.ordered[i].Title() < g.ordered[j].Title()
+	slices.SortFunc(g.ordered, func(a, b systemMetricChart) int {
+		return cmp.Or(
+			cmp.Compare(g.ranks[a], g.ranks[b]),
+			strings.Compare(a.Title(), b.Title()),
+		)
 	})
 
 	g.logger.Debug(fmt.Sprintf(
@@ -478,6 +513,21 @@ func (g *SystemMetricsGrid) focusedChart() systemMetricChart {
 	return g.currentPage[g.focus.Row][g.focus.Col]
 }
 
+// SetChartGuides applies the background guide style to all charts and
+// redraws the visible ones. Grids apply to line charts only: the French
+// Fries heatmap fills the plot area, leaving no background to show through.
+func (g *SystemMetricsGrid) SetChartGuides(guides string) {
+	for _, chart := range g.ordered {
+		switch c := chart.(type) {
+		case *TimeSeriesLineChart:
+			c.SetChartGuides(guides)
+		case *frenchFriesToggleChart:
+			c.line.SetChartGuides(guides)
+		}
+	}
+	g.drawVisible()
+}
+
 func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {
 	chart := g.focusedChart()
 	if chart == nil || !chart.ToggleYScale() {
@@ -490,6 +540,15 @@ func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {
 func (g *SystemMetricsGrid) toggleFocusedChartHeatmapMode() bool {
 	chart := g.focusedChart()
 	if chart == nil || !chart.SupportsHeatmap() || !chart.ToggleHeatmapMode() {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
+}
+
+func (g *SystemMetricsGrid) scrollFocusedChartRows(delta int) bool {
+	chart := g.focusedChart()
+	if chart == nil || !chart.ScrollRows(delta) {
 		return false
 	}
 	chart.DrawIfNeeded()
@@ -543,23 +602,19 @@ func (g *SystemMetricsGrid) cycleFocusedChartMode() bool {
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: invalid dimensions %dx%d, skipping", width, height))
 		return
+	}
+	if g.width == width && g.height == height {
+		// Grid configuration can change without a terminal resize. Only skip
+		// rebuilding when the current page still matches the effective grid.
+		size := g.effectiveGridSize()
+		if len(g.currentPage) == size.Rows && len(g.currentPage[0]) == size.Cols {
+			return
+		}
 	}
 
 	g.width = width
 	g.height = height
-
-	dims := g.calculateChartDimensions()
-	if dims.CellW <= 0 || dims.CellH <= 0 ||
-		dims.CellW < MinMetricChartWidth ||
-		dims.CellH < MinMetricChartHeight {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: calculated dimensions %dx%d invalid, skipping",
-			dims.CellW, dims.CellH))
-		return
-	}
 
 	size := g.effectiveGridSize()
 	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))
@@ -713,7 +768,7 @@ func renderSystemMetricChartTitle(chart systemMetricChart, maxWidth int) string 
 		if showMode {
 			suffixWidth += lipgloss.Width(extras.mode)
 		}
-		if maxWidth-suffixWidth >= 1 {
+		if maxWidth-suffixWidth >= 3 {
 			break
 		}
 		if showMode {
@@ -897,6 +952,16 @@ func (g *SystemMetricsGrid) EndInspection() {
 	}
 	chart.EndInspection()
 	chart.DrawIfNeeded()
+}
+
+// InspectionX returns the inspected time, in unix seconds, of the focused chart.
+func (g *SystemMetricsGrid) InspectionX() (float64, bool) {
+	chart := g.focusedChart()
+	if chart == nil {
+		return 0, false
+	}
+	x, _, ok := chart.InspectionData()
+	return x, ok
 }
 
 // broadcastInspectAtDataX applies InspectAtDataX to all visible charts on the current page.

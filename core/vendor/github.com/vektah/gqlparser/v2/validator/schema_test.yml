@@ -63,6 +63,8 @@ object types:
     error:
       message: 'OBJECT InvalidObject2: must define one or more fields.'
       locations: [{line: 6, column: 6}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: check reserved names on type name
     input: |
       type __FooBar {
@@ -160,6 +162,8 @@ interfaces:
     error:
       message: 'INTERFACE InvalidInterface2: must define one or more fields.'
       locations: [{line: 6, column: 11}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
 
   - name: check reserved names on type name
     input: |
@@ -299,6 +303,37 @@ interfaces:
           id: ID!
       }
 
+  - name: may implement an interface through an extension
+    input: |
+      interface IA {
+          id: ID!
+      }
+
+      interface IIA {
+          id: ID!
+      }
+
+      extend interface IIA implements IA
+
+      type A implements IIA & IA {
+          id: ID!
+      }
+
+  - name: must have all fields from an interface that an extension adds
+    input: |
+      interface IA {
+          id: ID!
+      }
+
+      interface IIA {
+          name: String
+      }
+
+      extend interface IIA implements IA
+    error:
+      message: 'For IIA to implement IA it must have a field called id.'
+      locations: [{line: 5, column: 11}]
+
   - name: Type Foo must implement Baz because it is implemented by Bar
     input: |
       interface Baz {
@@ -332,6 +367,108 @@ interfaces:
       message: 'Type Circular1 cannot implement Circular2 because it would create a circular reference.'
       locations: [{line: 1, column: 11}]
 
+  - name: interface cannot implement itself
+    input: |
+      interface Node implements Node {
+        id: ID!
+      }
+    error:
+      message: 'Type Node cannot implement itself because it would create a circular reference.'
+      locations: [{line: 1, column: 11}]
+
+  - name: self-implementation is reported before repetition
+    input: |
+      interface Node implements Node & Node {
+        id: ID!
+      }
+    error:
+      message: 'Type Node cannot implement itself because it would create a circular reference.'
+      locations: [{line: 1, column: 11}]
+
+  - name: object cannot implement the same interface twice
+    input: |
+      interface Node {
+        id: ID!
+      }
+
+      type Foo implements Node & Node {
+        id: ID!
+      }
+    error:
+      message: 'Type Foo can only implement Node once.'
+      locations: [{line: 5, column: 6}]
+
+  - name: interface cannot implement the same interface twice
+    input: |
+      interface Node {
+        id: ID!
+      }
+
+      interface Resource implements Node & Node {
+        id: ID!
+      }
+    error:
+      message: 'Type Resource can only implement Node once.'
+      locations: [{line: 5, column: 11}]
+
+  - name: extension cannot implement an interface again
+    input: |
+      interface Node {
+        id: ID!
+      }
+
+      type Foo implements Node {
+        id: ID!
+      }
+
+      extend type Foo implements Node
+    error:
+      message: 'Type Foo can only implement Node once.'
+      locations: [{line: 5, column: 6}]
+
+  - name: extension may implement an additional interface
+    input: |
+      interface Node {
+        id: ID!
+      }
+
+      interface Named {
+        name: String
+      }
+
+      type Foo implements Node {
+        id: ID!
+        name: String
+      }
+
+      extend type Foo implements Named
+
+  - name: interface extension cannot implement itself
+    input: |
+      interface Node {
+        id: ID!
+      }
+
+      extend interface Node implements Node
+    error:
+      message: 'Type Node cannot implement itself because it would create a circular reference.'
+      locations: [{line: 1, column: 11}]
+
+  - name: interface extension cannot implement an interface again
+    input: |
+      interface Node {
+        id: ID!
+      }
+
+      interface Resource implements Node {
+        id: ID!
+      }
+
+      extend interface Resource implements Node
+    error:
+      message: 'Type Resource can only implement Node once.'
+      locations: [{line: 5, column: 11}]
+
 inputs:
   - name: must define one or more input fields
     input: |
@@ -352,6 +489,8 @@ inputs:
     error:
       message: 'INPUT_OBJECT InvalidInput2: must define one or more input fields.'
       locations: [{line: 6, column: 7}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: check reserved names on type name
     input: |
       input __FooBar {
@@ -385,6 +524,129 @@ inputs:
     error:
       message: 'UNION a: field must be one of SCALAR, ENUM, INPUT_OBJECT.'
       locations: [{line: 3, column: 13}]
+
+  - name: cannot reference itself through a non-null field
+    input: |
+      input T {
+        self: T!
+      }
+    error:
+      message: 'Cannot reference Input Object "T" within itself through a series of non-null fields: "self".'
+      locations: [{line: 2, column: 3}]
+
+  - name: cannot reference itself through a chain of non-null fields
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        nextInLoop: C!
+      }
+      input C {
+        closeLoop: A!
+      }
+    error:
+      message: 'Cannot reference Input Object "A" within itself through a series of non-null fields: "startLoop.nextInLoop.closeLoop".'
+      locations: [{line: 2, column: 3}]
+
+  - name: cannot reference itself through a non-null field added by an extension
+    input: |
+      input T {
+        id: ID
+      }
+      extend input T {
+        self: T!
+      }
+    error:
+      message: 'Cannot reference Input Object "T" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot reference itself through a non-null field on a nested cycle
+    input: |
+      input Outer {
+        inner: Inner!
+      }
+      input Inner {
+        self: Inner!
+      }
+    error:
+      message: 'Cannot reference Input Object "Inner" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot reference itself when an earlier input object is cycle free
+    input: |
+      input Entry {
+        maybe: Loop
+      }
+      input Loop {
+        self: Loop!
+      }
+    error:
+      message: 'Cannot reference Input Object "Loop" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: can reference itself through a nullable field
+    input: |
+      input T {
+        self: T
+      }
+
+  - name: can reference itself through a list field
+    input: |
+      input T {
+        a: [T!]!
+        b: [T]!
+        c: [T!]
+        d: [T]
+        e: [[T!]!]!
+      }
+
+  - name: can reference itself when the chain is broken by a list
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        loopBack: [A!]!
+      }
+
+  - name: can reference itself when the chain is broken by a nullable field
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        nextInLoop: C
+      }
+      input C {
+        closeLoop: A!
+      }
+
+  - name: can reference the same input object twice without a cycle
+    input: |
+      input A {
+        b: B!
+        c: C!
+      }
+      input B {
+        c: C!
+      }
+      input C {
+        id: ID!
+      }
+
+  - name: default values cannot repeat an input field
+    input: |
+      input Point {
+        x: Int
+        y: Int
+      }
+      input Shape {
+        origin: Point = {x: 1, y: 2, x: 3}
+      }
+    error:
+      message: 'There can be only one input field named "x".'
+      locations: [{line: 6, column: 32}]
 
 args:
   - name: Valid arg types
@@ -425,6 +687,85 @@ args:
       message: 'cannot use Interface as argument a because INTERFACE is not a valid input type'
       locations: [{line: 2, column: 16}]
 
+  - name: cannot be duplicated on an object field
+    input: |
+      type Query {
+        f(id: ID, name: String, id: String): Boolean
+      }
+    error:
+      message: 'Argument Query.f(id:) can only be defined once.'
+      locations: [{line: 2, column: 27}]
+
+  - name: cannot be duplicated on an interface field
+    input: |
+      interface Node {
+        f(id: ID, id: ID): Boolean
+      }
+    error:
+      message: 'Argument Node.f(id:) can only be defined once.'
+      locations: [{line: 2, column: 13}]
+
+  - name: same name can be used on different fields
+    input: |
+      type Query {
+        a(id: ID): Boolean
+        b(id: ID): Boolean
+      }
+
+  - name: default values cannot repeat an input field
+    input: |
+      input Point {
+        x: Int
+        y: Int
+      }
+      type Query {
+        f(at: Point = {x: 1, x: 2}): Boolean
+      }
+    error:
+      message: 'There can be only one input field named "x".'
+      locations: [{line: 6, column: 24}]
+
+  - name: default values cannot repeat an input field first set to null
+    input: |
+      input Point {
+        x: Int
+      }
+      type Query {
+        f(at: Point = {x: null, x: 2}): Boolean
+      }
+    error:
+      message: 'There can be only one input field named "x".'
+      locations: [{line: 5, column: 27}]
+
+  - name: default values cannot repeat an input field in a nested list
+    input: |
+      input Point {
+        x: Int
+        y: Int
+      }
+      input Path {
+        points: [Point]
+      }
+      type Query {
+        f(path: Path = {points: [{x: 1}, {y: 1, y: 2}]}): Boolean
+      }
+    error:
+      message: 'There can be only one input field named "y".'
+      locations: [{line: 9, column: 43}]
+
+  - name: default values can use the same field name at different depths
+    input: |
+      input Inner {
+        a: Int
+      }
+      input Outer {
+        a: Int
+        inner: Inner
+      }
+      type Query {
+        f(o: Outer = {a: 1, inner: {a: 2}}, others: [Inner] = [{a: 1}, {a: 2}]): Boolean
+      }
+
 enums:
   - name: must define one or more unique enum values
     input: |
@@ -445,6 +786,28 @@ enums:
     error:
       message: 'ENUM InvalidEnum2: must define one or more unique enum values.'
       locations: [{line: 6, column: 6}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
+  - name: cannot be duplicated enum value at same definition
+    input: |
+      enum A {
+        FOO
+        FOO
+      }
+    error:
+      message: "Enum value A.FOO can only be defined once."
+      locations: [{line: 3, column: 3}]
+  - name: cannot be duplicated enum value across extension
+    input: |
+      enum A {
+        FOO
+      }
+      extend enum A {
+        FOO
+      }
+    error:
+      message: "Enum value A.FOO can only be defined once."
+      locations: [{line: 5, column: 3}]
   - name: check reserved names on type name
     input: |
       enum __FooBar {
@@ -454,8 +817,70 @@ enums:
     error:
       message: 'Name "__FooBar" must not begin with "__", which is reserved by GraphQL introspection.'
       locations: [{line: 1, column: 6}]
+  - name: check reserved names on enum value
+    input: |
+      enum FooBar {
+        A
+        __B
+      }
+    error:
+      message: 'Name "__B" must not begin with "__", which is reserved by GraphQL introspection.'
+      locations: [{line: 3, column: 3}]
+  - name: check reserved names on enum value from extension
+    input: |
+      enum FooBar {
+        A
+      }
+      extend enum FooBar {
+        __B
+      }
+    error:
+      message: 'Name "__B" must not begin with "__", which is reserved by GraphQL introspection.'
+      locations: [{line: 5, column: 3}]
+  - name: allows enum value with a single leading underscore
+    input: |
+      enum FooBar {
+        _B
+      }
 
 unions:
+  - name: must define one or more member types
+    input: |
+      directive @D on UNION
+
+      type A {
+        id: ID
+      }
+
+      union InvalidUnion @D
+
+      union ValidUnion = A
+      extend union ValidUnion @D
+    error:
+      message: 'UNION InvalidUnion: must define one or more member types.'
+      locations: [{line: 7, column: 7}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
+  - name: member types can be added by an extension
+    input: |
+      directive @D on UNION
+
+      type A {
+        id: ID
+      }
+
+      union ValidUnion @D
+      extend union ValidUnion = A
+  - name: extension without a base union must define member types
+    input: |
+      directive @D on UNION
+
+      extend union InvalidUnion @D
+    error:
+      message: 'UNION InvalidUnion: must define one or more member types.'
+      locations: [{line: 3, column: 14}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: union types must be defined
     input: |
       union Foo = Bar | Baz
@@ -474,6 +899,37 @@ unions:
     error:
       message: "UNION type \"Baz\" must be OBJECT."
       locations: [{line: 1, column: 7}]
+  - name: cannot include same union member twice at same definition
+    input: |
+      union Foo = Bar | Bar
+      type Bar {
+        id: ID
+      }
+    error:
+      message: "Union type Foo can only include type Bar once."
+      locations: [{line: 1, column: 19}]
+  - name: cannot include same union member twice across extension
+    input: |
+      union Foo = Bar
+      extend union Foo = Bar
+      type Bar {
+        id: ID
+      }
+    error:
+      message: "Union type Foo can only include type Bar once."
+      locations: [{line: 2, column: 20}]
+  - name: reports the second occurrence among multiple members
+    input: |
+      union Foo = Bar | Baz | Bar
+      type Bar {
+        id: ID
+      }
+      type Baz {
+        id: ID
+      }
+    error:
+      message: "Union type Foo can only include type Bar once."
+      locations: [{line: 1, column: 25}]
 
   - name: unions of pure type extensions are valid
     input: |
@@ -570,6 +1026,45 @@ directives:
     error:
       message: "Directive A cannot refer to itself."
       locations: [{line: 1, column: 25}]
+
+  - name: non-repeatable directive cannot be used more than once per location
+    input: |
+      directive @A on FIELD_DEFINITION
+      type User {
+        name: String @A @A
+      }
+    error:
+      message: "The directive A can only be used once at this location."
+      locations: [{line: 3, column: 20}]
+  - name: non-repeatable directive cannot be used more than once on an enum value
+    input: |
+      directive @A on ENUM_VALUE
+      enum E {
+        FOO @A @A
+      }
+    error:
+      message: "The directive A can only be used once at this location."
+      locations: [{line: 3, column: 11}]
+  - name: repeatable directive can be used more than once per location
+    input: |
+      directive @A repeatable on FIELD_DEFINITION
+      type User {
+        name: String @A @A
+      }
+  - name: non-repeatable directive can be used on distinct locations
+    input: |
+      directive @A on FIELD_DEFINITION
+      type User {
+        a: String @A
+        b: String @A
+      }
+  - name: non-repeatable directive can be used on a type and its extension
+    input: |
+      directive @A on OBJECT
+      type User @A {
+        name: String
+      }
+      extend type User @A
   - name: check reserved names on type name
     input: |
       directive @__A on FIELD_DEFINITION
@@ -613,6 +1108,18 @@ directives:
       message: 'cannot use Interface as argument a because INTERFACE is not a valid input type'
       locations: [{line: 2, column: 14}]
 
+  - name: arguments cannot be duplicated
+    input: |
+      directive @A(id: ID, id: String) on FIELD_DEFINITION
+    error:
+      message: 'Argument @A(id:) can only be defined once.'
+      locations: [{line: 1, column: 22}]
+
+  - name: same argument name can be used on different directives
+    input: |
+      directive @A(id: ID) on FIELD_DEFINITION
+      directive @B(id: ID) on FIELD_DEFINITION
+
   - name: Invalid location usage not allowed
     input: |
       directive @test on FIELD_DEFINITION
@@ -640,6 +1147,43 @@ directives:
       message: 'Undefined argument foobla for directive foo.'
       locations: [{line: 2, column: 21}]
 
+  - name: directive argument values cannot repeat an input field
+    input: |
+      input Options {
+        a: Int
+        b: Int
+      }
+      directive @foo(opts: Options) on FIELD_DEFINITION
+      type P {f: Int @foo(opts: {a: 1, b: 2, a: 3}) }
+    error:
+      message: 'There can be only one input field named "a".'
+      locations: [{line: 6, column: 40}]
+
+  - name: directive argument values cannot repeat a nested input field
+    input: |
+      input Inner {
+        a: Int
+      }
+      input Options {
+        inner: Inner
+      }
+      directive @foo(opts: Options) on SCHEMA
+      type Query {f: Int }
+      schema @foo(opts: {inner: {a: 1, a: 2}}) { query: Query }
+    error:
+      message: 'There can be only one input field named "a".'
+      locations: [{line: 9, column: 34}]
+
+  - name: directive definition default values cannot repeat an input field
+    input: |
+      input Options {
+        a: Int
+      }
+      directive @foo(opts: Options = {a: 1, a: 2}) on FIELD_DEFINITION
+    error:
+      message: 'There can be only one input field named "a".'
+      locations: [{line: 4, column: 39}]
+
   - name: non-null argument must be provided
     input: |
       directive @foo(bla: Int!) on FIELD_DEFINITION
@@ -657,6 +1201,121 @@ directives:
     error:
       message: 'Argument bla for directive foo cannot be null.'
       locations: [{line: 2, column: 17}]
+
+  - name: directive arguments cannot be repeated on a field
+    input: |
+      directive @foo(bla: Int) on FIELD_DEFINITION
+      type P {f: Int @foo(bla: 1, bla: 2) }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 29}]
+
+  - name: directive arguments cannot be repeated on a type
+    input: |
+      directive @foo(bla: Int) on OBJECT
+      type P @foo(bla: 1, bla: 2) {f: Int }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 21}]
+
+  - name: directive arguments cannot be repeated on the schema
+    input: |
+      directive @foo(bla: Int) on SCHEMA
+      type Query {f: Int }
+      schema @foo(bla: 1, bla: 2) { query: Query }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 3, column: 21}]
+
+  - name: directive arguments cannot be repeated on an argument definition
+    input: |
+      directive @foo(bla: Int) on ARGUMENT_DEFINITION
+      type P {f(x: Int @foo(bla: 1, bla: 2)): Int }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 31}]
+
+  - name: directive arguments cannot be repeated on an enum value
+    input: |
+      directive @foo(bla: Int) on ENUM_VALUE
+      enum E { X @foo(bla: 1, bla: 2) }
+    error:
+      message: 'There can be only one argument named bla.'
+      locations: [{line: 2, column: 25}]
+
+  - name: same argument name can be used on repeated directives
+    input: |
+      directive @foo(bla: Int) repeatable on FIELD_DEFINITION
+      type P {f: Int @foo(bla: 1) @foo(bla: 2) }
+
+  - name: a directive definition can be deprecated
+    input: |
+      directive @old @deprecated(reason: "use @new") on FIELD_DEFINITION
+
+  - name: directives on a directive definition must be declared
+    input: |
+      directive @old @foo on FIELD_DEFINITION
+    error:
+      message: "Undefined directive foo."
+      locations: [{line: 1, column: 17}]
+
+  - name: directives on a directive definition must apply to a directive definition
+    input: |
+      directive @tag on FIELD_DEFINITION
+      directive @old @tag on FIELD_DEFINITION
+    error:
+      message: "Directive tag is not applicable on DIRECTIVE_DEFINITION."
+      locations: [{line: 2, column: 17}]
+
+  - name: a directive definition cannot refer to itself
+    input: |
+      directive @A @A on DIRECTIVE_DEFINITION
+    error:
+      message: "Directive A cannot refer to itself."
+      locations: [{line: 1, column: 15}]
+
+  - name: non-repeatable directive cannot be used more than once on a directive definition
+    input: |
+      directive @tag on DIRECTIVE_DEFINITION
+      directive @old @tag @tag on FIELD_DEFINITION
+    error:
+      message: "The directive tag can only be used once at this location."
+      locations: [{line: 2, column: 22}]
+
+directive extensions:
+  - name: can add directives to a directive
+    input: |
+      directive @old on FIELD_DEFINITION
+      extend directive @old @deprecated(reason: "use @new")
+
+  - name: can add directives to a builtin directive
+    input: |
+      directive @tag on DIRECTIVE_DEFINITION
+      extend directive @deprecated @tag
+
+  - name: cannot extend an undefined directive
+    input: |
+      extend directive @old @deprecated
+    error:
+      message: "Cannot extend directive @old because it is not defined."
+      locations: [{line: 1, column: 19}]
+
+  - name: directives of an extension must apply to a directive definition
+    input: |
+      directive @tag on FIELD_DEFINITION
+      directive @old on FIELD_DEFINITION
+      extend directive @old @tag
+    error:
+      message: "Directive tag is not applicable on DIRECTIVE_DEFINITION."
+      locations: [{line: 3, column: 24}]
+
+  - name: non-repeatable directive cannot be used on a directive and its extension
+    input: |
+      directive @old @deprecated on FIELD_DEFINITION
+      extend directive @old @deprecated
+    error:
+      message: "The directive deprecated can only be used once at this location."
+      locations: [{line: 2, column: 24}]
 
 entry points:
   - name: multiple schema entry points
@@ -681,19 +1340,168 @@ entry points:
       message: "Schema root query refers to a type Query that does not exist."
       locations: [{line: 2, column: 3}]
 
+  - name: cannot specify the same operation type twice
+    input: |
+      schema {
+        query: Query
+        query: Other
+      }
+      type Query { id: ID }
+      type Other { id: ID }
+    error:
+      message: "There can be only one query type in schema."
+      locations: [{line: 3, column: 3}]
+
+  - name: query root type must be an object type
+    input: |
+      schema {
+        query: Query
+      }
+      interface Query { id: ID }
+    error:
+      message: "Query root type must be Object type, it cannot be Query."
+      locations: [{line: 2, column: 3}]
+
+  - name: mutation root type must be an object type
+    input: |
+      schema {
+        query: Query
+        mutation: Mutation
+      }
+      type Query { id: ID }
+      input Mutation { id: ID }
+    error:
+      message: "Mutation root type must be Object type if provided, it cannot be Mutation."
+      locations: [{line: 3, column: 3}]
+
+  - name: subscription root type must be an object type
+    input: |
+      schema {
+        query: Query
+        subscription: String
+      }
+      type Query { id: ID }
+    error:
+      message: "Subscription root type must be Object type if provided, it cannot be String."
+      locations: [{line: 3, column: 3}]
+
+  - name: inferred query root type must be an object type
+    input: |
+      union Query = Foo
+      type Foo { id: ID }
+    error:
+      message: "Query root type must be Object type, it cannot be Query."
+      locations: [{line: 1, column: 7}]
+
+  - name: inferred mutation root type must be an object type
+    input: |
+      type Query { id: ID }
+      enum Mutation { A }
+    error:
+      message: "Mutation root type must be Object type if provided, it cannot be Mutation."
+      locations: [{line: 2, column: 6}]
+
+  - name: inferred subscription root type must be an object type
+    input: |
+      type Query { id: ID }
+      scalar Subscription
+    error:
+      message: "Subscription root type must be Object type if provided, it cannot be Subscription."
+      locations: [{line: 2, column: 8}]
+
+  - name: non-object types named like root types are allowed with a schema definition
+    input: |
+      schema {
+        query: Root
+      }
+      type Root { id: ID }
+      scalar Query
+      input Mutation { id: ID }
+
 entry point extensions:
   - name: Undefined schema entrypoint
     input: |
       schema {
         query: Query
       }
-      scalar Query
+      type Query { id: ID }
       extend schema {
         mutation: Mutation
       }
     error:
       message: "Schema root mutation refers to a type Mutation that does not exist."
       locations: [{line: 6, column: 3}]
+
+  - name: cannot redefine an operation type from the schema definition
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        query: Other
+      }
+      type Query { id: ID }
+      type Other { id: ID }
+    error:
+      message: "There can be only one query type in schema."
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot specify the same operation type in two extensions
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        mutation: Mutation
+      }
+      extend schema {
+        mutation: Other
+      }
+      type Query { id: ID }
+      type Mutation { id: ID }
+      type Other { id: ID }
+    error:
+      message: "There can be only one mutation type in schema."
+      locations: [{line: 8, column: 3}]
+
+  - name: can add each operation type once across extensions
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        mutation: Mutation
+      }
+      extend schema {
+        subscription: Subscription
+      }
+      type Query { id: ID }
+      type Mutation { id: ID }
+      type Subscription { id: ID }
+
+  - name: extension root type must be an object type
+    input: |
+      schema {
+        query: Query
+      }
+      extend schema {
+        subscription: Subscription
+      }
+      type Query { id: ID }
+      interface Subscription { id: ID }
+    error:
+      message: "Subscription root type must be Object type if provided, it cannot be Subscription."
+      locations: [{line: 5, column: 3}]
+
+  - name: extension root type must be an object type without a schema definition
+    input: |
+      extend schema {
+        query: Root
+      }
+      interface Root { id: ID }
+    error:
+      message: "Query root type must be Object type, it cannot be Root."
+      locations: [{line: 2, column: 3}]
 
 type references:
   - name: Field types
@@ -728,4 +1536,19 @@ type references:
 
     error:
       message: "ENUM Enum: non-enum value true."
-      locations: [{line: 1, column: 6}]
+      locations: [{line: 1, column: 13}]
+  - name: Invalid enum value false
+    input: |
+      enum Enum { A false }
+
+    error:
+      message: "ENUM Enum: non-enum value false."
+      locations: [{line: 1, column: 15}]
+  - name: Invalid enum value null from extension
+    input: |
+      enum Enum { A }
+      extend enum Enum { null }
+
+    error:
+      message: "ENUM Enum: non-enum value null."
+      locations: [{line: 2, column: 20}]

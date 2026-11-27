@@ -147,7 +147,7 @@ func (l *SparseList[T]) FirstRun() iter.Seq2[int, T] {
 			return
 		}
 
-		for i := l.FirstIndex(); i <= l.LastIndex(); i++ {
+		for i := l.FirstIndex(); ; i++ {
 			value, ok := l.Get(i)
 			if !ok || !yield(i, value) {
 				return

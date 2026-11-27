@@ -4,37 +4,46 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
 
 // handleRecordMsg handles messages that carry data from the .wandb file.
-func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return just tea.Cmd
+func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	defer r.logPanic("processRecordMsg")
+	defer r.syncChartsToConsole()
 
 	start := time.Now()
 	defer func() {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
-	defer r.focusMgr.ResolveAfterAvailabilityChange()
+	defer r.resolveFocusAfterData()
+
+	// Anything the reader produced counts as proof of life for the crash
+	// check. Terminal messages (FileComplete, Error) also land here, but
+	// they leave RunStateRunning, after which lastUpdateAt is irrelevant.
+	r.lastUpdateAt = time.Now()
 
 	switch msg := msg.(type) {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
+		r.lastError = ""
+		sessionRuns.observe(msg, true)
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
-		r.runState = RunStateRunning
+		r.runState = msg.runState()
 		r.syncLiveRunning()
 		r.isLoading = false
-		return r, nil
+		return r.ensureLivePulseCmd()
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
 		if r.shouldResetLiveHeartbeat() {
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
-		return r.handleHistoryMsg(msg)
+		r.handleHistoryMsg(msg)
 
 	case StatsMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
@@ -42,76 +51,110 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
 		r.rightSidebar.ProcessStatsMsg(msg)
-		return r, nil
 
 	case SystemInfoMsg:
 		r.logger.Debug("model: processing SystemInfoMsg")
 		r.runOverview.ProcessSystemInfoMsg(msg.Record)
 		r.leftSidebar.Sync()
-		return r, nil
 
 	case SummaryMsg:
 		r.logger.Debug("model: processing SummaryMsg")
 		r.runOverview.ProcessSummaryMsg(msg.Summary)
 		r.leftSidebar.Sync()
-		return r, nil
 
 	case ConsoleLogMsg:
 		r.logger.Debug("model: processing ConsoleLogMsg")
 		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
-		return r, nil
+		// Keep the pane's data (and thus focus availability) current
+		// without waiting for the next render.
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.takeChanges())
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
-		switch msg.ExitCode {
-		case 0:
-			r.runState = RunStateFinished
-		default:
-			r.runState = RunStateFailed
-		}
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
-		r.leftSidebar.Sync()
+		r.setRunState(runStateForExitCode(msg.ExitCode))
 
 		r.logger.Debug("model: stopping heartbeats and finishing watcher")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
 
-		return r, nil
-
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
-		r.runState = RunStateFailed
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
+		r.isLoading = false
+		r.lastError = "unknown error"
+		if msg.Err != nil {
+			r.lastError = msg.Err.Error()
+		}
+		r.setRunState(RunStateFailed)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
-		return r, nil
+		// No final boot chunk will arrive to draw any throttled history.
+		r.metricsGrid.drawVisible()
+		r.rightSidebar.metricsGrid.drawVisible()
 	}
 
-	return r, nil
+	return nil
+}
+
+// runStateForExitCode maps an exit record's code to a run state, following
+// the server's convention (254 is a client-reported crash).
+func runStateForExitCode(exitCode int32) RunState {
+	switch exitCode {
+	case 0:
+		return RunStateFinished
+	case 254:
+		return RunStateCrashed
+	default:
+		return RunStateFailed
+	}
+}
+
+// setRunState updates the run state everywhere it is mirrored: the atomic
+// liveness flag, the overview data model, and the sidebar.
+func (r *Run) setRunState(state RunState) {
+	r.runState = state
+	r.syncLiveRunning()
+	r.runOverview.SetRunState(state)
+	r.leftSidebar.Sync()
 }
 
 // handleHistoryMsg processes new history data.
-func (r *Run) handleHistoryMsg(msg HistoryMsg) (*Run, tea.Cmd) {
+func (r *Run) handleHistoryMsg(msg HistoryMsg) {
 	defer timeit(r.logger, "Model.handleHistoryMsg")()
 
+	r.stepTimes.add(msg.StepTimes)
 	shouldDraw := r.metricsGrid.ProcessHistory(msg)
-	if r.mediaStore.ProcessHistory(msg) {
-		r.mediaPane.SetStore(r.mediaStore)
-	}
+	// Sync even when this call saw nothing new: the store may be shared with
+	// the workspace, whose reader can ingest the same points first.
+	r.mediaStore.ProcessHistory(msg)
+	r.mediaPane.SetStore(r.mediaStore)
 	if shouldDraw && !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
-	return r, nil
 }
 
 // handleMouseMsg processes mouse events, routing by region.
-func (r *Run) handleMouseMsg(msg tea.MouseMsg) (*Run, tea.Cmd) {
+func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 	defer timeit(r.logger, "Model.handleMouseMsg")()
 
+	// Clear the console-driven crosshairs before starting mouse inspection.
+	// Restore them if the click does not move focus away from the logs.
+	if m, ok := msg.(tea.MouseClickMsg); ok && m.Button == tea.MouseRight &&
+		r.linkConsole && r.consoleLogsPane.Active() {
+		r.deactivateLogsFocus()
+		defer func() {
+			if r.focusMgr.IsTarget(FocusTargetConsoleLogs) {
+				r.activateLogsFocus(0)
+			}
+		}()
+	}
+
 	layout := r.computeViewports()
+
+	// Pane resizing wins over pane-local mouse handling.
+	if r.drag.handleMouse(msg, layout, r.dragTargets()) {
+		return nil
+	}
 
 	if r.isInLeftSidebar(msg, layout) {
 		return r.handleLeftSidebarMouse()
@@ -122,6 +165,27 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) (*Run, tea.Cmd) {
 	}
 
 	return r.handleMainContentMouse(msg, layout)
+}
+
+// dragTargets reports which layout boundaries a mouse event may grab.
+func (r *Run) dragTargets() dragTargets {
+	t := dragTargets{
+		width:           r.width,
+		height:          r.height,
+		leftExpanded:    r.leftSidebar.IsExpanded(),
+		rightExpanded:   r.rightSidebar.animState.IsExpanded(),
+		mediaFullscreen: r.mediaPane.IsFullscreen(),
+	}
+	if t.leftExpanded {
+		t.overview = r.leftSidebar
+	}
+	return t
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (r *Run) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	r.drag.reset()
+	return nil
 }
 
 // isInLeftSidebar checks if mouse position is in the left sidebar region.
@@ -138,10 +202,10 @@ func (r *Run) isInRightSidebar(msg tea.MouseMsg, layout Layout) bool {
 }
 
 // handleLeftSidebarMouse handles mouse events in the left sidebar.
-func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
+func (r *Run) handleLeftSidebarMouse() tea.Cmd {
 	r.metricsGrid.clearFocus()
 	r.rightSidebar.ClearFocus()
-	return r, nil
+	return nil
 }
 
 func (r *Run) adoptChartMouseFocus() {
@@ -153,7 +217,7 @@ func (r *Run) adoptChartMouseFocus() {
 	}
 }
 
-func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	mouse := msg.Mouse()
 	localX := mouse.X - layout.leftSidebarWidth
 	localY := mouse.Y - layout.mediaY
@@ -169,11 +233,11 @@ func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) 
 		}
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleRightSidebarMouse handles mouse events in the right sidebar.
-func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
 
@@ -192,10 +256,12 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 			r.metricsGrid.clearFocus()
 			r.rightSidebar.StartInspection(adjustedX, mouse.Y, alt)
 			r.adoptChartMouseFocus()
+			r.syncConsoleToSystemMetrics()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
 			r.rightSidebar.UpdateInspection(adjustedX, mouse.Y)
+			r.syncConsoleToSystemMetrics()
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -212,13 +278,13 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 		r.adoptChartMouseFocus()
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleMainContentMouse handles mouse events in the main content area.
-func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	if r.mediaPane.IsFullscreen() {
-		return r, nil
+		return nil
 	}
 
 	mouse := msg.Mouse()
@@ -237,7 +303,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	if adjustedX < 0 || adjustedY < 0 || adjustedY >= layout.height {
 		r.metricsGrid.clearFocus()
 		r.rightSidebar.ClearFocus()
-		return r, nil
+		return nil
 	}
 
 	dims := r.metricsGrid.CalculateChartDimensions(
@@ -247,7 +313,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 
 	// Grid too small to interact with (e.g. tiny terminal).
 	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
-		return r, nil
+		return nil
 	}
 
 	// Chart 2D indices on the grid.
@@ -266,10 +332,12 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 			// visible on the current page.
 			r.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
 			r.adoptChartMouseFocus()
+			r.syncConsoleToMetrics()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
 			r.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+			r.syncConsoleToMetrics()
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -285,11 +353,13 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		r.adoptChartMouseFocus()
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleKeyPressMsg processes keyboard events using the centralized key bindings.
 func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
+	defer r.syncChartsToConsole()
+
 	// Filter modes take priority.
 	if r.leftSidebar.IsFilterMode() {
 		r.leftSidebar.HandleFilterKey(msg)
@@ -301,6 +371,10 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if r.rightSidebar.IsFilterMode() {
 		r.rightSidebar.HandleFilterKey(msg)
+		return nil
+	}
+	if r.consoleLogsPane.IsFilterMode() {
+		r.consoleLogsPane.HandleFilterKey(msg)
 		return nil
 	}
 
@@ -316,7 +390,12 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	case FocusTargetMedia:
-		if r.mediaPane.HandleKey(msg) {
+		if handled, cmd := r.mediaPane.HandleKey(msg); handled {
+			return cmd
+		}
+	case FocusTargetConsoleLogs:
+		if msg.String() == "l" {
+			r.toggleConsoleLink()
 			return nil
 		}
 	}
@@ -328,15 +407,78 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (r *Run) cleanup() {
-	if r.historySource != nil {
-		r.historySource.Close()
+// toggleConsoleLink links or unlinks the console logs and the charts.
+func (r *Run) toggleConsoleLink() {
+	r.linkConsole = !r.linkConsole
+	if !r.linkConsole {
+		r.metricsGrid.broadcastEndInspection()
+		r.rightSidebar.metricsGrid.broadcastEndInspection()
 	}
+}
+
+// syncChartsToConsole puts a crosshair on the visible charts at the time the
+// selected console line was logged: the system charts by time, the metrics
+// charts at the history step logged nearest to it.
+func (r *Run) syncChartsToConsole() {
+	if !r.linkConsole || !r.consoleLogsPane.Active() || r.suppressDraw {
+		return
+	}
+	t, ok := r.consoleLogs.TimeAt(r.consoleLogsPane.CursorIndex())
+	if !ok {
+		r.metricsGrid.broadcastEndInspection()
+		r.rightSidebar.metricsGrid.broadcastEndInspection()
+		return
+	}
+	if step, ok := r.stepTimes.stepAt(t); ok {
+		r.metricsGrid.broadcastInspectAtDataX(step, "")
+	}
+	r.rightSidebar.metricsGrid.broadcastInspectAtDataX(float64(t.UnixNano()) / 1e9)
+}
+
+// syncConsoleToMetrics selects the console line logged nearest to the
+// inspected step of the focused metrics chart.
+func (r *Run) syncConsoleToMetrics() {
+	if !r.linkConsole {
+		return
+	}
+	step, xAxisMetric, ok := r.metricsGrid.InspectionX()
+	if !ok || xAxisMetric != "" {
+		return
+	}
+	if t, ok := r.stepTimes.timeAt(step); ok {
+		r.consoleLogsPane.SelectIndex(r.consoleLogs.IndexNear(t))
+	}
+}
+
+// syncConsoleToSystemMetrics selects the console line logged nearest to the
+// inspected time of the focused system chart.
+func (r *Run) syncConsoleToSystemMetrics() {
+	if !r.linkConsole {
+		return
+	}
+	if sec, ok := r.rightSidebar.metricsGrid.InspectionX(); ok {
+		r.consoleLogsPane.SelectIndex(r.consoleLogs.IndexNear(unixSeconds(sec)))
+	}
+}
+
+// cleanup releases the run's data-loading resources: it stops the heartbeat
+// and watcher first so they stop producing reads, then cancels any in-flight
+// initialization and closes the history source.
+//
+// The caller must hold stateMu.
+func (r *Run) cleanup() {
 	if r.heartbeatMgr != nil {
 		r.heartbeatMgr.Stop()
 	}
 	if r.watcherMgr != nil {
 		r.watcherMgr.Finish()
+	}
+	if r.initCancel != nil {
+		r.initCancel()
+		r.initCancel = nil
+	}
+	if r.historySource != nil {
+		r.historySource.Close()
 	}
 }
 
@@ -369,8 +511,7 @@ func (r *Run) endAnimating() {
 }
 
 // handleToggleLeftSidebar toggles the left overview sidebar and resolves
-// focus so a collapsing sidebar loses focus and an expanding sidebar
-// gains it when nothing else is focused.
+// focus so a collapsing sidebar loses focus.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -382,11 +523,10 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
+	r.updateSidebarDimensions(leftWillBeVisible, r.rightSidebar.animState.TargetVisible())
 	r.leftSidebar.Toggle()
 
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -405,10 +545,9 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
-	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
+	r.updateSidebarDimensions(r.leftSidebar.animState.TargetVisible(), rightWillBeVisible)
 	r.rightSidebar.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -492,12 +631,40 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleScrollFocusedChartRows(msg tea.KeyPressMsg) tea.Cmd {
+	if r.focus.Type == FocusSystemChart && r.rightSidebar != nil &&
+		r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.scrollFocusedChartRows(chartRowScrollDelta(msg))
+	}
+	return nil
+}
+
+func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(r.config.ChartGuides())
+	if err := r.config.SetChartGuides(guides); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart guides: %v", err))
+	}
+	r.metricsGrid.SetChartGuides(guides)
+	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.SetChartGuides(guides)
+	}
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if r.focusMgr.Current() == FocusTargetConsoleLogs {
+		r.consoleLogsPane.EnterFilterMode()
+		return nil
+	}
 	r.metricsGrid.EnterFilterMode()
 	return nil
 }
 
 func (r *Run) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if r.focusMgr.Current() == FocusTargetConsoleLogs {
+		r.consoleLogsPane.ClearFilter()
+		return nil
+	}
 	if r.metricsGrid.FilterQuery() != "" {
 		r.metricsGrid.ClearFilter()
 	}
@@ -527,7 +694,7 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r.metricsGridAnimState.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
@@ -683,7 +850,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
+		r.rightSidebar.UpdateDimensions(
+			r.width, r.leftSidebar.animState.TargetVisible(), r.layoutOverrides().RightSidebar)
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -694,7 +862,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
+		r.leftSidebar.UpdateDimensions(
+			r.width, r.rightSidebar.animState.TargetVisible(), r.layoutOverrides().LeftSidebar)
 	}
 
 	return nil
@@ -718,9 +887,7 @@ func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	r.mediaPane.Toggle()
 	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.animState.TargetVisible())
 
-	if !mediaWillBeVisible {
-		r.focusMgr.ResolveAfterVisibilityChange()
-	}
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -748,9 +915,8 @@ func (r *Run) mediaPaneAnimationCmd() tea.Cmd {
 	})
 }
 
-// handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
-// focus so a collapsing bar loses focus and an expanding bar gains it
-// when nothing else is focused.
+// handleToggleConsoleLogsPane toggles the console logs bottom bar and
+// resolves focus so a collapsing bar loses focus.
 func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -764,7 +930,7 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	r.consoleLogsPane.Toggle()
 	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), bottomWillBeVisible)
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -829,33 +995,37 @@ func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
 		if !ok {
 			return msg
 		}
-		if len(batch.Msgs) == 0 {
-			return nil
-		}
 
-		return BatchedRecordsMsg{Msgs: batch.Msgs}
+		return BatchedRecordsMsg{
+			Msgs:    batch.Msgs,
+			HasMore: batch.HasMore,
+		}
 	}
 }
 
-// handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
-func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
+// handleRecordsBatch processes a batch of sub-messages and redraws the
+// visible charts once at the end. While more chunks are on the way, redraws
+// are rate-limited to bootRedrawInterval.
+func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, hasMore bool) []tea.Cmd {
 	defer timeit(r.logger, "Model.handleRecordsBatch")()
 
 	var cmds []tea.Cmd
 
-	prev := r.suppressDraw
-	r.suppressDraw = suppressRedraw
+	r.suppressDraw = true
 	for _, subMsg := range subMsgs {
-		var cmd tea.Cmd
-		r, cmd = r.handleRecordMsg(subMsg)
-		if cmd != nil {
+		if cmd := r.handleRecordMsg(subMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
-	r.suppressDraw = prev
-	if !r.suppressDraw {
-		r.metricsGrid.drawVisible()
+	r.suppressDraw = false
+
+	if hasMore && time.Since(r.lastDrawAt) < bootRedrawInterval {
+		return cmds
 	}
+	r.lastDrawAt = time.Now()
+	r.syncChartsToConsole()
+	r.metricsGrid.drawVisible()
+	r.rightSidebar.metricsGrid.drawVisible()
 
 	return cmds
 }
@@ -881,8 +1051,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 
 	r.recordsLoaded += msg.Progress
 
-	// Draw once per boot chunk instead of once per history record.
-	cmds := r.handleRecordsBatch(msg.Msgs, true)
+	cmds := r.handleRecordsBatch(msg.Msgs, msg.HasMore)
 
 	if msg.HasMore {
 		cmds = append(
@@ -892,30 +1061,51 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 		return cmds
 	}
 
-	// Boot load complete -> begin live mode once.
-	if r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
-		if err := r.watcherMgr.Start(r.runPath); err != nil {
-			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
+	// Boot load complete -> begin live mode once. The WaitForMsg pump is
+	// started alongside the watcher so it only runs while the watcher and
+	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
+	if !r.IsRemote() && r.runState.mayBeLive() && !r.watcherMgr.IsStarted() {
+		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
+			r.logger.CaptureError(
+				"leet",
+				fmt.Errorf("model: error starting watcher: %v", err),
+			)
 		} else {
 			r.logger.Info("model: watcher started successfully")
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(r.runParams.RunFile); err == nil {
+				r.lastUpdateAt = info.ModTime()
+			}
 			r.heartbeatMgr.Start(r.isRunning)
+			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
 	}
+
+	if cmd := r.nextLiveReadCmd(false); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 
 // handleBatched handles live drain batches.
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
-	cmds := r.handleRecordsBatch(msg.Msgs, true)
-	if r.runState != RunStateRunning {
-		return cmds
+	cmds := r.handleRecordsBatch(msg.Msgs, false)
+	if cmd := r.nextLiveReadCmd(msg.HasMore); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
-	cmds = append(
-		cmds,
-		r.ReadLiveBatchCmd(r.historySource),
-	)
 	return cmds
+}
+
+// nextLiveReadCmd schedules the read that follows a batch, if any.
+func (r *Run) nextLiveReadCmd(hasMore bool) tea.Cmd {
+	if r.historySource == nil {
+		return nil
+	}
+	return r.historySource.NextLiveReadCmd(r.ReadLiveBatchCmd(r.historySource), hasMore)
 }
 
 // handleHeartbeat triggers a live read and re-arms the heartbeat.
@@ -925,6 +1115,12 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 		r.heartbeatMgr.Stop()
 		return nil
 	}
+	if r.presumedCrashed() {
+		r.markPresumedCrashed()
+		// Keep listening: if the writer comes back, handleFileChange
+		// revives the run.
+		return []tea.Cmd{r.watcherMgr.WaitForMsg}
+	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
@@ -932,16 +1128,70 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	}
 }
 
+// presumedCrashed reports whether a live run's transaction log has been
+// silent long enough to presume the writer is gone.
+func (r *Run) presumedCrashed() bool {
+	return !r.lastUpdateAt.IsZero() && time.Since(r.lastUpdateAt) > RunCrashTimeout
+}
+
+// markPresumedCrashed mirrors the server's stale-runs sweep: a running run
+// that stopped writing without an exit record is moved to the crashed state.
+func (r *Run) markPresumedCrashed() {
+	r.logger.Info(fmt.Sprintf(
+		"model: no transaction log updates in %v, presuming the run crashed",
+		time.Since(r.lastUpdateAt).Round(time.Second)))
+	r.setRunState(RunStateCrashed)
+	r.heartbeatMgr.Stop()
+}
+
 // handleFileChange coalesces change notifications into a read.
 func (r *Run) handleFileChange() []tea.Cmd {
-	if r.runState != RunStateRunning {
+	if r.runState == RunStateCrashed {
+		// The writer came back: revive the presumed-crashed run.
+		r.logger.Info("model: transaction log updated, reviving crashed run")
+		r.lastUpdateAt = time.Now()
+		r.setRunState(RunStateRunning)
+	}
+	if !r.runState.mayBeLive() {
 		return nil
 	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
+		r.ensureLivePulseCmd(),
 	}
+}
+
+// livePulseCmd schedules the next live-indicator frame.
+func (r *Run) livePulseCmd() tea.Cmd {
+	return tea.Tick(LivePulseFrame, func(time.Time) tea.Msg {
+		return RunLivePulseMsg{}
+	})
+}
+
+func (r *Run) shouldAnimateLiveUI() bool {
+	return r.runState == RunStateRunning ||
+		(r.runState == RunStateUnknown && r.metricsGrid.ChartCount() == 0)
+}
+
+// ensureLivePulseCmd starts the live-indicator redraw loop for a live run.
+// Returns nil if the loop is already ticking or the run is not live.
+func (r *Run) ensureLivePulseCmd() tea.Cmd {
+	if r.pulseTicking || !r.shouldAnimateLiveUI() {
+		return nil
+	}
+	r.pulseTicking = true
+	return r.livePulseCmd()
+}
+
+// handleLivePulse keeps the live indicator animating while the run is live.
+func (r *Run) handleLivePulse() []tea.Cmd {
+	if !r.shouldAnimateLiveUI() {
+		r.pulseTicking = false
+		return nil
+	}
+	return []tea.Cmd{r.livePulseCmd()}
 }
 
 // handleSidebarTabNav cycles focus between overview sections and the

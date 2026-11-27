@@ -37,7 +37,7 @@ class WandbClfEvalCallback(WandbEvalCallback):
         self.y = validation_data[1]
 
     def add_ground_truth(self, logs=None):
-        for idx, (image, label) in enumerate(zip(self.x, self.y)):
+        for idx, (image, label) in enumerate(zip(self.x, self.y, strict=False)):
             self.data_table.add_data(idx, wandb.Image(image), label)
 
     def add_model_predictions(self, epoch, logs=None):

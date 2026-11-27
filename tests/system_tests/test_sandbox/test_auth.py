@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import cwsandbox
 import cwsandbox._sandbox as cwsandbox_sandbox
 import pytest
 import wandb
@@ -15,8 +16,8 @@ class _FakeChannel:
 
 @dataclass
 class _SandboxStubCalls:
-    start: list[dict[str, object]] = field(default_factory=list)
-    stop: list[dict[str, object]] = field(default_factory=list)
+    create: list[dict[str, object]] = field(default_factory=list)
+    delete: list[dict[str, object]] = field(default_factory=list)
 
 
 def _patch_sandbox_stub(
@@ -28,41 +29,45 @@ def _patch_sandbox_stub(
         def __init__(self, channel) -> None:
             self._channel = channel
 
-        async def Start(self, request, timeout=None, metadata=None):  # noqa: N802
-            calls.start.append(
+        async def CreateSandbox(  # noqa: N802
+            self, request, timeout=None, metadata=None
+        ):
+            calls.create.append(
                 {
                     "request": request,
                     "timeout": timeout,
                     "metadata": metadata,
                 }
             )
-            return cwsandbox_sandbox.gateway_pb2.StartSandboxResponse(
+            return cwsandbox_sandbox.sandbox_pb2.Sandbox(
                 sandbox_id="sb-system-test",
-                service_address="",
-                exposed_ports=[],
-                applied_ingress_mode="",
-                applied_egress_mode="",
+                status=cwsandbox_sandbox.sandbox_pb2.SandboxStatus(
+                    state=cwsandbox_sandbox.sandbox_pb2.STATE_CREATING
+                ),
             )
 
-        async def Get(self, request, timeout=None, metadata=None):  # noqa: N802
+        async def GetSandbox(  # noqa: N802
+            self, request, timeout=None, metadata=None
+        ):
             _ = request, timeout, metadata
-            return cwsandbox_sandbox.gateway_pb2.GetSandboxResponse(
+            return cwsandbox_sandbox.sandbox_pb2.Sandbox(
                 sandbox_id="sb-system-test",
-                sandbox_status=cwsandbox_sandbox.gateway_pb2.SANDBOX_STATUS_COMPLETED,
+                status=cwsandbox_sandbox.sandbox_pb2.SandboxStatus(
+                    state=cwsandbox_sandbox.sandbox_pb2.STATE_COMPLETED
+                ),
             )
 
-        async def Stop(self, request, timeout=None, metadata=None):  # noqa: N802
-            calls.stop.append(
+        async def DeleteSandbox(  # noqa: N802
+            self, request, timeout=None, metadata=None
+        ):
+            calls.delete.append(
                 {
                     "request": request,
                     "timeout": timeout,
                     "metadata": metadata,
                 }
             )
-            return cwsandbox_sandbox.gateway_pb2.StopSandboxResponse(
-                success=True,
-                error_message="",
-            )
+            return cwsandbox_sandbox.sandbox_pb2.DeleteSandboxResponse()
 
     monkeypatch.setattr(
         cwsandbox_sandbox,
@@ -70,11 +75,23 @@ def _patch_sandbox_stub(
         lambda target, is_secure: _FakeChannel(),
     )
     monkeypatch.setattr(
-        cwsandbox_sandbox.gateway_pb2_grpc,
-        "GatewayServiceStub",
+        cwsandbox_sandbox.sandbox_pb2_grpc,
+        "SandboxServiceStub",
         _FakeSandboxStub,
     )
     return calls
+
+
+def _client_version_headers() -> dict[str, str]:
+    """The client-version headers every request carries, with live versions.
+
+    Derived from the installed package versions (the same source the client
+    reads) so the assertions stay exact without breaking on version bumps.
+    """
+    return {
+        "x-wandb-sdk-version": wandb.__version__,
+        "x-cwsandbox-client-version": cwsandbox.__version__,
+    }
 
 
 def test_sandbox_run_uses_settings_entity_project(
@@ -90,14 +107,15 @@ def test_sandbox_run_uses_settings_entity_project(
         assert sandbox.sandbox_id == "sb-system-test"
 
     expected_headers = {
-        "x-api-key": user,
+        "x-wandb-api-key": user,
         "x-entity-id": "entity-from-settings",
         "x-project-name": "project-from-settings",
+        **_client_version_headers(),
     }
-    assert len(calls.start) == 1
-    assert dict(calls.start[0]["metadata"]) == expected_headers
-    assert len(calls.stop) == 1
-    assert dict(calls.stop[0]["metadata"]) == expected_headers
+    assert len(calls.create) == 1
+    assert dict(calls.create[0]["metadata"]) == expected_headers
+    assert len(calls.delete) == 1
+    assert dict(calls.delete[0]["metadata"]) == expected_headers
 
 
 def test_sandbox_run_ignore_run_override(
@@ -111,13 +129,14 @@ def test_sandbox_run_ignore_run_override(
             assert sandbox.sandbox_id == "sb-system-test"
 
     expected_headers = {
-        "x-api-key": user,
+        "x-wandb-api-key": user,
         "x-entity-id": user,
+        **_client_version_headers(),
     }
-    assert len(calls.start) == 1
-    assert dict(calls.start[0]["metadata"]) == expected_headers
-    assert len(calls.stop) == 1
-    assert dict(calls.stop[0]["metadata"]) == expected_headers
+    assert len(calls.create) == 1
+    assert dict(calls.create[0]["metadata"]) == expected_headers
+    assert len(calls.delete) == 1
+    assert dict(calls.delete[0]["metadata"]) == expected_headers
 
 
 def test_sandbox_run_without_entity_or_project(
@@ -132,7 +151,8 @@ def test_sandbox_run_without_entity_or_project(
     with Sandbox.run("sleep", "infinity") as sandbox:
         assert sandbox.sandbox_id == "sb-system-test"
 
-    assert len(calls.start) == 1
-    assert dict(calls.start[0]["metadata"]) == {"x-api-key": user}
-    assert len(calls.stop) == 1
-    assert dict(calls.stop[0]["metadata"]) == {"x-api-key": user}
+    expected_headers = {"x-wandb-api-key": user, **_client_version_headers()}
+    assert len(calls.create) == 1
+    assert dict(calls.create[0]["metadata"]) == expected_headers
+    assert len(calls.delete) == 1
+    assert dict(calls.delete[0]["metadata"]) == expected_headers

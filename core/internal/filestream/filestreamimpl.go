@@ -2,16 +2,21 @@ package filestream
 
 import (
 	"bytes"
+	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/wboperation"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // startProcessingUpdates asynchronously ingests updates.
@@ -37,6 +42,7 @@ func (fs *fileStream) startProcessingUpdates(
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
+				Stats:   fs.stats,
 			})
 
 			if err != nil {
@@ -129,41 +135,38 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
-	}
-	fs.logger.Debug("filestream: post request", "request", string(jsonData))
-
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
+	ctx := op.Context(fs.beforeRunEndCtx)
 
-	req, err := retryablehttp.NewRequestWithContext(
-		op.Context(fs.beforeRunEndCtx),
-		http.MethodPost,
-		fs.baseURL.JoinPath(fs.path).String(),
-		bytes.NewReader(jsonData),
-	)
+	var report filestreamstats.RequestReport
+	req, err := fs.prepareRequest(ctx, data, &report)
 	if err != nil {
-		return fmt.Errorf("filestream: error constructing request: %v", err)
+		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
 
-	fs.logRequestSummary(data)
+	isHeartbeat := data.IsHeartbeat()
+	shouldLogStartAndEnd := !isHeartbeat
+	if shouldLogStartAndEnd {
+		fs.logRequestSummary(data)
+	}
+
+	httpStart := time.Now()
 	resp, err := fs.apiClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("filestream: failed to send: %v", err)
+	}
+	defer resp.Body.Close()
 
-	switch {
-	case err != nil:
-		return fmt.Errorf(
-			"filestream: error making HTTP request: %v. got response: %v",
-			err,
-			resp,
-		)
-	case resp.StatusCode < 200 || resp.StatusCode > 300:
+	if !isHeartbeat { // Heartbeats are not interesting to track.
+		report.HTTPDuration = time.Since(httpStart)
+		fs.stats.RecordRequest(ctx, report)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 300 {
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		_ = resp.Body.Close()
 
 		return fmt.Errorf(
 			"filestream: failed to upload: %v url=%v: %s",
@@ -171,29 +174,125 @@ func (fs *fileStream) send(
 			req.URL,
 			string(body),
 		)
+	}
 
-	default:
+	if shouldLogStartAndEnd {
 		// Log after sending to record that the backend responded and should
 		// have the data in the request.
 		fs.logger.Info("filestream: request sent", "status", resp.Status)
 	}
 
-	defer func(Body io.ReadCloser) {
-		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError(
-				fmt.Errorf("filestream: error closing response body: %v", err))
-		}
-	}(resp.Body)
-
-	var res map[string]interface{}
+	var res map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError(
+		// We don't fail (and stop uploading) if we can't parse the response,
+		// as the responses are mostly informational.
+		fs.logger.CaptureError("filestream",
 			fmt.Errorf("filestream: json decode error: %v", err))
+	} else {
+		fs.logger.Debug("filestream: post response", "response", res)
+		feedbackChan <- res
 	}
-	feedbackChan <- res
-	fs.logger.Debug("filestream: post response", "response", res)
+
 	return nil
+}
+
+// prepareRequest creates the FileStream request.
+//
+// On success, it sets all fields of RequestReport other than HTTPDuration.
+func (fs *fileStream) prepareRequest(
+	ctx context.Context,
+	data *FileStreamRequestJSON,
+	report *filestreamstats.RequestReport,
+) (*retryablehttp.Request, error) {
+	jsonData, err := fs.jsonMarshalTimed(data)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"filestream: json marshal error in send(): %v", err)
+	}
+	fs.logger.Debug("filestream: post request", "request", string(jsonData))
+
+	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
+		fs.featureProvider.Enabled(ctx, spb.ServerFeature_FILESTREAM_GZIP)
+
+	requestBody := jsonData
+	if useGzip {
+		compressed, err := fs.gzipTimed(jsonData)
+		if err != nil {
+			return nil, fmt.Errorf("filestream: compress request: %v", err)
+		}
+		requestBody = compressed
+	}
+
+	req, err := retryablehttp.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		fs.baseURL.JoinPath(fs.path).String(),
+		bytes.NewReader(requestBody),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("filestream: error constructing request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if useGzip {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
+	if fs.segmentID != "" {
+		req.Header.Set("X-Wandb-Segment-ID", fs.segmentID)
+	}
+
+	report.UncompressedBytes = len(jsonData)
+	report.CompressedBytes = len(requestBody)
+	report.Compressed = useGzip
+	return req, nil
+}
+
+// jsonMarshalTimed calls json.Marshal() and tracks how long it takes.
+func (fs *fileStream) jsonMarshalTimed(
+	data *FileStreamRequestJSON,
+) ([]byte, error) {
+	marshalStart := time.Now()
+
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	fs.stats.RecordSegment(
+		fs.beforeRunEndCtx,
+		filestreamstats.SegmentRequestMarshal,
+		filestreamstats.StreamNone,
+		time.Since(marshalStart),
+	)
+
+	return encoded, nil
+}
+
+// gzipTimed compresses the data and tracks how long it takes.
+//
+// We compress all at once, instead of as the request is being sent,
+// because the full request must be stored in memory anyway to support retries.
+func (fs *fileStream) gzipTimed(data []byte) ([]byte, error) {
+	compressStart := time.Now()
+
+	var compressed bytes.Buffer
+	gzipWriter := gzip.NewWriter(&compressed)
+	if _, err := gzipWriter.Write(data); err != nil {
+		return nil, err
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	fs.stats.RecordSegment(
+		fs.beforeRunEndCtx,
+		filestreamstats.SegmentRequestCompress,
+		filestreamstats.StreamNone,
+		time.Since(compressStart),
+	)
+
+	return compressed.Bytes(), nil
 }
 
 // trackUploadOperation returns a WandbOperation for tracking

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import contextlib
+import enum
 import logging
+import math
 import multiprocessing
 import os
 import platform
-import queue
 import re
 import signal
 import socket
@@ -13,14 +14,67 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import wandb
 from wandb import util
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import config_util, ipython
+from wandb.sdk.sweeps import SweepNotFoundError
 
 logger = logging.getLogger(__name__)
+
+# Signals whose kernel default is "terminate" and that orchestrators use to
+# request graceful shutdown.
+_TERMINATING_SIGNALS = frozenset(
+    s
+    for s in (
+        getattr(signal, "SIGTERM", None),
+        getattr(signal, "SIGHUP", None),
+        getattr(signal, "SIGQUIT", None),
+    )
+    if s is not None
+)
+
+
+class TerminationTier(enum.IntEnum):
+    """Represents tiers of execution and signal handling for the agent run."""
+
+    NORMAL_EXECUTION = 0  # represents normal execution of agent run loop
+    WAIT_FOR_CHILDREN = (
+        1  # after receiving first shutdown signal, wait for children to finish
+    )
+    TERMINATE_AND_WAIT_FOR_CHILDREN = 2  # send SIGTERM and wait for children to exit
+    KILL_CHILDREN = 3  # forcefully kill children with SIGKILL
+
+    def succ(self):
+        if self == self.KILL_CHILDREN:
+            raise ValueError("Already at highest tier.")
+
+        return self.__class__(self.value + 1)
+
+
+class ShutdownSignal(BaseException):
+    """Raised from _forward_signal to drive Agent.run's shutdown cascade.
+
+    Carries the originating signal number so the cascade can name it in
+    user-facing messages. Subclasses BaseException (not Exception) so
+    generic `except Exception:` blocks elsewhere in the loop body don't
+    swallow it — same design as KeyboardInterrupt, which this exception
+    parallels for SIGTERM/SIGHUP/SIGQUIT.
+
+    See: https://docs.wandb.ai/models/sweeps/signal-handling-sweep-runs
+    """
+
+    def __init__(self, signum: int) -> None:
+        super().__init__()
+        self.signum = signum
+
+    @property
+    def label(self) -> str:
+        """Name of the originating signal (e.g. "SIGTERM")."""
+        return signal.Signals(self.signum).name
 
 
 class AgentError(Exception):
@@ -41,8 +95,6 @@ class AgentProcess:
     ):
         self._popen = None
         self._proc = None
-        self._finished_q = multiprocessing.Queue()
-        self._proc_killed = False
 
         # Store original handlers
         self._original_handlers = {}
@@ -105,7 +157,7 @@ class AgentProcess:
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
-                args=(self._finished_q, env, function, run_id, in_jupyter),
+                args=(env, function, run_id, in_jupyter),
             )
             self._proc.start()
         else:
@@ -132,8 +184,10 @@ class AgentProcess:
         original_handler = self._original_handlers.get(signum)
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
+        elif signum in _TERMINATING_SIGNALS:
+            raise ShutdownSignal(signum)
 
-    def _start(self, finished_q, env, function, run_id, in_jupyter):
+    def _start(self, env, function, run_id, in_jupyter):
         if env:
             for k, v in env.items():
                 os.environ[k] = v
@@ -149,45 +203,45 @@ class AgentProcess:
         if run:
             wandb.join()
 
-        # signal that the process is finished
-        finished_q.put(True)
-
-    def poll(self):
+    def poll(self) -> int | None:
         if self._popen:
             return self._popen.poll()
-        if self._proc_killed:
-            # we need to join process to prevent zombies
-            self._proc.join()
-            return True
-        try:
-            finished = self._finished_q.get(False, 0)
-            if finished:
-                return True
-        except queue.Empty:
-            pass
-        return
 
-    def wait(self):
+        exit_code = self._proc.exitcode
+        if exit_code is not None:
+            self._proc.join()
+        return exit_code
+
+    def wait(self, timeout: float | None = None):
+        """Wait for process or function to finish running.
+
+        Compatible with both windows and unix, and raises subprocess.popen.TimeoutExpired
+        if the process doesn't finish before the timeout expires. If the AgentProcess
+        is running a function, wait() will simply return None if the timeout expires.
+        """
+        start = time.monotonic()
+
         if self._popen:
             # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
                 while True:
-                    p = self._popen.poll()
+                    if timeout is not None and time.monotonic() - start > timeout:
+                        p = self._popen.wait(timeout=0)
+                    else:
+                        p = self._popen.poll()
+
                     if p is not None:
                         return p
+
                     time.sleep(1)
-            return self._popen.wait()
-        return self._proc.join()
+
+            return self._popen.wait(timeout=timeout)
+        return self._proc.join(timeout=timeout)
 
     def kill(self):
         if self._popen:
             return self._popen.kill()
-        pid = self._proc.pid
-        if pid:
-            ret = os.kill(pid, signal.SIGKILL)
-            self._proc_killed = True
-            return ret
-        return
+        return self._proc.kill()
 
     def terminate(self):
         if self._popen:
@@ -222,6 +276,8 @@ class Agent:
         in_jupyter=None,
         count=None,
         forward_signals=False,
+        term_timeout: int | None = None,
+        max_consecutive_failed_runs: int | None = None,
     ):
         self._api = api
         self._queue = queue
@@ -231,6 +287,7 @@ class Agent:
         self._in_jupyter = in_jupyter
         self._log = []
         self._running = True
+        self._start_time = time.time()
         self._last_report_time = None
         self._function = function
         self._report_interval = wandb.env.get_agent_report_interval(
@@ -239,12 +296,20 @@ class Agent:
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
         self._failed = 0
+        self._consecutive_failed_runs = 0
         self._count = count
         self._sweep_command = []
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
         )
+        self._max_consecutive_failed_runs = (
+            math.inf
+            if max_consecutive_failed_runs is None
+            else max_consecutive_failed_runs
+        )
         self._forward_signals = forward_signals
+        self._term_timeout = term_timeout
+        self._sweep_not_found = False
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -261,7 +326,7 @@ class Agent:
         """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
-        if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
+        if time.time() < self._start_time + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
 
     def is_failing(self):
@@ -270,24 +335,20 @@ class Agent:
             and self._max_initial_failures <= self._failed
         )
 
-    def run(self):  # noqa: C901
-        # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
-        import yaml
+    def _wait_for_processes_with_term_timeout(self):
+        start_time = time.monotonic()
 
-        sweep_obj = self._api.sweep(self._sweep_id, "{}")
-        if sweep_obj:
-            sweep_yaml = sweep_obj.get("config")
-            if sweep_yaml:
-                sweep_config = yaml.safe_load(sweep_yaml)
-                if sweep_config:
-                    sweep_command = sweep_config.get("command")
-                    if sweep_command and isinstance(sweep_command, list):
-                        self._sweep_command = sweep_command
+        remaining_time = None
+        for _, run_process in self._run_processes.items():
+            if self._forward_signals and self._term_timeout is not None:
+                remaining_time = max(
+                    0,
+                    self._term_timeout - (time.monotonic() - start_time),
+                )
 
-        # TODO: include sweep ID
-        agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
-        agent_id = agent["id"]
+            run_process.wait(timeout=remaining_time)
 
+    def _run_loop(self, agent_id):
         try:
             while self._running:
                 commands = util.read_many_from_queue(
@@ -296,7 +357,7 @@ class Agent:
                 for command in commands:
                     command["resp_queue"].put(self._process_command(command))
 
-                now = util.stopwatch_now()
+                now = time.monotonic()
                 if self._last_report_time is None or (
                     self._report_interval != 0
                     and now > self._last_report_time + self._report_interval
@@ -309,12 +370,28 @@ class Agent:
                     if poll_result is None:
                         run_status[run_id] = True
                         continue
-                    elif (
-                        not isinstance(poll_result, bool)
-                        and isinstance(poll_result, int)
-                        and poll_result > 0
-                    ):
+
+                    exited_with_error = poll_result > 0
+                    if exited_with_error:
                         self._failed += 1
+                        self._consecutive_failed_runs += 1
+                    else:
+                        self._consecutive_failed_runs = 0
+
+                    if (
+                        self._consecutive_failed_runs
+                        >= self._max_consecutive_failed_runs
+                    ):
+                        msg = (
+                            f"Detected {self._consecutive_failed_runs} consecutive "
+                            "failed runs, shutting down."
+                        )
+                        logger.error(msg)
+                        wandb.termerror(msg)
+                        self._running = False
+                        break
+
+                    if exited_with_error:
                         # TODO: raise an exception
                         if self.is_flapping():
                             logger.error(
@@ -347,56 +424,139 @@ class Agent:
                     # service process open for all the agent instances and inform_finish when
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
-                    if hasattr(wandb, "teardown"):
-                        exit_code = 0
-                        if isinstance(poll_result, int):
-                            exit_code = poll_result
-                        elif isinstance(poll_result, bool):
-                            exit_code = -1
-                        wandb.teardown(exit_code)
+                    wandb.teardown(poll_result)
+                    # The agent outlives user jobs, but teardown closes
+                    # the service-backed API resources used for the
+                    # subsequent heartbeats.
+                    self._api = wandb.Api()
 
                     del self._run_processes[run_id]
                     self._last_report_time = None
                     self._finished += 1
 
+                if self._stop_if_deleted_sweep_drained():
+                    continue
+
                 if self._count and self._finished >= self._count or not self._running:
                     self._running = False
                     continue
 
-                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+                commands = self._heartbeat_commands(agent_id, run_status)
 
                 # TODO: send _server_responses
                 self._server_responses = []
                 for command in commands:
                     self._server_responses.append(self._process_command(command))
+        except KeyboardInterrupt as kb:
+            # SIGINT delivers KeyboardInterrupt via Python's
+            # default_int_handler; normalize into a ShutdownSignal so the
+            # rest of the cascade only ever has to handle one type.
+            raise ShutdownSignal(signal.SIGINT) from kb
 
-        except KeyboardInterrupt:
+    def run(self):  # noqa: C901
+        # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
+        import yaml
+
+        from wandb.apis.public.sweeps import _register_agent, _sweep_with_runs
+
+        sweep_obj = _sweep_with_runs(self._api, self._sweep_id, "{}")
+        if sweep_obj:
+            sweep_yaml = sweep_obj.get("config")
+            if sweep_yaml:
+                sweep_config = yaml.safe_load(sweep_yaml)
+                if sweep_config:
+                    sweep_command = sweep_config.get("command")
+                    if sweep_command and isinstance(sweep_command, list):
+                        self._sweep_command = sweep_command
+
+        # TODO: include sweep ID
+        agent = _register_agent(
+            self._api, socket.gethostname(), sweep_id=self._sweep_id
+        )
+        agent_id = agent["id"]
+
+        tier = TerminationTier.NORMAL_EXECUTION
+        while tier <= TerminationTier.KILL_CHILDREN:
             try:
+                if tier == TerminationTier.NORMAL_EXECUTION:
+                    self._run_loop(agent_id)
+
+                    # If the run loop breaks due to is_flapping or is_failing, we'll
+                    # want to be sure we terminate the child processes correctly. Move
+                    # immediately to tier 2 signal to terminate remaining runs.
+                    tier = TerminationTier.TERMINATE_AND_WAIT_FOR_CHILDREN
+                    continue
+                elif tier == TerminationTier.WAIT_FOR_CHILDREN:
+                    self._wait_for_processes_with_term_timeout()
+                elif tier == TerminationTier.TERMINATE_AND_WAIT_FOR_CHILDREN:
+                    if any(p.poll() is None for p in self._run_processes.values()):
+                        if not self._in_jupyter:
+                            wandb.termlog(
+                                "Terminating and syncing runs. Send shutdown signal again to kill."
+                            )
+                        for _, run_process in self._run_processes.items():
+                            try:
+                                run_process.terminate()
+                            except OSError:
+                                pass  # if process is already dead
+                        self._wait_for_processes_with_term_timeout()
+                elif tier == TerminationTier.KILL_CHILDREN:
+                    wandb.termlog("Killing runs and quitting.")
+                    for _, run_process in self._run_processes.items():
+                        try:
+                            run_process.kill()
+                        except OSError:
+                            pass  # if process is already dead
+                break
+
+            except subprocess.TimeoutExpired:
                 wandb.termlog(
-                    "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
+                    f"Child runs took longer than {self._term_timeout} seconds to end. Attempting to kill them."
                 )
-                for _, run_process in self._run_processes.items():
-                    run_process.wait()
-            except KeyboardInterrupt:
-                pass
-        finally:
-            try:
-                if not self._in_jupyter:
-                    wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
-                for _, run_process in self._run_processes.items():
-                    try:
-                        run_process.terminate()
-                    except OSError:
-                        pass  # if process is already dead
-                for _, run_process in self._run_processes.items():
-                    run_process.wait()
-            except KeyboardInterrupt:
-                wandb.termlog("Killing runs and quitting.")
-                for _, run_process in self._run_processes.items():
-                    try:
-                        run_process.kill()
-                    except OSError:
-                        pass  # if process is already dead
+                tier = TerminationTier.KILL_CHILDREN
+            except (KeyboardInterrupt, ShutdownSignal, SystemExit) as e:
+                tier = tier.succ()
+
+                if tier == TerminationTier.WAIT_FOR_CHILDREN:
+                    label = "ctrl-c"
+                    if isinstance(e, ShutdownSignal) and e.signum != signal.SIGINT:
+                        label = e.label
+
+                    wandb.termlog(
+                        f"{label} received. Waiting for runs to end. Send {label} again to terminate them."
+                    )
+
+    def _heartbeat_commands(
+        self, agent_id: str, run_status: dict
+    ) -> list[dict[str, Any]]:
+        """Fetch the next batch of agent commands from the server."""
+        from wandb.apis.public.sweeps import _agent_heartbeat
+
+        if self._sweep_not_found:
+            # The sweep was deleted; stop heartbeating but let the in-process
+            # run finish before we shut the agent down.
+            return []
+
+        try:
+            return _agent_heartbeat(self._api, agent_id, {}, run_status)
+        except SweepNotFoundError:
+            if not self._run_processes:
+                wandb.termerror("Sweep was deleted or agent was not found.")
+                raise
+            wandb.termerror(
+                "Sweep was deleted or agent was not found. "
+                "Active runs will be allowed to finish before the agent exits."
+            )
+            self._sweep_not_found = True
+            return []
+
+    def _stop_if_deleted_sweep_drained(self) -> bool:
+        """Stop the run loop once a deleted sweep has no active child runs left."""
+        if not self._sweep_not_found or self._run_processes:
+            return False
+
+        self._running = False
+        return True
 
     def _process_command(self, command):
         logger.info("Agent received command: {}".format(command.get("type", "Unknown")))
@@ -452,16 +612,15 @@ class Agent:
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
         config_file = os.path.join(
-            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
+            "wandb", f"sweep-{sweep_id}", f"config-{run_id}.yaml"
         )
-        json_file = os.path.join(
-            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".json"
-        )
+        json_file = os.path.join("wandb", f"sweep-{sweep_id}", f"config-{run_id}.json")
 
         os.environ[wandb.env.RUN_ID] = run_id
 
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
+        args_json_file_path = os.path.join(base_dir, json_file)
         os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
         config_util.save_config_file_from_dict(sweep_param_path, command["args"])
 
@@ -470,12 +629,16 @@ class Agent:
         sweep_vars: dict[str, Any] = sweep_utils.create_sweep_command_args(command)
 
         if "${args_json_file}" in sweep_command:
-            with open(json_file, "w") as fp:
+            with open(args_json_file_path, "w") as fp:
                 fp.write(sweep_vars["args_json"][0])
 
         if self._function:
             # make sure that each run regenerates setup singleton
             wandb.teardown()
+            # The agent outlives user jobs, but teardown closes the
+            # service-backed API resources used for the subsequent
+            # heartbeats.
+            self._api = wandb.Api()
             proc = AgentProcess(
                 function=self._function,
                 env=env,
@@ -486,7 +649,7 @@ class Agent:
         else:
             sweep_vars["interpreter"] = ["python"]
             sweep_vars["program"] = [command["program"]]
-            sweep_vars["args_json_file"] = [json_file]
+            sweep_vars["args_json_file"] = [args_json_file_path]
             if platform.system() != "Windows":
                 sweep_vars["env"] = ["/usr/bin/env"]
             command_list = []
@@ -516,7 +679,7 @@ class Agent:
         run_id = command["run_id"]
         if run_id in self._run_processes:
             proc = self._run_processes[run_id]
-            now = util.stopwatch_now()
+            now = time.monotonic()
             if proc.last_sigterm_time is None:
                 proc.last_sigterm_time = now
                 logger.info("Stop: %s", run_id)
@@ -536,35 +699,13 @@ class Agent:
     def _command_exit(self, command):
         logger.info("Received exit command. Killing runs and quitting.")
         for _, proc in self._run_processes.items():
+            proc.last_sigterm_time = time.monotonic()
             try:
                 proc.kill()
             except OSError:
                 # process is already dead
                 pass
         self._running = False
-
-
-class AgentApi:
-    def __init__(self, queue):
-        self._queue = queue
-        self._command_id = 0
-        self._multiproc_manager = multiprocessing.Manager()
-
-    def command(self, command):
-        command["origin"] = "local"
-        command["id"] = f"local-{self._command_id}"
-        self._command_id += 1
-        resp_queue = self._multiproc_manager.Queue()
-        command["resp_queue"] = resp_queue
-        self._queue.put(command)
-        result = resp_queue.get()
-        print("result:", result)  # noqa: T201
-        if "exception" in result:
-            print("Exception occurred while running command")  # noqa: T201
-            for line in result["traceback"]:
-                print(line.strip())  # noqa: T201
-            print(result["exception"])  # noqa: T201
-        return result
 
 
 def run_agent(
@@ -575,8 +716,9 @@ def run_agent(
     project=None,
     count=None,
     forward_signals=False,
+    term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ):
-    from wandb.apis import InternalApi
     from wandb.sdk.launch.sweeps import utils as sweep_utils
 
     parts = dict(entity=entity, project=project, name=sweep_id)
@@ -608,7 +750,7 @@ def run_agent(
     try:
         logger.addHandler(ch)
 
-        api = InternalApi()
+        api = wandb.Api()
         queue = multiprocessing.Queue()
         agent = Agent(
             api,
@@ -618,6 +760,8 @@ def run_agent(
             in_jupyter=in_jupyter,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
         agent.run()
     finally:
@@ -632,6 +776,8 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -655,9 +801,18 @@ def agent(
         count: The number of sweep config trials to try.
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
-
+        max_consecutive_failed_runs: Shut the agent down once this many runs
+            have failed back to back.
     """
     from wandb.agents.pyagent import pyagent
+
+    if max_consecutive_failed_runs is not None:
+        if isinstance(max_consecutive_failed_runs, bool) or not isinstance(
+            max_consecutive_failed_runs, int
+        ):
+            raise TypeError("max_consecutive_failed_runs must be an integer or None")
+        if max_consecutive_failed_runs < 1:
+            raise ValueError("max_consecutive_failed_runs must be at least 1")
 
     global _INSTANCES
     _INSTANCES += 1
@@ -665,7 +820,14 @@ def agent(
         # make sure we are logged in
         wandb_login._login(_silent=True)
         if function:
-            return pyagent(sweep_id, function, entity, project, count)
+            return pyagent(
+                sweep_id,
+                function,
+                entity,
+                project,
+                count,
+                max_consecutive_failed_runs=max_consecutive_failed_runs,
+            )
         return run_agent(
             sweep_id,
             function=function,
@@ -674,6 +836,8 @@ def agent(
             project=project,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
     finally:
         _INSTANCES -= 1

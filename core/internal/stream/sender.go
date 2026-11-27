@@ -12,19 +12,24 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -35,6 +40,8 @@ import (
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+var stepMetric = pathtree.PathOf("_step")
 
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
@@ -59,6 +66,7 @@ type SenderFactory struct {
 	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
+	Stats                   *filestreamstats.Stats
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -77,16 +85,29 @@ type Sender struct {
 
 	operations *wboperation.WandbOperations
 
+	// receivedExitCh is closed once the Sender receives an Exit record.
+	receivedExitCh chan struct{}
+
+	// fileStreamStart tracks the goroutine that starts the FileStream
+	// once the run is initialized.
+	fileStreamStart sync.WaitGroup
+
 	// settings is the settings for the sender
 	settings *settings.Settings
 
-	// graphqlClient is the graphql client
+	// graphqlClient makes GraphQL requests to the backend.
+	//
+	// It is nil in offline mode.
 	graphqlClient graphql.Client
 
-	// fileStream is the file stream
+	// fileStream uploads data to the backend.
+	//
+	// It is nil in offline mode.
 	fileStream fs.FileStream
 
-	// fileTransferManager is the file uploader/downloader
+	// fileTransferManager uploads and downloads files.
+	//
+	// It is nil in offline mode.
 	fileTransferManager filetransfer.FileTransferManager
 
 	// fileTransferStats tracks file upload progress
@@ -95,7 +116,9 @@ type Sender struct {
 	// fileWatcher notifies when files in the file system are changed
 	fileWatcher watcher.Watcher
 
-	// runfilesUploader manages uploading a run's files
+	// runfilesUploader uploads a run's files, implementing `run.save()`.
+	//
+	// It is nil in offline mode.
 	runfilesUploader runfiles.Uploader
 
 	// artifactsSaver manages artifact uploads
@@ -110,11 +133,19 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
-	// receivedExit is true once the Sender receives an Exit record.
-	receivedExit bool
+	// stepTracker assigns increasing _step values and updates summary _step.
+	stepTracker *HistoryStepTracker
 
-	// jobBuilder is the job builder for creating jobs from the run
-	// that allow users to re-run the run with different configurations
+	// runHistorySampler tracks samples of all metrics in the run's history.
+	//
+	// This is used to display the sparkline in the terminal at the end of
+	// the run.
+	runHistorySampler *runhistory.RunHistorySampler
+
+	// jobBuilder creates "jobs" from the run, which allow users to re-run it
+	// with different configurations.
+	//
+	// It is nil when offline or if job creation is disabled.
 	jobBuilder *launch.JobBuilder
 
 	// networkPeeker is a helper for peeking into network responses
@@ -128,6 +159,9 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
+
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
 }
 
 // New returns a new Sender.
@@ -145,7 +179,16 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.Settings,
 		)
 	}
+	return f.NewWithFileStream(runWork, fileStream)
+}
 
+// NewWithFileStream returns a new Sender that uses the given FileStream.
+//
+// Tests use this to inject a fake FileStream. Production code should use New.
+func (f *SenderFactory) NewWithFileStream(
+	runWork runwork.RunWork,
+	fileStream fs.FileStream,
+) *Sender {
 	var runfilesUploader runfiles.Uploader
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
@@ -154,6 +197,30 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			fileStream,
 		)
 	}
+
+	// Resolve server feature flags lazily, off the connection's request loop.
+	//
+	// SenderFactory.New runs synchronously in that loop (via handleInformInit),
+	// so querying features here would block the loop on a network round-trip.
+	featureCtx := runWork.BeforeEndCtx()
+	structuredConsoleLogs := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		)
+	})
+	useArtifactProjectEntityInfo := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+		)
+	})
+	serverProvidesArtifactDigestAlgorithm := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_ARTIFACT_DIGEST_ALGORITHM,
+		)
+	})
 
 	consoleLogsSenderParams := runconsolelogs.Params{
 		FilesDir:              f.Settings.GetFilesDir(),
@@ -165,16 +232,14 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		Multipart:             f.Settings.IsConsoleMultipart(),
 		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
 		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
-		Structured: f.FeatureProvider.Enabled(
-			context.Background(),
-			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
-		),
+		Structured:            structuredConsoleLogs,
 	}
 
 	s := &Sender{
 		runWork:             runWork,
 		logger:              f.Logger,
 		operations:          f.Operations,
+		receivedExitCh:      make(chan struct{}),
 		settings:            f.Settings,
 		fileStream:          fileStream,
 		fileTransferManager: f.FileTransferManager,
@@ -186,10 +251,8 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.FileStreamFactory.Printer,
 			f.GraphqlClient,
 			f.FileTransferManager,
-			f.FeatureProvider.Enabled(
-				context.Background(),
-				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
-			),
+			useArtifactProjectEntityInfo,
+			serverProvidesArtifactDigestAlgorithm,
 		),
 		networkPeeker:     f.Peeker,
 		printer:           f.Printer,
@@ -197,7 +260,10 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
 		runSummary:        runsummary.New(),
+		stepTracker:       NewHistoryStepTracker(f.Logger),
+		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
+		stats:             f.Stats,
 	}
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
@@ -209,8 +275,10 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 // Do processes all work on the input channel.
 func (s *Sender) Do(allWork <-chan runwork.Work) {
-	defer s.logger.Reraise()
+	defer s.logger.Reraise("stream")
 	s.logger.Info("sender: started")
+
+	s.startFileStreamAfterRunInit()
 
 	hangDetectionInChan := make(chan runwork.Work, 32)
 	hangDetectionOutChan := make(chan struct{}, 32)
@@ -230,6 +298,8 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
+
+	s.fileStreamStart.Wait()
 
 	s.logger.Info("sender: closed")
 }
@@ -321,6 +391,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendSystemMetrics(x.Stats)
 	case *spb.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
+	case *spb.Record_OutputLogger:
+		s.sendOutputLogger(record, x.OutputLogger)
 	case *spb.Record_Output:
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
@@ -337,14 +409,21 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendArtifact(record, x.Artifact)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
+			"stream",
 			fmt.Errorf(
 				"sender: sendRecord: nil RecordType, number %d",
-				record.GetNum()))
+				record.GetNum(),
+			),
+		)
 	default:
 		s.logger.CaptureFatalAndPanic(
+			"stream",
 			fmt.Errorf(
 				"sender: sendRecord: unexpected type %T, number %d",
-				x, record.GetNum()))
+				x,
+				record.GetNum(),
+			),
+		)
 	}
 }
 
@@ -355,119 +434,117 @@ func (s *Sender) sendRequest(
 	request *runwork.Request,
 ) {
 	switch x := requestRecord.RequestType.(type) {
+	// These requests were removed from the client, so we don't need to
+	// handle them. Keep for now, remove in the future:
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
-		// These requests were removed from the client, so we don't need to
-		// handle them. Keep for now should be removed in the future
-	case *spb.Request_RunStart:
-		s.sendRequestRunStart(x.RunStart)
+
 	case *spb.Request_NetworkStatus:
 		s.sendRequestNetworkStatus(x.NetworkStatus, request)
+
+	case *spb.Request_SampledHistory:
+		s.sendRequestSampledHistory(x.SampledHistory, request)
+
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(x.LogArtifact, request)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(x.LinkArtifact, request)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(x.DownloadArtifact, request)
+
 	case *spb.Request_SenderRead:
 		// TODO: implement this
+
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+
 	case nil:
 		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: sendRequest: nil RequestType"))
+			"stream",
+			errors.New("sender: sendRequest: nil RequestType"),
+		)
 	default:
 		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendRequest: unexpected type %T", x))
+			"stream",
+			fmt.Errorf("sender: sendRequest: unexpected type %T", x),
+		)
 	}
 }
 
-// updateSettings updates the settings from the run record upon a run start
-// with the information from the server
-func (s *Sender) updateSettings() {
-	upserter, _ := s.runHandle.Upserter()
-	if s.settings == nil || upserter == nil {
+// startFileStreamAfterRunInit schedules a goroutine that waits for the run
+// to finish initializing, then calls FileStream.Start().
+//
+// The goroutine returns early if the exit record is received before the run
+// initializes.
+func (s *Sender) startFileStreamAfterRunInit() {
+	if s.fileStream == nil {
 		return
 	}
 
-	// StartTime should be generally thought of as the Run last modified time
-	// as it gets updated at a run branching point, such as resume, fork, or rewind
-	startTime := upserter.StartTime()
-	if s.settings.GetStartTime().IsZero() && !startTime.IsZero() {
-		s.settings.UpdateStartTime(startTime)
-	}
+	s.fileStreamStart.Go(func() {
+		defer s.logger.Reraise("stream")
 
-	runPath := upserter.RunPath()
+		select {
+		case <-s.receivedExitCh:
+			return
+		case <-s.runHandle.ReadyOrFailed():
+		}
 
-	// TODO: verify that this is the correct update logic
-	if runPath.Entity != "" {
-		s.settings.UpdateEntity(runPath.Entity)
-	}
-	if runPath.Project != "" {
-		s.settings.UpdateProject(runPath.Project)
-	}
-	if displayName := upserter.DisplayName(); displayName != "" {
-		s.settings.UpdateDisplayName(displayName)
-	}
-}
+		upserter, err := s.runHandle.Upserter()
+		if err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: startFileStreamAfterRunInit: %v", err),
+			)
+			return
+		}
 
-// sendRequestRunStart sends a run start request to start all the stream
-// components that need to be started and to update the settings
-func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: sendRequestRunStart: %v", err))
-		return
-	}
+		runPath := upserter.RunPath()
 
-	s.updateSettings()
-
-	runPath := upserter.RunPath()
-
-	if s.fileStream != nil {
 		s.fileStream.Start(
 			runPath.Entity,
 			runPath.Project,
 			runPath.RunID,
+			upserter.SegmentID(),
 			upserter.FileStreamOffsets(),
 		)
-	}
+	})
 }
 
 func (s *Sender) sendRequestNetworkStatus(
 	_ *spb.NetworkStatusRequest,
 	request *runwork.Request,
 ) {
-	// in case of network peeker is not set, we don't need to do anything
-	if s.networkPeeker == nil {
-		return
-	}
+	response := s.networkPeeker.Read()
 
-	// send the network status response if there is any
-	if response := s.networkPeeker.Read(); len(response) > 0 {
-		s.respond(request,
-			&spb.Response{
-				ResponseType: &spb.Response_NetworkStatusResponse{
-					NetworkStatusResponse: &spb.NetworkStatusResponse{
-						NetworkResponses: response,
-					},
+	s.respond(request,
+		&spb.Response{
+			ResponseType: &spb.Response_NetworkStatusResponse{
+				NetworkStatusResponse: &spb.NetworkStatusResponse{
+					NetworkResponses: response,
 				},
 			},
-		)
-	}
+		},
+	)
 }
 
-func (s *Sender) sendJobFlush() {
-	if s.jobBuilder == nil {
-		return
-	}
+func (s *Sender) sendRequestSampledHistory(
+	record *spb.SampledHistoryRequest,
+	request *runwork.Request,
+) {
+	s.respond(request, &spb.Response{
+		ResponseType: &spb.Response_SampledHistoryResponse{
+			SampledHistoryResponse: &spb.SampledHistoryResponse{
+				Item: s.runHistorySampler.Get(),
+			},
+		},
+	})
+}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendJobFlush: %v", err))
+func (s *Sender) sendJobFlush(upserter *runupserter.RunUpserter) {
+	if s.jobBuilder == nil {
 		return
 	}
 
@@ -480,6 +557,7 @@ func (s *Sender) sendJobFlush() {
 		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
 		upserter.ConfigMap(),
+		upserter.RunPath(),
 		output,
 	)
 	if err != nil {
@@ -501,7 +579,9 @@ func (s *Sender) sendJobFlush() {
 	)
 	if result.Err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
+			"stream",
+			fmt.Errorf("sender: failed to save job artifact: %v", result.Err),
+		)
 	}
 }
 
@@ -515,7 +595,7 @@ func (s *Sender) startFinishRun(
 	exitRequest *runwork.Request,
 ) {
 	go func() {
-		defer s.logger.Reraise()
+		defer s.logger.Reraise("stream")
 		s.finishRunSync(exitRecord, exitRequest)
 	}()
 }
@@ -540,6 +620,7 @@ func (s *Sender) finishRunSync(
 	// It's possible we say we timed out when all data uploaded successfully
 	// if it got really close to the timeout, but that's OK.
 	var timedOut atomic.Bool
+	s.stats.StartFinish()
 
 	defer func() {
 		s.respondExit(exitRequest, timedOut.Load())
@@ -570,18 +651,29 @@ func (s *Sender) finishRunSync(
 		defer cancelAbortOnRequestFinish()
 	}
 
+	// We may start to exit before receiving a run record, like when syncing
+	// an empty file. If we did receive a run record, wait for initialization
+	// to complete before continuing.
+	var upserterOrNil *runupserter.RunUpserter
+	if s.runHandle.BeganInit() {
+		select {
+		case <-s.runWork.BeforeEndCtx().Done():
+		case <-s.runHandle.ReadyOrFailed():
+		}
+
+		upserterOrNil, _ = s.runHandle.Upserter()
+	}
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()
-	s.uploadSummaryFile()
-
-	upserter, _ := s.runHandle.Upserter()
-	if upserter != nil {
-		upserter.Finish()
+	if upserterOrNil != nil {
+		s.uploadSummaryFile()
+		upserterOrNil.Finish()
+		s.uploadConfigFile(upserterOrNil)
 	}
-	s.uploadConfigFile()
 	s.mu.Unlock()
 
 	// Wait for artifacts operations to complete here to detect
@@ -589,7 +681,9 @@ func (s *Sender) finishRunSync(
 	s.artifactWG.Wait()
 
 	s.mu.Lock()
-	s.sendJobFlush()
+	if upserterOrNil != nil {
+		s.sendJobFlush(upserterOrNil)
+	}
 	s.mu.Unlock()
 
 	// Finish uploading non-artifact files.
@@ -605,7 +699,11 @@ func (s *Sender) finishRunSync(
 		s.fileTransferManager.Close()
 	}
 
-	// Mark the run finished.
+	// Report the run's telemetry metrics.
+	s.stats.RecordRun(context.Background())
+
+	// Mark the run finished, after the FileStream has started.
+	s.fileStreamStart.Wait()
 	if s.fileStream != nil {
 		if exitRecord.NotComplete || !s.settings.ShouldUpdateFinishState() {
 			s.fileStream.FinishWithoutExit()
@@ -613,6 +711,7 @@ func (s *Sender) finishRunSync(
 			s.fileStream.FinishWithExit(exitRecord.ExitCode)
 		}
 	}
+	s.stats.RecordFinish(context.Background())
 
 	// Indicate that `run.finish()` is done.
 	//
@@ -620,6 +719,9 @@ func (s *Sender) finishRunSync(
 	// printing `run.finish()` progress, and it was necessary to "close"
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
+
+	// Unblock any printer reads.
+	s.printer.Close()
 }
 
 // respondExit constructs and sends a response to an exit request.
@@ -643,9 +745,12 @@ func (s *Sender) respondExit(
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendTelemetry: %v", err))
+	if s.settings.IsOffline() {
+		return
+	}
+
+	upserter, ok := s.mustInitialize("sendTelemetry")
+	if !ok {
 		return
 	}
 
@@ -653,9 +758,12 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 }
 
 func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
+	if s.settings.IsOffline() {
+		return
+	}
+
+	upserter, ok := s.mustInitialize("sendEnvironment")
+	if !ok {
 		return
 	}
 
@@ -663,10 +771,10 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 
 	// TODO: only upload the wandb-metadata.json file if the server
 	// does not understand environment info in the config.
-	s.uploadMetadataFile()
+	s.uploadMetadataFile(upserter)
 }
 
-func (s *Sender) uploadMetadataFile() {
+func (s *Sender) uploadMetadataFile(upserter *runupserter.RunUpserter) {
 	if s.runfilesUploader == nil {
 		return
 	}
@@ -675,16 +783,15 @@ func (s *Sender) uploadMetadataFile() {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
-		return
-	}
-
 	environment, err := upserter.EnvironmentJSON()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run environment info: %v", err))
+			"stream",
+			fmt.Errorf(
+				"sender: failed to serialize run environment info: %v",
+				err,
+			),
+		)
 		return
 	}
 
@@ -694,12 +801,18 @@ func (s *Sender) uploadMetadataFile() {
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run's %s file: %v", MetaFileName, err))
+			"stream",
+			fmt.Errorf(
+				"sender: failed to upload run's %s file: %v",
+				MetaFileName,
+				err,
+			),
+		)
 	}
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendPreempting")
 		return
 	}
@@ -715,6 +828,11 @@ func (s *Sender) sendLinkArtifact(
 	msg *spb.LinkArtifactRequest,
 	request *runwork.Request,
 ) {
+	if s.settings.IsOffline() {
+		request.WillNotRespond()
+		return
+	}
+
 	var response spb.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.runWork.BeforeEndCtx(),
@@ -743,40 +861,111 @@ func (s *Sender) sendLinkArtifact(
 }
 
 func (s *Sender) sendUseArtifact(record *spb.Record) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	if s.jobBuilder == nil {
 		s.logger.Warn("sender: sendUseArtifact: job builder disabled, skipping")
 		return
 	}
+
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// sendHistory sends a history record to the file stream,
-// which will then send it to the server
+// sendHistory queues a history record for uploading to the server.
+//
+// If the history record does not contain a _step value, this method will
+// auto-assign one. It will also update the run summary's _step value.
+//
+// In shared mode, the server assigns steps, so _step is left unset.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
 
-	if s.fileStream == nil {
+	upserter, ok := s.mustInitialize("sendHistory")
+	if !ok {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	// Measure re-reading the history items produced by the handler.
+	ingestStart := time.Now()
+	history := runhistory.New()
+	var readCounts filestreamstats.HistoryReadCounts
+	for _, item := range record.GetItem() {
+		if err := history.SetFromRecord(item); err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: failed to parse history item: %v", err),
+				"key", item.GetKey(),
+				"nested_key", item.GetNestedKey(),
+			)
+		} else {
+			readCounts.Add(item)
+		}
+	}
+	ingestDuration := time.Since(ingestStart)
+	s.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentUploadIngest,
+		filestreamstats.StreamHistory,
+		ingestDuration,
+	)
+	s.stats.RecordHistoryReads(
+		context.Background(),
+		filestreamstats.SegmentUploadIngest,
+		readCounts,
+	)
+
+	s.runHistorySampler.SampleNext(history)
+
+	var step int64
+	if !s.settings.IsSharedMode() {
+		step = s.stepTracker.ApplyHistoryStep(upserter, history)
+	}
+
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.HistoryUpdate{
+			Row: history,
+			// Record the cell count as a denominator for other cost metrics.
+			Cells: len(record.GetItem()),
+		})
+	}
+
+	if !s.settings.IsSharedMode() &&
+		!s.settings.IsEnableServerSideDerivedSummary() {
+		s.updateSummaryStep(step)
+	}
+}
+
+func (s *Sender) updateSummaryStep(step int64) {
+	updates := runsummary.NoUpdates().Set(stepMetric, step)
+
+	updates.Apply(s.runSummary)
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendSummary")
 		return
 	}
 
-	updates := runsummary.FromProto(summary)
-	if err := updates.Apply(s.runSummary); err != nil {
+	updates, err := runsummary.FromProto(summary)
+	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: error updating summary: %v", err))
+			"stream",
+			fmt.Errorf("sender: error parsing summary: %v", err),
+		)
+		// Continue, partial success is possible.
 	}
+	updates.Ignore(stepMetric) // Always use the step from history records.
 
+	updates.Apply(s.runSummary)
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 	}
@@ -794,7 +983,9 @@ func (s *Sender) uploadSummaryFile() {
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run summary: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to serialize run summary: %v", err),
+		)
 		return
 	}
 
@@ -804,11 +995,13 @@ func (s *Sender) uploadSummaryFile() {
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run summary: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to upload run summary: %v", err),
+		)
 	}
 }
 
-func (s *Sender) uploadConfigFile() {
+func (s *Sender) uploadConfigFile(upserter *runupserter.RunUpserter) {
 	if s.runfilesUploader == nil {
 		return
 	}
@@ -817,16 +1010,12 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: uploadConfigFile: %v", err))
-		return
-	}
-
 	config, err := upserter.ConfigYAML()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run config: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to serialize run config: %v", err),
+		)
 		return
 	}
 
@@ -836,7 +1025,9 @@ func (s *Sender) uploadConfigFile() {
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run config: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to upload run config: %v", err),
+		)
 	}
 }
 
@@ -876,9 +1067,12 @@ func (s *Sender) scheduleFileUpload(
 
 // sendConfig updates the run's config and schedules an upload.
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendConfig: %v", err))
+	if s.settings.IsOffline() {
+		return
+	}
+
+	upserter, ok := s.mustInitialize("sendConfig")
+	if !ok {
 		return
 	}
 
@@ -887,7 +1081,7 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendSystemMetrics")
 		return
 	}
@@ -896,9 +1090,8 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendSystemMetrics: %v", err))
+	upserter, ok := s.mustInitialize("sendSystemMetrics")
+	if !ok {
 		return
 	}
 
@@ -909,7 +1102,9 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 	startTime := upserter.StartTime()
 	if startTime.IsZero() {
 		s.logger.CaptureError(
-			errors.New("sender: sendSystemMetrics: start time not set"))
+			"stream",
+			errors.New("sender: sendSystemMetrics: start time not set"),
+		)
 		return
 	}
 
@@ -920,7 +1115,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutput")
 		return
 	}
@@ -929,7 +1124,7 @@ func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
 }
 
 func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutputRaw")
 		return
 	}
@@ -937,14 +1132,22 @@ func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
 	s.consoleLogsSender.StreamLogs(outputRaw)
 }
 
+func (s *Sender) sendOutputLogger(_ *spb.Record, outputLogger *spb.OutputLoggerRecord) {
+	if s.receivedExit() {
+		s.logCalledAfterExit("sendOutputLogger")
+		return
+	}
+
+	s.consoleLogsSender.StreamLoggerOutput(outputLogger)
+}
+
 func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 	if s.graphqlClient == nil {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureFatalAndPanic(fmt.Errorf("sender: sendAlert: %v", err))
+	upserter, ok := s.mustInitialize("sendAlert")
+	if !ok {
 		return
 	}
 	runPath := upserter.RunPath()
@@ -965,10 +1168,12 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 	)
 	if err != nil {
 		s.logger.CaptureError(
+			"stream",
 			fmt.Errorf(
 				"sender: sendAlert: failed to notify scriptable run alert: %v",
 				err,
-			))
+			),
+		)
 	} else {
 		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
 	}
@@ -981,23 +1186,29 @@ func (s *Sender) sendExit(
 	record *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
-	if s.receivedExit {
+	select {
+	case <-s.receivedExitCh:
 		s.logger.CaptureError(
-			errors.New("sender: received exit more than once, ignoring"))
+			"stream",
+			errors.New("sender: received exit more than once, ignoring"),
+		)
 		request.WillNotRespond()
 		return
+	default:
 	}
 
-	s.receivedExit = true
-
+	close(s.receivedExitCh)
 	s.startFinishRun(record, request)
 }
 
 // sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
+	if s.settings.IsOffline() {
+		return
+	}
+
+	upserter, ok := s.mustInitialize("sendMetric")
+	if !ok {
 		return
 	}
 
@@ -1007,9 +1218,11 @@ func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 // sendFiles uploads files according to a FilesRecord
 func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 	if s.runfilesUploader == nil {
-		s.logger.CaptureWarn(
-			"sender: tried to sendFiles, but runfiles uploader is nil",
-		)
+		return
+	}
+
+	// The file uploader will fail if the run has not been initialized.
+	if _, ok := s.mustInitialize("sendFiles"); !ok {
 		return
 	}
 
@@ -1017,6 +1230,25 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
+	upserter, ok := s.mustInitialize("sendArtifact")
+	if !ok {
+		return
+	}
+
+	// A run's artifacts go where the run is, as resolved by its upsert.
+	//
+	// An offline run's artifact records have no entity, and `wandb sync`
+	// options such as --entity change only the run record.
+	runPath := upserter.RunPath()
+	msg = proto.CloneOf(msg)
+	msg.Entity = runPath.Entity
+	msg.Project = runPath.Project
+	msg.RunId = runPath.RunID
+
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",
@@ -1036,8 +1268,10 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 		op.Finish()
 		if result.Err != nil {
 			s.logger.CaptureError(
+				"stream",
 				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
-				"artifactID", result.ArtifactID)
+				"artifactID", result.ArtifactID,
+			)
 		}
 	}()
 }
@@ -1046,6 +1280,11 @@ func (s *Sender) sendRequestLogArtifact(
 	msg *spb.LogArtifactRequest,
 	request *runwork.Request,
 ) {
+	if s.settings.IsOffline() {
+		request.WillNotRespond()
+		return
+	}
+
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",
@@ -1069,8 +1308,8 @@ func (s *Sender) sendRequestLogArtifact(
 
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
-			// TODO: it will send error to sentry, do we want it?
 			s.logger.CaptureError(
+				"stream",
 				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
 				"artifactID", result.ArtifactID,
 			)
@@ -1120,7 +1359,9 @@ func (s *Sender) sendRequestDownloadArtifact(
 	).Download(); err != nil {
 		// Online mode handling: error during download
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to download artifact: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to download artifact: %v", err),
+		)
 		response.ErrorMessage = err.Error()
 	}
 
@@ -1150,8 +1391,48 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 	s.jobBuilder.HandleJobInputRequest(request)
 }
 
+// mustInitialize asserts that run initialization has begun and waits for it
+// to complete successfully.
+//
+// Returns (nil, false) and logs an error using the method name on failure.
+func (s *Sender) mustInitialize(
+	method string,
+) (*runupserter.RunUpserter, bool) {
+	if !s.runHandle.BeganInit() {
+		s.logger.CaptureError("stream",
+			fmt.Errorf("sender: %s called before init", method))
+		return nil, false
+	}
+
+	select {
+	case <-s.runWork.BeforeEndCtx().Done():
+	case <-s.runHandle.ReadyOrFailed():
+	}
+
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("sender: %s: %v", method, err))
+		return nil, false
+	}
+
+	return upserter, true
+}
+
+// receivedExit returns true if an Exit record has been received.
+func (s *Sender) receivedExit() bool {
+	select {
+	case <-s.receivedExitCh:
+		return true
+	default:
+		return false
+	}
+}
+
 // logCalledAfterExit logs an error for a method wrongly called after an Exit
 // record has been received.
 func (s *Sender) logCalledAfterExit(method string) {
-	s.logger.CaptureError(fmt.Errorf("sender: %s called after exit", method))
+	s.logger.CaptureError(
+		"stream",
+		fmt.Errorf("sender: %s called after exit", method),
+	)
 }

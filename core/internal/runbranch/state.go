@@ -73,7 +73,7 @@ type RunParams struct {
 
 	// run state fields based on response from the server
 	StartingStep int64
-	Runtime      int32
+	Runtime      time.Duration
 
 	Tags []string
 
@@ -85,6 +85,14 @@ type RunParams struct {
 	//
 	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
+
+	// Resume is whether the run is expected to resume an existing run.
+	//
+	// This is distinct from Resumed: Resume is what the user asked for,
+	// while Resumed reflects whether the backend actually resumed the run.
+	// It is persisted on the RunRecord so that offline runs can defer resume
+	// reconciliation to sync time.
+	Resume bool
 
 	Resumed bool
 	Forked  bool
@@ -141,7 +149,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 	record.SweepId = r.SweepID
 
 	record.StartingStep = r.StartingStep
-	record.Runtime = r.Runtime
+	record.Runtime = int32(r.Runtime.Seconds())
 
 	record.Tags = slices.Clone(r.Tags)
 
@@ -154,6 +162,8 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 		})
 	}
 
+	record.Resume = r.Resume
+
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
 
@@ -164,6 +174,8 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 //
 // The record may be partially filled, in which case only non-empty fields are
 // used.
+//
+//nolint:gocyclo // Update copies most fields one by one. A split would make that harder to read.
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,
@@ -218,7 +230,7 @@ func (r *RunParams) Update(
 		r.StartingStep = record.StartingStep
 	}
 	if record.Runtime != 0 {
-		r.Runtime = record.Runtime
+		r.Runtime = time.Duration(record.Runtime) * time.Second
 	}
 
 	if len(record.Tags) > 0 {
@@ -226,6 +238,10 @@ func (r *RunParams) Update(
 	}
 
 	// NOTE: Summary is ignored; see comment on the field.
+
+	if record.Resume {
+		r.Resume = true
+	}
 
 	if record.Resumed {
 		r.Resumed = true

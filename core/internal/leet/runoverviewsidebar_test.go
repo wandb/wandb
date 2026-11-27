@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
@@ -102,7 +101,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 
 func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, rightVisible bool) {
 	t.Helper()
-	s.UpdateDimensions(termWidth, rightVisible)
+	s.UpdateDimensions(termWidth, rightVisible, 0)
 	s.Toggle()
 	time.Sleep(leet.AnimationDuration + 20*time.Millisecond)
 	// Drive animation to completion.
@@ -140,10 +139,10 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 
 	s.Sync()
 
-	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
+	// Small height -> the squeezed Config section paginates.
 	view := stripANSI(s.View(15).Content)
-	require.Contains(t, view, "Config [1-2 of 5]")
-	require.Contains(t, view, "Summary [1-1 of 2]")
+	require.Contains(t, view, "Config [1-3 of 5]")
+	require.Contains(t, view, "Summary [2 items]")
 	require.Contains(t, view, "Environment")
 
 	// Larger height -> enough space -> expect "[N items]" (non-paginated).
@@ -152,6 +151,135 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	require.Contains(t, view, "Summary [2 items]")
 
 	s.Toggle()
+}
+
+func TestSidebar_View_SeparatorBetweenSections(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{
+		{Update: []*spb.SummaryItem{{NestedKey: []string{"acc"}, ValueJson: "0.9"}}},
+	})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+
+	s.Sync()
+
+	// Three visible sections are set apart by two horizontal rules.
+	view := stripANSI(s.View(30).Content)
+	rules := 0
+	for line := range strings.SplitSeq(view, "\n") {
+		if strings.Contains(line, "————") {
+			rules++
+		}
+	}
+	require.Equal(t, 2, rules)
+}
+
+func TestSidebar_SectionsFillAvailableHeight(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "b"}, ValueJson: "2"},
+				{NestedKey: []string{"alpha", "c"}, ValueJson: "3"},
+				{NestedKey: []string{"beta", "d"}, ValueJson: "4"},
+				{NestedKey: []string{"beta", "e"}, ValueJson: "5"},
+			},
+		},
+	})
+
+	for i := range 40 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"custom", fmt.Sprintf("metric_%d", i)},
+				ValueJson: fmt.Sprintf("%d", i),
+			}},
+		}})
+	}
+
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
+	})
+
+	s.Sync()
+
+	// A tall sidebar shows all 40 summary items on one page instead of
+	// stopping at a fixed section size.
+	view := stripANSI(s.View(60).Content)
+	require.Contains(t, view, "Summary [40 items]")
+}
+
+func TestSidebar_SectionsReflowAsDataChanges(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "b"}, ValueJson: "2"},
+				{NestedKey: []string{"alpha", "c"}, ValueJson: "3"},
+				{NestedKey: []string{"beta", "d"}, ValueJson: "4"},
+				{NestedKey: []string{"beta", "e"}, ValueJson: "5"},
+			},
+		},
+	})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
+			{NestedKey: []string{"lr"}, ValueJson: "0.001"},
+		},
+	}})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+
+	// Everything fits: each section sized to its items.
+	s.Sync()
+	view := stripANSI(s.View(30).Content)
+	require.Contains(t, view, "Environment [2 items]")
+	require.Contains(t, view, "Config [5 items]")
+	require.Contains(t, view, "Summary [3 items]")
+
+	// The run logs 40 more summary metrics: Summary overflows and takes
+	// every row the sized-to-content sections do not use.
+	for i := range 40 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"custom", fmt.Sprintf("metric_%d", i)},
+				ValueJson: fmt.Sprintf("%d", i),
+			}},
+		}})
+	}
+	s.Sync()
+	view = stripANSI(s.View(30).Content)
+	require.Contains(t, view, "Config [5 items]")
+	require.Contains(t, view, "Summary [1-15 of 43]")
+
+	// Three config values are deleted: the freed rows flow to Summary.
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Remove: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}},
+				{NestedKey: []string{"alpha", "b"}},
+				{NestedKey: []string{"alpha", "c"}},
+			},
+		},
+	})
+	s.Sync()
+	view = stripANSI(s.View(30).Content)
+	require.Contains(t, view, "Config [2 items]")
+	require.Contains(t, view, "Summary [1-18 of 43]")
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
@@ -183,26 +311,26 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 
 	s.Sync()
 
-	// Start in Environment; Tab to Config (navigateSection).
-	s.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	// Start in Environment; move to Config (navigateSection).
+	s.TestNavigateSection(1)
 	key, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key, "alpha.") || strings.HasPrefix(key, "beta."))
 
 	// Height=15 -> 1 item/page; Down moves to next page/next item (navigateDown + navigatePage).
 	_ = s.View(15)
-	s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	s.TestNavigateDown()
 	key2, _ := s.SelectedItem()
 	require.NotEqual(t, key2, key)
 
 	// Page right, then left, then Up; remain in Config.
-	s.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-	s.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	s.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	s.TestNavigatePageDown()
+	s.TestNavigatePageUp()
+	s.TestNavigateUp()
 	key3, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key3, "alpha.") || strings.HasPrefix(key3, "beta."))
 
-	// Shift-Tab back to previous section (Environment).
-	s.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	// Step back to the previous section (Environment).
+	s.TestNavigateSection(-1)
 	key4, _ := s.SelectedItem()
 	require.False(t, strings.HasPrefix(key4, "alpha.") || strings.HasPrefix(key4, "beta."))
 }
@@ -405,7 +533,7 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 
 	// Navigate down a few items to force CurrentPage > 0.
 	for range 5 {
-		s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		s.TestNavigateDown()
 	}
 
 	// Larger height -> ItemsPerPage increases. This used to panic.

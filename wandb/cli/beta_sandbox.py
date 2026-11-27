@@ -4,12 +4,14 @@ import json
 from datetime import datetime
 
 import click
+from cwsandbox import CWSandboxError, SandboxStatus
 from cwsandbox.cli.shell import _validate_cmd as _cwsandbox_validate_cmd
 
-from wandb.sandbox import CWSandboxError, Sandbox, SandboxStatus
-from wandb.sandbox._auth import override_sandbox_entity
-
 _STATUS_CHOICES = [s.value for s in SandboxStatus if s != SandboxStatus.UNSPECIFIED]
+_DEPRECATION_MESSAGE = (
+    "It will be removed in a future release. "
+    "Sandbox functionality is now maintained in the `cwsandbox` package."
+)
 
 
 class SandboxCommand(click.Command):
@@ -27,6 +29,8 @@ class SandboxCommand(click.Command):
         ]
 
     def invoke(self, ctx: click.Context) -> object:
+        from wandb.sandbox._auth import override_sandbox_entity
+
         entity = ctx.params.pop("entity", None)
 
         try:
@@ -42,7 +46,7 @@ class SandboxGroup(click.Group):
     command_class = SandboxCommand
 
 
-@click.group(cls=SandboxGroup)
+@click.group(cls=SandboxGroup, deprecated=_DEPRECATION_MESSAGE)
 def sandbox() -> None:
     """Manage W&B sandboxes.
 
@@ -82,7 +86,7 @@ def sandbox() -> None:
 @click.option(
     "--all",
     "-a",
-    "include_stopped",
+    "show_terminated",
     is_flag=True,
     default=False,
     help="Include stopped sandboxes in results.",
@@ -100,7 +104,7 @@ def sandbox() -> None:
 )
 def list_sandboxes(
     status: str | None,
-    include_stopped: bool,
+    show_terminated: bool,
     tags: tuple[str, ...],
     output_format: str,
 ) -> None:
@@ -118,10 +122,12 @@ def list_sandboxes(
 
         wandb beta sandbox ls --entity team
     """
+    from wandb.sandbox import Sandbox
+
     sandboxes = Sandbox.list(
         tags=list(tags) if tags else None,
         status=status,
-        include_stopped=include_stopped,
+        show_terminated=show_terminated,
     ).result()
 
     if output_format == "json":
@@ -273,7 +279,7 @@ def logs(
     """Stream logs from a sandbox's main process.
 
     Streams stdout/stderr from the command used to create the sandbox. Output
-    from ``wandb beta sandbox exec`` commands is not included.
+    from `wandb beta sandbox exec` commands is not included.
 
     SANDBOX_ID is the ID of the sandbox to stream logs from.
 

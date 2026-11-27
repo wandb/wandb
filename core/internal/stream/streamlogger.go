@@ -1,14 +1,15 @@
 package stream
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -20,9 +21,17 @@ type streamLoggerFile *os.File
 // streamLoggerProviders provides stream logging-related bindings.
 var streamLoggerProviders = wire.NewSet(
 	openStreamLoggerFile,
-	streamSentryContext,
 	streamLogger,
+	streamOTelProxy,
 )
+
+// streamOTelProxy returns the OpenTelemetry proxy for the stream.
+//
+// The stream owns the proxy's lifecycle: it is shut down in Stream.Close
+// after all of the stream's work is processed.
+func streamOTelProxy(s *settings.Settings) *analytics.OpenTelemetryProxy {
+	return analytics.NewOpenTelemetryProxy(context.Background(), s, "wandb-core")
+}
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.
 func symlinkDebugCore(
@@ -45,27 +54,10 @@ func symlinkDebugCore(
 	}
 }
 
-// streamSentryContext returns the Sentry context for the stream.
-//
-// Returns nil if the run is offline.
-func streamSentryContext(s *settings.Settings) *observability.SentryContext {
-	if s.IsOffline() {
-		return nil
-	}
-
-	sentryCtx := observability.NewSentryContext(sentry.CurrentHub())
-	sentryCtx.SetUser(sentry.User{
-		ID:    s.GetEntity(),
-		Email: s.GetEmail(),
-		Name:  s.GetUserName(),
-	})
-	return sentryCtx
-}
-
 // streamLogger initializes a logger for the run.
 func streamLogger(
 	loggerFile streamLoggerFile,
-	sentryCtx *observability.SentryContext,
+	telemetryProxy *analytics.OpenTelemetryProxy,
 	s *settings.Settings,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
@@ -76,15 +68,19 @@ func streamLogger(
 		writer = io.Discard
 	}
 
-	sentryOnlyTags := observability.Tags{
+	telemetryTags := observability.Tags{
 		"run_id":   s.GetRunID(),
 		"run_url":  s.GetRunURL(),
-		"project":  s.GetProject(),
 		"base_url": s.GetBaseURL(),
 	}
 	if s.GetSweepURL() != "" {
-		sentryOnlyTags["sweep_url"] = s.GetSweepURL()
+		telemetryTags["sweep_url"] = s.GetSweepURL()
 	}
+
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
 
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
@@ -94,8 +90,8 @@ func streamLogger(
 				// AddSource: true,
 			},
 		)),
-		sentryCtx,
-	).With(nil, sentryOnlyTags)
+		telemetryRecorder,
+	).With(nil, telemetryTags)
 
 	logger.CaptureInfo("wandb-core")
 	logger.Info("stream: starting", "core version", version.Version)

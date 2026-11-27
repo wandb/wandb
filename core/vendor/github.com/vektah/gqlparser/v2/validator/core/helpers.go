@@ -28,6 +28,10 @@ func At(position *ast.Position) ErrorOption {
 			Line:   position.Line,
 			Column: position.Column,
 		})
+		recordSourceLocation(err, gqlerror.Location{
+			Line:   position.Line,
+			Column: position.Column,
+		}, position.Src)
 		if position.Src.Name != "" {
 			err.SetFile(position.Src.Name)
 		}

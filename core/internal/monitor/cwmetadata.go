@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -23,6 +24,10 @@ import (
 )
 
 // CoreWeaveInstanceData holds the parsed metadata from the CoreWeave endpoint.
+//
+// The endpoint also returns cluster credentials, such as the kubeadm join
+// token, the CA certificate hash and the Teleport join token. Those are
+// deliberately not parsed so that they cannot reach a log or a record.
 type CoreWeaveInstanceData struct {
 	CalicoCleanupAPI    string `meta:"calico_cleanup_api"`
 	K8sVersion          string `meta:"k8s_version"`
@@ -33,11 +38,8 @@ type CoreWeaveInstanceData struct {
 	FDERaid             bool   `meta:"fde_raid"`
 	TeleportClass       string `meta:"teleport_class"`
 	EtcHosts            string `meta:"etc_hosts"`
-	JoinToken           string `meta:"join_token"`
 	ClusterName         string `meta:"cluster_name"`
 	RegistryProxyServer string `meta:"registry_proxy_server"`
-	CACertHash          string `meta:"ca_cert_hash"`
-	TeleportToken       string `meta:"teleport_token"`
 	APIServer           string `meta:"apiserver"`
 }
 
@@ -84,10 +86,10 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client = retryablehttp.NewClient()
 		params.Client.Logger = params.Logger
 		params.Client.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-		params.Client.RetryMax = DefaultOpenMetricsRetryMax
-		params.Client.RetryWaitMin = DefaultOpenMetricsRetryWaitMin
-		params.Client.RetryWaitMax = DefaultOpenMetricsRetryWaitMax
-		params.Client.HTTPClient.Timeout = DefaultOpenMetricsTimeout
+		params.Client.RetryMax = 3
+		params.Client.RetryWaitMin = time.Second
+		params.Client.RetryWaitMax = 10 * time.Second
+		params.Client.HTTPClient.Timeout = 5 * time.Second
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
 
@@ -102,19 +104,15 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 	return cwm, nil
 }
 
-// Sample is a no-op method.
-//
-// Required for CoreWeaveMetadata to implement the Resource interface.
-func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
-	return nil, nil
-}
-
 // Probe collects metadata about the CoreWeave compute environment.
 //
 // It first checks if the current W&B entity's organization is using
 // CoreWeave by querying the W&B backend. If so, it fetches instance
 // metadata from the CoreWeave metadata endpoint using the Get method.
 func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord {
+	if cwm == nil {
+		return nil
+	}
 	if cwm.graphqlClient == nil {
 		cwm.logger.Debug(
 			"cwmetadata: error collecting data",
@@ -126,7 +124,10 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 
 	upserter, err := cwm.runHandle.Upserter()
 	if err != nil {
-		cwm.logger.CaptureError(fmt.Errorf("cwmetadata: %v", err))
+		cwm.logger.CaptureError(
+			"monitor",
+			fmt.Errorf("cwmetadata: %v", err),
+		)
 		return nil
 	}
 	entity := upserter.RunPath().Entity
@@ -258,7 +259,12 @@ func (cwm *CoreWeaveMetadata) parseResponse(body io.Reader) (*CoreWeaveInstanceD
 		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
-	cwm.logger.Debug("cwmetadata: successfully parsed metadata", "data", data)
+	cwm.logger.Debug(
+		"cwmetadata: successfully parsed metadata",
+		"cluster_name", data.ClusterName,
+		"org_id", data.OrgID,
+		"region", data.Region,
+	)
 	return data, nil
 }
 
@@ -303,7 +309,7 @@ func (cwm *CoreWeaveMetadata) parseLine(
 
 	field, ok := fieldMap[key]
 	if !ok || !field.CanSet() {
-		cwm.logger.Debug("cwmetadata: unknown or unsettable field", "key", key, "value", value)
+		cwm.logger.Debug("cwmetadata: unknown or unsettable field", "key", key)
 		return
 	}
 

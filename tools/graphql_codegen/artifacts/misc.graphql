@@ -36,10 +36,23 @@ query FetchOrgInfoFromEntity($entity: String!) {
   }
 }
 
-query FetchOrgEntityFromOrganization($organization: String!) {
-  organization(name: $organization) {
+query FetchOrganization($org: String!) {
+  organization(name: $org) {
+    id
+    name
     orgEntity {
+      __typename
+      id
       name
+      entityType
+    }
+  }
+}
+
+query FetchAdvancedRegistryFeatures($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
     }
   }
 }

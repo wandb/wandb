@@ -125,19 +125,6 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 	return stepValues, nil
 }
 
-func GetFileSize(
-	fileUrl string,
-	httpClient *retryablehttp.Client,
-) (int64, error) {
-	resp, err := httpClient.Head(fileUrl)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	return resp.ContentLength, nil
-}
-
 // RunHistoryDownloadOperation is a download operation
 // for managing and tracking the download of a run's history file(s).
 type RunHistoryDownloadOperation struct {
@@ -156,7 +143,7 @@ type RunHistoryDownloadOperation struct {
 	downloadDir string
 
 	// httpClient is the HTTP client to use for the download.
-	httpClient *retryablehttp.Client
+	httpClient api.RetryableClient
 
 	// signedUrls is the list of signed URLs for the files to download.
 	signedUrls []string
@@ -173,7 +160,7 @@ type RunHistoryDownloadOperation struct {
 
 func NewRunHistoryDownloadOperation(
 	ctx context.Context,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 	entity string,
 	project string,
 	runId string,
@@ -204,7 +191,6 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 	operation *wboperation.WandbOperation,
 ) ([]*filetransfer.DefaultDownloadTask, error) {
 	tasks := make([]*filetransfer.DefaultDownloadTask, 0, len(d.signedUrls))
-	totalBytes := int64(0)
 
 	for i, url := range d.signedUrls {
 		fileName := fmt.Sprintf(
@@ -215,19 +201,12 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 			i,
 		)
 		filePath := filepath.Join(d.downloadDir, fileName)
-		fileSize, err := GetFileSize(url, d.httpClient)
-		if err != nil {
-			return nil, err
-		}
-
-		totalBytes += fileSize
 
 		fileOp := operation.Subtask(fileName)
 		task := &filetransfer.DefaultDownloadTask{
 			FileKind: filetransfer.RunFileKindMedia,
 			Path:     filePath,
 			Url:      url,
-			Size:     fileSize,
 		}
 		task.Context = fileOp.Context(ctx)
 		task.OnComplete = func() {
@@ -250,9 +229,11 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 }
 
 // StartDownloads begins all the download tasks for the files.
-func (d *RunHistoryDownloadOperation) StartDownloads() ([]string, map[string]error) {
+func (d *RunHistoryDownloadOperation) StartDownloads(
+	ctx context.Context,
+) ([]string, map[string]error) {
 	parentOperation := d.operations.New("Downloading run history")
-	operationCtx := parentOperation.Context(context.Background())
+	operationCtx := parentOperation.Context(ctx)
 	defer parentOperation.Finish()
 
 	fileTransferStats := filetransfer.NewFileTransferStats()

@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,11 +11,11 @@ from .fragments import ApiKeyFragment
 
 
 class GenerateApiKey(GQLResult):
-    result: Optional[GenerateApiKeyResult]
+    result: GenerateApiKeyResult | None
 
 
 class GenerateApiKeyResult(GQLResult):
-    api_key: Optional[ApiKeyFragment] = Field(alias="apiKey")
+    api_key: ApiKeyFragment | None = Field(alias="apiKey")
 
 
 GenerateApiKey.model_rebuild()

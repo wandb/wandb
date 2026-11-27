@@ -59,7 +59,7 @@ class _DownloadStatusWatcher:
         request_id: int,
         contains_live_data: bool,
     ):
-        self.service_api = service_api
+        self._service_api = service_api
         self.request_id = request_id
         self.contains_live_data = contains_live_data
         self.done_event = asyncio.Event()
@@ -84,7 +84,7 @@ class _DownloadStatusWatcher:
             )
         )
 
-        handle = await self.service_api.send_api_request_async(api_request)
+        handle = await self._service_api.send_api_request_async(api_request)
         response = await handle.wait_async(timeout=None)
 
         downloaded_files = [
@@ -115,7 +115,7 @@ class _DownloadStatusWatcher:
                         )
                     )
                 )
-                handle = await self.service_api.send_api_request_async(status_request)
+                handle = await self._service_api.send_api_request_async(status_request)
                 last_response = await handle.wait_async(timeout=None)
 
                 if last_response is not None:

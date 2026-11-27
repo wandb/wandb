@@ -1,15 +1,13 @@
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
+from wandb.sdk.launch.api import LaunchApi
 
 
 @pytest.mark.asyncio
-async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
-    _ = use_local_wandb_backend
-
+async def test_local_container_entrypoint(user, monkeypatch):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
         return args[0]
@@ -42,7 +40,11 @@ async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
     # test with user provided image
     project = MagicMock()
     entrypoint = EntryPoint("blah", entry_command)
-    project.resource_args = {"local_container": {}}
+    project.resource_args = {"local-container": {}}
+    # Stub fill_macros like the sibling system tests so resource_args flow
+    # through as a real dict (the runner reads the "local-container" key).
+    project.fill_macros = lambda _: project.resource_args
+    project.job_base_image = None
     project.target_entity = entity_name
     project.target_project = project_name
     project.name = None
@@ -61,7 +63,7 @@ async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
     project.queue_entity = "queue-entity"
     project.run_queue_item_id = None
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         "local-container",
         api,

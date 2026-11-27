@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,7 +11,7 @@ from .fragments import ArtifactCollectionFragment
 
 
 class UpdateArtifactPortfolio(GQLResult):
-    result: Optional[UpdateArtifactPortfolioResult]
+    result: UpdateArtifactPortfolioResult | None
 
 
 class UpdateArtifactPortfolioResult(GQLResult):

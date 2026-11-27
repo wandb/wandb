@@ -5,7 +5,7 @@ import numpy as np
 from tqdm.auto import tqdm
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.segment import SegmentationPredictor
-from ultralytics.utils.ops import scale_image
+from ultralytics.utils.ops import scale_masks
 
 import wandb
 from wandb.integration.ultralytics.bbox_utils import (
@@ -35,9 +35,9 @@ def get_boxes_and_masks(result: Results) -> tuple[dict, dict, dict]:
     )
     masks = None
     if result.masks is not None:
-        scaled_instance_mask = scale_image(
-            np.transpose(result.masks.data.numpy(), (1, 2, 0)),
-            result.orig_img[:, :, ::-1].shape,
+        scaled_instance_mask = np.transpose(
+            scale_masks(result.masks.data[None], result.orig_img.shape[:2])[0].numpy(),
+            (1, 2, 0),
         )
         scaled_semantic_mask = instance_mask_to_semantic_mask(
             scaled_instance_mask, classes.tolist()

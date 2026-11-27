@@ -19,9 +19,6 @@ REFERENCE_ATTRIBUTES = set(
         "entity",
         "finish",
         "finish_artifact",
-        "get_project_url",
-        "get_sweep_url",
-        "get_url",
         "group",
         "id",
         "job_type",
@@ -38,7 +35,6 @@ REFERENCE_ATTRIBUTES = set(
         "path",
         "pin_config_keys",
         "project",
-        "project_name",
         "project_url",
         "restore",
         "resumed",
@@ -51,6 +47,7 @@ REFERENCE_ATTRIBUTES = set(
         "summary",
         "sweep_id",
         "sweep_url",
+        "sync_dir",
         "tags",
         "to_html",
         "unwatch",
@@ -59,27 +56,28 @@ REFERENCE_ATTRIBUTES = set(
         "use_artifact",
         "use_model",
         "watch",
+        "write_logs",
     ]
 )
 
 
-def test_run_step_property(mock_run):
-    run = mock_run()
-    run.log(dict(this=1))
-    run.log(dict(this=2))
-    assert run.step == 2
+def test_run_step_property():
+    with wandb.init(mode="offline") as run:
+        run.log(dict(this=1))
+        run.log(dict(this=2))
+        assert run.step == 2
 
 
-def test_log_avoids_mutation(mock_run):
-    run = mock_run()
-    d = dict(this=1)
-    run.log(d)
-    assert d == dict(this=1)
+def test_log_avoids_mutation():
+    with wandb.init(mode="offline") as run:
+        d = dict(this=1)
+        run.log(d)
+        assert d == dict(this=1)
 
 
-def test_display(mock_run):
-    run = mock_run(settings=wandb.Settings(mode="offline"))
-    assert run.display() is False
+def test_display():
+    with wandb.init(mode="offline") as run:
+        assert run.display() is False
 
 
 @pytest.mark.parametrize(
@@ -120,8 +118,8 @@ def test_run_urls(mock_run):
             run_id=run_id,
         )
     )
-    assert run.get_project_url() == f"{base_url}/{entity}/{project}"
-    assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
+    assert run.project_url == f"{base_url}/{entity}/{project}"
+    assert run.url == f"{base_url}/{entity}/{project}/runs/{run.id}"
 
 
 def test_run_publish_config(mock_run, parse_records, record_q):
@@ -322,7 +320,7 @@ def test_public_api_uses_api_key(mock_run, mocker):
     mock_api_class.assert_called_once_with(
         # overrides from mock_run
         {
-            "base_url": "https://api.wandb.ai",
+            "base_url": "https://api.forge.coreweave.com",
             "run": None,
             "entity": "",
             "project": "",

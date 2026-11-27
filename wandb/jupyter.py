@@ -7,15 +7,15 @@ import re
 import shutil
 import sys
 import traceback
+import urllib.parse
+import urllib.request
 from base64 import b64encode
 from typing import Any
 
 import IPython
 import IPython.display
-import requests
 from IPython.core.magic import Magics, line_cell_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from requests.compat import urljoin
 
 import wandb
 import wandb.util
@@ -159,11 +159,15 @@ class WandBMagics(Magics):
         if cell is None:
             return
 
+        ipython = IPython.get_ipython()
+        if ipython is None:
+            return
+
         if not displayed:
             _current_cell_wandb_magic = _WandbCellMagicState(height=height)
 
         try:
-            IPython.get_ipython().run_cell(cell)
+            ipython.run_cell(cell)
         finally:
             _current_cell_wandb_magic = None
 
@@ -179,7 +183,8 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
         from IPython import get_ipython
 
         ipython = get_ipython()
-        if ipython is not None:
+        # The kernel attribute only exists when running under ipykernel.
+        if ipython is not None and hasattr(ipython, "kernel"):
             notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
             if notebook_path:
                 return {
@@ -194,9 +199,10 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
     for s in servers:
         if s.get("password"):
             raise ValueError("Can't query password protected kernel")
-        res = requests.get(
-            urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
-        ).json()
+        query = urllib.parse.urlencode({"token": s.get("token", "")})
+        url = urllib.parse.urljoin(s["url"], "api/sessions") + "?" + query
+        with urllib.request.urlopen(url, timeout=3) as response:
+            res = json.load(response)
         for nn in res:
             if (
                 isinstance(nn, dict)
@@ -427,7 +433,7 @@ class Notebook:
             )
             return
         # TODO: some tests didn't patch ipython properly?
-        if self.shell is None:
+        if self.shell is None or self.shell.history_manager is None:
             return
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))

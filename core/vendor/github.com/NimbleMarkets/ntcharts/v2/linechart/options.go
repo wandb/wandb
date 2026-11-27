@@ -73,6 +73,20 @@ func WithXYSteps(x, y int) Option {
 	}
 }
 
+// WithXScale sets the scale of the X axis. See SetXScale.
+func WithXScale(s Scale) Option {
+	return func(m *Model) {
+		m.SetXScale(s)
+	}
+}
+
+// WithYScale sets the scale of the Y axis. See SetYScale.
+func WithYScale(s Scale) Option {
+	return func(m *Model) {
+		m.SetYScale(s)
+	}
+}
+
 // WithAutoXYRange enables automatically setting the minimum and maximum
 // expected X and Y values if new data values are beyond the current ranges.
 func WithAutoXYRange() Option {
@@ -99,5 +113,20 @@ func WithAutoYRange() Option {
 	return func(m *Model) {
 		m.AutoMinY = true
 		m.AutoMaxY = true
+	}
+}
+
+// WithMaxInterpolationPoints sets the maximum number of points to interpolate
+// for lines and circles. If 0, graph.DefaultMaxPoints is used.
+func WithMaxInterpolationPoints(n int) Option {
+	return func(m *Model) {
+		m.MaxInterpolationPoints = n
+	}
+}
+
+// WithY2Axis adds a right Y axis. See SetY2Axis.
+func WithY2Axis(a Axis) Option {
+	return func(m *Model) {
+		m.SetY2Axis(a)
 	}
 }

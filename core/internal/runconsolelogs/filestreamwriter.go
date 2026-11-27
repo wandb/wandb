@@ -14,9 +14,12 @@ type filestreamWriter struct {
 	debouncer  *debouncedWriter
 	FileStream filestream.FileStream
 
-	// Structured controls the format of uploaded lines.
+	// Structured reports whether to use the structured (JSON) line format.
 	//
-	// If false, then the legacy plain text format is used:
+	// It is a function so the underlying server feature check is
+	// evaluated lazily here, off the hot path that creates the writer.
+	//
+	// If false, the legacy plain text format is used:
 	//
 	// ERROR 2023-04-05T10:15:30.000000 [node-1-rank-0] Critical error occurred
 	//
@@ -28,13 +31,18 @@ type filestreamWriter struct {
 	//    "label":"node-1-rank-0",
 	//    "content":"Division by zero",
 	//  }
-	Structured bool
+	Structured func() bool
 }
 
 func NewFileStreamWriter(
-	structured bool,
+	structured func() bool,
 	fileStream filestream.FileStream,
 ) *filestreamWriter {
+	if structured == nil {
+		// Default to the legacy format.
+		structured = func() bool { return false }
+	}
+
 	w := &filestreamWriter{
 		FileStream: fileStream,
 		Structured: structured,
@@ -60,7 +68,7 @@ func (w *filestreamWriter) sendBatch(
 ) {
 	w.FileStream.StreamUpdate(&filestream.LogsUpdate{
 		Lines: sparselist.Map(lines, func(line *RunLogsLine) string {
-			if w.Structured {
+			if w.Structured() {
 				if s, err := line.StructuredFormat(); err == nil {
 					return s
 				} else {

@@ -8,6 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Khan/genqlient/graphql"
+
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -54,7 +57,7 @@ func (r *Run) TestGetLeftSidebar() *RunOverviewSidebar {
 }
 
 // TestHandleRecordMsg processes a record message
-func (r *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
+func (r *Run) TestHandleRecordMsg(msg tea.Msg) tea.Cmd {
 	return r.handleRecordMsg(msg)
 }
 
@@ -73,6 +76,45 @@ func (r *Run) TestStopHeartbeat() {
 		r.heartbeatMgr.Stop()
 	}
 }
+
+// TestSetLastUpdateAt overrides the run's staleness clock.
+func (r *Run) TestSetLastUpdateAt(t time.Time) {
+	r.lastUpdateAt = t
+}
+
+// TestLayoutWidths returns the run view's current sidebar widths.
+func (r *Run) TestLayoutWidths() (left, right int) {
+	l := r.computeViewports()
+	return l.leftSidebarWidth, l.rightSidebarWidth
+}
+
+// TestLayoutWidths returns the workspace's current sidebar widths.
+func (w *Workspace) TestLayoutWidths() (left, right int) {
+	l := w.computeViewports()
+	return l.leftSidebarWidth, l.rightSidebarWidth
+}
+
+// TestStackHeights returns the run view's central stack pane heights.
+func (r *Run) TestStackHeights() (metrics, media, logs int) {
+	l := r.computeViewports()
+	return l.height, l.mediaHeight, l.consoleLogsHeight
+}
+
+// TestStackHeights returns the workspace's central stack pane heights.
+func (w *Workspace) TestStackHeights() (metrics, system, media, logs int) {
+	l := w.computeViewports()
+	return l.height, l.systemMetricsHeight, l.mediaHeight, l.consoleLogsHeight
+}
+
+// TestInRunMode reports whether the model shows the single-run view.
+func (m *Model) TestInRunMode() bool { return m.mode == viewModeRun }
+
+// TestRunModel returns the single-run sub-model (nil in workspace mode).
+func (m *Model) TestRunModel() *Run { return m.run }
+
+func (m *Model) TestWorkspace() *Workspace { return m.workspace }
+
+func (r *Run) TestMetricsGrid() *MetricsGrid { return r.metricsGrid }
 
 func (s *Symon) TestGrid() *SystemMetricsGrid {
 	return s.grid
@@ -324,9 +366,24 @@ func TestNewWorkspaceRun(key string) *WorkspaceRun {
 
 func (r *WorkspaceRun) TestSetWatcherStarted(started bool) {
 	if r.watcher == nil {
-		r.watcher = &WatcherManager{}
+		r.watcher = NewWatcherManager(
+			make(chan tea.Msg, 1), observability.NewNoOpLogger())
 	}
 	r.watcher.started = started
+}
+
+func (r *WorkspaceRun) TestWatcherActive() bool {
+	return r.watcher != nil && r.watcher.started
+}
+
+// TestSetLastUpdateAt overrides the workspace run's staleness clock.
+func (r *WorkspaceRun) TestSetLastUpdateAt(t time.Time) {
+	r.lastUpdateAt = t
+}
+
+// TestState returns the workspace run's state.
+func (r *WorkspaceRun) TestState() RunState {
+	return r.state
 }
 
 func (w *Workspace) TestAttachRun(run *WorkspaceRun, selected bool) {
@@ -425,7 +482,7 @@ func (w *Workspace) TestGetRunOverviewByRunKey(runKey string) *RunOverview {
 // TestExecutePreloadCmd calls the preload command for a given run key
 // and returns the resulting message.
 func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPreloadedMsg {
-	cmd := w.preloadRunOverviewCmd(runKey)
+	cmd := w.backend.PreloadOverviewCmd(runKey)
 	msg := cmd()
 	return msg.(WorkspaceRunOverviewPreloadedMsg)
 }
@@ -540,6 +597,20 @@ func (w *Workspace) TestConsoleLogs() map[string]*RunConsoleLogs {
 	return w.consoleLogs
 }
 
+// TestSeedConsoleLogs populates console logs for a run and syncs the pane so
+// the console logs region becomes focusable.
+func (w *Workspace) TestSeedConsoleLogs(runKey string, lines ...string) {
+	cl := w.consoleLogs[runKey]
+	if cl == nil {
+		cl = NewRunConsoleLogs()
+		w.consoleLogs[runKey] = cl
+	}
+	for _, line := range lines {
+		cl.ProcessRaw(line, false, time.Now())
+	}
+	w.consoleLogsPane.SetConsoleLogs(cl.takeChanges())
+}
+
 // TestRunOverviewSidebarHasActiveSection reports whether the overview sidebar
 // has an active section.
 func (w *Workspace) TestRunOverviewSidebarHasActiveSection() bool {
@@ -550,6 +621,15 @@ func (w *Workspace) TestRunOverviewSidebarHasActiveSection() bool {
 func (s *RunOverviewSidebar) TestFocusableSectionBounds() (first, last int) {
 	return s.focusableSectionBounds()
 }
+
+// Sidebar navigation helpers for focused unit tests. In production these
+// moves are driven by the owning view's key bindings and FocusManager.
+
+func (s *RunOverviewSidebar) TestNavigateSection(direction int) { s.navigateSection(direction) }
+func (s *RunOverviewSidebar) TestNavigateUp()                   { s.navigateUp() }
+func (s *RunOverviewSidebar) TestNavigateDown()                 { s.navigateDown() }
+func (s *RunOverviewSidebar) TestNavigatePageUp()               { s.navigatePageUp() }
+func (s *RunOverviewSidebar) TestNavigatePageDown()             { s.navigatePageDown() }
 
 // TestSeedRunOverview populates the workspace's overview data for the given
 // run key with sample config, summary, and environment items, then syncs the
@@ -662,4 +742,24 @@ func (w *Workspace) TestFilteredRunKeys() []string {
 		keys[i] = item.Key
 	}
 	return keys
+}
+
+// TestRunByKey returns the workspace's streaming state for a run key.
+func (w *Workspace) TestRunByKey(key string) *WorkspaceRun {
+	return w.runsByKey[key]
+}
+
+// TestRemoteWorkspaceBackend creates a RemoteWorkspaceBackend that talks
+// to graphqlClient.
+func TestRemoteWorkspaceBackend(
+	entity, project string,
+	graphqlClient graphql.Client,
+	logger *observability.CoreLogger,
+) *RemoteWorkspaceBackend {
+	return &RemoteWorkspaceBackend{
+		entity:  entity,
+		project: project,
+		clients: &remoteClients{graphql: graphqlClient},
+		logger:  logger,
+	}
 }

@@ -9,6 +9,7 @@ const (
 )
 
 type OperationDefinition struct {
+	Description         string
 	Operation           Operation
 	Name                string
 	VariableDefinitions VariableDefinitionList
@@ -19,6 +20,7 @@ type OperationDefinition struct {
 }
 
 type VariableDefinition struct {
+	Description  string
 	Variable     string
 	Type         *Type
 	DefaultValue *Value

@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-// parametizer represents the a scan state for a parameterized string.
+// parametizer holds the scan state for a parameterized string.
 type parametizer struct {
 	// z is the string to parameterize
 	z []byte
@@ -24,19 +24,20 @@ type parametizer struct {
 	// buf is the result buffer.
 	buf *bytes.Buffer
 	// params are the parameters to interpolate.
-	params [9]interface{}
+	params [9]any
 	// vars are dynamic variables.
-	vars [26]interface{}
+	vars [26]any
 }
 
 // staticVars are the static, global variables.
 var staticVars = struct {
-	vars [26]interface{}
 	sync.Mutex
+
+	vars [26]any
 }{}
 
 var parametizerPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		p := new(parametizer)
 		p.buf = bytes.NewBuffer(make([]byte, 0, 45))
 		return p
@@ -45,7 +46,7 @@ var parametizerPool = sync.Pool{
 
 // newParametizer returns a new initialized parametizer from the pool.
 func newParametizer(z []byte) *parametizer {
-	p := parametizerPool.Get().(*parametizer)
+	p, _ := parametizerPool.Get().(*parametizer)
 	p.z = z
 	return p
 }
@@ -55,7 +56,7 @@ func (p *parametizer) reset() {
 	p.pos, p.nest = 0, 0
 	p.s.reset()
 	p.buf.Reset()
-	p.params, p.vars = [9]interface{}{}, [26]interface{}{}
+	p.params, p.vars = [9]any{}, [26]any{}
 	parametizerPool.Put(p)
 }
 
@@ -104,7 +105,7 @@ func (p *parametizer) scanTextFn() stateFn {
 	}
 }
 
-func (p *parametizer) scanCodeFn() stateFn {
+func (p *parametizer) scanCodeFn() stateFn { //nolint:gocyclo // one case for each % code
 	ch, err := p.peek()
 	if err != nil {
 		return nil
@@ -112,16 +113,7 @@ func (p *parametizer) scanCodeFn() stateFn {
 	switch ch {
 	case '%':
 		p.buf.WriteByte('%')
-	case ':':
-		// this character is used to avoid interpreting "%-" and "%+" as operators.
-		// the next character is where the format really begins.
-		p.pos++
-		_, err = p.peek()
-		if err != nil {
-			return nil
-		}
-		return p.scanFormatFn
-	case '#', ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.':
+	case ':', '#', ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.':
 		return p.scanFormatFn
 	case 'o':
 		p.buf.WriteString(strconv.FormatInt(int64(p.s.popInt()), 8))
@@ -226,33 +218,62 @@ func (p *parametizer) scanCodeFn() stateFn {
 	return p.scanTextFn
 }
 
+// maxFormatWidth is the largest width or precision that a format can ask
+// for. parse_format in ncurses drops the flags of a format over it.
+const maxFormatWidth = 10000
+
+// scanFormatFn reads a format, such as "%:-5d", as parse_format in ncurses
+// does. Before the verb, it accepts only the flags '#', ' ' and, after a ':',
+// '-', a width and a precision. Any other byte ends the format, and is read as
+// a code. A width or precision over maxFormatWidth, or a second '.', drops
+// every flag, so that a short string cannot ask for a long output.
 func (p *parametizer) scanFormatFn() stateFn {
-	// the character was already read, so no need to check the error.
-	ch, _ := p.peek()
-	// 6 should be the maximum length of a format string, for example "%:-9.9d".
-	f := []byte{'%', ch, 0, 0, 0, 0}
-	var err error
+	f := []byte{'%'}
+	var minus, dot, drop bool
+	var n int
 	for {
-		p.pos++
-		ch, err = p.peek()
+		ch, err := p.peek()
 		if err != nil {
 			return nil
 		}
-		f = append(f, ch)
-		switch ch {
-		case 'o', 'd', 'x', 'X':
-			fmt.Fprintf(p.buf, string(f), p.s.popInt())
-			break
-		case 's':
-			fmt.Fprintf(p.buf, string(f), p.s.popString())
-			break
-		case 'c':
-			fmt.Fprintf(p.buf, string(f), p.s.popByte())
-			break
+		switch {
+		case ch == 'o' || ch == 'd' || ch == 'x' || ch == 'X' || ch == 's' || ch == 'c':
+			if drop {
+				f = f[:1]
+			}
+			p.writeFormat(append(f, ch))
+			p.pos++
+			return p.scanTextFn
+		case ch == ':':
+			minus = true
+		case ch == '#', ch == ' ', ch == '-' && minus:
+			f = append(f, ch)
+		case ch == '.':
+			drop, dot, n = drop || dot, true, 0
+			f = append(f, ch)
+		case isDigit(ch):
+			if n = n*10 + int(ch-'0'); n > maxFormatWidth {
+				drop, n = true, maxFormatWidth
+			}
+			f = append(f, ch)
+		default:
+			return p.scanCodeFn
 		}
+		p.pos++
 	}
-	p.pos++
-	return p.scanTextFn
+}
+
+// writeFormat pops a value and writes it with the format f, which ends with
+// its verb. As ncurses does, %c writes the byte and ignores the format.
+func (p *parametizer) writeFormat(f []byte) {
+	switch f[len(f)-1] {
+	case 'c':
+		p.buf.WriteByte(p.s.popByte())
+	case 's':
+		fmt.Fprintf(p.buf, string(f), p.s.popString())
+	default:
+		fmt.Fprintf(p.buf, string(f), p.s.popInt())
+	}
 }
 
 func (p *parametizer) pushParamFn() stateFn {
@@ -265,7 +286,7 @@ func (p *parametizer) pushParamFn() stateFn {
 	} else {
 		p.s.push(0)
 	}
-	// skip the '}'
+	// skip the parameter digit
 	p.pos++
 	return p.scanTextFn
 }
@@ -291,15 +312,13 @@ func (p *parametizer) getDsVarFn() stateFn {
 	if err != nil {
 		return nil
 	}
-	var a byte
 	if ch >= 'A' && ch <= 'Z' {
-		a = 'A'
+		staticVars.Lock()
+		p.s.push(staticVars.vars[int(ch-'A')])
+		staticVars.Unlock()
 	} else if ch >= 'a' && ch <= 'z' {
-		a = 'a'
+		p.s.push(p.vars[int(ch-'a')])
 	}
-	staticVars.Lock()
-	p.s.push(staticVars.vars[int(ch-a)])
-	staticVars.Unlock()
 	p.pos++
 	return p.scanTextFn
 }
@@ -387,7 +406,7 @@ func (p *parametizer) skipElseFn() stateFn {
 }
 
 // Printf evaluates a parameterized terminfo value z, interpolating params.
-func Printf(z []byte, params ...interface{}) string {
+func Printf(z []byte, params ...any) string {
 	p := newParametizer(z)
 	defer p.reset()
 	// make sure we always have 9 parameters -- makes it easier
@@ -400,6 +419,6 @@ func Printf(z []byte, params ...interface{}) string {
 
 // Fprintf evaluates a parameterized terminfo value z, interpolating params and
 // writing to w.
-func Fprintf(w io.Writer, z []byte, params ...interface{}) {
-	w.Write([]byte(Printf(z, params...)))
+func Fprintf(w io.Writer, z []byte, params ...any) {
+	_, _ = io.WriteString(w, Printf(z, params...))
 }

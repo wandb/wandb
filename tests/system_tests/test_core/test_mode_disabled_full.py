@@ -69,13 +69,11 @@ def test_access_properties(user):
     assert run.disabled
     assert run.entity
     assert run.project == "dummy"
-    assert run.project_name() == "dummy"
     assert not run.resumed
     assert run.start_time
     assert run.starting_step == 0
     assert run.step == 0
     assert run.url is None
-    assert run.get_url() is None
     assert run.sweep_id is None
     assert run.name
     run.tags = ["tag"]
@@ -91,9 +89,7 @@ def test_access_properties(user):
     assert run.config_static
 
     assert run.project_url is None
-    assert run.get_project_url() is None
     assert run.sweep_url is None
-    assert run.get_sweep_url() is None
 
     assert run.status() is None
 

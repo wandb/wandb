@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
 from .enums import AlertSeverity, EventTriggeringConditionType
+
+
+class AriaActionFields(GQLResult):
+    typename__: Typename[Literal["ARIATriggeredAction"]] = "ARIATriggeredAction"
+    prompt: str
 
 
 class ArtifactPortfolioScopeFields(GQLResult):
@@ -23,6 +28,13 @@ class ArtifactSequenceScopeFields(GQLResult):
     typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
     id: GQLId
     name: str
+
+
+class EntityScopeFields(GQLResult):
+    typename__: Typename[Literal["Entity"]] = "Entity"
+    id: GQLId
+    name: str
+    entity_type: str | None = Field(alias="entityType")
 
 
 class FilterEventFields(GQLResult):
@@ -46,10 +58,10 @@ class GenericWebhookActionFields(GQLResult):
     typename__: Typename[Literal["GenericWebhookTriggeredAction"]] = (
         "GenericWebhookTriggeredAction"
     )
-    integration: Union[
-        GenericWebhookActionFieldsIntegrationIntegration, WebhookIntegrationFields
-    ] = Field(discriminator="typename__")
-    request_payload: Optional[str] = Field(alias="requestPayload")
+    integration: (
+        GenericWebhookActionFieldsIntegrationIntegration | WebhookIntegrationFields
+    ) = Field(discriminator="typename__")
+    request_payload: str | None = Field(alias="requestPayload")
 
 
 class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
@@ -60,7 +72,7 @@ class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
 
 class NoOpActionFields(GQLResult):
     typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
-    no_op: Optional[bool] = Field(alias="noOp")
+    no_op: bool | None = Field(alias="noOp")
 
 
 class SlackIntegrationFields(GQLResult):
@@ -74,12 +86,12 @@ class NotificationActionFields(GQLResult):
     typename__: Typename[Literal["NotificationTriggeredAction"]] = (
         "NotificationTriggeredAction"
     )
-    integration: Union[
-        NotificationActionFieldsIntegrationIntegration, SlackIntegrationFields
-    ] = Field(discriminator="typename__")
-    title: Optional[str]
-    message: Optional[str]
-    severity: Optional[AlertSeverity]
+    integration: (
+        NotificationActionFieldsIntegrationIntegration | SlackIntegrationFields
+    ) = Field(discriminator="typename__")
+    title: str | None
+    message: str | None
+    severity: AlertSeverity | None
 
 
 class NotificationActionFieldsIntegrationIntegration(GQLResult):
@@ -89,7 +101,7 @@ class NotificationActionFieldsIntegrationIntegration(GQLResult):
 
 
 class PageInfoFields(GQLResult):
-    end_cursor: Optional[str] = Field(alias="endCursor")
+    end_cursor: str | None = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
@@ -99,9 +111,17 @@ class ProjectScopeFields(GQLResult):
     name: str
 
 
+class PushNotificationActionFields(GQLResult):
+    typename__: Typename[Literal["PushNotificationTriggeredAction"]] = (
+        "PushNotificationTriggeredAction"
+    )
+    title: str | None
+    body: str | None
+
+
 class QueueJobActionFields(GQLResult):
     typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
-    queue: Optional[QueueJobActionFieldsQueue]
+    queue: QueueJobActionFieldsQueue | None
     template: str
 
 
@@ -114,57 +134,45 @@ class TriggerFields(GQLResult):
     typename__: Typename[Literal["Trigger"]] = "Trigger"
     id: GQLId
     created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(alias="updatedAt")
+    updated_at: datetime | None = Field(alias="updatedAt")
     name: str
-    description: Optional[str]
+    description: str | None
     enabled: bool
-    scope: Union[
-        ArtifactPortfolioScopeFields, ArtifactSequenceScopeFields, ProjectScopeFields
-    ] = Field(discriminator="typename__")
+    scope: (
+        ArtifactPortfolioScopeFields
+        | ArtifactSequenceScopeFields
+        | EntityScopeFields
+        | ProjectScopeFields
+    ) = Field(discriminator="typename__")
     event: FilterEventFields
-    action: Union[
-        GenericWebhookActionFields,
-        NoOpActionFields,
-        NotificationActionFields,
-        TriggerFieldsActionPushNotificationTriggeredAction,
-        QueueJobActionFields,
-    ] = Field(discriminator="typename__")
-
-
-class TriggerFieldsActionPushNotificationTriggeredAction(GQLResult):
-    typename__: Typename[Literal["PushNotificationTriggeredAction"]]
+    action: (
+        AriaActionFields
+        | GenericWebhookActionFields
+        | NoOpActionFields
+        | NotificationActionFields
+        | PushNotificationActionFields
+        | QueueJobActionFields
+    ) = Field(discriminator="typename__")
 
 
 class ProjectTriggersFields(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
-    triggers: List[TriggerFields]
+    triggers: list[TriggerFields]
 
 
+AriaActionFields.model_rebuild()
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
+EntityScopeFields.model_rebuild()
 FilterEventFields.model_rebuild()
 WebhookIntegrationFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
-GenericWebhookActionFieldsIntegrationIntegration.model_rebuild()
-WebhookIntegrationFields.model_rebuild()
 NoOpActionFields.model_rebuild()
 SlackIntegrationFields.model_rebuild()
 NotificationActionFields.model_rebuild()
-NotificationActionFieldsIntegrationIntegration.model_rebuild()
-SlackIntegrationFields.model_rebuild()
 PageInfoFields.model_rebuild()
 ProjectScopeFields.model_rebuild()
+PushNotificationActionFields.model_rebuild()
 QueueJobActionFields.model_rebuild()
-QueueJobActionFieldsQueue.model_rebuild()
 TriggerFields.model_rebuild()
-ArtifactPortfolioScopeFields.model_rebuild()
-ArtifactSequenceScopeFields.model_rebuild()
-ProjectScopeFields.model_rebuild()
-FilterEventFields.model_rebuild()
-GenericWebhookActionFields.model_rebuild()
-NoOpActionFields.model_rebuild()
-NotificationActionFields.model_rebuild()
-TriggerFieldsActionPushNotificationTriggeredAction.model_rebuild()
-QueueJobActionFields.model_rebuild()
 ProjectTriggersFields.model_rebuild()
-TriggerFields.model_rebuild()

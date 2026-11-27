@@ -54,7 +54,7 @@ func (p Float64Point) Sub(f Float64Point) Float64Point {
 
 // NewPointFromFloat64Point returns a new Point from a given Float64Point.
 func NewPointFromFloat64Point(f Float64Point) Point {
-	return Point{int(math.Round(f.X)), int(math.Round(f.Y))}
+	return Point{X: int(math.Round(f.X)), Y: int(math.Round(f.Y))}
 }
 
 // CanvasYCoordinates returns a sequence of Y coordinates in the
@@ -94,7 +94,7 @@ func CanvasPoints(origin Point, seq []Point) (r []Point) {
 // in the Cartesian coordinates system (X,Y is bottom left)
 // by passing the graph origin in the canvas coordinates system.
 func CanvasPoint(origin Point, p Point) (r Point) {
-	return Point{origin.X + p.X, origin.Y - p.Y}
+	return Point{X: origin.X + p.X, Y: origin.Y - p.Y}
 }
 
 // CanvasPointFromFloat64Point returns a Point
@@ -218,9 +218,17 @@ func (m *Model) SetCursor(p Point) {
 }
 
 // Resize will resize canvas to new height and width, and resets cursor.
-// Will truncate existing content if canvas size shrinks.
-// Does not change viewport for displaying contents.
+// Will truncate existing content if canvas size shrinks. Does not change
+// viewport for displaying contents. Negative w or h are clamped to 0 — Go's
+// make([]T, n) would otherwise panic, and dimension underflow is common in
+// UI layout math (e.g. msg.Height-N during initial WindowSizeMsg).
 func (m *Model) Resize(w, h int) {
+	if w < 0 {
+		w = 0
+	}
+	if h < 0 {
+		h = 0
+	}
 	// create new lines and copy over previous contents
 	newLines := make([]CellLine, h)
 	for i := range newLines {
@@ -264,7 +272,7 @@ func (m *Model) SetLinesWithStyle(lines []string, s lipgloss.Style) bool {
 		if y >= m.area.Dy() {
 			break
 		}
-		if !m.SetStringWithStyle(Point{0, y}, l, s) {
+		if !m.SetStringWithStyle(Point{X: 0, Y: y}, l, s) {
 			return false // should not happen
 		}
 	}

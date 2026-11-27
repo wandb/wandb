@@ -30,6 +30,11 @@ while True:
         file_context = file
         context.clear()
         continue
+    if text.startswith("+++ /dev/null"):  # different format for deletions
+        file = None
+        file_context = ""
+        context.clear()
+        continue
     if match := re.match(r"^@@ \S+ \+(\d+)", text):
         line = int(match.group(1))
         continue

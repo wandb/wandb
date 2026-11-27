@@ -33,6 +33,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",  # doc:exclude
     "Html",
     "box3d",
     "Object3D",
@@ -62,14 +63,14 @@ __all__ = (
 )
 
 import os
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Callable, Literal, TextIO
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
-from wandb.apis import InternalApi
-from wandb.apis import PublicApi as Api
+from wandb.apis.public import Api
 from wandb.data_types import (
     Audio,
+    EvalTable,
     Graph,
     Histogram,
     Html,
@@ -85,6 +86,7 @@ from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
+from wandb.sdk.lib.deprecated_api import DeprecatedApi
 from wandb.sdk.lib.filesystem import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
@@ -97,15 +99,21 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.26.2.dev1"
+__version__: str = "0.31.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-api: InternalApi
 patched: dict[str, list[Callable]]
+
+# deprecated
+api: DeprecatedApi
+
+def ensure_configured() -> None:
+    """Deprecated and does nothing. `wandb.api.api_key` is looked up on access."""
+    ...
 
 def require(
     requirement: str | Iterable[str] | None = None,
@@ -238,7 +246,7 @@ def init(
     be tracked as a run in W&B.
 
     `wandb.init()` spawns a new background process to log data to a run, and it
-    also syncs data to https://wandb.ai by default, so you can see your results
+    also syncs data to https://forge.coreweave.com/wandb by default, so you can see your results
     in real-time. When you're done logging data, call `run.finish()` to
     end the run, or use the run as a context manager to call it automatically:
 
@@ -333,6 +341,16 @@ def init(
             switching to offline mode if the user is not logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
+        - `"default"`: Use "finish_previous" in notebooks and "return_previous"
+            otherwise.
+        - `"return_previous"`: Return the most recently created run
+            that is not yet finished. This does not update `wandb.run`; see
+            the "create_new" option.
+        - `"finish_previous"`: Finish all active runs, then return a new run.
+        - `"create_new"`: Create a new run without modifying other active runs.
+            Does not update `wandb.run` and top-level functions like `wandb.log`.
+            Because of this, some older integrations that rely on the global run
+            will not work.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
         - `"allow"`: If a run with the specified `id` exists, it will resume
@@ -352,8 +370,8 @@ def init(
             using the format `{run_id}?_step={step}`. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging
             from that step. The target run must be in the same project.
-            If an `id` argument is also provided, the `resume_from` argument will
-            take precedence.
+            If an `id` argument is also provided, it must match the run ID in
+            `resume_from`; otherwise a `ValueError` is raised.
             `resume`, `resume_from` and `fork_from` cannot be used together, only
             one of them can be used at a time.
             Note that this feature is in beta and may change in the future.
@@ -409,7 +427,6 @@ def init(
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """Finish a run and upload any remaining data.
 
@@ -425,7 +442,6 @@ def finish(
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
-        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     ...
 
@@ -435,8 +451,9 @@ def login(
     host: str | None = None,
     force: bool | None = None,
     timeout: int | None = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """Log into W&B.
@@ -448,8 +465,9 @@ def login(
     This updates global credentials for the session (affecting all wandb usage
     in the current Python process after this call) and possibly the .netrc file.
 
-    If the identity_token_file setting is set, like through the
-    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+    If an identity token file is configured, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then it is used for the
+    session (federated identity) and no API key is read or saved.
 
     Otherwise, if an explicit API key is provided, it is used and written to
     the system .netrc file. If no key is provided, but the session is already
@@ -462,7 +480,7 @@ def login(
     - The api_key setting in a system or workspace settings file
     - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
       NETRC environment variable)
-    - An interactive prompt (if available)
+    - An interactive prompt, if available and `prompt` is True
 
     Args:
         key: The API key to use.
@@ -475,15 +493,21 @@ def login(
             prompt. This can be used as a failsafe if an interactive prompt
             is incorrectly shown in a non-interactive environment.
         verify: Verify the credentials with the W&B server and raise an
-            AuthenticationError on failure.
+            AuthenticationError on failure. This works for API keys as well
+            as identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
+        prompt: Whether to ask for an API key interactively when none is
+            configured. If False, this returns False and leaves the session
+            and settings unchanged.
 
     Returns:
-        bool: If `key` is configured.
+        True if the session has credentials after this call.
 
     Raises:
-        AuthenticationError: If `api_key` fails verification with the server.
-        UsageError: If `api_key` cannot be configured and no tty.
+        AuthenticationError: If the credentials fail verification with
+            the server.
+        UsageError: If no credentials are configured, `prompt` is True and
+            there is no terminal to ask for an API key.
     """
     ...
 
@@ -510,7 +534,7 @@ def log(
     The previous code snippet saves the loss and accuracy to the run's
     history and updates the summary values for these metrics.
 
-    Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
+    Visualize logged data in a workspace at [CoreWeave Forge](https://forge.coreweave.com/wandb),
     or locally on a [self-hosted instance](https://docs.wandb.ai/platform/hosting)
     of the W&B app, or export data to visualize and explore locally, such as in a
     Jupyter notebook, with the [Public API](https://docs.wandb.ai/models/track/public-api-guide).
@@ -686,7 +710,7 @@ def log(
             size=(10, 3, 100, 100),
             dtype=np.uint8,
         )
-        run.log({"video": wandb.Video(frames, fps=4)})
+        run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
     ```
 
     Matplotlib plot
@@ -740,6 +764,7 @@ def save(
     glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
+    glob: bool = True,
 ) -> bool | list[str]:
     """Sync one or more files to W&B.
 
@@ -748,6 +773,16 @@ def save(
     A Unix glob, such as "myfiles/*", is expanded at the time `save` is
     called regardless of the `policy`. In particular, new files are not
     picked up automatically.
+
+    `glob_str` is expanded using Python's `glob` module: see
+    https://docs.python.org/3/library/glob.html for the exact syntax and
+    behavior. Notably, the characters `*`, `?`, and `[]` are treated as
+    glob metacharacters, not literal characters, even if they appear in a
+    real filename (e.g. "myfile[1].txt"). If your file's name contains
+    any of these characters and you want to match it literally rather
+    than as a pattern, either escape it yourself with `glob.escape()`
+    before calling `save`, or pass `glob=False` to disable pattern
+    expansion entirely and treat `glob_str` as a literal path.
 
     A `base_path` may be provided to control the directory structure of
     uploaded files. It should be a prefix of `glob_str`, and the directory
@@ -766,6 +801,11 @@ def save(
         - live: upload the file as it changes, overwriting the previous version
         - now: upload the file once now
         - end: upload file when the run ends
+        glob: Whether to treat `glob_str` as a glob pattern. Defaults to
+            `True` for backward compatibility. Set to `False` to treat
+            `glob_str` as a literal path, e.g. when its name contains
+            glob metacharacters like `[`, `]`, `*`, or `?` that you don't
+            want interpreted as a pattern.
 
     Returns:
         Paths to the symlinks created for the matched files.
@@ -792,6 +832,10 @@ def save(
     run.save("files/*/saveme.txt")
     # => Saves each "saveme.txt" file in an appropriate subdirectory
     #    of "files/".
+
+    run.save("files/myfile[1].txt", glob=False)
+    # => Saves the literal file "files/myfile[1].txt" without
+    #    interpreting "[1]" as a glob character class.
 
     # Explicitly finish the run since a context manager is not used.
     run.finish()
@@ -864,6 +908,8 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -887,6 +933,8 @@ def agent(
         count: The number of sweep config trials to try.
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
+        max_consecutive_failed_runs: Shut the agent down once this many runs
+            have failed back to back.
     """
     ...
 
@@ -896,7 +944,6 @@ def define_metric(
     step_sync: bool | None = None,
     hidden: bool | None = None,
     summary: str | None = None,
-    goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """Customize metrics logged with `wandb.Run.log()`.
@@ -911,14 +958,9 @@ def define_metric(
         hidden: Hide this metric from automatic plots.
         summary: Specify aggregate metrics added to summary.
             Supported aggregations include "min", "max", "mean", "last",
-            "first", "best", "copy" and "none". "none" prevents a summary
-            from being generated. "best" is used together with the goal
-            parameter, "best" is deprecated and should not be used, use
-            "min" or "max" instead. "copy" is deprecated and should not be
+            "first", "copy" and "none". "none" prevents a summary
+            from being generated. "copy" is deprecated and should not be
             used.
-        goal: Specify how to interpret the "best" summary type.
-            Supported options are "minimize" and "maximize". "goal" is
-            deprecated and should not be used, use "min" or "max" instead.
         overwrite: If false, then this call is merged with previous
             `define_metric` calls for the same metric by using their
             values for any unspecified parameters. If true, then

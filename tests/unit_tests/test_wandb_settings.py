@@ -11,18 +11,13 @@ from unittest import mock
 
 import pytest
 import wandb
-from pydantic.version import VERSION as PYDANTIC_VERSION
 from wandb import Settings
 from wandb.errors import UsageError
-from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 from wandb.sdk.lib.run_moment import RunMoment
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
-is_pydantic_v1 = int(PYDANTIC_VERSION[0]) == 1
 
-
-@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 allows extra fields")
 def test_unexpected_arguments():
     with pytest.raises(ValueError):
         Settings(lol=False)
@@ -35,11 +30,10 @@ def test_mapping_interface():
 
 
 def test_is_local():
-    s = Settings(base_url="https://api.wandb.ai")
+    s = Settings(base_url="https://forge.coreweave.com/api/wandb/")
     assert s.is_local is False
 
 
-@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 does type coercion")
 def test_invalid_field_type():
     with pytest.raises(ValueError):
         Settings(api_key=271828)  # must be a string
@@ -146,7 +140,7 @@ def test_noop():
 
 def test_get_base_url():
     s = Settings()
-    assert s.base_url == "https://api.wandb.ai"
+    assert s.base_url == "https://api.forge.coreweave.com"
 
 
 def test_base_url_validation():
@@ -158,7 +152,7 @@ def test_base_url_validation():
 
 def test_app_url_default():
     s = Settings(base_url="https://api.wandb.ai")
-    assert s.app_url == "https://wandb.ai"
+    assert s.app_url == "https://forge.coreweave.com/wandb"
 
 
 def test_app_url_override():
@@ -209,7 +203,9 @@ def test_token_file_env():
 
 def test_credentials_file_env():
     s = Settings()
-    assert s.credentials_file == str(DEFAULT_WANDB_CREDENTIALS_FILE)
+    assert s.credentials_file == os.path.expanduser(
+        os.path.join("~", ".config", "wandb", "credentials.json")
+    )
 
     s = Settings()
     s.update_from_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
@@ -436,19 +432,6 @@ def test_log_internal():
 
 
 # --------------------------
-# test static settings
-# --------------------------
-
-
-def test_settings_static():
-    from wandb.sdk.internal.settings_static import SettingsStatic
-
-    static_settings = SettingsStatic({})
-    assert "base_url" in static_settings
-    assert static_settings.base_url == "https://api.wandb.ai"
-
-
-# --------------------------
 # test run settings
 # --------------------------
 
@@ -549,6 +532,21 @@ def test_mutual_exclusion_of_branching_args():
     run_id = "test"
     with pytest.raises(ValueError):
         Settings(run_id=run_id, resume_from=f"{run_id}?_step=10", resume="allow")
+
+
+def test_resume_from_with_mismatched_run_id():
+    settings = Settings(run_id="other")
+
+    with pytest.raises(ValueError, match="different ids"):
+        settings.resume_from = "test?_step=10"
+
+
+def test_resume_from_with_matching_run_id():
+    settings = Settings(run_id="test")
+    settings.resume_from = "test?_step=10"
+
+    assert settings.run_id == "test"
+    assert settings.resume_from == RunMoment(run="test", metric="_step", value=10)
 
 
 def test_root_dir_pathlib_path():
@@ -698,3 +696,93 @@ def test_reports_invalid_system_settings(
         mock_wandb_log.assert_errored_re(
             rf"^Failed to load settings from {re.escape(str(settings_file))}$",
         )
+
+
+def test_infer_git_root_finds_repo(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+    subdir = git_root / "subdir"
+    subdir.mkdir()
+
+    s = Settings(root_dir=str(subdir))
+    s.infer_git_root()
+
+    assert pathlib.Path(s.git_root) == git_root
+
+
+def test_infer_git_root_no_repo(tmp_path):
+    s = Settings(root_dir=str(tmp_path))
+    s.infer_git_root()
+
+    assert s.git_root is None
+
+
+def test_infer_git_root_skips_if_already_set(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+
+    preset = "/some/other/path"
+    s = Settings(root_dir=str(git_root), git_root=preset)
+    s.infer_git_root()
+
+    assert s.git_root == preset
+
+
+def test_infer_git_root_skips_if_disable_git(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+
+    s = Settings(root_dir=str(git_root), disable_git=True)
+    s.infer_git_root()
+
+    assert s.git_root is None
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("json", "json"),
+        ("json,typed", "json,typed"),
+        ("typed,json", "typed,json"),
+        (" JSON , Typed ", "json,typed"),
+    ],
+)
+def test_history_value_encoding(value, expected):
+    s = Settings(x_history_value_encoding=value)
+
+    assert s.x_history_value_encoding == expected
+
+
+def test_history_value_encoding_default():
+    assert Settings().x_history_value_encoding == "json"
+
+
+@pytest.mark.parametrize("value", ["typed", " TYPED ", "typed,typed"])
+def test_history_value_encoding_rejects_typed_only(value):
+    with pytest.raises(ValueError, match="Use 'json,typed'"):
+        Settings(x_history_value_encoding=value)
+
+    settings = Settings()
+    with pytest.raises(ValueError, match="Use 'json,typed'"):
+        settings.x_history_value_encoding = value
+    assert settings.x_history_value_encoding == "json"
+
+
+@pytest.mark.parametrize("value", ["", "cbor", "typed,cbor", "json,"])
+def test_history_value_encoding_unrecognized(
+    value,
+    mock_wandb_log: MockWandbLog,
+):
+    s = Settings(x_history_value_encoding=value)
+
+    assert s.x_history_value_encoding == "json"
+    mock_wandb_log.assert_warned("Ignoring unsupported x_history_value_encoding")
+
+
+def test_history_value_encoding_in_proto():
+    s = Settings(x_history_value_encoding="json,typed")
+
+    assert s.to_proto().x_history_value_encoding.value == "json,typed"

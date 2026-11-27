@@ -1,3 +1,15 @@
-__all__ = ("get_sentry",)
+__all__ = (
+    "get_telemetry_recorder",
+    "LowCardinalityAttributes",
+    "TelemetryContext",
+    "TelemetryRecorder",
+    "OpenTelemetryProxy",
+)
 
-from .sentry import get_sentry
+from .opentelemetry import (
+    LowCardinalityAttributes,
+    OpenTelemetryProxy,
+    TelemetryContext,
+    TelemetryRecorder,
+    get_telemetry_recorder,
+)

@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BeforeValidator, Field
-from typing_extensions import Self, TypeVar, get_args
+from pydantic import AfterValidator, BeforeValidator, Field
+from typing_extensions import Self, TypeVar
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLBase, GQLId, default_if_none
 from wandb._strutils import nameof
 
 from ._generated import (
     AlertSeverity,
+    AriaActionFields,
+    ARIAActionInput,
     GenericWebhookActionFields,
     GenericWebhookActionInput,
     NoOpActionFields,
     NoOpTriggeredActionInput,
     NotificationActionFields,
     NotificationActionInput,
+    PushNotificationActionFields,
     QueueJobActionFields,
 )
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
-    default_if_none,
     parse_input_action,
     parse_saved_action,
     upper_if_str,
@@ -37,10 +39,12 @@ T = TypeVar("T")
 class ActionType(LenientStrEnum):
     """The type of action triggered by an automation."""
 
-    QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
-    NOTIFICATION = "NOTIFICATION"
-    GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     NO_OP = "NO_OP"
+    QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
+    GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
+    NOTIFICATION = "NOTIFICATION"
+    ARIA = "ARIA"
+    PUSH_NOTIFICATION = "PUSH_NOTIFICATION"
 
 
 # ------------------------------------------------------------------------------
@@ -82,21 +86,25 @@ class _WebhookIntegrationStub(GQLBase):
 
 class SavedNotificationAction(NotificationActionFields, frozen=False):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
-    integration: _SlackIntegrationStub
+    # Narrowed from the generated parent's broader union: saved actions
+    # always come back tagged with the SlackIntegration stub typename.
+    integration: _SlackIntegrationStub  # type: ignore[assignment]
 
-    title: Optional[str]
-    message: Optional[str]
-    severity: Optional[AlertSeverity]
+    title: str | None
+    message: str | None
+    severity: AlertSeverity | None
 
 
 class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
-    integration: _WebhookIntegrationStub
+    # Narrowed from the generated parent's broader union: saved actions
+    # always come back tagged with the GenericWebhookIntegration stub typename.
+    integration: _WebhookIntegrationStub  # type: ignore[assignment]
 
     # We override the type of the `requestPayload` field since the original GraphQL
     # schema (and generated class) effectively defines it as a string, when we know
     # and need to anticipate the expected structure of the JSON-serialized data.
-    request_payload: Optional[JsonEncoded[dict[str, Any]]] = None  # type: ignore[assignment]
+    request_payload: JsonEncoded[dict[str, Any]] | None = None  # type: ignore[assignment]
 
 
 class SavedNoOpAction(NoOpActionFields, frozen=False):
@@ -113,14 +121,28 @@ class SavedNoOpAction(NoOpActionFields, frozen=False):
     """
 
 
+class SavedAriaAction(AriaActionFields, frozen=False):
+    action_type: Literal[ActionType.ARIA] = ActionType.ARIA
+
+    prompt: str
+    """The prompt ARIA receives when this automation is triggered."""
+
+
+# NOTE: Push notifications are created from the W&B App, so while we allow
+# parsing them from previously saved Automations, we don't currently expose
+# them in the API for creating automations.
+class SavedPushNotificationAction(PushNotificationActionFields, frozen=False):
+    action_type: Literal[ActionType.PUSH_NOTIFICATION] = ActionType.PUSH_NOTIFICATION
+
+
 # for type annotations
 SavedAction = Annotated[
-    Union[
-        SavedLaunchJobAction,
-        SavedNotificationAction,
-        SavedWebhookAction,
-        SavedNoOpAction,
-    ],
+    SavedLaunchJobAction
+    | SavedNotificationAction
+    | SavedWebhookAction
+    | SavedNoOpAction
+    | SavedAriaAction
+    | SavedPushNotificationAction,
     BeforeValidator(parse_saved_action),
     Field(discriminator="typename__"),
 ]
@@ -144,14 +166,19 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
     """The ID of the Slack integration that will be used to send the notification."""
 
     # Note: Validation aliases preserve continuity with the prior `wandb.alert()` API.
-    title: str = ""
+    title: Annotated[str, BeforeValidator(default_if_none)] = ""
     """The title of the sent notification."""
 
-    message: Annotated[str, Field(validation_alias="text")] = ""
+    message: Annotated[
+        str,
+        BeforeValidator(default_if_none),
+        Field(validation_alias="text"),
+    ] = ""
     """The message body of the sent notification."""
 
     severity: Annotated[
         AlertSeverity,
+        BeforeValidator(default_if_none),
         BeforeValidator(upper_if_str),  # Be helpful by ensuring uppercase strings
         Field(validation_alias="level"),
     ] = AlertSeverity.INFO
@@ -181,7 +208,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
     """The ID of the webhook integration that will be used to send the request."""
 
     # overrides the generated field type to parse/serialize JSON strings
-    request_payload: Optional[JsonEncoded[dict[str, Any]]] = Field(  # type: ignore[assignment]
+    request_payload: JsonEncoded[dict[str, Any]] | None = Field(  # type: ignore[assignment]
         default=None, alias="requestPayload"
     )
     """The payload, possibly with template variables, to send in the webhook request."""
@@ -191,7 +218,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
         cls,
         integration: WebhookIntegration,
         *,
-        payload: Optional[JsonEncoded[dict[str, Any]]] = None,
+        payload: JsonEncoded[dict[str, Any]] | None = None,
     ) -> Self:
         """Define a webhook action that sends to the given (webhook) integration."""
         return cls(integration_id=integration.id, request_payload=payload)
@@ -209,13 +236,31 @@ class DoNothing(_BaseActionInput, NoOpTriggeredActionInput, frozen=True):
     """
 
 
+_MAX_ARIA_PROMPT_BYTES = 4000
+
+
+def _validate_aria_prompt(value: str) -> str:
+    """Normalize and validate an ARIA prompt as the server does."""
+    prompt = value.strip()
+    if not prompt:
+        raise ValueError("ARIA prompt cannot be empty")
+    if len(prompt.encode("utf-8")) > _MAX_ARIA_PROMPT_BYTES:
+        raise ValueError(f"ARIA prompt exceeds {_MAX_ARIA_PROMPT_BYTES} bytes")
+    return prompt
+
+
+class SendPromptToAria(_BaseActionInput, ARIAActionInput):
+    """Defines an automation action that sends a prompt to ARIA."""
+
+    action_type: Literal[ActionType.ARIA] = ActionType.ARIA
+
+    prompt: Annotated[str, AfterValidator(_validate_aria_prompt)]
+    """The prompt ARIA receives when this automation is triggered."""
+
+
 # for type annotations
 InputAction = Annotated[
-    Union[
-        SendNotification,
-        SendWebhook,
-        DoNothing,
-    ],
+    SendNotification | SendWebhook | DoNothing | SendPromptToAria,
     BeforeValidator(parse_input_action),
     Field(discriminator="action_type"),
 ]

@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-import functools
 import queue
-import shutil
 import unittest.mock as mock
-from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from string import ascii_letters, digits
-from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
-import pytest
 import requests
 import responses
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
-from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from pytest import fail, mark, raises
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
@@ -30,29 +26,11 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
 )
-from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
-
-if TYPE_CHECKING:
-    from typing import Protocol
-
-    from wandb.sdk.internal.internal_api import CreateArtifactFileSpecInput
-
-    class StoreFileFixture(Protocol):
-        def __call__(
-            self,
-            policy: WandbStoragePolicy,
-            artifact_id: str,
-            artifact_manifest_id: str,
-            entry_path: str,
-            entry_digest: str,
-            entry_local_path: Path | None = None,
-            preparer: StepPrepare | None = None,
-        ) -> bool:
-            pass
+from wandb.sdk.lib.hashutil import _md5, _xxh128, md5_string, xxh128_string
 
 
 def is_cache_hit(cache: ArtifactFileCache, digest: str, size: int) -> bool:
-    _, hit, _ = cache.check_md5_obj_path(digest, size)
+    _, hit, _ = cache.check_digest_obj_path(digest, size)
     return hit
 
 
@@ -60,27 +38,6 @@ def singleton_queue(x):
     q = queue.Queue()
     q.put(x)
     return q
-
-
-def dummy_response_prepare(spec):
-    name = spec["name"]
-    return ResponsePrepare(
-        birth_artifact_id=f"artifact-id-{name}",
-        upload_url=f"http://wandb-test/upload-url-{name}",
-        upload_headers=["x-my-header-key:my-header-val"],
-        upload_id=None,
-        storage_path="wandb_artifact/123456789",
-        multipart_upload_urls=None,
-    )
-
-
-def mock_prepare(spec: CreateArtifactFileSpecInput) -> ResponsePrepare:
-    return singleton_queue(dummy_response_prepare(spec))
-
-
-def mock_preparer(**kwargs):
-    kwargs.setdefault("prepare", Mock(wraps=mock_prepare))
-    return Mock(**kwargs)
 
 
 def test_capped_cache():
@@ -92,303 +49,9 @@ def test_capped_cache():
     assert len(artifact_instance_cache) == 100
 
 
-class TestStoreFile:
-    @staticmethod
-    def _fixture_kwargs_to_kwargs(
-        artifact_id: str = "my-artifact-id",
-        artifact_manifest_id: str = "my-artifact-manifest-id",
-        entry_path: str = "my-path",
-        entry_digest: str = "my-digest",
-        entry_local_path: Path | None = None,
-        preparer: StepPrepare | None = None,
-    ) -> Mapping[str, Any]:
-        if preparer is None:
-            preparer = mock_preparer()
-        return dict(
-            artifact_id=artifact_id,
-            artifact_manifest_id=artifact_manifest_id,
-            entry=ArtifactManifestEntry(
-                path=entry_path,
-                digest=entry_digest,
-                local_path=entry_local_path,
-            ),
-            preparer=preparer if preparer else mock_preparer(),
-        )
-
-    @staticmethod
-    def _store_file(policy: WandbStoragePolicy, **kwargs) -> bool:
-        """Runs store_file to completion."""
-        return policy.store_file(**TestStoreFile._fixture_kwargs_to_kwargs(**kwargs))
-
-    @pytest.fixture(params=["sync", "async"])
-    def store_file_mode(self, request) -> str:
-        return request.param
-
-    @pytest.fixture
-    def store_file(self) -> StoreFileFixture:
-        """Fixture to run prepare and return the result.
-
-        Example usage:
-
-            def test_smoke(store_file: "StoreFileFixture", api):
-                store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
-                api.upload_file_retry.assert_called_once()
-        """
-        return TestStoreFile._store_file
-
-    @pytest.fixture
-    def api(self):
-        """Fixture to give a mock `internal_api.Api` object, with properly-functioning upload methods."""
-        upload_file_retry = Mock()
-        upload_multipart_file_chunk_retry = Mock()
-        complete_multipart_upload_artifact = Mock()
-
-        return Mock(
-            upload_file_retry=upload_file_retry,
-            upload_multipart_file_chunk_retry=upload_multipart_file_chunk_retry,
-            complete_multipart_upload_artifact=complete_multipart_upload_artifact,
-        )
-
-    def test_smoke(self, store_file: StoreFileFixture, api, example_file: Path):
-        store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
-        api.upload_file_retry.assert_called_once()
-
-    def test_uploads_to_prepared_url(
-        self, store_file: StoreFileFixture, api, example_file: Path
-    ):
-        preparer = mock_preparer(
-            prepare=lambda spec: singleton_queue(
-                dummy_response_prepare(spec)._replace(
-                    upload_url="https://wandb-test/dst"
-                )
-            )
-        )
-        store_file(
-            WandbStoragePolicy(api=api),
-            entry_local_path=example_file,
-            preparer=preparer,
-        )
-        assert api.upload_file_retry.call_args[0][0] == "https://wandb-test/dst"
-
-    def test_passes_prepared_headers_to_upload(
-        self, store_file: StoreFileFixture, api, example_file: Path
-    ):
-        preparer = mock_preparer(
-            prepare=lambda spec: singleton_queue(
-                dummy_response_prepare(spec)._replace(
-                    upload_headers=["x-my-header:my-header-val"]
-                )
-            )
-        )
-        store_file(
-            WandbStoragePolicy(api=api),
-            entry_local_path=example_file,
-            preparer=preparer,
-        )
-        assert api.upload_file_retry.call_args[1]["extra_headers"] == {
-            "x-my-header": "my-header-val"
-        }
-
-    @pytest.mark.parametrize(
-        ["upload_url", "expect_upload", "expect_deduped"],
-        [
-            ("http://wandb-test/dst", True, False),
-            (None, False, True),
-        ],
-    )
-    def test_skips_upload_if_no_prepared_url(
-        self,
-        store_file: StoreFileFixture,
-        api,
-        example_file: Path,
-        upload_url: str | None,
-        expect_upload: bool,
-        expect_deduped: bool,
-    ):
-        preparer = mock_preparer(
-            prepare=lambda spec: singleton_queue(
-                dummy_response_prepare(spec)._replace(upload_url=upload_url)
-            )
-        )
-        policy = WandbStoragePolicy(api=api)
-
-        deduped = store_file(policy, entry_local_path=example_file, preparer=preparer)
-        assert deduped == expect_deduped
-
-        if expect_upload:
-            api.upload_file_retry.assert_called_once()
-        else:
-            api.upload_file_retry.assert_not_called()
-
-    @pytest.mark.parametrize(
-        ["has_local_path", "expect_upload"],
-        [
-            (True, True),
-            (False, False),
-        ],
-    )
-    def test_skips_upload_if_no_local_path(
-        self,
-        store_file: StoreFileFixture,
-        api,
-        example_file: Path,
-        has_local_path: bool,
-        expect_upload: bool,
-    ):
-        policy = WandbStoragePolicy(api=api)
-
-        deduped = store_file(
-            policy,
-            entry_local_path=example_file if has_local_path else None,
-        )
-        assert not deduped
-
-        if expect_upload:
-            api.upload_file_retry.assert_called_once()
-        else:
-            api.upload_file_retry.assert_not_called()
-
-    @pytest.mark.parametrize("err", [None, Exception("some error")])
-    def test_caches_result_on_success(
-        self,
-        store_file: StoreFileFixture,
-        api,
-        example_file: Path,
-        artifact_file_cache: ArtifactFileCache,
-        err: Exception | None,
-    ):
-        size = example_file.stat().st_size
-
-        api.upload_file_retry = Mock(side_effect=err)
-        policy = WandbStoragePolicy(api=api, cache=artifact_file_cache)
-
-        assert not is_cache_hit(artifact_file_cache, "my-digest", size)
-
-        store = functools.partial(store_file, policy, entry_local_path=example_file)
-
-        if err is None:
-            store()
-            assert is_cache_hit(artifact_file_cache, "my-digest", size)
-        else:
-            with pytest.raises(Exception, match=err.args[0]):
-                store()
-            assert not is_cache_hit(artifact_file_cache, "my-digest", size)
-
-    @pytest.mark.parametrize(
-        [
-            "upload_url",
-            "multipart_upload_urls",
-            "expect_single_upload",
-            "expect_multipart_upload",
-            "expect_deduped",
-        ],
-        [
-            (
-                "http://wandb-test/dst",
-                {
-                    1: "http://wandb-test/part=1",
-                    2: "http://wandb-test/part=2",
-                    3: "http://wandb-test/part=3",
-                },
-                False,
-                True,
-                False,
-            ),
-            (
-                None,
-                {
-                    1: "http://wandb-test/part=1",
-                    2: "http://wandb-test/part=2",
-                    3: "http://wandb-test/part=3",
-                },
-                False,
-                False,
-                True,
-            ),  # super weird case but shouldn't happen, upload url should always be generated
-            ("http://wandb-test/dst", None, True, False, False),
-            (None, None, False, False, True),
-        ],
-    )
-    @mock.patch(
-        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.WandbStoragePolicy."
-        "s3_multipart_file_upload"
-    )
-    def test_multipart_upload_handle_response(
-        self,
-        mock_s3_multipart_file_upload,
-        api,
-        example_file: Path,
-        upload_url: str | None,
-        multipart_upload_urls: dict | None,
-        expect_multipart_upload: bool,
-        expect_single_upload: bool,
-        expect_deduped: bool,
-    ):
-        # Tests if we handle uploading correctly depending on what response we get from CreateArtifactFile.
-        preparer = mock_preparer(
-            prepare=lambda spec: singleton_queue(
-                dummy_response_prepare(spec)._replace(
-                    upload_url=upload_url, multipart_upload_urls=multipart_upload_urls
-                )
-            )
-        )
-        policy = WandbStoragePolicy(api=api)
-        # Mock minimum size for multipart so that we can test multipart
-        with mock.patch(
-            "wandb.sdk.artifacts.storage_policies._multipart.MIN_MULTI_UPLOAD_SIZE",
-            example_file.stat().st_size,
-        ):
-            deduped = self._store_file(
-                policy, entry_local_path=example_file, preparer=preparer
-            )
-            assert deduped == expect_deduped
-
-            if expect_multipart_upload:
-                mock_s3_multipart_file_upload.assert_called_once()
-                api.complete_multipart_upload_artifact.assert_called_once()
-                api.upload_file_retry.assert_not_called()
-            elif expect_single_upload:
-                api.upload_file_retry.assert_called_once()
-                api.upload_multipart_file_chunk_retry.assert_not_called()
-            else:
-                api.upload_file_retry.assert_not_called()
-                api.upload_multipart_file_chunk_retry.assert_not_called()
-
-    def test_s3_multipart_file_upload(
-        self,
-        api,
-        example_file: Path,
-    ):
-        # Tests that s3 multipart calls upload on every part and retrieves the etag for every part
-        multipart_parts = {
-            1: "http://wandb-test/part=1",
-            2: "http://wandb-test/part=2",
-            3: "http://wandb-test/part=3",
-        }
-        hex_digests = {1: "abc1", 2: "abc2", 3: "abc3"}
-        chunk_size = 1
-        policy = WandbStoragePolicy(api=api)
-        responses = []
-        for idx in range(1, len(hex_digests) + 1):
-            etag_response = requests.Response()
-            etag_response.headers = {"ETag": hex_digests[idx]}
-            responses.append(etag_response)
-        api.upload_multipart_file_chunk_retry.side_effect = responses
-
-        with mock.patch("builtins.open", mock.mock_open(read_data="abc")):
-            etags = policy.s3_multipart_file_upload(
-                example_file, chunk_size, hex_digests, multipart_parts, extra_headers={}
-            )
-            assert api.upload_multipart_file_chunk_retry.call_count == 3
-            # Note Etags == hex_digest when there isn't an additional encryption method for uploading.
-            assert len(etags) == len(hex_digests)
-            for etag in etags:
-                assert etag["hexMD5"] == hex_digests[etag["partNumber"]]
-
-
-@pytest.mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
+@mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
 def test_invalid_artifact_type(invalid_type):
-    with pytest.raises(ValueError, match="reserved for internal use"):
+    with raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=invalid_type)
 
 
@@ -406,7 +69,7 @@ def test_invalid_artifact_type(invalid_type):
 )
 def test_invalid_artifact_name(invalid_name):
     """Prevent users from instantiating an artifact with an invalid name."""
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         _ = Artifact(invalid_name, type="any")
 
 
@@ -421,7 +84,7 @@ def test_internal_artifact_name_sanitized_to_max_length():
     assert artifact.name.startswith("run-abcdefgh-")
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "property",
     [
         "entity",
@@ -436,16 +99,17 @@ def test_internal_artifact_name_sanitized_to_max_length():
         "file_count",  # Probably doesn't need to be restricted, but is today.
         "created_at",
         "updated_at",
+        "linked_at",
     ],
 )
 def test_unlogged_artifact_property_errors(property):
     art = Artifact("foo", type="any")
     error_message = f"'Artifact.{property}' used prior to logging artifact"
-    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+    with raises(ArtifactNotLoggedError, match=error_message):
         getattr(art, property)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "method",
     [
         "new_draft",
@@ -463,38 +127,17 @@ def test_unlogged_artifact_property_errors(property):
 def test_unlogged_artifact_basic_method_errors(method):
     art = Artifact("foo", type="any")
     error_message = f"'Artifact.{method}' used prior to logging artifact"
-    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+    with raises(ArtifactNotLoggedError, match=error_message):
         getattr(art, method)()
 
 
 def test_unlogged_artifact_other_method_errors():
     art = Artifact("foo", type="any")
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get_entry"):
+    with raises(ArtifactNotLoggedError, match="Artifact.get_entry"):
         art.get_entry("pathname")
 
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
+    with raises(ArtifactNotLoggedError, match="Artifact.get"):
         art["obj_name"]
-
-
-def test_cache_write_failure_is_ignored(monkeypatch, capsys):
-    def bad_write(*args, **kwargs):
-        raise FileNotFoundError("unable to copy from source file")
-
-    monkeypatch.setattr(shutil, "copyfileobj", bad_write)
-    policy = WandbStoragePolicy()
-    path = Path("foo.txt")
-    path.write_text("hello")
-
-    entry = ArtifactManifestEntry(
-        path=path,
-        digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
-        local_path=path,
-    )
-
-    policy._write_cache(entry)
-
-    captured = capsys.readouterr()
-    assert "Failed to cache" in captured.err
 
 
 def test_artifact_manifest_length():
@@ -510,6 +153,43 @@ def test_artifact_manifest_length():
     assert len(artifact.manifest) == 2
 
 
+def test_new_file_accepts_nested_relative_path():
+    artifact = Artifact("test-artifact", "test-type")
+
+    with artifact.new_file("nested/test.txt", "w") as f:
+        f.write("test")
+
+    assert list(artifact.manifest.entries) == ["nested/test.txt"]
+    assert artifact.manifest.entries["nested/test.txt"].size == 4
+
+
+@mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
+def test_add_file_rejects_invalid_artifact_path(tmp_path, invalid_name):
+    artifact = Artifact("test-artifact", "test-type")
+    local_file = tmp_path / "test.txt"
+    local_file.write_text("hello")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        artifact.add_file(str(local_file), name=invalid_name)
+
+
+@mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
+def test_new_file_rejects_invalid_artifact_path(invalid_name):
+    artifact = Artifact("test-artifact", "test-type")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        with artifact.new_file(invalid_name, "w") as f:
+            f.write("test")
+
+
+def test_manifest_add_entry_rejects_invalid_artifact_path():
+    artifact = Artifact("test-artifact", "test-type")
+    entry = ArtifactManifestEntry(path="../test.txt", digest="digest")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        artifact.manifest.add_entry(entry)
+
+
 def test_download_with_pathlib_root(monkeypatch):
     artifact = Artifact("test-artifact", "test-type")
     artifact._state = ArtifactState.COMMITTED
@@ -521,6 +201,16 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+
+
+def test_verify_rejects_invalid_artifact_path(tmp_path):
+    artifact = Artifact("test-artifact", "test-type")
+    artifact._state = ArtifactState.COMMITTED
+    bad_entry = ArtifactManifestEntry(path="../test.txt", digest="digest")
+    artifact.manifest.entries[bad_entry.path] = bad_entry
+
+    with raises(ValueError, match="Invalid artifact path"):
+        artifact.verify(root=str(tmp_path))
 
 
 def test_artifact_multipart_download_threshold():
@@ -546,7 +236,7 @@ def test_artifact_multipart_download_network_error():
     )
 
     opener = mock.mock_open()
-    with pytest.raises(requests.exceptions.ConnectionError):
+    with raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
@@ -569,7 +259,7 @@ def test_artifact_multipart_download_disk_error():
 
     opener = mock.mock_open()
     opener.return_value.write.side_effect = OSError("I/O operation on closed file")
-    with pytest.raises(OSError):
+    with raises(OSError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
@@ -654,7 +344,7 @@ def test_artifact_multipart_download_max_refresh_attempts_exceeded():
 
     opener = mock.mock_open()
 
-    with pytest.raises(requests.HTTPError):
+    with raises(requests.HTTPError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
@@ -700,6 +390,174 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
         # Add a timeout to the future to avoid hanging the test.
         future.result(timeout=5)
     except TimeoutError:
-        pytest.fail(
-            "multipart_download deadlocked: writer likely sharing the chunk executor"
-        )
+        fail("multipart_download deadlocked: writer likely sharing the chunk executor")
+
+
+def test_offline_artifact_uses_xxh128():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+
+    artifact.add_file(str(f))
+    entry = artifact.manifest.entries["file.txt"]
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    assert entry.digest == xxh128_string("hello")
+
+
+def test_digest_algorithm_with_reference_entries():
+    artifact = Artifact("test-artifact", "test-type", digest_algorithm="XXH128")
+
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact.add_file(str(f))
+
+    f2 = Path("file2.txt")
+    f2.write_text("also a test")
+    artifact.add_reference(f2.resolve().as_uri(), "file2.txt")
+
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+    # regular file is hashed with XXH128
+    entry = artifact.manifest.entries["file.txt"]
+    assert entry.digest == xxh128_string("hello")
+
+    # local file reference is hashed with MD5
+    ref_entry = artifact.manifest.entries["file2.txt"]
+    assert ref_entry.digest == md5_string("also a test")
+
+
+def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    artifact.add_file(str(f))
+
+    file_digest = xxh128_string("hello")
+    xxh128_hasher = _xxh128(b"wandb-artifact-manifest-v1\n")
+    xxh128_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == xxh128_hasher.hexdigest()
+
+
+def test_manifest_digest_uses_md5_for_md5_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="MD5")
+    artifact.add_file(str(f))
+
+    file_digest = md5_string("hello")
+    md5_hasher = _md5(b"wandb-artifact-manifest-v1\n")
+    md5_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == md5_hasher.hexdigest()
+
+
+def test_entry_digest_algorithm_defaults_to_md5_when_untagged():
+    entry = ArtifactManifestEntry(path="file.txt", digest="abc123", size=1)
+    assert entry.extra == {}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+@mark.parametrize(
+    ("tag", "expected"),
+    [
+        ("MD5", ArtifactDigestAlgorithm.MANIFEST_MD5),
+        ("XXH128", ArtifactDigestAlgorithm.MANIFEST_XXH128),
+        # Unknown/garbage tags fall back to the MD5 default.
+        ("bogus", ArtifactDigestAlgorithm.MANIFEST_MD5),
+    ],
+)
+def test_entry_digest_algorithm_reads_extra_tag(tag, expected):
+    entry = ArtifactManifestEntry(
+        path="file.txt", digest="abc123", size=1, extra={"alg": tag}
+    )
+    assert entry.digest_algorithm() is expected
+
+
+def test_add_file_tags_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+
+    entry = artifact.add_file(str(f))
+
+    assert entry.extra == {"alg": "XXH128"}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+
+def test_add_file_leaves_md5_entries_untagged():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+
+    entry = artifact.add_file(str(f))
+
+    # Untagged entries are interpreted as MD5, so we avoid the per-entry bloat.
+    assert entry.extra == {}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+def test_mixed_manifest_round_trip_preserves_per_entry_algorithm():
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+
+    f = Path("xxh.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    artifact.add_file(str(f))
+
+    # Simulate an entry carried over untagged from an older (md5) SDK, as
+    # happens with `new_draft` across SDK versions.
+    artifact.manifest.add_entry(
+        ArtifactManifestEntry(path="md5.txt", digest="XUFAKrxLKna5cZ2REBfFkg==", size=5)
+    )
+
+    manifest_json = artifact.manifest.to_manifest_json()
+    # Only the xxh128 entry is tagged; the untagged md5 entry carries no `extra`.
+    assert manifest_json["contents"]["xxh.txt"]["extra"] == {"alg": "XXH128"}
+    assert "extra" not in manifest_json["contents"]["md5.txt"]
+
+    restored = ArtifactManifest.from_manifest_json(
+        manifest_json, artifact.digest_algorithm
+    )
+    assert (
+        restored.entries["xxh.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert (
+        restored.entries["md5.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+
+
+def test_hash_contents_with_md5_correctly_rehashes_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+
+    f2 = Path("file2.txt")
+    f2.write_text("hi")
+
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    artifact.add_file(str(f))
+    artifact.add_file(str(f2))
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file.txt"].digest == xxh128_string("hello")
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == xxh128_string("hi")
+
+    artifact.manifest.hash_contents_with_md5()
+    assert artifact.manifest.entries["file.txt"].digest == md5_string("hello")
+    assert artifact.manifest.entries["file.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == md5_string("hi")
+    assert artifact.manifest.entries["file2.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )

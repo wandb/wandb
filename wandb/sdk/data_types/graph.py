@@ -293,7 +293,7 @@ class Graph(Media):
     def bind_to_run(self, *args, **kwargs):
         """Bind this object to a run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".graph.json")
@@ -309,14 +309,14 @@ class Graph(Media):
     def get_media_subdir(cls):
         """Get media subdirectory.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         return os.path.join("media", "graph")
 
     def to_json(self, run):
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run)
         json_dict["_type"] = self._log_type
@@ -328,7 +328,7 @@ class Graph(Media):
     def pprint(self):
         """Pretty print the graph.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         for edge in self.edges:
             pprint.pprint(edge.attributes)  # noqa: T203
@@ -338,7 +338,7 @@ class Graph(Media):
     def add_node(self, node=None, **node_kwargs):
         """Add a node to the graph.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if node is None:
             node = Node(**node_kwargs)
@@ -354,7 +354,7 @@ class Graph(Media):
     def add_edge(self, from_node, to_node):
         """Add an edge to the graph.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         edge = Edge(from_node, to_node)
         self.edges.append(edge)
@@ -368,7 +368,7 @@ class Graph(Media):
         This method is not supported for Keras 3.0.0 and above.
         Requires a refactor.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         graph = cls()
         # Shamelessly copied (then modified) from keras/keras/utils/layer_utils.py

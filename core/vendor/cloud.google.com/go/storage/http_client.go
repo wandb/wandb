@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,20 +33,19 @@ import (
 	"cloud.google.com/go/auth"
 	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/internal/optional"
-	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2/callctx"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/option/internaloption"
 	raw "google.golang.org/api/storage/v1"
+	"google.golang.org/api/transport"
 	htransport "google.golang.org/api/transport/http"
 )
 
 // httpStorageClient is the HTTP-JSON API implementation of the transport-agnostic
 // storageClient interface.
-//
-// TODO(b/498422946): Add client feature tracker in HTTP client.
 type httpStorageClient struct {
 	creds                      *auth.Credentials
 	hc                         *http.Client
@@ -56,16 +55,23 @@ type httpStorageClient struct {
 	settings                   *settings
 	config                     *storageConfig
 	dynamicReadReqStallTimeout *bucketDelayManager
+	metrics                    *clientMetrics
+	metricsCleanup             func()
+
+	// configFeatureAttributes tracks client-level features that are enabled for this
+	// client instance.
+	configFeatureAttributes uint32
 }
 
 // newHTTPStorageClient initializes a new storageClient that uses the HTTP-JSON
 // Storage API.
-func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageClient, error) {
+func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (client storageClient, err error) {
 	s := initSettings(opts...)
 	o := s.clientOption
 	config := newStorageConfig(o...)
 
 	var creds *auth.Credentials
+	var googleCreds *google.Credentials
 	// In general, it is recommended to use raw.NewService instead of htransport.NewClient
 	// since raw.NewService configures the correct default endpoints when initializing the
 	// internal http client. However, in our case, "NewRangeReader" in reader.go needs to
@@ -87,6 +93,9 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageCl
 		if err == nil {
 			creds = c
 			o = append(o, option.WithAuthCredentials(creds))
+		} else if gc, err := transport.Creds(ctx, o...); err == nil {
+			googleCreds = gc
+			o = append(o, option.WithCredentials(googleCreds))
 		}
 	} else {
 		var hostURL *url.URL
@@ -114,13 +123,72 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageCl
 	}
 	s.clientOption = o
 
+	var clientMetrics *clientMetrics
+	var metricsCleanup func()
+	if isOtelMetricsEnabled(&config) {
+		var project string
+		if creds != nil {
+			project, _ = creds.ProjectID(ctx)
+		} else if googleCreds != nil {
+			project = googleCreds.ProjectID
+		}
+		clientMetrics, metricsCleanup = initClientMetrics(ctx, project, &config)
+	}
+	if metricsCleanup != nil {
+		defer func() {
+			if err != nil {
+				metricsCleanup()
+			}
+		}()
+	}
+
+	if creds != nil {
+		tracingEnabled := isOTelTracingDevEnabled()
+		// Wrap in place: htransport.NewClient in NewClient already holds this
+		// pointer, so its transport must observe the wrapped TokenProvider.
+		if clientMetrics != nil {
+			*creds = *wrapAuthCredentials(creds, clientMetrics)
+		}
+		if tracingEnabled {
+			*creds = *wrapAuthCredentialsForTracing(creds)
+		}
+		if clientMetrics != nil || tracingEnabled {
+			s.clientOption = append(s.clientOption, option.WithAuthCredentials(creds))
+		}
+	}
+
 	// htransport selects the correct endpoint among WithEndpoint (user override), WithDefaultEndpointTemplate, and WithDefaultMTLSEndpoint.
 	hc, ep, err := htransport.NewClient(ctx, s.clientOption...)
 	if err != nil {
 		return nil, fmt.Errorf("dialing: %w", err)
 	}
+
+	// Clone the http.Client to avoid modifying the original one if it was provided by the user.
+	hcClone := *hc
+	c := &httpStorageClient{
+		creds:          creds,
+		hc:             &hcClone,
+		settings:       s,
+		config:         &config,
+		metrics:        clientMetrics,
+		metricsCleanup: metricsCleanup,
+	}
+
+	// Wrap transport to inject tracking headers and metrics.
+	transport := hc.Transport
+	if clientMetrics != nil {
+		transport = &metricsRoundTripper{
+			base:    transport,
+			metrics: clientMetrics,
+		}
+	}
+	hcClone.Transport = &trackingTransport{
+		base:     transport,
+		features: c.configFeatureAttributes,
+	}
+
 	// RawService should be created with the chosen endpoint to take account of user override.
-	rawService, err := raw.NewService(ctx, option.WithEndpoint(ep), option.WithHTTPClient(hc))
+	rawService, err := raw.NewService(ctx, option.WithEndpoint(ep), option.WithHTTPClient(c.hc))
 	if err != nil {
 		return nil, fmt.Errorf("storage client: %w", err)
 	}
@@ -144,21 +212,77 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageCl
 		}
 	}
 
-	return &httpStorageClient{
-		creds:                      creds,
-		hc:                         hc,
-		xmlHost:                    u.Host,
-		raw:                        rawService,
-		scheme:                     u.Scheme,
-		settings:                   s,
-		config:                     &config,
-		dynamicReadReqStallTimeout: bd,
-	}, nil
+	c.xmlHost = u.Host
+	c.raw = rawService
+	c.scheme = u.Scheme
+	c.dynamicReadReqStallTimeout = bd
+
+	return c, nil
 }
 
 func (c *httpStorageClient) Close() error {
 	c.hc.CloseIdleConnections()
+	if c.metricsCleanup != nil {
+		c.metricsCleanup()
+	}
 	return nil
+}
+
+// trackingTransport wraps an http.RoundTripper to inject feature tracking headers.
+type trackingTransport struct {
+	base     http.RoundTripper
+	features uint32
+}
+
+func (t *trackingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	baseRT := t.base
+	if baseRT == nil {
+		baseRT = http.DefaultTransport
+	}
+	// Start a Storage.UploadChunk span if req is a resumable upload chunk request.
+	ctx, isChunk := startHTTPUploadChunkSpan(req.Context(), req.Header)
+
+	features := t.features | featureAttributes(ctx)
+	// Merge all existing headers for this key.
+	existing := req.Header.Values(featureTrackerHeaderName)
+	features |= mergeFeatureAttributes(existing)
+	outReq := req
+	if features > 0 || len(existing) > 0 {
+		// This transport owns the feature header: it is always rewritten from the
+		// merged bitmask so that only a single, well-formed value is sent, and it
+		// is removed entirely when there is nothing to report (e.g. a value set on
+		// the context by a caller for an unrelated client must not be forwarded).
+		// Clone the request to avoid modifying the original one.
+		outReq = req.Clone(ctx)
+		if features > 0 {
+			outReq.Header.Set(featureTrackerHeaderName, encodeFeatureMask(features))
+		} else {
+			outReq.Header.Del(featureTrackerHeaderName)
+		}
+	} else if isChunk {
+		outReq = req.WithContext(ctx)
+	}
+	resp, err := baseRT.RoundTrip(outReq)
+	if isChunk {
+		finishSpan(ctx, httpUploadChunkError(resp, err))
+	} else if resp != nil {
+		recordUploadIDFromHeader(ctx, resp.Header)
+	}
+	recordHTTPWritePayload(req, resp)
+	return resp, err
+}
+
+func (t *trackingTransport) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	if tr, ok := base.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
 }
 
 // Top-level methods.
@@ -222,6 +346,8 @@ func (c *httpStorageClient) ListBuckets(ctx context.Context, project string, opt
 	}
 
 	fetch := func(pageSize int, pageToken string) (token string, err error) {
+		ctx, record := startMetricsOp(it.ctx, "ListBuckets", true)
+		defer func() { record(err) }()
 		req := c.raw.Buckets.List(it.projectID)
 		req.Projection("full")
 		req.Prefix(it.Prefix)
@@ -231,15 +357,16 @@ func (c *httpStorageClient) ListBuckets(ctx context.Context, project string, opt
 			req.MaxResults(int64(pageSize))
 		}
 		var resp *raw.Buckets
-		err = run(it.ctx, func(ctx context.Context) error {
+		err = run(ctx, func(ctx context.Context) error {
 			resp, err = req.Context(ctx).Do()
 			return err
 		}, s.retry, s.idempotent)
 		if err != nil {
 			return "", err
 		}
+		var b *BucketAttrs
 		for _, item := range resp.Items {
-			b, err := newBucket(item)
+			b, err = newBucket(item)
 			if err != nil {
 				return "", err
 			}
@@ -348,8 +475,11 @@ func (c *httpStorageClient) ListObjects(ctx context.Context, bucket string, q *Q
 	}
 	fetch := func(pageSize int, pageToken string) (string, error) {
 		var err error
+		ctx, record := startMetricsOp(it.ctx, "ListObjects", true)
+		defer func() { record(err) }()
 		// Add trace span around List API call within the fetch.
-		ctx, _ = startSpan(ctx, "httpStorageClient.ObjectsListCall")
+		// Bucket.Objects has no operation span, so gcp.storage.uri is recorded on each per-page ObjectsListCall span.
+		ctx, _ = startSpan(ctx, "httpStorageClient.ObjectsListCall", withStorageURI(bucket, ""), rpcSystemHTTPOpt)
 		defer func() { endSpan(ctx, err) }()
 		req := c.raw.Objects.List(bucket)
 		if it.query.SoftDeleted {
@@ -385,7 +515,7 @@ func (c *httpStorageClient) ListObjects(ctx context.Context, bucket string, q *Q
 			req.MaxResults(int64(pageSize))
 		}
 		var resp *raw.Objects
-		err = run(it.ctx, func(ctx context.Context) error {
+		err = run(ctx, func(ctx context.Context) error {
 			resp, err = req.Context(ctx).Do()
 			return err
 		}, s.retry, s.idempotent, withOperation("ListObjects"), withObject(it.query.Prefix), withBucket(bucket))
@@ -767,7 +897,9 @@ func (c *httpStorageClient) UpdateObjectACL(ctx context.Context, bucket, object 
 
 func (c *httpStorageClient) ComposeObject(ctx context.Context, req *composeObjectRequest, opts ...storageOption) (*ObjectAttrs, error) {
 	s := callSettings(c.settings, opts...)
-	rawReq := &raw.ComposeRequest{}
+	rawReq := &raw.ComposeRequest{
+		DeleteSourceObjects: req.deleteSourceObjects,
+	}
 	// Compose requires a non-empty Destination, so we always set it,
 	// even if the caller-provided ObjectAttrs is the zero value.
 	rawReq.Destination = req.dstObject.attrs.toRawObject(req.dstBucket)
@@ -870,7 +1002,7 @@ func (c *httpStorageClient) NewMultiRangeDownloader(ctx context.Context, params 
 }
 
 func (c *httpStorageClient) NewRangeReader(ctx context.Context, params *newRangeReaderParams, opts ...storageOption) (r *Reader, err error) {
-	ctx, _ = startSpan(ctx, "httpStorageClient.NewRangeReader")
+	ctx, _ = startSpan(ctx, "httpStorageClient.NewRangeReader", rpcSystemHTTPOpt)
 	defer func() { endSpan(ctx, err) }()
 
 	s := callSettings(c.settings, opts...)
@@ -882,7 +1014,6 @@ func (c *httpStorageClient) NewRangeReader(ctx context.Context, params *newRange
 }
 
 func (c *httpStorageClient) newRangeReaderXML(ctx context.Context, params *newRangeReaderParams, s *settings) (r *Reader, err error) {
-	requestID := uuid.New()
 	u := &url.URL{
 		Scheme:  c.scheme,
 		Host:    c.xmlHost,
@@ -906,50 +1037,35 @@ func (c *httpStorageClient) newRangeReaderXML(ctx context.Context, params *newRa
 		return nil, err
 	}
 
+	// req is reused across retry attempts and setHeadersFromCtx merges
+	// x-goog-api-client values into the existing header. Snapshot the value
+	// set before any attempt and restore it on each attempt so tokens from
+	// earlier attempts (e.g. gccl-attempt-count/1) do not leak into later ones.
+	baseXGoogHeader := slices.Clone(req.Header.Values(xGoogHeaderKey))
+
 	reopen := readerReopen(ctx, req.Header, params, s,
 		func(ctx context.Context) (*http.Response, error) {
+			req.Header.Del(xGoogHeaderKey)
+			for _, v := range baseXGoogHeader {
+				req.Header.Add(xGoogHeaderKey, v)
+			}
 			setHeadersFromCtx(ctx, req.Header)
 
 			if c.dynamicReadReqStallTimeout == nil {
 				return c.hc.Do(req.WithContext(ctx))
 			}
 
-			cancelCtx, cancel := context.WithCancel(ctx)
-			var (
-				res *http.Response
-				err error
-			)
-
-			done := make(chan bool)
-			go func() {
-				reqStartTime := time.Now()
-				res, err = c.hc.Do(req.WithContext(cancelCtx))
-				if err == nil {
-					reqLatency := time.Since(reqStartTime)
-					c.dynamicReadReqStallTimeout.update(params.bucket, reqLatency)
-				} else if errors.Is(err, context.Canceled) {
-					// context.Canceled means operation took more than current dynamicTimeout,
-					// hence should be increased.
-					c.dynamicReadReqStallTimeout.increase(params.bucket)
-				}
-				done <- true
-			}()
-
-			// Wait until stall timeout or request is successful.
-			stallTimeout := c.dynamicReadReqStallTimeout.getValue(params.bucket)
-			timer := time.After(stallTimeout)
-			select {
-			case <-timer:
-				log.Printf("[%s] stalled read-req cancelled after %fs", requestID, stallTimeout.Seconds())
-				cancel()
-				<-done
+			var res *http.Response
+			err := executeWithReadStallTimeout(ctx, c.dynamicReadReqStallTimeout, params.bucket, func(ctx context.Context) error {
+				var err error
+				res, err = c.hc.Do(req.WithContext(ctx))
+				return err
+			}, func(stallTimeout time.Duration) {
+				c.metrics.recordStallDuration(ctx, stallTimeout, "ReadObject", "http", stripPort(req.URL.Host))
 				if res != nil && res.Body != nil {
 					res.Body.Close()
 				}
-				return res, context.DeadlineExceeded
-			case <-done:
-				cancel = nil
-			}
+			})
 			return res, err
 		},
 		func() error { return setConditionsHeaders(req.Header, params.conds) },
@@ -1005,7 +1121,7 @@ func (hiw *httpInternalWriter) validateChecksumFromServer() error {
 	// Do not check for channel closure as error is already set on the writer
 	// if serverChecksumChan is closed without checksum
 	if ok && hiw.fullObjectChecksum != serverChecksum {
-		return fmt.Errorf("storage: object checksum mismatch: computed %q, server %q; the bucket may contain corrupted object", encodeUint32(hiw.fullObjectChecksum), encodeUint32(serverChecksum))
+		return fmt.Errorf("%w: computed %q, server %q; the bucket may contain corrupted object", errChecksumMismatch, encodeUint32(hiw.fullObjectChecksum), encodeUint32(serverChecksum))
 	}
 	return nil
 }
@@ -1030,6 +1146,9 @@ func (hiw *httpInternalWriter) Close() error {
 func (hiw *httpInternalWriter) Flush() (int64, error) {
 	return 0, errors.New("Writer.Flush is only supported for gRPC-based clients")
 }
+
+// Not supported on HTTP Client as this is for setting CRC on appendable objects.
+func (hiw *httpInternalWriter) setAppendFinalCRC32C(sendAppendFinalCRC32C bool, c uint32) {}
 
 func (c *httpStorageClient) OpenWriter(params *openWriterParams, opts ...storageOption) (internalWriter, error) {
 	if params.append {
@@ -1075,10 +1194,12 @@ func (c *httpStorageClient) OpenWriter(params *openWriterParams, opts ...storage
 		if attrs.MD5 != nil {
 			rawObj.Md5Hash = base64.StdEncoding.EncodeToString(attrs.MD5)
 		}
+		// Attach the aligned chunk size so trackingTransport can record Storage.UploadChunk spans.
+		uploadCtx := withUploadChunkSize(params.ctx, params.chunkSize)
 		call := c.raw.Objects.Insert(params.bucket, rawObj).
 			Media(pr, mediaOpts...).
 			Projection("full").
-			Context(params.ctx).
+			Context(uploadCtx).
 			Name(params.attrs.Name)
 		call.ProgressUpdater(func(n, _ int64) { progress(n) })
 
@@ -1235,6 +1356,8 @@ func (c *httpStorageClient) ListHMACKeys(ctx context.Context, project, serviceAc
 		retry:     s.retry,
 	}
 	fetch := func(pageSize int, pageToken string) (token string, err error) {
+		ctx, record := startMetricsOp(it.ctx, "ListHMACKeys", true)
+		defer func() { record(err) }()
 		call := c.raw.Projects.HmacKeys.List(project)
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
@@ -1253,7 +1376,7 @@ func (c *httpStorageClient) ListHMACKeys(ctx context.Context, project, serviceAc
 		}
 
 		var resp *raw.HmacKeysMetadata
-		err = run(it.ctx, func(ctx context.Context) error {
+		err = run(ctx, func(ctx context.Context) error {
 			resp, err = call.Context(ctx).Do()
 			return err
 		}, s.retry, s.idempotent)
@@ -1261,11 +1384,12 @@ func (c *httpStorageClient) ListHMACKeys(ctx context.Context, project, serviceAc
 			return "", err
 		}
 
+		var hkey *HMACKey
 		for _, metadata := range resp.Items {
 			hk := &raw.HmacKey{
 				Metadata: metadata,
 			}
-			hkey, err := toHMACKeyFromRaw(hk, true)
+			hkey, err = toHMACKeyFromRaw(hk, true)
 			if err != nil {
 				return "", err
 			}
@@ -1406,7 +1530,7 @@ func (r *httpReader) Read(p []byte) (int, error) {
 		n += m
 		r.seen += int64(m)
 		if r.checkCRC {
-			r.gotCRC = crc32.Update(r.gotCRC, crc32cTable, p[:n])
+			r.gotCRC = crc32.Update(r.gotCRC, crc32cTable, p[n-m:n])
 		}
 		if err == nil {
 			return n, nil
@@ -1417,7 +1541,7 @@ func (r *httpReader) Read(p []byte) (int, error) {
 			// anything worth looking at.
 			if r.checkCRC {
 				if r.gotCRC != r.wantCRC {
-					return n, fmt.Errorf("storage: bad CRC on read: got %d, want %d",
+					return n, fmt.Errorf("%w: bad CRC on read: got %d, want %d", errChecksumMismatch,
 						r.gotCRC, r.wantCRC)
 				}
 			}
@@ -1487,6 +1611,7 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 		var res *http.Response
 		err = run(ctx, func(ctx context.Context) error {
 			res, err = doDownload(ctx)
+			recordHTTPReadPayload(ctx, res, start, params.length)
 			if err != nil {
 				return formatObjectErr(err)
 			}
@@ -1519,8 +1644,9 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 			// With "Content-Encoding": "gzip" aka decompressive transcoding, GCS serves
 			// back the whole file regardless of the range count passed in as per:
 			//      https://cloud.google.com/storage/docs/transcoding#range,
-			// thus we have to manually move the body forward by seen bytes.
-			if decompressiveTranscoding(res) && seen > 0 {
+			// thus we have to manually move the body forward by seen bytes when a
+			// full-object (non-206) response is returned.
+			if decompressiveTranscoding(res) && seen > 0 && res.StatusCode != http.StatusPartialContent {
 				_, _ = io.CopyN(io.Discard, res.Body, seen)
 			}
 
@@ -1535,7 +1661,7 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 				params.gen = gen64
 			}
 			return nil
-		}, s.retry, s.idempotent)
+		}, s.retry, s.idempotent, withOperation("ReadObject"), withBucket(params.bucket), withObject(params.object))
 		if err != nil {
 			return nil, err
 		}
@@ -1582,6 +1708,7 @@ func parseReadResponse(res *http.Response, params *newRangeReaderParams, reopen 
 	}
 
 	// Check the CRC iff all of the following hold:
+	// - The user did not disable CRC check.
 	// - We asked for content (length != 0).
 	// - We got all the content (status != PartialContent).
 	// - The server sent a CRC header.
@@ -1591,7 +1718,7 @@ func parseReadResponse(res *http.Response, params *newRangeReaderParams, reopen 
 	// computes it on the compressed contents, but we compute it on the
 	// uncompressed contents.
 	crc, checkCRC = parseCRC32c(res)
-	if params.length == 0 || res.StatusCode == http.StatusPartialContent || res.Uncompressed || uncompressedByServer(res) {
+	if params.disableCRCCheck || params.length == 0 || res.StatusCode == http.StatusPartialContent || res.Uncompressed || uncompressedByServer(res) {
 		checkCRC = false
 	}
 
@@ -1652,6 +1779,8 @@ func parseReadResponse(res *http.Response, params *newRangeReaderParams, reopen 
 			wantCRC:  crc,
 			checkCRC: checkCRC,
 		},
+		bucket: params.bucket,
+		object: params.object,
 	}, nil
 }
 
@@ -1665,14 +1794,18 @@ func setHeadersFromCtx(ctx context.Context, header http.Header) {
 		// Merge x-goog-api-client values into a single space-separated value.
 		if strings.EqualFold(k, xGoogHeaderKey) {
 			alreadySetValues := header.Values(xGoogHeaderKey)
-			vals = append(vals, alreadySetValues...)
-
-			if len(vals) > 0 {
-				xGoogHeader := vals[0]
-				for _, v := range vals[1:] {
-					xGoogHeader = strings.Join([]string{xGoogHeader, v}, " ")
+			var uniqueVals []string
+			for _, list := range [][]string{vals, alreadySetValues} {
+				for _, v := range list {
+					for _, part := range strings.Fields(v) {
+						if !slices.Contains(uniqueVals, part) {
+							uniqueVals = append(uniqueVals, part)
+						}
+					}
 				}
-				header.Set(k, xGoogHeader)
+			}
+			if len(uniqueVals) > 0 {
+				header.Set(k, strings.Join(uniqueVals, " "))
 			}
 		} else {
 			for _, v := range vals {
@@ -1680,4 +1813,13 @@ func setHeadersFromCtx(ctx context.Context, header http.Header) {
 			}
 		}
 	}
+}
+
+func (c *httpStorageClient) fetchBucketMetadata(ctx context.Context, bucket string) (string, string, error) {
+	resp, err := c.raw.Buckets.Get(bucket).Projection("noAcl").Context(ctx).Do()
+	if err != nil {
+		return "", "", err
+	}
+	resource, location := getMetadataFromAttrs(resp.Location, resp.LocationType, strconv.FormatUint(resp.ProjectNumber, 10), bucket)
+	return resource, location, nil
 }

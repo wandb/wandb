@@ -3,22 +3,15 @@ package monitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os/exec"
+	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -46,26 +39,28 @@ var SystemMonitorProviders = wire.NewSet(
 	wire.Struct(new(SystemMonitorFactory), "*"),
 )
 
-// Resource defines the interface for system resources to be monitored.
-type Resource interface {
-	Sample() (*spb.StatsRecord, error)
-	Probe(ctx context.Context) *spb.EnvironmentRecord
-}
-
-// SystemMonitor is responsible for monitoring system metrics across various resources.
+// SystemMonitor publishes the system metrics streamed by the wandb-symon
+// sidecar to the run and probes the compute environment.
 type SystemMonitor struct {
 	// The context for the system monitor.
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// The wait group for the system monitor.
-	wg sync.WaitGroup
+	// stateMu guards the two state booleans.
+	stateMu sync.Mutex
 
-	// The state of the system monitor: stopped, running, or paused.
-	state atomic.Int32
+	// Whether the monitor is paused and whether it's started.
+	//
+	// The monitor subscribes to wandb-symon only when it's running and not
+	// paused. It may be paused before it is started, in which case calling
+	// Start() does not create the subscription.
+	statePaused, stateStarted bool
 
-	// The list of resources to monitor.
-	resources []Resource
+	// symon streams system metrics from the wandb-symon sidecar.
+	symon *Symon
+
+	// coreweave probes the CoreWeave compute environment, if any.
+	coreweave *CoreWeaveMetadata
 
 	// extraWork accepts outgoing messages for the run.
 	extraWork runwork.ExtraWork
@@ -90,9 +85,6 @@ type SystemMonitor struct {
 
 	// Unique identifier of the writer to the run.
 	writerID sharedmode.ClientID
-
-	// Information about the Git repository, if applicable.
-	git *spb.GitRepoRecord
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -106,8 +98,8 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// XPUResourceManager manages the sidecar for GPU/TPU metrics.
-	XPUResourceManager *XPUResourceManager
+	// SymonResourceManager manages the wandb-symon sidecar process.
+	SymonResourceManager *SymonResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
@@ -118,13 +110,13 @@ type SystemMonitorFactory struct {
 
 // New initializes and returns a new SystemMonitor instance.
 //
-// It sets up resources based on provided settings and configures the metrics buffer.
+// It builds the sidecar subscription from the settings and configures the
+// metrics buffer.
 func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	ctx, cancel := context.WithCancel(extraWork.BeforeEndCtx())
 	sm := &SystemMonitor{
 		ctx:              ctx,
 		cancel:           cancel,
-		wg:               sync.WaitGroup{},
 		runHandle:        f.RunHandle,
 		settings:         f.Settings,
 		logger:           f.Logger,
@@ -134,7 +126,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		writerID:         f.WriterID,
 	}
 
-	if sm.settings.IsDisableStats() {
+	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
 		sm.logger.Debug("monitor: disabled")
 		return sm
 	}
@@ -152,43 +144,15 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(f.XPUResourceManager)
+	sm.initializeResources(f.SymonResourceManager)
 
 	return sm
 }
 
-// initializeResources sets up the resources to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
-	pid := sm.settings.GetStatsPid()
-	samplingInterval := sm.settings.GetStatsSamplingInterval()
-	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
-	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
-
-	if system := NewSystem(
-		SystemParams{
-			Pid:              pid,
-			TrackProcessTree: sm.settings.GetStatsTrackProcessTree(),
-			DiskPaths:        sm.settings.GetStatsDiskPaths(),
-		},
-	); system != nil {
-		sm.resources = append(sm.resources, system)
-	}
-
-	if xpu, err := NewXPU(xpuResourceManager, pid, gpuDeviceIds); xpu != nil {
-		sm.resources = append(sm.resources, xpu)
-	} else if err != nil {
-		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err))
-	}
-
-	if trainium := NewTrainium(
-		sm.logger,
-		pid,
-		samplingInterval,
-		neuronMonitorConfigPath,
-	); trainium != nil {
-		sm.resources = append(sm.resources, trainium)
-	}
+// initializeResources builds the sidecar subscription from the settings and
+// the CoreWeave probe.
+func (sm *SystemMonitor) initializeResources(symonResourceManager *SymonResourceManager) {
+	sm.symon = NewSymon(sm.ctx, symonResourceManager, sm.logger)
 
 	// CoreWeave compute environment metadata.
 	if cwm, err := NewCoreWeaveMetadata(
@@ -199,68 +163,45 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			Settings:      sm.settings,
 		},
 	); cwm != nil {
-		sm.resources = append(sm.resources, cwm)
+		sm.coreweave = cwm
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize CoreWeave metadata resource: %v", err))
-	}
-
-	// DCGM Exporter.
-	if url := sm.settings.GetStatsDcgmExporter(); url != "" {
-		params := DCGMExporterParams{
-			URL:     url,
-			Headers: sm.settings.GetStatsOpenMetricsHeaders(),
-			Logger:  sm.logger,
-		}
-		if de := NewDCGMExporter(params); de != nil {
-			sm.resources = append(sm.resources, de)
-		}
-	}
-
-	// OpenMetrics endpoints to monitor.
-	if endpoints := sm.settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
-		for name, url := range endpoints {
-			filters := sm.settings.GetStatsOpenMetricsFilters()
-			headers := sm.settings.GetStatsOpenMetricsHeaders()
-			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
-				sm.resources = append(sm.resources, om)
-			}
-		}
+			"monitor",
+			fmt.Errorf(
+				"monitor: failed to initialize CoreWeave metadata resource: %v",
+				err,
+			),
+		)
 	}
 }
 
-// marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
-func marshal(
-	stats map[string]any,
-	timeStamp *timestamppb.Timestamp,
-) *spb.StatsRecord {
-	statsItems := make([]*spb.StatsItem, 0, len(stats))
-	for k, v := range stats {
-		jsonData, err := simplejsonext.Marshal(v)
-		if err != nil {
-			continue
-		}
-		key := k
-		statsItems = append(statsItems, &spb.StatsItem{
-			Key:       key,
-			ValueJson: string(jsonData),
+// openMetricsFilters converts the x_stats_open_metrics_filters setting, a
+// sequence of metric regexes or a mapping from metric regex to the label
+// regexes its samples must match, to the sidecar's filters.
+func openMetricsFilters(filters *spb.OpenMetricsFilters) []*spb.OpenMetricsFilter {
+	var result []*spb.OpenMetricsFilter
+	for _, regex := range filters.GetSequence().GetValue() {
+		result = append(result, &spb.OpenMetricsFilter{MetricRegex: regex})
+	}
+	for regex, labels := range filters.GetMapping().GetValue() {
+		result = append(result, &spb.OpenMetricsFilter{
+			MetricRegex:  regex,
+			LabelRegexes: labels.GetValue(),
 		})
 	}
-
-	return &spb.StatsRecord{
-		StatsType: spb.StatsRecord_SYSTEM,
-		Timestamp: timeStamp,
-		Item:      statsItems,
-	}
+	return result
 }
 
-// GetState returns the current state of the SystemMonitor.
-func (sm *SystemMonitor) GetState() int32 {
-	return sm.state.Load()
+// TestOnlyIsSubscribed reports whether the system monitor has a subscription
+// to the wandb-symon process.
+func (sm *SystemMonitor) TestOnlyIsSubscribed() bool {
+	return sm.symon.TestOnlyIsSubscribed()
 }
 
 // probeExecutionContext collects information about the compute environment.
-func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
+func (sm *SystemMonitor) probeExecutionContext(
+	git *spb.GitRepoRecord,
+) *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -278,43 +219,97 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Args:          sm.settings.GetArgs(),
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
-		Git:           sm.git,
+		Git:           git,
+		Slurm:         slurmEnvVars(),
 
 		WriterId: string(sm.writerID),
 	}}}
 }
 
-// probeResources gathers system information from all resources and merges their metadata.
+// slurmEnvVars returns the SLURM_* environment variables keyed by their
+// lowercased suffix, or nil when there are none.
+func slurmEnvVars() map[string]string {
+	var vars map[string]string
+	for _, envVar := range os.Environ() {
+		key, value, ok := strings.Cut(envVar, "=")
+		if !ok {
+			continue
+		}
+		if suffix, ok := strings.CutPrefix(key, "SLURM_"); ok {
+			if vars == nil {
+				vars = make(map[string]string)
+			}
+			vars[strings.ToLower(suffix)] = value
+		}
+	}
+	return vars
+}
+
+// subscribeRequest describes the run's subscription to the sidecar: what
+// to sample, how often and for whom.
+func (sm *SystemMonitor) subscribeRequest() *spb.SubscribeRequest {
+	request := &spb.SubscribeRequest{
+		IntervalSeconds:         sm.samplingInterval.Seconds(),
+		Pid:                     sm.settings.GetStatsPid(),
+		GpuDeviceIds:            sm.settings.GetStatsGpuDeviceIds(),
+		SubscriberId:            string(sm.writerID),
+		TrackProcessTree:        sm.settings.GetStatsTrackProcessTree(),
+		DiskPaths:               sm.settings.GetStatsDiskPaths(),
+		DisableCgroup:           sm.settings.GetStatsNoCgroup(),
+		OpenMetricsEndpoints:    sm.settings.GetStatsOpenMetricsEndpoints(),
+		OpenMetricsFilters:      openMetricsFilters(sm.settings.GetStatsOpenMetricsFilters()),
+		OpenMetricsHttpHeaders:  sm.settings.GetStatsOpenMetricsHeaders(),
+		DcgmExporter:            sm.settings.GetStatsDcgmExporter(),
+		NeuronMonitorConfigPath: sm.settings.GetStatsNeuronMonitorConfigPath(),
+	}
+	if sm.settings.GetStatsSelfUsage() {
+		request.WandbPids = []int32{int32(os.Getpid())}
+	}
+	return request
+}
+
+// metadataRequest describes what the sidecar's probe should look at.
+func (sm *SystemMonitor) metadataRequest() *spb.GetMetadataRequest {
+	return &spb.GetMetadataRequest{
+		DiskPaths:              sm.settings.GetStatsDiskPaths(),
+		DcgmExporter:           sm.settings.GetStatsDcgmExporter(),
+		OpenMetricsHttpHeaders: sm.settings.GetStatsOpenMetricsHeaders(),
+	}
+}
+
+// probeResources merges the sidecar's probe with the CoreWeave
+// environment metadata.
 func (sm *SystemMonitor) probeResources() *spb.Record {
 	sm.logger.Debug("monitor: probing resources")
 
 	e := &spb.EnvironmentRecord{WriterId: string(sm.writerID)}
 
-	g, gctx := errgroup.WithContext(sm.ctx)
 	var mu sync.Mutex
-
-	for _, resource := range sm.resources {
-		g.Go(func() error {
+	var wg sync.WaitGroup
+	for _, probe := range []func(context.Context) *spb.EnvironmentRecord{
+		func(ctx context.Context) *spb.EnvironmentRecord {
+			return sm.symon.Probe(ctx, sm.metadataRequest())
+		},
+		sm.coreweave.Probe,
+	} {
+		wg.Go(func() {
 			defer func() {
 				if err := recover(); err != nil {
-					sm.logger.CaptureError(fmt.Errorf("monitor: panic probing resource: %v", err))
+					sm.logger.CaptureError(
+						"monitor",
+						fmt.Errorf("monitor: panic probing resource: %v", err),
+					)
 				}
 			}()
 
-			if gctx.Err() != nil {
-				return nil
-			}
-
-			if rec := resource.Probe(gctx); rec != nil {
+			if rec := probe(sm.ctx); rec != nil {
 				mu.Lock()
 				proto.Merge(e, rec)
 				mu.Unlock()
 			}
-			return nil
 		})
 	}
-
-	_ = g.Wait()
+	wg.Wait()
 
 	// Overwrite auto-detected metadata with user-provided values.
 	// TODO: move this to the relevant resources instead.
@@ -337,32 +332,22 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 // Start begins resource monitoring.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
-func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
+func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
 	}
 
-	if !sm.state.CompareAndSwap(StateStopped, StateRunning) {
-		return // Already started or paused
-	}
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
 
-	sm.git = git
-
-	// Start collecting metrics.
-	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
-		sm.logger.Debug("monitor: starting")
-		for _, resource := range sm.resources {
-			sm.wg.Go(func() {
-				sm.monitorResource(resource)
-			})
-		}
-	}
+	sm.stateStarted = true
+	sm.lockedUpdateSubscription()
 }
 
 // Probe collects environment and resource information.
 //
 // This operation may take some time, so we perform it on a best-effort basis.
-func (sm *SystemMonitor) Probe() {
+func (sm *SystemMonitor) Probe(git *spb.GitRepoRecord) {
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() &&
 		sm.settings.IsPrimary() {
 		go func() {
@@ -370,19 +355,54 @@ func (sm *SystemMonitor) Probe() {
 
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeExecutionContext()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(
+					sm.probeExecutionContext(git),
+				)),
 			)
 
+			resources := sm.probeResources()
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeResources()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(resources)),
 			)
+
+			if telemetry := sm.telemetry(resources.GetEnvironment()); telemetry != nil {
+				sm.extraWork.AddWorkOrCancel(
+					sm.ctx.Done(),
+					runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
+						RecordType: &spb.Record_Telemetry{Telemetry: telemetry},
+					})),
+				)
+			}
 		}()
 	}
+}
+
+// telemetry reports the hardware the sidecar monitors and the metric sources
+// the run is configured with, or nil if there is nothing to report.
+func (sm *SystemMonitor) telemetry(e *spb.EnvironmentRecord) *spb.TelemetryRecord {
+	telemetry := &spb.TelemetryRecord{}
+	env := &spb.Env{
+		AppleGpu:  e.GetApple() != nil,
+		NvidiaGpu: len(e.GetGpuNvidia()) > 0,
+		AmdGpu:    len(e.GetGpuAmd()) > 0,
+		Tpu:       e.GetTpu() != nil,
+		Trainium:  e.GetTrainium() != nil,
+	}
+	if proto.Size(env) > 0 {
+		telemetry.Env = env
+	}
+	feature := &spb.Feature{
+		OpenMetrics:  len(sm.settings.GetStatsOpenMetricsEndpoints()) > 0,
+		DcgmExporter: sm.settings.GetStatsDcgmExporter() != "",
+	}
+	if proto.Size(feature) > 0 {
+		telemetry.Feature = feature
+	}
+	if proto.Size(telemetry) == 0 {
+		return nil
+	}
+	return telemetry
 }
 
 // Pause temporarily stops the monitoring process.
@@ -393,128 +413,68 @@ func (sm *SystemMonitor) Probe() {
 // metrics are only collected when a cell is running. We do it this way
 // to prevent the overhead of starting and stopping the monitor for each cell.
 func (sm *SystemMonitor) Pause() {
-	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
-		sm.logger.Debug("monitor: pausing")
-	}
+	sm.logger.Debug("monitor: pausing")
+
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
+
+	sm.statePaused = true
+	sm.lockedUpdateSubscription()
 }
 
 // Resume restarts the monitoring process after it has been paused.
 func (sm *SystemMonitor) Resume() {
-	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
-		sm.logger.Debug("monitor: resuming")
+	sm.logger.Debug("monitor: resuming")
+
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
+
+	sm.statePaused = false
+	sm.lockedUpdateSubscription()
+}
+
+// lockedUpdateSubscription subscribes or unsubscribes from wandb-symon
+// based on the current state.
+//
+// The state mutex must be held.
+func (sm *SystemMonitor) lockedUpdateSubscription() {
+	if sm.stateStarted && !sm.statePaused {
+		sm.symon.Subscribe(sm.subscribeRequest(), sm.publish)
+	} else {
+		sm.symon.Unsubscribe()
 	}
 }
 
-// monitorResource handles the monitoring loop for a single resource.
+// publish buffers the sample in response and sends it to the run.
 //
-// It handles sampling, aggregation, and reporting of metrics
-// and is meant to run in its own goroutine.
-func (sm *SystemMonitor) monitorResource(resource Resource) {
-	if resource == nil {
-		return
+// It may block until ctx is done.
+func (sm *SystemMonitor) publish(ctx context.Context, response *spb.SubscribeResponse) {
+	metrics := response.GetRecord().GetStats()
+	if len(metrics.GetItem()) == 0 {
+		return // nothing to do
 	}
 
-	// recover from panic and log the error
-	defer func() {
-		if err := recover(); err != nil {
-			if resource != nil {
-				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
-			}
-		}
-	}()
+	// Push metrics to the in-memory buffer when enabled.
+	if sm.buffer != nil {
+		sm.buffer.Push(metrics)
+	}
 
-	// Create a ticker that fires every `samplingInterval` seconds
-	ticker := time.NewTicker(sm.samplingInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-sm.ctx.Done():
-			return
-		case <-ticker.C:
-			if sm.state.Load() != StateRunning {
-				continue // Skip work when not running
-			}
-
-			metrics, err := resource.Sample()
-			if err != nil {
-				if ShouldCaptureSamplingError(err) {
-					sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
-				} else {
-					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
-				}
-			}
-
-			if metrics == nil || len(metrics.Item) == 0 {
-				continue // nothing to do
-			}
-
-			// Push metrics to the buffer when in-memory buffering is enabled.
-			if sm.buffer != nil {
-				sm.buffer.Push(metrics)
-			}
-
-			// Label for custom grouping of stats, e.g. per node in a multi-node run.
-			if label := sm.settings.GetLabel(); label != "" {
-				for _, item := range metrics.Item {
-					item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
-				}
-			}
-
-			// publish metrics
-			record := &spb.Record{
-				RecordType: &spb.Record_Stats{
-					Stats: metrics,
-				},
-				Control: &spb.Control{AlwaysSend: true},
-			}
-			sm.extraWork.AddWorkOrCancel(
-				sm.ctx.Done(),
-				runwork.NoRequest(runwork.WorkFromRecord(record)),
-			)
+	// Label for custom grouping of stats, e.g. per node in a multi-node run.
+	if label := sm.settings.GetLabel(); label != "" {
+		for _, item := range metrics.Item {
+			item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
 		}
 	}
 
-}
-
-// ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
-//
-// Use to filter out expected/transient failures. Keep this intentionally small and specific.
-func ShouldCaptureSamplingError(err error) bool {
-	// Transient gRPC connectivity to the wandb-xpu sidecar.
-	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
-		return false
+	record := &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: metrics,
+		},
 	}
-
-	msg := err.Error()
-	switch {
-	// Error connecting to a Prometheus server.
-	case strings.Contains(msg, "connection refused"):
-		return false
-
-	// Platforms without netstat (gopsutil may shell out on some OSes).
-	case errors.Is(err, exec.ErrNotFound):
-		return false
-	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
-		return false
-
-	// Container/lean Linux builds without /proc/diskstats.
-	case strings.Contains(msg, "/proc/diskstats") &&
-		(strings.Contains(msg, "no such file") ||
-			strings.Contains(msg, "no such file or directory")):
-		return false
-
-	// Windows sporadic low-level API failure wording.
-	case strings.Contains(msg, "Incorrect function."):
-		return false
-
-	// Some gopsutil APIs report "not implemented yet" for certain platforms.
-	case strings.Contains(msg, "not implemented yet"):
-		return false
-
-	default:
-		return true
-	}
+	sm.extraWork.AddWorkOrCancel(
+		ctx.Done(),
+		runwork.NoRequest(runwork.WorkFromRecord(record)),
+	)
 }
 
 // GetBuffer returns the current buffer of collected metrics.
@@ -528,28 +488,14 @@ func (sm *SystemMonitor) GetBuffer() map[string][]Measurement {
 	return sm.buffer.GetMeasurements()
 }
 
-// Finish stops the monitoring process and performs necessary cleanup.
-//
-// NOTE: resource.Close is a potentially expensive operation.
+// Finish ends the subscription and releases the sidecar.
 func (sm *SystemMonitor) Finish() {
-	if sm == nil || sm.cancel == nil {
+	if sm == nil {
 		return
-	}
-	if sm.state.Swap(StateStopped) == StateStopped {
-		return // Already stopped
 	}
 
 	sm.logger.Debug("monitor: stopping")
-
-	// signal to stop monitoring the resources
 	sm.cancel()
-	// wait for all resources to stop monitoring
-	sm.wg.Wait()
-	// close the resources, if they require any cleanup
-	for _, resource := range sm.resources {
-		if closer, ok := resource.(interface{ Close() }); ok {
-			closer.Close()
-		}
-	}
+	sm.symon.Close()
 	sm.logger.Debug("monitor: stopped")
 }

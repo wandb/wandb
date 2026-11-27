@@ -10,6 +10,7 @@ from wandb.sdk import wandb_setup
 from . import prompt, wbnetrc
 from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
 from .host_url import HostUrl
+from .settings import set_auth_settings
 
 _session_auth_lock = threading.Lock()
 _session_auth: Auth | None = None
@@ -44,28 +45,8 @@ def _locked_set_session_auth(
     global _session_auth
     _session_auth = auth
 
-    if not update_settings:
-        return
-
-    settings = wandb_setup.singleton().settings
-
-    if auth is None:
-        settings.api_key = None
-        settings.identity_token_file = None
-
-    elif isinstance(auth, AuthApiKey):
-        settings.api_key = auth.api_key
-        settings.identity_token_file = None
-        settings.base_url = str(auth.host)
-
-    elif isinstance(auth, AuthIdentityTokenFile):
-        settings.api_key = None
-        settings.identity_token_file = str(auth.path)
-        settings.credentials_file = str(auth.credentials_path)
-        settings.base_url = str(auth.host)
-
-    else:
-        raise NotImplementedError(str(auth))
+    if update_settings:
+        set_auth_settings(wandb_setup.singleton().settings, auth)
 
 
 def unauthenticate_session(*, update_settings: bool = True) -> Auth | None:
@@ -93,14 +74,18 @@ def authenticate_session(
     input_timeout: float | None = None,
     referrer: str = "models",
     relogin: bool = False,
+    verify: bool = False,
+    prompt: bool = True,
+    update_session: bool = True,
 ) -> Auth | None:
     """Returns or configures the session credentials.
 
     If the session credentials are already configured for the given host,
     returns them. Otherwise, uses system credentials or prompts interactively.
 
-    The return value is only None if the user selected offline mode in
-    the interactive prompt.
+    The return value is None if the user selected offline mode in the
+    interactive prompt, or if `prompt` is False and no credentials are
+    configured.
 
     Args:
         host: The W&B server URL.
@@ -112,6 +97,11 @@ def authenticate_session(
             the process if we incorrectly identify it as interactive.
         referrer: Referrer parameter to add to printed URLs for analytics.
         relogin: If true, forces an interactive prompt.
+        verify: If true, verifies the credentials against the W&B server.
+        prompt: Whether to prompt interactively when no credentials are found.
+        update_session: Whether to store newly found credentials as the
+            session credentials and update the global settings. If false,
+            they are only returned.
 
     Raises:
         TimeoutError: If an interactive prompt is shown and input_timeout expires.
@@ -124,8 +114,18 @@ def authenticate_session(
     if not relogin and (auth := session_credentials(host=host)):
         return auth
 
-    if not relogin and (auth := _use_system_auth(host=host, source=source)):
+    if not relogin and (
+        auth := _use_system_auth(
+            host=host,
+            source=source,
+            verify=verify,
+            update_session=update_session,
+        )
+    ):
         return auth
+
+    if not prompt:
+        return None
 
     try:
         return _use_prompted_auth(
@@ -134,6 +134,8 @@ def authenticate_session(
             no_create=no_create,
             referrer=referrer,
             input_timeout=input_timeout,
+            verify=verify,
+            update_session=update_session,
         )
     except term.NotATerminalError:
         raise UsageError(
@@ -166,16 +168,25 @@ def use_explicit_auth(auth: Auth, *, source: str) -> None:
         _locked_set_session_auth(auth)
 
 
-def _use_system_auth(*, host: HostUrl, source: str) -> Auth | None:
+def _use_system_auth(
+    *,
+    host: HostUrl,
+    source: str,
+    verify: bool = False,
+    update_session: bool = True,
+) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables or the .netrc file.
+    Loads credentials from environment variables, .netrc, or global settings.
     If no credentials are found, the session credentials are unchanged.
 
     Args:
         host: The W&B server URL.
         source: The source to include in the printed message,
             like "wandb.init()".
+        verify: If true, verifies the credentials against the W&B server.
+        update_session: Whether to store found credentials as the session
+            credentials and update the global settings.
 
     Raises:
         AuthenticationError: If a source of credentials is found but has an
@@ -188,14 +199,26 @@ def _use_system_auth(*, host: HostUrl, source: str) -> Auth | None:
         _try_env_auth(host=host)  #
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
+    if auth is None:
+        settings = wandb_setup.singleton().settings
+        if settings.api_key and host.is_same_url(settings.base_url):
+            auth = AuthWithSource(
+                auth=AuthApiKey(host=host, api_key=settings.api_key),
+                source="settings",
+            )
+
+    if verify and auth:
+        auth.auth.verify()
 
     with _session_auth_lock:
         if auth:
-            term.termlog(
-                f"[{source}] Loaded credentials for {auth.auth.host}"
-                + f" from {auth.source}."
-            )
-            _locked_set_session_auth(auth.auth)
+            if update_session:
+                term.termlog(
+                    f"[{source}] Loaded credentials for {auth.auth.host}"
+                    + f" from {auth.source}."
+                )
+                _locked_set_session_auth(auth.auth)
+            return auth.auth
 
         return _session_auth
 
@@ -244,6 +267,8 @@ def _use_prompted_auth(
     no_create: bool,
     referrer: str,
     input_timeout: float | None = None,
+    verify: bool = True,
+    update_session: bool = True,
 ) -> Auth | None:
     """Prompt interactively to set session credentials.
 
@@ -255,6 +280,9 @@ def _use_prompted_auth(
         no_create: If true, do not show an option to create a new account.
         referrer: Referrer parameter to include in printed URLs for analytics.
         input_timeout: How long to wait for user input before timing out.
+        verify: If true, verifies the credentials against the W&B server.
+        update_session: Whether to store the entered credentials as the
+            session credentials and update the global settings.
 
     Raises:
         NotATerminalError: If interactive prompting is not possible.
@@ -266,13 +294,17 @@ def _use_prompted_auth(
         no_create=no_create,
         referrer=referrer,
         input_timeout=input_timeout,
+        verify=verify,
     )
 
     with _session_auth_lock:
         if api_key:
-            _locked_set_session_auth(AuthApiKey(host=host, api_key=api_key))
+            auth: Auth | None = AuthApiKey(host=host, api_key=api_key)
         else:
             # Offline mode selected.
-            _locked_set_session_auth(None)
+            auth = None
 
-        return _session_auth
+        if update_session:
+            _locked_set_session_auth(auth)
+
+        return auth

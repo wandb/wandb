@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -48,8 +49,9 @@ type RecordParserFactory struct {
 func (f *RecordParserFactory) New(
 	beforeRunEndCtx context.Context,
 	tbHandler *tensorboard.TBHandler,
+	syncStateStore runsyncstate.Store,
 ) *recordParser {
-	return &recordParser{*f, beforeRunEndCtx, tbHandler}
+	return &recordParser{*f, beforeRunEndCtx, tbHandler, syncStateStore}
 }
 
 // recordParser is the real implementation of RecordParser.
@@ -58,6 +60,7 @@ type recordParser struct {
 
 	beforeRunEndCtx context.Context
 	tbHandler       *tensorboard.TBHandler
+	syncStateStore  runsyncstate.Store
 }
 
 // Ensure recordParser implements RecordParser.
@@ -79,6 +82,7 @@ func (p *recordParser) Parse(record *spb.Record) runwork.WorkImpl {
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
 			Logger:             p.Logger,
 			ClientID:           string(p.ClientID),
+			SyncStateStore:     p.syncStateStore,
 		}
 
 	case record.GetTbrecord() != nil:

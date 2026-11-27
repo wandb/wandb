@@ -59,7 +59,7 @@ def _log_run(inputs: queue.Queue[str], outputs: queue.Queue[str]) -> None:
     """
 
     with wandb.init(mode="offline") as run:
-        outputs.put(run.settings.sync_dir)
+        outputs.put(run.sync_dir)
 
         # Force the run to flush to disk, so that syncing may start.
         run.log({"lots_of_data": "a" * 32 * 1024})

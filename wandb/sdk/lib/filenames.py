@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Generator
-from typing import Callable
+from collections.abc import Callable, Generator
 
 WANDB_DIRS = ("wandb", ".wandb")
 
@@ -14,7 +13,6 @@ METADATA_FNAME = "wandb-metadata.json"
 REQUIREMENTS_FNAME = "requirements.txt"
 HISTORY_FNAME = "wandb-history.jsonl"
 EVENTS_FNAME = "wandb-events.jsonl"
-JOBSPEC_FNAME = "wandb-jobspec.json"
 CONDA_ENVIRONMENTS_FNAME = "conda-environment.yaml"
 
 

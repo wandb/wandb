@@ -35,6 +35,14 @@ type ReaderOptions struct {
 	// asFunc allows drivers to expose driver-specific types;
 	// see Bucket.As for more details.
 	BeforeRead func(asFunc func(any) bool) error
+	// BufferSize changes the default size in bytes of the chunks that a
+	// parallel download fetches per request, if supported. Only used when a
+	// DownloaderAt download is performed; ignored otherwise.
+	BufferSize int
+	// MaxConcurrency changes the default number of parts fetched concurrently
+	// by a parallel download, if supported. Only used when a DownloaderAt
+	// download is performed; ignored otherwise.
+	MaxConcurrency int
 }
 
 // Reader reads an object from the blob.
@@ -123,6 +131,18 @@ type CopyOptions struct {
 	// asFunc allows drivers to expose driver-specific types;
 	// see Bucket.As for more details.
 	BeforeCopy func(asFunc func(any) bool) error
+}
+
+// DeleteOptions controls options for Delete.
+type DeleteOptions struct {
+	// BeforeDelete is a callback that must be called exactly once before
+	// deleting, and may be used to apply a driver-specific precondition to the
+	// delete (for example a generation/version/ETag match, so the delete is
+	// refused if the object changed since it was observed). It is nil if the
+	// caller passed no hook.
+	// asFunc allows drivers to expose driver-specific types;
+	// see Bucket.As for more details.
+	BeforeDelete func(asFunc func(any) bool) error
 }
 
 // ReaderAttributes contains a subset of attributes about a blob that are
@@ -325,7 +345,8 @@ type Bucket interface {
 	// Delete deletes the object associated with key. If the specified object does
 	// not exist, Delete must return an error for which ErrorCode returns
 	// gcerrors.NotFound.
-	Delete(ctx context.Context, key string) error
+	// opts is guaranteed to be non-nil.
+	Delete(ctx context.Context, key string, opts *DeleteOptions) error
 
 	// SignedURL returns a URL that can be used to GET the blob for the duration
 	// specified in opts.Expiry. opts is guaranteed to be non-nil.
@@ -338,6 +359,17 @@ type Bucket interface {
 	// ErrorCode. There may be open readers or writers that will receive calls.
 	// It is up to the driver as to how these will be handled.
 	Close() error
+}
+
+// DownloaderAt is an optional interface for Bucket. If a driver implements it,
+// blob.Bucket.Download uses DownloadAt when the download destination is an
+// io.WriterAt, e.g. to fetch the object with a provider's parallel/ranged
+// downloader. Implementing it avoids the eager read that would otherwise be
+// issued via NewRangeReader and then discarded.
+//
+// If set, opts.BeforeRead is called once before the download begins.
+type DownloaderAt interface {
+	DownloadAt(ctx context.Context, key string, w io.WriterAt, opts *ReaderOptions) error
 }
 
 // SignedURLOptions sets options for SignedURL.
@@ -426,8 +458,8 @@ func (b *prefixedBucket) Copy(ctx context.Context, dstKey, srcKey string, opts *
 	return b.base.Copy(ctx, b.prefix+dstKey, b.prefix+srcKey, opts)
 }
 
-func (b *prefixedBucket) Delete(ctx context.Context, key string) error {
-	return b.base.Delete(ctx, b.prefix+key)
+func (b *prefixedBucket) Delete(ctx context.Context, key string, opts *DeleteOptions) error {
+	return b.base.Delete(ctx, b.prefix+key, opts)
 }
 
 func (b *prefixedBucket) SignedURL(ctx context.Context, key string, opts *SignedURLOptions) (string, error) {
@@ -454,7 +486,7 @@ func (b *singleKeyBucket) Attributes(ctx context.Context, _ string) (*Attributes
 }
 
 func (b *singleKeyBucket) ListPaged(ctx context.Context, opts *ListOptions) (*ListPage, error) {
-	return nil, errors.New("List not supported for SingleKey buckets")
+	return nil, errors.New("List not supported for SingleKey buckets") // nolint
 }
 
 func (b *singleKeyBucket) NewRangeReader(ctx context.Context, _ string, offset, length int64, opts *ReaderOptions) (Reader, error) {
@@ -469,8 +501,8 @@ func (b *singleKeyBucket) Copy(ctx context.Context, dstKey, _ string, opts *Copy
 	return b.base.Copy(ctx, dstKey, b.key, opts)
 }
 
-func (b *singleKeyBucket) Delete(ctx context.Context, _ string) error {
-	return b.base.Delete(ctx, b.key)
+func (b *singleKeyBucket) Delete(ctx context.Context, _ string, opts *DeleteOptions) error {
+	return b.base.Delete(ctx, b.key, opts)
 }
 
 func (b *singleKeyBucket) SignedURL(ctx context.Context, _ string, opts *SignedURLOptions) (string, error) {

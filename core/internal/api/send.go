@@ -11,12 +11,18 @@ import (
 
 // Do implements RetryableClient.Do.
 func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error) {
-	resp, err := client.retryableHTTP.Do(req)
+	// Track retried errors to provide a better error message at the end.
+	req = req.WithContext(withRetryObserver(req.Context()))
 
+	resp, err := client.retryableHTTP.Do(req)
 	wboperation.Get(req.Context()).ClearError()
 
 	if err != nil {
-		return nil, err
+		if lastStatus := lastRetriedError(req.Context()); lastStatus != "" {
+			return nil, &RetryError{Inner: err, LastStatus: lastStatus}
+		} else {
+			return nil, err
+		}
 	}
 
 	// This is a bug that happens with retryablehttp sometimes.

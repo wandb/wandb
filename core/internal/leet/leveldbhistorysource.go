@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -24,6 +26,9 @@ type LevelDBHistorySource struct {
 
 	// store is a W&B LevelDB-style transaction log that may be actively written.
 	store *LiveStore
+	// metricHandler accumulates define_metric records to resolve custom
+	// x-axes. Definitions apply only to later history records.
+	metricHandler *runmetric.MetricHandler
 	// exitSeen is true if the exit record has been seen.
 	exitSeen bool
 	// exitCode is the exit code of the run if the exit record has been seen.
@@ -41,8 +46,9 @@ func NewLevelDBHistorySource(
 		return nil, err
 	}
 	return &LevelDBHistorySource{
-		runPath: runPath,
-		store:   store,
+		runPath:       runPath,
+		store:         store,
+		metricHandler: runmetric.New(),
 	}, nil
 }
 
@@ -89,7 +95,7 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	var msgs []tea.Msg
-	var histories []HistoryMsg
+	history := historyAccumulator{metricHandler: hs.metricHandler}
 	var summaries []SummaryMsg
 	scannedCount := 0
 	startTime := time.Now()
@@ -121,10 +127,13 @@ func (hs *LevelDBHistorySource) Read(
 			break
 		}
 
+		if h, ok := record.RecordType.(*spb.Record_History); ok {
+			history.addRecord(hs.runPath, h.History)
+			continue
+		}
+
 		if msg := hs.recordToMsg(record); msg != nil {
 			switch m := msg.(type) {
-			case HistoryMsg:
-				histories = append(histories, m)
 			case SummaryMsg:
 				summaries = append(summaries, m)
 			default:
@@ -133,11 +142,11 @@ func (hs *LevelDBHistorySource) Read(
 		}
 	}
 
-	if len(histories) > 0 {
-		msgs = append(msgs, hs.concatenateHistory(histories))
+	if msg, ok := history.toMsg(hs.runPath); ok {
+		msgs = append(msgs, msg)
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, hs.concatenateSummary(summaries))
+		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
 	}
 
 	if hs.exitSeen && !hs.fileCompleteEmitted {
@@ -156,69 +165,14 @@ func (hs *LevelDBHistorySource) Read(
 	}, err
 }
 
-// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
-//
-// Assumes that the history messages are ordered.
-func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) HistoryMsg {
-	h := HistoryMsg{
-		RunPath: hs.runPath,
-		Metrics: make(map[string]MetricData),
-		Media:   make(map[string][]MediaPoint),
-	}
-
-	for _, msg := range messages {
-		for metricName, data := range msg.Metrics {
-			existing := h.Metrics[metricName]
-			existing.X = append(existing.X, data.X...)
-			existing.Y = append(existing.Y, data.Y...)
-			h.Metrics[metricName] = existing
-		}
-		for mediaKey, points := range msg.Media {
-			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
-		}
-	}
-
-	if len(h.Metrics) == 0 {
-		h.Metrics = nil
-	}
-	if len(h.Media) == 0 {
-		h.Media = nil
-	}
-
-	return h
-}
-
-// ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
-//
-// Assumes that the summary messages are ordered.
-func (hs *LevelDBHistorySource) concatenateSummary(messages []SummaryMsg) SummaryMsg {
-	s := SummaryMsg{
-		RunPath: hs.runPath,
-		Summary: make([]*spb.SummaryRecord, 0),
-	}
-
-	for _, msg := range messages {
-		s.Summary = append(s.Summary, msg.Summary...)
-	}
-
-	return s
-}
-
 // recordToMsg converts a record to the appropriate message type.
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		return RunMsg{
-			RunPath:     hs.runPath,
-			ID:          rec.Run.GetRunId(),
-			DisplayName: rec.Run.GetDisplayName(),
-			Project:     rec.Run.GetProject(),
-			Notes:       rec.Run.GetNotes(),
-			Tags:        slices.Clone(rec.Run.GetTags()),
-			Config:      rec.Run.GetConfig(),
-		}
-	case *spb.Record_History:
-		return ParseHistory(hs.runPath, rec.History)
+		return runMsgFromRecord(hs.runPath, rec.Run)
+	case *spb.Record_Metric:
+		_ = hs.metricHandler.ProcessRecord(rec.Metric)
+		return nil
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
@@ -232,6 +186,35 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	}
 }
 
+func runMsgFromRecord(runPath string, run *spb.RunRecord) RunMsg {
+	msg := RunMsg{
+		RunPath:     runPath,
+		ID:          run.GetRunId(),
+		Entity:      run.GetEntity(),
+		DisplayName: run.GetDisplayName(),
+		Project:     run.GetProject(),
+		Notes:       run.GetNotes(),
+		Tags:        slices.Clone(run.GetTags()),
+		Config:      run.GetConfig(),
+		Telemetry:   run.GetTelemetry(),
+	}
+	if ts := run.GetStartTime(); ts != nil {
+		msg.StartTime = ts.AsTime()
+	}
+	return msg
+}
+
+func (hs *LevelDBHistorySource) NextLiveReadCmd(
+	readCmd tea.Cmd,
+	hasMore bool,
+) tea.Cmd {
+	if hasMore {
+		return readCmd
+	}
+
+	return nil
+}
+
 func (hs *LevelDBHistorySource) Close() {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
@@ -242,93 +225,139 @@ func (hs *LevelDBHistorySource) Close() {
 	}
 }
 
-// ParseHistory extracts metrics and media from a history record.
-func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
+// historyAccumulator merges a chunk's history records into per-metric series.
+type historyAccumulator struct {
+	// metricHandler resolves custom x-axes and must be non-nil.
+	metricHandler *runmetric.MetricHandler
+
+	metrics   map[string]MetricData
+	media     map[string][]MediaPoint
+	stepTimes MetricData
+
+	// values holds one record's numeric items and is reused across records.
+	values map[string]float64
+}
+
+func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRecord) {
 	if history == nil {
-		return nil
+		return
 	}
 
-	step := int(history.GetStep().GetNum())
-	values := make(map[string]float64, len(history.GetItem()))
-	mediaFieldsByKey := make(map[string]map[string]string)
+	s, _ := historyStep(history)
+	step := int(s)
+	var mediaFieldsByKey map[string]map[string]string
 
+	if acc.values == nil {
+		acc.values = make(map[string]float64)
+	}
+	clear(acc.values)
 	for _, item := range history.GetItem() {
 		if item == nil {
 			continue
 		}
 
 		if mediaKey, field, ok := historyMediaField(item); ok {
+			if mediaFieldsByKey == nil {
+				mediaFieldsByKey = make(map[string]map[string]string)
+			}
 			fields := mediaFieldsByKey[mediaKey]
 			if fields == nil {
 				fields = make(map[string]string)
 				mediaFieldsByKey[mediaKey] = fields
 			}
-			fields[field] = trimJSONString(item.ValueJson)
+			fields[field] = historyItemString(item)
 			continue
 		}
 
-		key := strings.Join(item.GetNestedKey(), ".")
-		if key == "" {
-			key = item.GetKey()
-		}
+		key := historyItemKey(item)
 		if key == "" {
 			continue
 		}
+		if val, ok := historyItemFloat(item); ok {
+			acc.values[key] = val
+		}
+	}
 
-		v := trimJSONString(item.ValueJson)
-		if key == "_step" {
-			if s, err := strconv.Atoi(v); err == nil {
-				step = s
-			}
-			continue
-		}
+	if ts, ok := acc.values["_timestamp"]; ok {
+		acc.stepTimes.X = append(acc.stepTimes.X, float64(step))
+		acc.stepTimes.Y = append(acc.stepTimes.Y, ts)
+	}
+
+	for key, val := range acc.values {
+		// Internal keys get no chart but may serve as an x-axis (e.g. _runtime).
 		if strings.HasPrefix(key, "_") {
 			continue
 		}
-		if val, err := strconv.ParseFloat(v, 64); err == nil {
-			values[key] = val
+		x, xAxisMetric := float64(step), acc.metricHandler.StepMetric(key)
+		switch xAxisMetric {
+		case "", "_step":
+			xAxisMetric = ""
+		default:
+			// Rows without a finite x value are not plotted, as in the UI.
+			sx, ok := acc.values[xAxisMetric]
+			if !ok || !isFinite(sx) {
+				continue
+			}
+			x = sx
 		}
+		if acc.metrics == nil {
+			acc.metrics = make(map[string]MetricData)
+		}
+		md := acc.metrics[key]
+		// One x-axis per metric, as on its chart: a custom axis replaces
+		// step-axis points, and rows on any other axis are skipped.
+		if md.XAxisMetric != xAxisMetric {
+			if md.XAxisMetric != "" {
+				continue
+			}
+			md = MetricData{XAxisMetric: xAxisMetric}
+		}
+		md.X = append(md.X, x)
+		md.Y = append(md.Y, val)
+		acc.metrics[key] = md
 	}
 
-	metrics := make(map[string]MetricData, len(values))
-	if len(values) > 0 {
-		x := []float64{float64(step)}
-		for k, y := range values {
-			metrics[k] = MetricData{X: x, Y: []float64{y}}
+	for key, points := range parseHistoryMedia(runPath, step, mediaFieldsByKey) {
+		if acc.media == nil {
+			acc.media = make(map[string][]MediaPoint)
 		}
+		acc.media[key] = append(acc.media[key], points...)
 	}
+}
 
-	media := make(map[string][]MediaPoint)
-	for mediaKey, fields := range mediaFieldsByKey {
-		if fields["_type"] != "image-file" {
-			continue
-		}
-		relPath := fields["path"]
-		if relPath == "" {
-			continue
-		}
-		media[mediaKey] = append(media[mediaKey], MediaPoint{
-			X:            float64(step),
-			FilePath:     resolveMediaPath(runPath, relPath),
-			RelativePath: relPath,
-			Caption:      fields["caption"],
-			Format:       fields["format"],
-			Width:        parseHistoryInt(fields["width"]),
-			Height:       parseHistoryInt(fields["height"]),
-			SHA256:       fields["sha256"],
-		})
+func (acc *historyAccumulator) toMsg(runPath string) (HistoryMsg, bool) {
+	if len(acc.metrics) == 0 && len(acc.media) == 0 {
+		return HistoryMsg{}, false
 	}
+	return HistoryMsg{
+		RunPath:   runPath,
+		Metrics:   acc.metrics,
+		Media:     acc.media,
+		StepTimes: acc.stepTimes,
+	}, true
+}
 
-	if len(metrics) == 0 && len(media) == 0 {
+// historyItemKey returns the dotted nested key, or the flat key when there is none.
+func historyItemKey(item *spb.HistoryItem) string {
+	if key := strings.Join(item.GetNestedKey(), "."); key != "" {
+		return key
+	}
+	return item.GetKey()
+}
+
+// ParseHistory extracts metrics and media from a history record.
+//
+// metricHandler resolves custom x-axes and must be non-nil.
+func ParseHistory(
+	runPath string,
+	history *spb.HistoryRecord,
+	metricHandler *runmetric.MetricHandler,
+) tea.Msg {
+	acc := historyAccumulator{metricHandler: metricHandler}
+	acc.addRecord(runPath, history)
+	msg, ok := acc.toMsg(runPath)
+	if !ok {
 		return nil
-	}
-
-	msg := HistoryMsg{RunPath: runPath}
-	if len(metrics) > 0 {
-		msg.Metrics = metrics
-	}
-	if len(media) > 0 {
-		msg.Media = media
 	}
 	return msg
 }
@@ -341,6 +370,71 @@ func trimJSONString(v string) string {
 		return unquoted
 	}
 	return v
+}
+
+// parseHistoryMedia builds media series from the per-key media fields of a
+// history record.
+func parseHistoryMedia(
+	runPath string,
+	step int,
+	mediaFieldsByKey map[string]map[string]string,
+) map[string][]MediaPoint {
+	if len(mediaFieldsByKey) == 0 {
+		return nil
+	}
+	media := make(map[string][]MediaPoint)
+	for mediaKey, fields := range mediaFieldsByKey {
+		switch fields["_type"] {
+		case "image-file":
+			relPath := fields["path"]
+			if relPath == "" {
+				continue
+			}
+			media[mediaKey] = append(media[mediaKey], MediaPoint{
+				X:            float64(step),
+				FilePath:     resolveMediaPath(runPath, relPath),
+				RelativePath: relPath,
+				Caption:      fields["caption"],
+				Format:       fields["format"],
+				Width:        parseHistoryInt(fields["width"]),
+				Height:       parseHistoryInt(fields["height"]),
+				SHA256:       fields["sha256"],
+			})
+		case "images/separated":
+			// A list of wandb.Image logged under one key: fan each image
+			// out into its own "key[i]" series so every image gets a tile.
+			captions := parseJSONStringArray(fields["captions"])
+			for i, relPath := range parseJSONStringArray(fields["filenames"]) {
+				if relPath == "" {
+					continue
+				}
+				point := MediaPoint{
+					X:            float64(step),
+					FilePath:     resolveMediaPath(runPath, relPath),
+					RelativePath: relPath,
+					Format:       fields["format"],
+					Width:        parseHistoryInt(fields["width"]),
+					Height:       parseHistoryInt(fields["height"]),
+				}
+				if i < len(captions) {
+					point.Caption = captions[i]
+				}
+				indexedKey := fmt.Sprintf("%s[%d]", mediaKey, i)
+				media[indexedKey] = append(media[indexedKey], point)
+			}
+		}
+	}
+	return media
+}
+
+// parseJSONStringArray decodes a JSON array of strings, returning nil on
+// malformed input.
+func parseJSONStringArray(v string) []string {
+	var out []string
+	if json.Unmarshal([]byte(v), &out) != nil {
+		return nil
+	}
+	return out
 }
 
 func parseHistoryInt(v string) int {
@@ -358,7 +452,8 @@ func historyMediaField(item *spb.HistoryItem) (mediaKey, field string, ok bool) 
 	}
 	field = parts[len(parts)-1]
 	switch field {
-	case "_type", "path", "caption", "format", "width", "height", "sha256", "size":
+	case "_type", "path", "caption", "format", "width", "height", "sha256", "size",
+		"count", "filenames", "captions":
 	default:
 		return "", "", false
 	}

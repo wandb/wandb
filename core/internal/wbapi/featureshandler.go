@@ -7,7 +7,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// FeaturesHandler responds to FeaturesRequests.
+// FeaturesHandler responds to feature requests.
 type FeaturesHandler struct {
 	featureProvider *featurechecker.FeatureProvider
 }
@@ -20,12 +20,27 @@ func NewFeaturesHandler(
 
 // HandleRequest produces the response for a FeaturesRequest.
 //
-// It cannot error out: errors are logged and default values are returned.
+// Server-feature errors are logged and return default values.
 func (h *FeaturesHandler) HandleRequest(
 	ctx context.Context,
 	request *spb.FeaturesRequest,
 ) *spb.ApiResponse {
-	response := &spb.FeaturesResponse{}
+	switch request := request.GetRequest().(type) {
+	case *spb.FeaturesRequest_Server:
+		return h.handleServerRequest(ctx, request.Server)
+	case *spb.FeaturesRequest_Org:
+		return h.handleOrgRequest(ctx, request.Org)
+	default:
+		return apiErrorResponse("unsupported features request", 0)
+	}
+}
+
+// handleServerRequest returns the requested enabled server features.
+func (h *FeaturesHandler) handleServerRequest(
+	ctx context.Context,
+	request *spb.ServerFeaturesRequest,
+) *spb.ApiResponse {
+	response := &spb.ServerFeaturesResponse{}
 
 	for _, feature := range request.Features {
 		if h.featureProvider.Enabled(ctx, feature) {
@@ -35,7 +50,43 @@ func (h *FeaturesHandler) HandleRequest(
 
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_FeaturesResponse{
-			FeaturesResponse: response,
+			FeaturesResponse: &spb.FeaturesResponse{
+				Response: &spb.FeaturesResponse_Server{Server: response},
+			},
+		},
+	}
+}
+
+// handleOrgRequest returns requested organization feature flags that exist.
+func (h *FeaturesHandler) handleOrgRequest(
+	ctx context.Context,
+	request *spb.OrgFeaturesRequest,
+) *spb.ApiResponse {
+	requested := request.GetFeatures()
+	if len(requested) > 0 && request.GetOrg() == "" {
+		return apiErrorResponse(
+			"org is required to check organization feature flags",
+			0,
+		)
+	}
+
+	features, err := h.featureProvider.OrgFeatures(
+		ctx,
+		request.GetOrg(),
+		requested,
+	)
+	if err != nil {
+		message, status := graphqlErrorInfo(err)
+		return apiErrorResponse(message, status)
+	}
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_FeaturesResponse{
+			FeaturesResponse: &spb.FeaturesResponse{
+				Response: &spb.FeaturesResponse_Org{
+					Org: &spb.OrgFeaturesResponse{Features: features},
+				},
+			},
 		},
 	}
 }
