@@ -1773,4 +1773,7 @@ enum ServerFeature {
   // Indicates that the server supports paginating
   // ArtifactCollectionMembership's aliases via `aliasesConnection`.
   ARTIFACT_MEMBERSHIP_ALIASES_PAGINATION = 41;
+
+  // Indicates that the server accepts protobuf filestream requests.
+  FILESTREAM_PROTO_V1 = 42;
 }
