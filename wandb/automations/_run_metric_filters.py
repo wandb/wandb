@@ -291,10 +291,10 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
         return NotImplemented
 
     @overload
-    def changes_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+    def changes_by(self, *, diff: PosNum, frac: None = None) -> MetricChangeFilter: ...
 
     @overload
-    def changes_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+    def changes_by(self, *, diff: None = None, frac: PosNum) -> MetricChangeFilter: ...
 
     @overload  # NOTE: This overload is for internal use only.
     def changes_by(
@@ -341,10 +341,14 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
         return MetricChangeFilter(**dict(self), **kws)
 
     @overload
-    def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+    def increases_by(
+        self, *, diff: PosNum, frac: None = None
+    ) -> MetricChangeFilter: ...
 
     @overload
-    def increases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+    def increases_by(
+        self, *, diff: None = None, frac: PosNum
+    ) -> MetricChangeFilter: ...
 
     def increases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
@@ -356,10 +360,14 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
         return self.changes_by(diff=diff, frac=frac, _dir=ChangeDir.INC)
 
     @overload
-    def decreases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+    def decreases_by(
+        self, *, diff: PosNum, frac: None = None
+    ) -> MetricChangeFilter: ...
 
     @overload
-    def decreases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+    def decreases_by(
+        self, *, diff: None = None, frac: PosNum
+    ) -> MetricChangeFilter: ...
 
     def decreases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
