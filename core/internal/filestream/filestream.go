@@ -225,8 +225,11 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	fs.typedHistoryEnabled = fs.settings.FileStreamHistoryEncoding(fs.logger.Logger) == "proto+v1" &&
-		fs.featureProvider.Enabled(fs.beforeRunEndCtx, spb.ServerFeature_FILESTREAM_PROTO_V1)
+	encoding := fs.settings.FileStreamHistoryEncoding(fs.logger.Logger)
+	fs.typedHistoryEnabled = encoding == "proto+v1" &&
+		fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx, spb.ServerFeature_FILESTREAM_PROTO_V1,
+		)
 
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
 	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)

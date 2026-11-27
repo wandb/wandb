@@ -66,12 +66,16 @@ func TestFilestreamProtoFeature(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mockGQL := gqlmock.NewMockClient()
-			mockGQL.StubMatchOnce(gqlmock.WithOpName("ServerFeaturesQuery"),
-				`{"serverInfo":{"features":[`+tc.features+`{"name":"UNKNOWN_FEATURE","isEnabled":true}]}}`)
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("ServerFeaturesQuery"),
+				`{"serverInfo":{"features":[`+tc.features+`{"name":"UNKNOWN_FEATURE","isEnabled":true}]}}`,
+			)
 			provider := featurechecker.New(mockGQL, observabilitytest.NewTestLogger(t))
 
-			assert.Equal(t, tc.enabled, provider.Enabled(t.Context(), spb.ServerFeature_FILESTREAM_PROTO_V1))
-			assert.Equal(t, tc.enabled, provider.Enabled(t.Context(), spb.ServerFeature_FILESTREAM_PROTO_V1))
+			for range 2 {
+				enabled := provider.Enabled(t.Context(), spb.ServerFeature_FILESTREAM_PROTO_V1)
+				assert.Equal(t, tc.enabled, enabled)
+			}
 			assert.Len(t, mockGQL.AllRequests(), 1)
 		})
 	}
