@@ -59,6 +59,10 @@ func (r *concurrentReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 
+	if len(p) == 0 {
+		return 0, r.getErr()
+	}
+
 	clientOptions := []func(*s3.Options){
 		func(o *s3.Options) {
 			o.APIOptions = append(o.APIOptions,
@@ -149,41 +153,63 @@ func (r *concurrentReader) downloadChunk(ctx context.Context, chunk getChunk, cl
 		params.IfMatch = r.etag
 	}
 
-	out, err := r.options.S3.GetObject(ctx, params, clientOptions...)
+	var out *s3.GetObjectOutput
+	var oc outChunk
+	var err error
+	for retry := 0; retry < max(r.options.PartBodyMaxRetries, 1); retry++ {
+		out, oc, err = r.tryDownloadChunk(ctx, params, clientOptions...)
+		if err == nil {
+			break
+		}
+		if _, ok := err.(*errReadingBody); !ok {
+			return nil, err
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
+
+	oc.index = chunk.index
+	r.ch <- oc
+
+	output := &GetObjectOutput{}
+	output.mapFromGetObjectOutput(out, params.ChecksumMode)
+	return output, nil
+}
+
+// tryDownloadChunk downloads the chunk from s3 once
+func (r *concurrentReader) tryDownloadChunk(ctx context.Context, params *s3.GetObjectInput, clientOptions ...func(*s3.Options)) (*s3.GetObjectOutput, outChunk, error) {
+	out, err := r.options.S3.GetObject(ctx, params, clientOptions...)
+	if err != nil {
+		return nil, outChunk{}, err
+	}
+	defer out.Body.Close()
 
 	respStart := int64(-1)
 	respEnd := int64(-1)
 	if out.ContentRange != nil {
 		respStart, respEnd, err = getRespRange(aws.ToString(out.ContentRange))
 		if err != nil {
-			return nil, err
+			return nil, outChunk{}, err
 		}
 		if params.Range != nil {
 			reqStart, reqEnd, err := getReqRange(aws.ToString(params.Range))
 			if err != nil {
-				return nil, err
+				return nil, outChunk{}, err
 			}
 			// don't validate first chunk since object size is unknown when getting that
 			if reqStart != 0 && (reqStart != respStart || reqEnd != respEnd) {
-				return nil, fmt.Errorf("range mismatch between request %d-%d and response %d-%d", reqStart, reqEnd, respStart, respEnd)
+				return nil, outChunk{}, fmt.Errorf("range mismatch between request %d-%d and response %d-%d", reqStart, reqEnd, respStart, respEnd)
 			}
 		}
 	}
 
-	defer out.Body.Close()
 	buf, err := io.ReadAll(out.Body)
 	if err != nil {
-		return nil, err
+		return nil, outChunk{}, &errReadingBody{err: err}
 	}
 
-	r.ch <- outChunk{body: bytes.NewReader(buf), index: chunk.index, length: aws.ToInt64(out.ContentLength), rangeStart: respStart, rangeEnd: respEnd}
-
-	output := &GetObjectOutput{}
-	output.mapFromGetObjectOutput(out, params.ChecksumMode)
-	return output, err
+	return out, outChunk{body: bytes.NewReader(buf), length: aws.ToInt64(out.ContentLength), rangeStart: respStart, rangeEnd: respEnd}, nil
 }
 
 // byteRange returns an HTTP Byte-Range header value that should be used by the
@@ -210,10 +236,6 @@ type outChunk struct {
 }
 
 func (r *concurrentReader) read(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
 	if r.getType == types.GetObjectParts {
 		return r.partRead(p)
 	}

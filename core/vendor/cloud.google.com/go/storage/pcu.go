@@ -17,6 +17,7 @@ package storage
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -90,10 +91,28 @@ func newPCUSettings(maxConcurrency int) *pcuSettings {
 	return c
 }
 
+const partNameDigestBytes = 8
+
+// objectNameDigest returns a short hex SHA-256 digest of name so temporary
+// part keys remain under the 1024-byte object-name limit and never interpret
+// slashes or dot segments in name.
+func objectNameDigest(name string) string {
+	sum := sha256.Sum256([]byte(name))
+	return hex.EncodeToString(sum[:partNameDigestBytes])
+}
+
 // newPartName creates a unique name for a temporary part to avoid hotspotting.
-func newPartName(bucket, prefix, finalName string, partNumber int) string {
+func newPartName(prefix, finalName string, partNumber int) string {
 	rnd := generateRandomBytes(4)
-	return path.Join(prefix, fmt.Sprintf("%x-%s-part-%d", rnd, finalName, partNumber))
+	return path.Join(prefix, fmt.Sprintf("%x-%s-part-%d", rnd, objectNameDigest(finalName), partNumber))
+}
+
+// pinGeneration pins h to attrs.Generation so compose and cleanup touch only this upload's object.
+func pinGeneration(h *ObjectHandle, attrs *ObjectAttrs) *ObjectHandle {
+	if attrs == nil || attrs.Generation <= 0 {
+		return h
+	}
+	return h.Generation(attrs.Generation)
 }
 
 type pcuState struct {
@@ -270,12 +289,14 @@ func (s *pcuState) worker() {
 }
 
 func (s *pcuState) uploadPart(task uploadTask) (*ObjectHandle, *ObjectAttrs, error) {
-	partName := newPartName(s.w.o.bucket, tmpObjectPrefix, s.w.o.object, task.partNumber)
+	partName := newPartName(tmpObjectPrefix, s.w.o.object, task.partNumber)
 	partHandle := s.w.o.c.Bucket(s.w.o.bucket).Object(partName)
 
-	pw := partHandle.NewWriter(s.ctx)
+	// Compose sources must not carry a key, so only the write handle is keyed.
+	pw := partHandle.Key(s.w.o.encryptionKey).NewWriter(s.ctx)
 	pw.ObjectAttrs.Name = partName
 	pw.ObjectAttrs.Size = task.size
+	pw.ObjectAttrs.KMSKeyName = s.w.ObjectAttrs.KMSKeyName
 	pw.DisableAutoChecksum = s.w.DisableAutoChecksum
 	pw.ChunkSize = 0 // Force single-shot upload for parts.
 
@@ -297,8 +318,9 @@ func (s *pcuState) resultCollector() {
 		if result.err != nil {
 			s.setError(result.err)
 		} else if result.handle != nil {
+			h := pinGeneration(result.handle, result.obj)
 			s.mu.Lock()
-			s.partMap[result.partNumber] = result.handle
+			s.partMap[result.partNumber] = h
 			s.mu.Unlock()
 
 			cumulativeSize += result.size
@@ -534,15 +556,20 @@ func (s *pcuState) composeParts() error {
 				compName := path.Join(tmpObjectPrefix, fmt.Sprintf("int-%s-lv%d-%d", h, level, idx))
 
 				interHandle := s.w.o.c.Bucket(s.w.o.bucket).Object(compName)
-				composer := interHandle.ComposerFrom(finalComps[start:end]...)
+				// DoesNotExist makes the compose idempotent so transient errors are retried.
+				// It's set on a copy so interHandle (later used as a compose source and
+				// cleanup target) carries no precondition.
+				dst := interHandle.If(Conditions{DoesNotExist: true}).Key(s.w.o.encryptionKey)
+				composer := dst.ComposerFrom(finalComps[start:end]...)
+				composer.KMSKeyName = s.w.ObjectAttrs.KMSKeyName
 				composer.DeleteSourceObjects = true
 
-				_, err := s.composeFn(s.ctx, composer)
+				interAttrs, err := s.composeFn(s.ctx, composer)
 				if err != nil {
 					errOnce.Do(func() { levelErr = err })
 					return
 				}
-				nextLevel[idx] = interHandle
+				nextLevel[idx] = pinGeneration(interHandle, interAttrs)
 			}(i)
 		}
 		wg.Wait()
@@ -579,7 +606,7 @@ func (s *pcuState) composeParts() error {
 
 	// Perform client-side CRC32C validation if a user-provided checksum was specified.
 	if s.w.SendCRC32C && s.w.CRC32C != 0 && attrs.CRC32C != s.w.CRC32C {
-		return fmt.Errorf("storage: object was uploaded, but its CRC32C (%d) does not match the expected CRC32C (%d)", attrs.CRC32C, s.w.CRC32C)
+		return fmt.Errorf("storage: object was uploaded, but its CRC32C (%d) does not match the expected CRC32C (%d): %w", attrs.CRC32C, s.w.CRC32C, errChecksumMismatch)
 	}
 
 	s.w.obj = attrs

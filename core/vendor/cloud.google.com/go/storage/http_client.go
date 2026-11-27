@@ -89,13 +89,14 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (client st
 		)
 		// Don't error out here. The user may have passed in their own HTTP
 		// client which does not auth with ADC or other common conventions.
-		c, err := internaloption.AuthCreds(ctx, o)
-		if err == nil {
-			creds = c
-			o = append(o, option.WithAuthCredentials(creds))
-		} else if gc, err := transport.Creds(ctx, o...); err == nil {
-			googleCreds = gc
-			o = append(o, option.WithCredentials(googleCreds))
+		if res, rErr := internaloption.NewUnsafeResolver(o...); rErr == nil && !res.ResolvedWithAPIKeyIsCustom() {
+			if c, err := internaloption.AuthCreds(ctx, o); err == nil {
+				creds = c
+				o = append(o, option.WithAuthCredentials(creds))
+			} else if gc, err := transport.Creds(ctx, o...); err == nil {
+				googleCreds = gc
+				o = append(o, option.WithCredentials(googleCreds))
+			}
 		}
 	} else {
 		var hostURL *url.URL
@@ -125,14 +126,22 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (client st
 
 	var clientMetrics *clientMetrics
 	var metricsCleanup func()
-	if isOtelMetricsEnabled(&config) {
+	if isOtelMetricsEnabled(&config) || isOtelDebugMetricsEnabled(&config) {
 		var project string
 		if creds != nil {
 			project, _ = creds.ProjectID(ctx)
 		} else if googleCreds != nil {
 			project = googleCreds.ProjectID
 		}
-		clientMetrics, metricsCleanup = initClientMetrics(ctx, project, &config)
+		monSourceOpts := s.clientOption
+		if len(s.monitoringSourceOption) > 0 {
+			monSourceOpts = s.monitoringSourceOption
+		}
+		mOpts, exportOK := monitoringClientOptions(monSourceOpts, creds, googleCreds)
+		if exportOK || config.meterProvider != nil || config.metricExporter != nil {
+			config.monitoringOpts = mOpts
+			clientMetrics, metricsCleanup = initClientMetrics(ctx, project, &config)
+		}
 	}
 	if metricsCleanup != nil {
 		defer func() {
@@ -926,6 +935,9 @@ func (c *httpStorageClient) ComposeObject(ctx context.Context, req *composeObjec
 	if req.predefinedACL != "" {
 		call.DestinationPredefinedAcl(req.predefinedACL)
 	}
+	if req.dstObject.attrs.KMSKeyName != "" {
+		call.KmsKeyName(req.dstObject.attrs.KMSKeyName)
+	}
 	if err := setEncryptionHeaders(call.Header(), req.dstObject.encryptionKey, false); err != nil {
 		return nil, err
 	}
@@ -1226,31 +1238,46 @@ func (c *httpStorageClient) OpenWriter(params *openWriterParams, opts ...storage
 
 			// The internals that perform call.Do automatically retry both the initial
 			// call to set up the upload as well as calls to upload individual chunks
-			// for a resumable upload (as long as the chunk size is non-zero). Hence
-			// there is no need to add retries here.
-
-			// Retry only when the operation is idempotent or the retry policy is RetryAlways.
-			var useRetry bool
-			if (s.retry == nil || s.retry.policy == RetryIdempotent) && s.idempotent {
-				useRetry = true
-			} else if s.retry != nil && s.retry.policy == RetryAlways {
-				useRetry = true
+			// for a resumable upload (as long as the chunk size is non-zero). WithRetry
+			// below replaces these defaults when retries are on or for RetryNever.
+			// Writers without preconditions under RetryIdempotent keep the defaults,
+			// so maxAttempts doesn't limit their chunk retries. Stall retries under
+			// ChunkTransferTimeout skip WithRetry, so maxAttempts and RetryNever
+			// don't apply to them.
+			retry := s.retry
+			if retry == nil {
+				retry = defaultRetry
 			}
-			if useRetry {
-				if s.retry != nil {
-					// Wrap shouldRetry to adapt to the googleapi WithRetry signature.
-					var retryFunc func(error) bool
-					if s.retry.shouldRetry != nil {
-						retryFunc = func(err error) bool {
-							return s.retry.shouldRetry(err, nil)
-						}
+			attempts := 1
+			var maxAttemptsReached bool
+			switch {
+			// Retry only when the operation is idempotent or the retry policy is RetryAlways.
+			case retry.policy == RetryAlways || (retry.policy == RetryIdempotent && s.idempotent):
+				call.WithRetry(retry.backoff, func(err error) bool {
+					if err == nil {
+						// Called after each successful request, so each request gets its own budget.
+						attempts = 1
+						maxAttemptsReached = false
+						return false
 					}
-					call.WithRetry(s.retry.backoff, retryFunc)
-				} else {
-					call.WithRetry(nil, nil)
-				}
+					if retry.maxAttempts != nil && attempts >= *retry.maxAttempts {
+						maxAttemptsReached = true
+						return false
+					}
+					if !retry.runShouldRetry(err, nil) {
+						return false
+					}
+					attempts++
+					return true
+				})
+			case retry.policy == RetryNever:
+				// Without WithRetry, the upload library retries resumable chunks by default.
+				call.WithRetry(nil, func(error) bool { return false })
 			}
 			resp, err = call.Do()
+			if err != nil && maxAttemptsReached {
+				err = fmt.Errorf("storage: retry failed after %d attempts; last error: %w", *retry.maxAttempts, err)
+			}
 		}
 		if err != nil {
 			errorf(err)

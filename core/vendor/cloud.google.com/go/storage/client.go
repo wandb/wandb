@@ -134,6 +134,11 @@ type settings struct {
 	// for a list of supported options.
 	clientOption []option.ClientOption
 
+	// monitoringSourceOption preserves client options prior to NewClient
+	// appending its internal WithHTTPClient, so monitoringClientOptions can
+	// distinguish caller-supplied custom HTTP transports from default HTTP clients.
+	monitoringSourceOption []option.ClientOption
+
 	// userProject is the user project that should be billed for the request.
 	userProject string
 
@@ -218,6 +223,16 @@ type clientOption struct {
 }
 
 func (o *clientOption) Apply(s *settings) { s.clientOption = o.opts }
+
+func withMonitoringSourceOptions(opts ...option.ClientOption) storageOption {
+	return &monitoringSourceOption{opts: opts}
+}
+
+type monitoringSourceOption struct {
+	opts []option.ClientOption
+}
+
+func (o *monitoringSourceOption) Apply(s *settings) { s.monitoringSourceOption = o.opts }
 
 func withUserProject(project string) storageOption {
 	return &userProjectOption{project}

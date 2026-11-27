@@ -160,6 +160,23 @@ type View struct {
 	// leaving a working or blocked status behind.
 	ProgramStatus *ProgramStatus
 
+	// ProgramResume when not nil, tells the terminal how to resume the
+	// program after the terminal restarts, using the Program Resume Protocol
+	// (OSC 7577). Support depends on the terminal: one that supports it sets
+	// the OSC7577_TOKEN environment variable (see [EnvMsg]), and nothing is
+	// reported without it. Resuming is a hint the terminal may ignore.
+	//
+	// Changing it sends a new report, and setting it back to nil, or to a
+	// command that can't be reported, clears the record. It is reported again
+	// when the program gets the terminal back after a suspend or [Exec].
+	// While it is set, programs started with [ExecProcess] don't inherit the
+	// token, so they can't take the program's place.
+	//
+	// It is not cleared when the program exits, because a program that exits
+	// as the terminal closes must keep it. When the user quits, leave it nil
+	// in the last view so the terminal doesn't bring the program back.
+	ProgramResume *ProgramResume
+
 	// AltScreen puts the program in the alternate screen buffer
 	// (i.e. the program goes into full window mode). Note that the altscreen will
 	// be automatically exited when the program quits.
@@ -522,6 +539,8 @@ type Program struct {
 
 	msgs         chan Msg
 	errs         chan error
+	writeErr     error // first error writing to the output; guarded by writeErrMu
+	writeErrMu   sync.Mutex
 	finished     chan struct{}
 	runMu        sync.Mutex
 	shutdownOnce sync.Once
@@ -556,6 +575,11 @@ type Program struct {
 	cancelReader          cancelreader.CancelReader
 	inputScanner          *uv.TerminalReader
 	readLoopDone          chan struct{}
+
+	// lastQuery is when a terminal query was last written, in Unix
+	// nanoseconds, or 0 once its reply has been read. See
+	// [Program.drainQueryReplies].
+	lastQuery atomic.Int64
 
 	// modes keeps track of terminal modes that have been enabled or disabled.
 	ignoreSignals uint32
@@ -672,6 +696,11 @@ func NewProgram(model Model, opts ...ProgramOption) *Program {
 func (p *Program) handleSignals() chan struct{} {
 	ch := make(chan struct{})
 
+	// Run sets finished before it starts the handlers. Read it here, not in
+	// the goroutine below, which may still be running when Run is called
+	// again and replaces it.
+	finished := p.finished
+
 	// Listen for SIGINT and SIGTERM.
 	//
 	// In most cases ^C will not send an interrupt because the terminal will be
@@ -683,27 +712,34 @@ func (p *Program) handleSignals() chan struct{} {
 	go func() {
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-		defer func() {
-			signal.Stop(sig)
-			close(ch)
-		}()
+		defer signal.Stop(sig)
 
 		for {
 			select {
 			case <-p.ctx.Done():
+				// The program is shutting down: report the handler done so
+				// shutdown can proceed, but keep the signal subscription
+				// alive until Run returns. A second SIGINT/SIGTERM arriving
+				// while the terminal is being restored is then caught and
+				// dropped instead of taking the runtime's default path,
+				// which kills the process before the terminal is restored.
+				close(ch)
+				if finished != nil {
+					<-finished
+				}
 				return
 
 			case s := <-sig:
-				if atomic.LoadUint32(&p.ignoreSignals) == 0 {
-					var msg Msg = QuitMsg{}
-					if s == syscall.SIGINT {
-						msg = InterruptMsg{}
-					}
-					select {
-					case p.msgs <- msg:
-					case <-p.ctx.Done():
-					}
-					return
+				if atomic.LoadUint32(&p.ignoreSignals) != 0 {
+					continue
+				}
+				var msg Msg = QuitMsg{}
+				if s == syscall.SIGINT {
+					msg = InterruptMsg{}
+				}
+				select {
+				case p.msgs <- msg:
+				case <-p.ctx.Done():
 				}
 			}
 		}
@@ -897,7 +933,7 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 				p.execute(fmt.Sprint(msg.Msg))
 
 			case printLineMessage:
-				p.renderer.insertAbove(msg.messageBody) //nolint:errcheck,gosec
+				p.keepWriteErr(p.renderer.insertAbove(msg.messageBody))
 
 			case clearScreenMsg:
 				p.renderer.clearScreen()
@@ -1074,6 +1110,9 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 		p.ctx, p.cancel = context.WithCancel(p.externalCtx)
 		p.errs = make(chan error, 1)
 		p.shutdownOnce = sync.Once{}
+		p.writeErrMu.Lock()
+		p.writeErr = nil
+		p.writeErrMu.Unlock()
 	}
 	p.ranOnce = true
 
@@ -1166,6 +1205,7 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 			// raw mode. See issue #1572.
 			mapNl := runtime.GOOS != "windows" && p.ttyInput == nil
 			r.setOptimizations(p.useHardTabs, p.useBackspace, mapNl)
+			r.onQuery = p.noteQuery
 			p.renderer = r
 		}
 	}
@@ -1267,6 +1307,11 @@ func (p *Program) Run() (returnModel Model, returnErr error) {
 	// Restore terminal state.
 	p.shutdown(killed)
 
+	if err == nil {
+		// Report a failure to write to the output, if there was one.
+		err = p.firstWriteErr()
+	}
+
 	return model, err
 }
 
@@ -1340,7 +1385,15 @@ func (p *Program) executeQuery(seq string) {
 	if p.disableInput {
 		return
 	}
+	p.noteQuery()
 	p.execute(seq)
+}
+
+// noteQuery records that a terminal query is about to be written, so its
+// reply can be read before the terminal is handed back. See
+// [Program.drainQueryReplies].
+func (p *Program) noteQuery() {
+	p.lastQuery.Store(time.Now().UnixNano())
 }
 
 // flush flushes the output buffer to the program output.
@@ -1362,6 +1415,27 @@ func (p *Program) flush() error {
 	return nil
 }
 
+// keepWriteErr remembers err as the error to return from [Program.Run] if it
+// is the first error writing to the output. Later errors are dropped so they
+// do not hide the first one.
+func (p *Program) keepWriteErr(err error) {
+	if err == nil {
+		return
+	}
+	p.writeErrMu.Lock()
+	defer p.writeErrMu.Unlock()
+	if p.writeErr == nil {
+		p.writeErr = err
+	}
+}
+
+// firstWriteErr returns the first error kept by keepWriteErr.
+func (p *Program) firstWriteErr() error {
+	p.writeErrMu.Lock()
+	defer p.writeErrMu.Unlock()
+	return p.writeErr
+}
+
 // shutdown performs operations to free up resources and restore the terminal
 // to its original state.
 func (p *Program) shutdown(kill bool) {
@@ -1371,20 +1445,16 @@ func (p *Program) shutdown(kill bool) {
 		// Wait for all handlers to finish.
 		p.handlers.shutdown()
 
-		// Check if the cancel reader has been setup before waiting and closing.
-		if p.cancelReader != nil {
-			// Wait for input loop to finish.
-			if p.cancelReader.Cancel() {
-				if !kill {
-					p.waitForReadLoop()
-				}
-			}
-			_ = p.cancelReader.Close()
-		}
+		p.shutdownInput()
 
 		if p.renderer != nil {
 			p.stopRenderer(kill)
 		}
+
+		// Read the replies to queries that are still in flight, so they don't
+		// end up in the shell as typed input once the program exits. The
+		// program's context is already canceled, so give the drain its own.
+		_ = p.drainQueryReplies(context.Background())
 
 		_ = p.restoreTerminalState()
 	})
@@ -1418,6 +1488,13 @@ func (p *Program) recoverFromPanic(r interface{}) {
 // recoverFromGoPanic recovers from a goroutine panic, prints a stack trace,
 // restores the terminal to a usable state, and signals the program to be killed.
 func (p *Program) recoverFromGoPanic(r interface{}) {
+	p.recoverFromGoPanicWithStack(r, debug.Stack())
+}
+
+// recoverFromGoPanicWithStack is [Program.recoverFromGoPanic] with the stack
+// captured at the panic site. The renderer ticker goroutine uses this because
+// it must not block in [Program.shutdown].
+func (p *Program) recoverFromGoPanicWithStack(r interface{}, trace []byte) {
 	select {
 	case p.errs <- ErrProgramPanic:
 	default:
@@ -1427,7 +1504,7 @@ func (p *Program) recoverFromGoPanic(r interface{}) {
 	// terminal does not work or when raw mode is still active.
 	rec := strings.ReplaceAll(fmt.Sprintf("%s", r), "\n", "\r\n")
 	fmt.Fprintf(os.Stderr, "Caught panic:\r\n\r\n%s\r\n\r\nRestoring terminal...\r\n\r\n", rec)
-	stack := strings.ReplaceAll(fmt.Sprintf("%s\n", debug.Stack()), "\n", "\r\n")
+	stack := strings.ReplaceAll(fmt.Sprintf("%s\n", trace), "\n", "\r\n")
 	fmt.Fprint(os.Stderr, stack)
 	if v, err := strconv.ParseBool(os.Getenv("TEA_DEBUG")); err == nil && v {
 		f, err := os.Create(fmt.Sprintf("bubbletea-panic-%d.log", time.Now().Unix()))
@@ -1458,6 +1535,18 @@ func (p *Program) releaseTerminal(reset bool) error {
 		if reset {
 			p.renderer.reset()
 		}
+	}
+
+	// Replies to queries we sent may still be in flight. Read them now, while
+	// the terminal is still in raw mode, so they don't end up as input for
+	// whoever gets the terminal next, e.g. an exec'd process. The program gets
+	// them once its event loop resumes.
+	if events := p.drainQueryReplies(p.ctx); len(events) > 0 {
+		go func() {
+			for _, ev := range events {
+				p.Send(ev)
+			}
+		}()
 	}
 
 	return p.restoreTerminalState()
@@ -1561,8 +1650,14 @@ func (p *Program) startRenderer() {
 					realign = false
 					ticker.Reset(framerate)
 				}
-				_ = p.flush()
-				if drew, _ := p.renderer.flush(false); drew {
+				drew, ok := p.flushFrame()
+				if !ok {
+					// The renderer panicked and the program is shutting
+					// down. Stop drawing and wait for stopRenderer.
+					<-p.rendererDone
+					return
+				}
+				if drew {
 					idle = 0
 				} else if idle++; idle >= idleFrames {
 					// Nothing is changing. Stop waking up every frame until
@@ -1573,6 +1668,26 @@ func (p *Program) startRenderer() {
 			}
 		}
 	}()
+}
+
+// flushFrame writes the queued output and the current frame, and reports
+// whether a frame was drawn. If the renderer panics, ok is false and the panic
+// is recovered so the terminal still gets restored. The recovery runs on
+// another goroutine: shutting down sends on rendererDone, which only the
+// renderer goroutine calling flushFrame receives.
+func (p *Program) flushFrame() (drew, ok bool) {
+	if !p.disableCatchPanics {
+		defer func() {
+			if r := recover(); r != nil {
+				ok = false
+				go p.recoverFromGoPanicWithStack(r, debug.Stack())
+			}
+		}()
+	}
+	p.keepWriteErr(p.flush())
+	drew, err := p.renderer.flush(false)
+	p.keepWriteErr(err)
+	return drew, true
 }
 
 // stopRenderer stops the renderer.
@@ -1586,8 +1701,9 @@ func (p *Program) stopRenderer(kill bool) {
 
 	if !kill {
 		// flush locks the mutex
-		_, _ = p.renderer.flush(true)
+		_, err := p.renderer.flush(true)
+		p.keepWriteErr(err)
 	}
 
-	_ = p.renderer.close()
+	p.keepWriteErr(p.renderer.close())
 }

@@ -85,6 +85,9 @@ var codeToStr = [...]string{
 var (
 	// Set at init time by dial_socketopt.go. If nil, socketopt is not supported.
 	timeoutDialerOption grpc.DialOption
+
+	// Assign to var for unit test replacement.
+	grpcDialContext = grpc.DialContext
 )
 
 // ClientCertProvider is a function that returns a TLS client certificate to be
@@ -296,7 +299,7 @@ func dial(ctx context.Context, secure bool, opts *Options) (*grpc.ClientConn, er
 		Endpoint:           opts.Endpoint,
 		ClientCertProvider: opts.ClientCertProvider,
 		Client:             opts.client(),
-		UniverseDomain:     opts.UniverseDomain,
+		UniverseDomain:     opts.clientUniverseDomain(),
 		Logger:             opts.logger(),
 	}
 	if io := opts.InternalOptions; io != nil {
@@ -383,7 +386,7 @@ func dial(ctx context.Context, secure bool, opts *Options) (*grpc.ClientConn, er
 			}),
 		)
 		// Attempt Direct Path
-		grpcOpts, transportCreds.Endpoint, err = configureDirectPath(grpcOpts, opts, transportCreds.Endpoint, creds, metadata)
+		grpcOpts, transportCreds.Endpoint, err = configureDirectPath(ctx, grpcOpts, opts, transportCreds.Endpoint, creds, metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -395,7 +398,7 @@ func dial(ctx context.Context, secure bool, opts *Options) (*grpc.ClientConn, er
 	grpcOpts = addOpenTelemetryStatsHandler(grpcOpts, opts, transportCreds.Endpoint)
 	grpcOpts = append(grpcOpts, opts.GRPCDialOpts...)
 
-	return grpc.DialContext(ctx, transportCreds.Endpoint, grpcOpts...)
+	return grpcDialContext(ctx, transportCreds.Endpoint, grpcOpts...)
 }
 
 // grpcKeyProvider satisfies https://pkg.go.dev/google.golang.org/grpc/credentials#PerRPCCredentials.

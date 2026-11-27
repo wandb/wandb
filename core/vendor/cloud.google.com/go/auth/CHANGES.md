@@ -1,5 +1,14 @@
 # Changes
 
+## [0.24.5](https://github.com/googleapis/google-cloud-go/compare/auth/v0.24.4...auth/v0.24.5) (2026-11-25)
+
+
+### Bug Fixes
+
+* **auth/credentials/downscope:** Update universe resolution ([#20967](https://github.com/googleapis/google-cloud-go/issues/20967)) ([16e0475](https://github.com/googleapis/google-cloud-go/commit/16e0475f95988d1336f86b410bea47a6bf4dc741))
+* **auth:** Add ES256 length validation ([#20949](https://github.com/googleapis/google-cloud-go/issues/20949)) ([35958cc](https://github.com/googleapis/google-cloud-go/commit/35958cc69e5d5e711357140f3314ac5519776cf8))
+* **auth:** Improve directpath resolution ([#21004](https://github.com/googleapis/google-cloud-go/issues/21004)) ([ceeb6a1](https://github.com/googleapis/google-cloud-go/commit/ceeb6a14f159e696e83ef596e6fc8ffca1acfab8))
+
 ## [0.24.4](https://github.com/googleapis/google-cloud-go/compare/auth/v0.24.3...auth/v0.24.4) (2026-11-09)
 
 
