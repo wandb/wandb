@@ -2,6 +2,7 @@
 
 import dataclasses
 import datetime
+import random
 from collections.abc import Generator
 from unittest import mock
 
@@ -140,6 +141,18 @@ class MyError(Exception):
     pass
 
 
+def test_retry_leaves_global_random_state_alone():
+    func = mock.Mock()
+    func.side_effect = [ValueError, ValueError, "ok"]
+    retrier = retry.Retry(func, retryable_exceptions=(ValueError,))
+    state = random.getstate()
+
+    assert retrier() == "ok"
+
+    random_state_moved = random.getstate() != state
+    assert not random_state_moved
+
+
 SECOND = datetime.timedelta(seconds=1)
 
 
@@ -175,3 +188,13 @@ class TestExponentialBackoff:
             initial_sleep=2 * max_sleep, max_sleep=max_sleep
         )
         assert backoff.next_sleep_or_reraise(MyError()) == max_sleep
+
+    def test_leaves_global_random_state_alone(self):
+        backoff = retry.ExponentialBackoff(initial_sleep=SECOND, max_sleep=10 * SECOND)
+        state = random.getstate()
+
+        for _ in range(3):
+            backoff.next_sleep_or_reraise(MyError())
+
+        random_state_moved = random.getstate() != state
+        assert not random_state_moved
