@@ -338,7 +338,7 @@ class Trace:
         return self
 
     @property
-    def metadata(self) -> dict[str, str] | None:
+    def metadata(self) -> dict[str, Any] | None:
         """Get the metadata of the trace.
 
         Returns:
@@ -347,7 +347,7 @@ class Trace:
         return self._span.attributes
 
     @metadata.setter
-    def metadata(self, value: dict[str, str]) -> None:
+    def metadata(self, value: dict[str, Any]) -> None:
         """Set the metadata of the trace.
 
         Args:
@@ -359,7 +359,7 @@ class Trace:
             self._span.attributes.update(value)
 
     @property
-    def inputs(self) -> dict[str, str] | None:
+    def inputs(self) -> dict[str, Any] | None:
         """Get the inputs of the trace.
 
         Returns:
@@ -368,7 +368,7 @@ class Trace:
         return self._span.results[-1].inputs if self._span.results else None
 
     @inputs.setter
-    def inputs(self, value: dict[str, str]) -> None:
+    def inputs(self, value: dict[str, Any]) -> None:
         """Set the inputs of the trace.
 
         Args:
@@ -382,7 +382,7 @@ class Trace:
             self._span.results.append(result)
 
     @property
-    def outputs(self) -> dict[str, str] | None:
+    def outputs(self) -> dict[str, Any] | None:
         """Get the outputs of the trace.
 
         Returns:
@@ -391,7 +391,7 @@ class Trace:
         return self._span.results[-1].outputs if self._span.results else None
 
     @outputs.setter
-    def outputs(self, value: dict[str, str]) -> None:
+    def outputs(self, value: dict[str, Any]) -> None:
         """Set the outputs of the trace.
 
         Args:
