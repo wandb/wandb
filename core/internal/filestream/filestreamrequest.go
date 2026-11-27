@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"github.com/wandb/wandb/core/internal/filestream/metricsbatch"
+	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
@@ -19,6 +20,7 @@ type FileStreamRequest struct {
 	HistoryLines []string
 
 	typedHistoryRows []*metricsbatch.Row
+	typedHistory     *historyAccumulator
 
 	// EventsLines is a list of lines to append to the run's system metrics.
 	//
@@ -92,7 +94,7 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 	}
 }
 
-// FileStreamRequestJSON is the actual JSON request we make to the API.
+// FileStreamRequestJSON is an assembled request to the API.
 //
 // A [FileStreamRequest] sometimes requires multiple JSON requests to
 // represent it. This happens when non-consecutive runs of lines are
@@ -108,11 +110,14 @@ type FileStreamRequestJSON struct {
 
 	Complete *bool  `json:"complete,omitempty"`
 	ExitCode *int32 `json:"exitcode,omitempty"`
+
+	TypedHistory *filestreamv1.MetricsBatchChunk `json:"-"`
 }
 
 // IsHeartbeat is true if this is a "heartbeat" request containing no data.
 func (r *FileStreamRequestJSON) IsHeartbeat() bool {
 	return r != nil &&
+		r.TypedHistory == nil &&
 		len(r.Files) == 0 &&
 		len(r.Uploaded) == 0 &&
 		r.Preempting == nil &&

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -58,10 +59,28 @@ type FileStreamState struct {
 	ConsoleLineOffset int
 }
 
+func (s *FileStreamState) merge(request, next *FileStreamRequest) {
+	request.Merge(next)
+	if len(next.typedHistoryRows) == 0 {
+		return
+	}
+	if request.typedHistory == nil {
+		limit := s.MaxRequestSizeBytes
+		historyLimit := (limit/5)*4 + (limit%5)*4/5
+		request.typedHistory = newHistoryAccumulator(historyLimit)
+	}
+	for _, row := range next.typedHistoryRows {
+		request.typedHistory.Append(row)
+	}
+}
+
 // IsAtSizeLimit returns true if the next JSON chunk of the request could
 // contain more than around maxBytes of data.
 func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
-	approxSize := 0
+	approxSize, historyReady := request.typedHistory.sizeHint()
+	if historyReady {
+		return true
+	}
 
 	for _, line := range request.HistoryLines {
 		approxSize += len(line)
@@ -109,7 +128,11 @@ func (s *FileStreamState) Pop(
 	builder := &requestJSONBuilder{}
 	builder.MaxSizeBytes = s.MaxRequestSizeBytes
 
-	s.popHistory(builder, request)
+	if request.typedHistory.hasMore() {
+		s.popTypedHistory(builder, request)
+	} else {
+		s.popHistory(builder, request)
+	}
 	s.popEvents(builder, request)
 	s.popSummary(builder, request, logger, printer)
 	s.popConsoleLines(builder, request)
@@ -123,6 +146,27 @@ func (s *FileStreamState) Pop(
 	}
 
 	return builder.Build(), builder.HasMore
+}
+
+func (s *FileStreamState) popTypedHistory(
+	builder *requestJSONBuilder,
+	request *FileStreamRequest,
+) {
+	history := request.typedHistory
+	if len(history.sealed) == 0 {
+		history.Seal()
+	}
+	sealed := history.PopSealed()
+	rowCount := len(sealed.batch.RowEnds)
+	builder.TypedHistory = &filestreamv1.MetricsBatchChunk{
+		Offset:   int64(s.HistoryLineNum),
+		RowCount: int64(rowCount),
+		Batch:    sealed.batch,
+	}
+	// History goes first, so an oversized singleton still makes progress.
+	builder.ApproxSizeBytes = sealed.budgetBytes
+	builder.HasMore = history.hasMore() || len(request.HistoryLines) > 0
+	s.HistoryLineNum += rowCount
 }
 
 func (s *FileStreamState) popHistory(
@@ -294,6 +338,7 @@ type requestJSONBuilder struct {
 	HasMore                       bool
 
 	HistoryChunk      OffsetAndContent
+	TypedHistory      *filestreamv1.MetricsBatchChunk
 	EventsChunk       OffsetAndContent
 	SummaryChunk      OffsetAndContent
 	ConsoleLinesChunk OffsetAndContent
@@ -321,6 +366,7 @@ func (b *requestJSONBuilder) TryAddSize(n int) bool {
 // Build returns the JSON value to upload.
 func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 	json := &FileStreamRequestJSON{}
+	json.TypedHistory = x.TypedHistory
 	json.Files = make(map[string]OffsetAndContent)
 
 	if len(x.HistoryChunk.Content) > 0 {
