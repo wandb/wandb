@@ -32,7 +32,9 @@ func TestFileStreamHistoryEncoding(t *testing.T) {
 
 			assert.Equal(t, tt.want, s.FileStreamHistoryEncoding(logger))
 			if tt.warn {
-				assert.Contains(t, logs.String(), "Ignoring unsupported x_file_stream_history_encoding")
+				assert.Contains(
+					t, logs.String(), "Ignoring unsupported x_file_stream_history_encoding",
+				)
 			} else {
 				assert.Empty(t, logs.String())
 			}
