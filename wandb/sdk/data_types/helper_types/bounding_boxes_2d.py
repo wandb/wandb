@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numbers
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, overload
 
 import wandb
 from wandb import util
@@ -311,7 +311,15 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
         return True
 
-    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
+    @overload
+    def to_json(self, run_or_artifact: LocalRun) -> dict[str, Any]: ...
+
+    @overload
+    def to_json(self, run_or_artifact: Artifact) -> list[dict[str, Any]]: ...
+
+    def to_json(
+        self, run_or_artifact: LocalRun | Artifact
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         if isinstance(run_or_artifact, wandb.Run):
             return super().to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb.Artifact):
@@ -324,6 +332,8 @@ class BoundingBoxes2D(JSONMetadata):
 
     @classmethod
     def from_json(
-        cls: type[BoundingBoxes2D], json_obj: dict, source_artifact: Artifact
+        cls: type[BoundingBoxes2D],
+        json_obj: list[dict[str, Any]],
+        source_artifact: Artifact,
     ) -> BoundingBoxes2D:
         return cls({"box_data": json_obj}, "")

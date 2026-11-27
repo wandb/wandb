@@ -2,6 +2,7 @@ import io
 import os
 import platform
 from pathlib import Path
+from typing import Any, get_overloads, get_type_hints
 from unittest import mock
 
 import matplotlib
@@ -227,6 +228,40 @@ def test_image_accepts_bounding_boxes_optional_args(
     img_json = img.to_json(run)
     path = img_json["boxes"]["predictions"]["path"]
     assert os.path.exists(os.path.join(run.dir, path))
+
+
+def test_bounding_boxes_2d_json_annotations_and_artifact_roundtrip(full_box):
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.wandb_run import Run as LocalRun
+
+    ns = {
+        "Artifact": Artifact,
+        "LocalRun": LocalRun,
+        "BoundingBoxes2D": data_types.BoundingBoxes2D,
+    }
+    overloads = get_overloads(data_types.BoundingBoxes2D.to_json)
+    assert len(overloads) == 2
+
+    run_hints = get_type_hints(overloads[0], localns=ns)
+    artifact_hints = get_type_hints(overloads[1], localns=ns)
+    assert run_hints["run_or_artifact"] is LocalRun
+    assert run_hints["return"] == dict[str, Any]
+    assert artifact_hints["run_or_artifact"] is Artifact
+    assert artifact_hints["return"] == list[dict[str, Any]]
+
+    from_json_hints = get_type_hints(
+        data_types.BoundingBoxes2D.from_json.__func__, localns=ns
+    )
+    assert from_json_hints["json_obj"] == list[dict[str, Any]]
+
+    boxes = data_types.BoundingBoxes2D({"box_data": [full_box]}, key="predictions")
+    artifact = wandb.Artifact("example", type="dataset")
+    payload = boxes.to_json(artifact)
+    assert isinstance(payload, list)
+    assert (
+        data_types.BoundingBoxes2D.from_json(payload, artifact).to_json(artifact)
+        == payload
+    )
 
 
 def test_image_accepts_masks(
