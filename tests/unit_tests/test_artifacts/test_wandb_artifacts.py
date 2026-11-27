@@ -13,6 +13,7 @@ from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from pytest import fail, mark, raises
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -70,6 +71,17 @@ def test_invalid_artifact_name(invalid_name):
     """Prevent users from instantiating an artifact with an invalid name."""
     with raises(ValueError):
         _ = Artifact(invalid_name, type="any")
+
+
+def test_internal_artifact_name_sanitized_to_max_length():
+    """Internal artifact names derived from history keys should not exceed limits."""
+    long_table_artifact_name = f"run-abcdefgh-{'B' * 116}"
+
+    artifact = InternalArtifact(long_table_artifact_name, "run_table")
+
+    assert len(artifact.name) <= NAME_MAXLEN
+    assert artifact.name != long_table_artifact_name
+    assert artifact.name.startswith("run-abcdefgh-")
 
 
 @mark.parametrize(
