@@ -22,18 +22,21 @@ func TestHistoryAccumulatorExactFitAndRollover(t *testing.T) {
 	oracle := metricsbatch.NewBuilder()
 	oracle.Append(first)
 	oracle.Append(second)
-	batchLimit := proto.Size(oracle.Finish())
+	batchBytes := proto.Size(oracle.Finish())
+	batchLimit := historyBudgetBytes(batchBytes, 2)
 
 	a := newHistoryAccumulator(batchLimit)
 	a.Seal()
 	require.Nil(t, a.PopSealed())
 	a.Append(first)
 	a.Append(second)
-	require.Equal(t, batchLimit, a.open.EncodedSize())
+	require.Equal(t, batchBytes, a.open.EncodedSize())
+	require.Equal(t, batchLimit, a.openBudgetBytes())
 	require.Nil(t, a.PopSealed())
 	a.Append(third)
 	sealed := popHistoryBatchForTest(t, a)
-	require.Equal(t, batchLimit, sealed.batchBytes)
+	require.Equal(t, batchBytes, sealed.batchBytes)
+	require.Equal(t, batchLimit, sealed.budgetBytes)
 	require.Equal(t, []int64{1, 2}, sealed.batch.Seqs)
 	require.Equal(t, []string{"overlap"}, sealed.batch.Keys)
 	require.Equal(t, []string{"a", "b"}, sealed.batch.Strings)
@@ -91,6 +94,15 @@ func popHistoryBatchForTest(t *testing.T, a *historyAccumulator) *sealedHistoryB
 	require.Equal(t, proto.Size(batch.batch), batch.batchBytes)
 	wire, err := proto.Marshal(batch.batch)
 	require.NoError(t, err)
+	// A negative int64 occupies the maximum possible offset width.
+	envelope := &filestreamv1.FileStreamUpload{
+		History: &filestreamv1.MetricsBatchChunk{
+			Offset:   -1,
+			RowCount: int64(len(batch.batch.RowEnds)),
+			Batch:    batch.batch,
+		},
+	}
+	require.Equal(t, proto.Size(envelope), batch.budgetBytes)
 	decoded := &filestreamv1.MetricsBatch{}
 	require.NoError(t, proto.Unmarshal(wire, decoded))
 	require.True(t, proto.Equal(batch.batch, decoded))

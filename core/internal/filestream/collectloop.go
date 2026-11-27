@@ -39,10 +39,15 @@ func (cl CollectLoop) Start(
 		hasMore := true
 
 		for request := range requests {
-			buffer.Merge(request)
+			state.merge(buffer, request)
 
-			cl.waitForRateLimit(state, buffer, requests)
-			hasMore = cl.transmit(state, buffer, requests, output)
+			for {
+				cl.waitForRateLimit(state, buffer, requests)
+				hasMore = cl.transmit(state, buffer, requests, output)
+				if !buffer.typedHistory.hasMore() {
+					break
+				}
+			}
 		}
 
 		for hasMore {
@@ -88,7 +93,7 @@ func (cl CollectLoop) waitForRateLimit(
 				return
 			}
 
-			buffer.Merge(request)
+			state.merge(buffer, request)
 
 			if cl.shouldSendASAP(state, buffer) {
 				return
@@ -129,7 +134,7 @@ func (cl CollectLoop) transmit(
 				return hasMore
 			}
 
-			buffer.Merge(request)
+			state.merge(buffer, request)
 		}
 	}
 }

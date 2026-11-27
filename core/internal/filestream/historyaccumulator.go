@@ -1,34 +1,40 @@
 package filestream
 
 import (
+	"google.golang.org/protobuf/encoding/protowire"
+
 	"github.com/wandb/wandb/core/internal/filestream/metricsbatch"
 	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 )
 
 type sealedHistoryBatch struct {
-	batch      *filestreamv1.MetricsBatch
-	batchBytes int
+	batch       *filestreamv1.MetricsBatch
+	batchBytes  int
+	budgetBytes int
 }
 
 type historyAccumulator struct {
-	maxBatchBytes int
-	open          *metricsbatch.Builder
-	sealed        []*sealedHistoryBatch
+	maxHistoryBytes int
+	open            *metricsbatch.Builder
+	sealed          []*sealedHistoryBatch
 }
 
-func newHistoryAccumulator(maxBatchBytes int) *historyAccumulator {
+func newHistoryAccumulator(maxHistoryBytes int) *historyAccumulator {
 	return &historyAccumulator{
-		maxBatchBytes: maxBatchBytes,
-		open:          metricsbatch.NewBuilder(),
+		maxHistoryBytes: maxHistoryBytes,
+		open:            metricsbatch.NewBuilder(),
 	}
 }
 
 func (a *historyAccumulator) Append(row *metricsbatch.Row) {
-	if a.open.Rows() != 0 && a.open.EstimateAppendSize(row) > a.maxBatchBytes {
-		a.Seal()
+	if rows := a.open.Rows(); rows != 0 {
+		projected := historyBudgetBytes(a.open.EstimateAppendSize(row), rows+1)
+		if projected > a.maxHistoryBytes {
+			a.Seal()
+		}
 	}
 	a.open.Append(row)
-	if a.open.EncodedSize() > a.maxBatchBytes {
+	if a.openBudgetBytes() > a.maxHistoryBytes {
 		a.Seal()
 	}
 }
@@ -39,9 +45,29 @@ func (a *historyAccumulator) Seal() {
 	}
 	batchBytes := a.open.EncodedSize()
 	a.sealed = append(a.sealed, &sealedHistoryBatch{
-		batch:      a.open.Finish(),
-		batchBytes: batchBytes,
+		budgetBytes: historyBudgetBytes(batchBytes, a.open.Rows()),
+		batchBytes:  batchBytes,
+		batch:       a.open.Finish(),
 	})
+}
+
+func (a *historyAccumulator) hasMore() bool {
+	return a != nil && (len(a.sealed) > 0 || a.open.Rows() > 0)
+}
+
+func (a *historyAccumulator) openBudgetBytes() int {
+	if a.open.Rows() == 0 {
+		return 0
+	}
+	return historyBudgetBytes(a.open.EncodedSize(), a.open.Rows())
+}
+
+func historyBudgetBytes(batchBytes, rows int) int {
+	// Charge the widest possible offset, including its tag, before it is assigned.
+	chunkBytes := protowire.SizeTag(1) + 10 +
+		protowire.SizeTag(2) + protowire.SizeVarint(uint64(rows)) +
+		protowire.SizeTag(3) + protowire.SizeBytes(batchBytes)
+	return protowire.SizeTag(2) + protowire.SizeBytes(chunkBytes)
 }
 
 func (a *historyAccumulator) PopSealed() *sealedHistoryBatch {
