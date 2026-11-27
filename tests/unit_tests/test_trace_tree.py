@@ -1,4 +1,5 @@
 import time
+from typing import Any, get_type_hints
 
 import pytest
 from wandb.sdk.data_types.trace_tree import Span, SpanKind, StatusCode, Trace
@@ -303,3 +304,27 @@ def test_trace_child_model_dict(mocker):
 
     called_model_dict = mock_log.call_args[0][0]["trace"]._model_dict
     assert called_model_dict == {**parent_model_dict, "child": child_model_dict}
+
+
+def test_trace_property_annotations_and_non_string_values():
+    for prop_name in ("metadata", "inputs", "outputs"):
+        prop = getattr(Trace, prop_name)
+        assert get_type_hints(prop.fget)["return"] == dict[str, Any] | None
+        assert get_type_hints(prop.fset)["value"] == dict[str, Any]
+
+    t = Trace(
+        name="example",
+        metadata={"attempts": 2},
+        inputs={"x": [1, 2]},
+        outputs={"score": 0.9},
+    )
+    assert t.metadata == {"attempts": 2}
+    assert t.inputs == {"x": [1, 2]}
+    assert t.outputs == {"score": 0.9}
+
+    t.metadata = {"attempts": 3}
+    t.inputs = {"x": [3, 4]}
+    t.outputs = {"score": 1.0}
+    assert t.metadata == {"attempts": 3}
+    assert t.inputs == {"x": [3, 4]}
+    assert t.outputs == {"score": 1.0}
