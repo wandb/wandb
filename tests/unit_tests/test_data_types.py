@@ -2,6 +2,7 @@ import io
 import os
 import platform
 from pathlib import Path
+from typing import TextIO, get_args, get_type_hints
 from unittest import mock
 
 import matplotlib
@@ -772,6 +773,19 @@ def test_video_path_ignores_explicit_format(mock_run):
 def test_video_requires_format(data_or_path):
     with pytest.raises(ValueError, match="requires a `format` argument"):
         wandb.Video(data_or_path)
+
+
+def test_video_stream_annotation_and_text_stream_rejected():
+    hints = get_type_hints(
+        wandb.Video.__init__,
+        localns={"np": np, "BytesIO": io.BytesIO, "TextIO": TextIO},
+    )
+    allowed_types = get_args(hints["data_or_path"])
+    assert io.BytesIO in allowed_types
+    assert TextIO not in allowed_types
+
+    with pytest.raises(ValueError, match="file path or numpy like data"):
+        wandb.Video(io.StringIO("GIF89a"), format="gif")
 
 
 def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
