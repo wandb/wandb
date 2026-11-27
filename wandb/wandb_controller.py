@@ -345,7 +345,7 @@ class _WandbController:
             raise ControllerError("Unhandled sweep controller type")
 
     @property
-    def sweep_config(self) -> dict | sweeps.SweepConfig:
+    def sweep_config(self) -> dict | sweeps.SweepConfig | None:
         return self._sweep_config
 
     @property
@@ -591,7 +591,7 @@ class _WandbController:
         return suggestion
 
     def _stopping(self) -> list[sweeps.SweepRun]:
-        if "early_terminate" not in self.sweep_config:
+        if self.sweep_config is None or "early_terminate" not in self.sweep_config:
             return []
         stopper = self._custom_stopping or sweeps.stop_runs
         stop_runs = stopper(self._sweep_config, self._sweep_runs or [])
