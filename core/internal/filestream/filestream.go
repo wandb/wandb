@@ -18,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -120,6 +121,8 @@ type fileStream struct {
 	// featureProvider indicates which features the server supports.
 	featureProvider *featurechecker.FeatureProvider
 
+	typedHistoryEnabled bool
+
 	// The client for making API requests.
 	apiClient api.RetryableClient
 	baseURL   *url.URL
@@ -221,6 +224,12 @@ func (fs *fileStream) Start(
 		project,
 		runID,
 	)
+
+	encoding := fs.settings.FileStreamHistoryEncoding(fs.logger.Logger)
+	fs.typedHistoryEnabled = encoding == "proto+v1" &&
+		fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx, spb.ServerFeature_FILESTREAM_PROTO_V1,
+		)
 
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
 	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)

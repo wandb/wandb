@@ -54,6 +54,33 @@ func TestEnabled(t *testing.T) {
 	assert.False(t, largeFilenames) // not in response
 }
 
+func TestFilestreamProtoFeature(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		features string
+		enabled  bool
+	}{
+		{"enabled", `{"name":"FILESTREAM_PROTO_V1","isEnabled":true},`, true},
+		{"disabled", `{"name":"FILESTREAM_PROTO_V1","isEnabled":false},`, false},
+		{"absent", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("ServerFeaturesQuery"),
+				`{"serverInfo":{"features":[`+tc.features+`{"name":"UNKNOWN_FEATURE","isEnabled":true}]}}`,
+			)
+			provider := featurechecker.New(mockGQL, observabilitytest.NewTestLogger(t))
+
+			for range 2 {
+				enabled := provider.Enabled(t.Context(), spb.ServerFeature_FILESTREAM_PROTO_V1)
+				assert.Equal(t, tc.enabled, enabled)
+			}
+			assert.Len(t, mockGQL.AllRequests(), 1)
+		})
+	}
+}
+
 func TestCancellation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx1, cancel1 := context.WithCancel(t.Context())

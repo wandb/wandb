@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -38,7 +39,8 @@ func (fs *fileStream) startProcessingUpdates(
 					requests <- req
 				},
 
-				Settings: fs.settings,
+				Settings:     fs.settings,
+				typedHistory: fs.typedHistoryEnabled,
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
@@ -135,11 +137,10 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
-	jsonData, err := fs.jsonMarshalTimed(data)
+	body, contentType, err := fs.marshalTimed(data)
 	if err != nil {
-		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
+		return err
 	}
-	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
 	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
 		fs.featureProvider.Enabled(
@@ -147,9 +148,9 @@ func (fs *fileStream) send(
 			spb.ServerFeature_FILESTREAM_GZIP,
 		)
 
-	requestBody := jsonData
+	requestBody := body
 	if useGzip {
-		compressed, err := fs.gzipTimed(jsonData)
+		compressed, err := fs.gzipTimed(body)
 		if err != nil {
 			return fmt.Errorf("filestream: compress request: %v", err)
 		}
@@ -172,7 +173,7 @@ func (fs *fileStream) send(
 	if err != nil {
 		return fmt.Errorf("filestream: error constructing request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	if useGzip {
 		req.Header.Set("Content-Encoding", "gzip")
 	}
@@ -189,7 +190,7 @@ func (fs *fileStream) send(
 	if !isHeartbeat {
 		fs.stats.RecordRequest(context.Background(),
 			filestreamstats.RequestReport{
-				UncompressedBytes: len(jsonData),
+				UncompressedBytes: len(body),
 				CompressedBytes:   len(requestBody),
 				Compressed:        useGzip,
 				HTTPDuration:      httpDuration,
@@ -205,17 +206,7 @@ func (fs *fileStream) send(
 			resp,
 		)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
-		// If we reach here, that means all retries were exhausted. This could
-		// mean, for instance, that the user's internet connection broke.
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		_ = resp.Body.Close()
-
-		return fmt.Errorf(
-			"filestream: failed to upload: %v url=%v: %s",
-			resp.Status,
-			req.URL,
-			string(body),
-		)
+		return uploadResponseError(resp, req.URL, contentType)
 
 	default:
 		if shouldLogStartAndEnd {
@@ -225,37 +216,60 @@ func (fs *fileStream) send(
 		}
 	}
 
-	defer func(Body io.ReadCloser) {
-		if err = Body.Close(); err != nil {
+	fs.receiveFeedback(resp.Body, contentType, feedbackChan)
+	return nil
+}
+
+func uploadResponseError(resp *http.Response, requestURL *url.URL, contentType string) error {
+	defer resp.Body.Close()
+	if contentType == protoContentType {
+		return fmt.Errorf("filestream: failed to upload: %v url=%v", resp.Status, requestURL)
+	}
+	details, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+	return fmt.Errorf(
+		"filestream: failed to upload: %v url=%v: %s",
+		resp.Status,
+		requestURL,
+		details,
+	)
+}
+
+func (fs *fileStream) receiveFeedback(
+	body io.ReadCloser,
+	contentType string,
+	feedbackChan chan<- map[string]any,
+) {
+	defer func() {
+		if err := body.Close(); err != nil {
 			fs.logger.CaptureError(
 				"filestream",
 				fmt.Errorf("filestream: error closing response body: %v", err),
 			)
 		}
-	}(resp.Body)
+	}()
 
-	var res map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&res)
-	if err != nil {
+	var res map[string]any
+	if err := json.NewDecoder(body).Decode(&res); err != nil {
 		fs.logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: json decode error: %v", err),
 		)
 	}
 	feedbackChan <- res
-	fs.logger.Debug("filestream: post response", "response", res)
-	return nil
+	if contentType != protoContentType {
+		fs.logger.Debug("filestream: post response", "response", res)
+	}
 }
 
-// jsonMarshalTimed calls json.Marshal() and tracks how long it takes.
-func (fs *fileStream) jsonMarshalTimed(
+// marshalTimed encodes a request and tracks how long it takes.
+func (fs *fileStream) marshalTimed(
 	data *FileStreamRequestJSON,
-) ([]byte, error) {
+) ([]byte, string, error) {
 	marshalStart := time.Now()
 
-	encoded, err := json.Marshal(data)
+	encoded, contentType, err := fs.marshalRequest(data)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	fs.stats.RecordSegment(
@@ -265,7 +279,7 @@ func (fs *fileStream) jsonMarshalTimed(
 		time.Since(marshalStart),
 	)
 
-	return encoded, nil
+	return encoded, contentType, nil
 }
 
 // gzipTimed compresses the data and tracks how long it takes.
@@ -301,7 +315,11 @@ func (fs *fileStream) trackUploadOperation(
 ) *wboperation.WandbOperation {
 	parts := make([]string, 0, 3)
 
-	if history, ok := data.Files[HistoryFileName]; ok && len(history.Content) > 0 {
+	if history := data.TypedHistory; history != nil && history.RowCount > 0 {
+		parts = append(parts,
+			fmt.Sprintf("history steps %d-%d",
+				history.Offset, history.Offset+history.RowCount-1))
+	} else if history, ok := data.Files[HistoryFileName]; ok && len(history.Content) > 0 {
 		parts = append(parts,
 			fmt.Sprintf("history steps %d-%d",
 				history.Offset,
@@ -337,7 +355,11 @@ func (fs *fileStream) logRequestSummary(data *FileStreamRequestJSON) {
 
 	attrs = append(attrs, "total_files", len(data.Files))
 
-	if history, ok := data.Files[HistoryFileName]; ok {
+	if history := data.TypedHistory; history != nil {
+		attrs = append(attrs,
+			"history_offset", history.Offset,
+			"history_lines", history.RowCount)
+	} else if history, ok := data.Files[HistoryFileName]; ok {
 		attrs = append(attrs,
 			"history_offset", history.Offset,
 			"history_lines", len(history.Content))

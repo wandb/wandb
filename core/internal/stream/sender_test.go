@@ -3,18 +3,25 @@ package stream_test
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
+	filestreamv1 "github.com/wandb/wandb/core/internal/filestream/proto"
 	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -287,6 +294,89 @@ func TestSendHistoryPrefersTypedValues(t *testing.T) {
 		"legacy": {"a": [false, 2]},
 		"_step":  0
 	}`, rows[0])
+}
+
+func TestSendHistoryUploadsProtobuf(t *testing.T) {
+	server := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{}`)
+		},
+	))
+	defer server.Close()
+	baseURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	factory := filestream.FileStreamFactory{
+		BaseURL: baseURL,
+		FeatureProvider: featurechecker.NewPreloaded(map[spb.ServerFeature]bool{
+			spb.ServerFeature_FILESTREAM_PROTO_V1: true,
+		}),
+		Logger:  observabilitytest.NewTestLogger(t),
+		Printer: observability.NewPrinter(0),
+		Settings: wbsettings.From(&spb.Settings{
+			XFileStreamHistoryEncoding: wrapperspb.String("proto+v1"),
+			XFileStreamNoGzip:          wrapperspb.Bool(true),
+		}),
+	}
+	client := retryablehttp.NewClient()
+	client.Logger = nil
+	fileStream := factory.New(client, t.Context(), time.Hour, nil)
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+	fileStream.Start("test-entity", "test-project", "run1",
+		filestream.FileStreamOffsetMap{filestream.HistoryChunk: 17})
+	defer fileStream.FinishWithoutExit()
+
+	const exactInteger int64 = 1<<53 + 1
+	sendHistoryItems(x,
+		&spb.HistoryItem{Key: "legacy", ValueJson: `{"a":[false,2]}`},
+		&spb.HistoryItem{
+			Key:       "typed",
+			Value:     &spb.HistoryItem_Integer{Integer: exactInteger},
+			ValueJson: "99",
+		},
+	)
+	fileStream.FinishWithoutExit()
+
+	var history *filestreamv1.MetricsBatchChunk
+	for _, request := range server.Requests() {
+		assert.Equal(
+			t,
+			"application/vnd.wandb.filestream.proto+v1",
+			request.Header.Get("Content-Type"),
+		)
+		upload := &filestreamv1.FileStreamUpload{}
+		require.NoError(t, proto.Unmarshal(request.Body, upload))
+		for _, file := range upload.Files {
+			assert.NotEqual(t, filestream.HistoryFileName, file.Name)
+		}
+		if upload.History != nil {
+			require.Nil(t, history)
+			history = upload.History
+		}
+	}
+	require.NotNil(t, history)
+	assert.Equal(t, int64(17), history.Offset)
+	assert.Equal(t, int64(1), history.RowCount)
+	batch := history.Batch
+	require.NotNil(t, batch)
+	assert.Equal(t, []uint32{2}, batch.RowEnds)
+	assert.Equal(t, "_step", batch.SeqKey)
+	assert.Equal(t, []bool{true}, batch.HasSeq)
+	assert.Equal(t, []int64{0}, batch.Seqs)
+	assert.Equal(t, []int64{exactInteger}, batch.Ints)
+	require.Len(t, batch.Jsons, 1)
+	assert.JSONEq(t, `{"a":[false,2]}`, batch.Jsons[0])
+
+	kinds := make(map[string]filestreamv1.MetricsBatch_Kind)
+	require.Len(t, batch.CellKeys, 2)
+	require.Len(t, batch.CellKinds, 2)
+	for i, key := range batch.CellKeys {
+		require.Less(t, int(key), len(batch.Keys))
+		kinds[batch.Keys[key]] = batch.CellKinds[i]
+	}
+	assert.Equal(t, map[string]filestreamv1.MetricsBatch_Kind{
+		"legacy": filestreamv1.MetricsBatch_KIND_JSON,
+		"typed":  filestreamv1.MetricsBatch_KIND_INT,
+	}, kinds)
 }
 
 func TestSendHistoryPreservesTypedStep(t *testing.T) {
