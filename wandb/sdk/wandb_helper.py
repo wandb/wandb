@@ -1,5 +1,6 @@
 import inspect
 import types
+from collections.abc import Mapping
 
 from wandb.errors import UsageError
 
@@ -31,6 +32,11 @@ def _to_dict(params):
         return dict(params)
     if isinstance(params, PreInitObject):
         return {}
+    # Any other mapping is config items too. Without this branch, vars() would
+    # expose its internal attributes (e.g. UserDict.data, ChainMap.maps) or
+    # reject a read-only mapping that has no __dict__.
+    if isinstance(params, Mapping):
+        return dict(params)
 
     # Handle some cases where params is not a dictionary
     # by trying to convert it into a dictionary
