@@ -86,17 +86,18 @@ class EvalTable(Table):
                 - "MUTABLE" and "INCREMENTAL": not currently supported for EvalTable.
             input_columns: Names of the input columns.
                 If set, designates these columns as inputs. Eval comparisons will match
-                rows based on matching values from input columns. If unset, we will
-                inject a "row" index input column so comparisons can match against that.
+                rows based on matching values from input columns. If unset,
+                comparisons will match rows by their 1-indexed row position. The Weave
+                backend shows that position as an injected "row" input column.
             output_columns: Names of the output columns.
                 These represents the values to be compared. Any columns not designated
                 as input, output, or score will default to being output columns.
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Optional storage-backend override. Weave is the default. Pass
-                "ces" to write through the CoreWeave Evaluation Service instead, which
-                is not yet released.
+            backend: Optional storage-backend override. The CoreWeave Evaluation
+                Service ("ces") is the default. Pass "weave" to use the Weave backend
+                from the private preview phase, which will be removed soon.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -131,15 +132,15 @@ class EvalTable(Table):
                 data=[[pil_image, "4", 0.5]],
             )
             run.log({"my_eval_3": et3})
-            # If you don't assign any input columns, we will auto-inject a numeric
-            # "row" index as the input column, and comparisons will match by row
-            # index. All columns will be treated as outputs.
+            # If you don't assign any input columns, comparisons will match by row
+            # index, and the Weave backend will auto-inject a numeric "row" index
+            # as the input column. All columns will be treated as outputs.
         """
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
-        self._backend: Backend = backend if backend is not None else "weave"
+        self._backend: Backend = backend if backend is not None else "ces"
         self._writer: EvalTableWriter = create_writer(
             self._backend,
             allow_mixed_types=allow_mixed_types,
@@ -246,6 +247,10 @@ class EvalTable(Table):
 
         with telemetry.context(run=run) as tel:
             tel.feature.eval_table = True
+            if self._backend == "ces":
+                tel.feature.eval_table_ces = True
+            else:
+                tel.feature.eval_table_weave = True
 
         return dict(result.history_value)
 
@@ -344,18 +349,18 @@ class EvalTable(Table):
         # When no input columns are designated, inject a synthetic 1-indexed `row`
         # input so each row has a distinct digest for comparison. We avoid
         # injecting when input columns exist so row-index matching doesn't
-        # leak into the input-equality criteria.
-        inject_row_index = not self._input_columns
+        # leak into the input-equality criteria. CES keys rows without inputs
+        # by position instead.
+        inject_row_index = self._backend == "weave" and not self._input_columns
 
         rows: list[WriteRow] = []
         for row_idx, row in enumerate(self.data, start=1):
             values = dict(zip(str_columns, row, strict=True))
-            if inject_row_index:
-                inputs: dict[ColumnKey, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
-            else:
-                inputs = {
-                    columns_by_name[col]: values[col] for col in self._input_columns
-                }
+            inputs: dict[ColumnKey, Any] = (
+                {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
+                if inject_row_index
+                else {columns_by_name[col]: values[col] for col in self._input_columns}
+            )
 
             # Always use a dict so backends see a stable column-keyed shape;
             # single-output is no exception.

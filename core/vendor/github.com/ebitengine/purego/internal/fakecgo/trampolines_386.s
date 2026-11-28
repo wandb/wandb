@@ -72,7 +72,7 @@ TEXT x_cgo_bindm_trampoline(SB), NOSPLIT, $0
 // func setg_trampoline(setg uintptr, g uintptr)
 // This is called from Go, so args are at normal FP positions
 TEXT ·setg_trampoline(SB), NOSPLIT, $4-8
-	MOVL g+4(FP), AX
+	MOVL G+4(FP), AX
 	MOVL setg+0(FP), BX
 
 	// setg expects g in 0(SP)
@@ -102,7 +102,7 @@ TEXT threadentry_trampoline(SB), NOSPLIT, $24-4
 	MOVL 20(SP), BP
 	RET
 
-TEXT ·call5(SB), NOSPLIT, $24-28
+TEXT ·call5(SB), NOSPLIT, $0-28
 	MOVL fn+0(FP), AX
 	MOVL a1+4(FP), BX
 	MOVL a2+8(FP), CX
@@ -110,12 +110,21 @@ TEXT ·call5(SB), NOSPLIT, $24-28
 	MOVL a4+16(FP), SI
 	MOVL a5+20(FP), DI
 
-	// Place arguments on local stack frame for C calling convention
+	PUSHL BP       // save BP
+	MOVL  SP, BP   // save SP inside BP bc BP is callee-saved
+	SUBL  $20, SP  // allocate space for the C arguments
+	ANDL  $~15, SP // align on 16 bytes as the i386 System V ABI requires
+
+	// Place arguments on the aligned stack for C calling convention
 	MOVL BX, 0(SP)     // a1
 	MOVL CX, 4(SP)     // a2
 	MOVL DX, 8(SP)     // a3
 	MOVL SI, 12(SP)    // a4
 	MOVL DI, 16(SP)    // a5
 	CALL AX
-	MOVL AX, r1+24(FP)
+
+	MOVL BP, SP // get SP back
+	POPL BP     // restore BP
+
+	MOVL AX, ret+24(FP)
 	RET

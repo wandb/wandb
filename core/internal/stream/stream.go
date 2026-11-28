@@ -18,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -71,6 +70,9 @@ type Stream struct {
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
 
+	// started closes after the stream startup has finished
+	started chan struct{}
+
 	// settings is the settings for the stream
 	settings *settings.Settings
 
@@ -83,14 +85,15 @@ type Stream struct {
 	// writerFactory is used to create the Writer component
 	writerFactory *WriterFactory
 
+	// transactionLogReady closes after the exit flush or if the writer stops.
+	// It is nil if the transaction log is unavailable.
+	transactionLogReady <-chan struct{}
+
 	// flowControlFactory is used to create the FlowControl component
 	flowControlFactory *FlowControlFactory
 
 	// sender is the sender for the stream
 	sender *Sender
-
-	// clientID is a unique ID for the stream
-	clientID sharedmode.ClientID
 }
 
 // DebugCorePath is the absolute path to the debug-core.log file.
@@ -98,7 +101,6 @@ type DebugCorePath string
 
 // NewStream creates a new stream.
 func NewStream(
-	clientID sharedmode.ClientID,
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.FeatureProvider,
 	flowControlFactory *FlowControlFactory,
@@ -144,10 +146,10 @@ func NewStream(
 		settings:           s,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
+		started:            make(chan struct{}),
 		writerFactory:      writerFactory,
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
-		clientID:           clientID,
 	}
 
 	logger.Info("stream: created new stream", "id", stream.settings.GetRunID())
@@ -161,6 +163,8 @@ func (s *Stream) GetSettings() *settings.Settings {
 
 // Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
+	defer close(s.started)
+
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
@@ -190,7 +194,10 @@ func (s *Stream) maybeSavingToTransactionLog(
 		return work
 	}
 
-	w, err := transactionlog.OpenWriter(s.settings.GetTransactionLogPath())
+	w, err := transactionlog.OpenWriter(
+		s.settings.GetTransactionLogPath(),
+		transactionlog.VersionForSettings(s.settings),
+	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf(
 			"stream: error opening transaction log for writing: %v", err))
@@ -235,12 +242,16 @@ func (s *Stream) maybeSavingToTransactionLog(
 		s.wg.Done()
 	}()
 
+	s.transactionLogReady = writer.ExitFlushDone()
 	return flowControl.Chan()
 }
 
 // HandleRecord ingests a record from the client.
 func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
+	if s.handleStreamRecord(record, request) {
+		return
+	}
 
 	work := runwork.Work{
 		WorkImpl: s.recordParser.Parse(record),
@@ -248,6 +259,59 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	}
 
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
+}
+
+// handleStreamRecord handles records outside the normal Handler-Writer-Sender pipeline.
+func (s *Stream) handleStreamRecord(record *spb.Record, request *runwork.Request) bool {
+	if record.GetRequest().GetWaitForRunExitFlush() != nil {
+		s.handleWaitForRunExitFlush(request)
+		return true
+	}
+
+	return false
+}
+
+func (s *Stream) handleWaitForRunExitFlush(request *runwork.Request) {
+	if request == nil {
+		return
+	}
+	go s.notifyAfterExit(request)
+}
+
+func (s *Stream) notifyAfterExit(request *runwork.Request) {
+	cleanup := context.AfterFunc(s.runWork.BeforeEndCtx(), request.WillNotRespond)
+	defer cleanup()
+
+	select {
+	case <-request.Context().Done():
+		return
+	case <-s.started:
+	}
+
+	if s.transactionLogReady == nil {
+		request.WillNotRespond()
+		return
+	}
+
+	select {
+	case <-request.Context().Done():
+		return
+	case <-s.transactionLogReady:
+	}
+
+	request.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_Response{
+					Response: &spb.Response{
+						ResponseType: &spb.Response_WaitForRunExitFlushResponse{
+							WaitForRunExitFlushResponse: &spb.WaitForRunExitFlushResponse{},
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 // Close closes the stream and blocks until all its work is processed.
@@ -259,6 +323,7 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 func (s *Stream) Close() {
 	s.logger.Info("stream: finishing up")
 	s.runWork.Close()
+	<-s.started // block in case Start() runs concurrently with Close()
 	s.wg.Wait()
 	s.logger.Info("stream: all finished")
 

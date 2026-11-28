@@ -20,6 +20,7 @@ from ._generated import (
     NoOpTriggeredActionInput,
     NotificationActionFields,
     NotificationActionInput,
+    PushNotificationActionFields,
     QueueJobActionFields,
 )
 from ._validators import (
@@ -127,13 +128,21 @@ class SavedAriaAction(AriaActionFields, frozen=False):
     """The prompt ARIA receives when this automation is triggered."""
 
 
+# NOTE: Push notifications are created from the W&B App, so while we allow
+# parsing them from previously saved Automations, we don't currently expose
+# them in the API for creating automations.
+class SavedPushNotificationAction(PushNotificationActionFields, frozen=False):
+    action_type: Literal[ActionType.PUSH_NOTIFICATION] = ActionType.PUSH_NOTIFICATION
+
+
 # for type annotations
 SavedAction = Annotated[
     SavedLaunchJobAction
     | SavedNotificationAction
     | SavedWebhookAction
     | SavedNoOpAction
-    | SavedAriaAction,
+    | SavedAriaAction
+    | SavedPushNotificationAction,
     BeforeValidator(parse_saved_action),
     Field(discriminator="typename__"),
 ]

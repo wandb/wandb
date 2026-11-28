@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -29,6 +29,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -40,9 +41,10 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+var stepMetric = pathtree.PathOf("_step")
+
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
-	NewHistoryStepTracker,
 )
 
 // SenderFactory constructs a Sender.
@@ -64,7 +66,6 @@ type SenderFactory struct {
 	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
-	HistoryStepTracker      *HistoryStepTracker
 	Stats                   *filestreamstats.Stats
 }
 
@@ -259,12 +260,11 @@ func (f *SenderFactory) NewWithFileStream(
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
 		runSummary:        runsummary.New(),
-		stepTracker:       f.HistoryStepTracker,
+		stepTracker:       NewHistoryStepTracker(f.Logger),
 		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 		stats:             f.Stats,
 	}
-	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -484,17 +484,19 @@ func (s *Sender) startFileStreamAfterRunInit() {
 	}
 
 	s.fileStreamStart.Go(func() {
+		defer s.logger.Reraise("stream")
+
 		select {
 		case <-s.receivedExitCh:
 			return
-		case <-s.runHandle.Ready():
+		case <-s.runHandle.ReadyOrFailed():
 		}
 
 		upserter, err := s.runHandle.Upserter()
 		if err != nil {
 			s.logger.CaptureError(
 				"stream",
-				fmt.Errorf("sender: sendRequestRunStart: %v", err),
+				fmt.Errorf("sender: startFileStreamAfterRunInit: %v", err),
 			)
 			return
 		}
@@ -505,6 +507,7 @@ func (s *Sender) startFileStreamAfterRunInit() {
 			runPath.Entity,
 			runPath.Project,
 			runPath.RunID,
+			upserter.SegmentID(),
 			upserter.FileStreamOffsets(),
 		)
 	})
@@ -540,17 +543,8 @@ func (s *Sender) sendRequestSampledHistory(
 	})
 }
 
-func (s *Sender) sendJobFlush() {
+func (s *Sender) sendJobFlush(upserter *runupserter.RunUpserter) {
 	if s.jobBuilder == nil {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendJobFlush: %v", err),
-		)
 		return
 	}
 
@@ -626,6 +620,7 @@ func (s *Sender) finishRunSync(
 	// It's possible we say we timed out when all data uploaded successfully
 	// if it got really close to the timeout, but that's OK.
 	var timedOut atomic.Bool
+	s.stats.StartFinish()
 
 	defer func() {
 		s.respondExit(exitRequest, timedOut.Load())
@@ -656,17 +651,28 @@ func (s *Sender) finishRunSync(
 		defer cancelAbortOnRequestFinish()
 	}
 
+	// We may start to exit before receiving a run record, like when syncing
+	// an empty file. If we did receive a run record, wait for initialization
+	// to complete before continuing.
+	var upserterOrNil *runupserter.RunUpserter
+	if s.runHandle.BeganInit() {
+		select {
+		case <-s.runWork.BeforeEndCtx().Done():
+		case <-s.runHandle.ReadyOrFailed():
+		}
+
+		upserterOrNil, _ = s.runHandle.Upserter()
+	}
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()
-	// Sync can stop before receiving a run record, for example on an empty file.
-	upserter, _ := s.runHandle.Upserter()
-	if upserter != nil {
+	if upserterOrNil != nil {
 		s.uploadSummaryFile()
-		upserter.Finish()
-		s.uploadConfigFile()
+		upserterOrNil.Finish()
+		s.uploadConfigFile(upserterOrNil)
 	}
 	s.mu.Unlock()
 
@@ -675,8 +681,8 @@ func (s *Sender) finishRunSync(
 	s.artifactWG.Wait()
 
 	s.mu.Lock()
-	if upserter != nil {
-		s.sendJobFlush()
+	if upserterOrNil != nil {
+		s.sendJobFlush(upserterOrNil)
 	}
 	s.mu.Unlock()
 
@@ -705,6 +711,7 @@ func (s *Sender) finishRunSync(
 			s.fileStream.FinishWithExit(exitRecord.ExitCode)
 		}
 	}
+	s.stats.RecordFinish(context.Background())
 
 	// Indicate that `run.finish()` is done.
 	//
@@ -742,12 +749,8 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendTelemetry: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendTelemetry")
+	if !ok {
 		return
 	}
 
@@ -759,12 +762,8 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendMetadata: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendEnvironment")
+	if !ok {
 		return
 	}
 
@@ -772,24 +771,15 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 
 	// TODO: only upload the wandb-metadata.json file if the server
 	// does not understand environment info in the config.
-	s.uploadMetadataFile()
+	s.uploadMetadataFile(upserter)
 }
 
-func (s *Sender) uploadMetadataFile() {
+func (s *Sender) uploadMetadataFile(upserter *runupserter.RunUpserter) {
 	if s.runfilesUploader == nil {
 		return
 	}
 
 	if !s.settings.IsPrimary() {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: uploadMetadataFile: %v", err),
-		)
 		return
 	}
 
@@ -887,9 +877,16 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 //
 // If the history record does not contain a _step value, this method will
 // auto-assign one. It will also update the run summary's _step value.
+//
+// In shared mode, the server assigns steps, so _step is left unset.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit() {
 		s.logCalledAfterExit("sendHistory")
+		return
+	}
+
+	upserter, ok := s.mustInitialize("sendHistory")
+	if !ok {
 		return
 	}
 
@@ -924,36 +921,32 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 
 	s.runHistorySampler.SampleNext(history)
 
-	step, err := s.stepTracker.ApplyHistoryStep(history)
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: error applying history step: %v", err),
-		)
-		return
+	var step int64
+	if !s.settings.IsSharedMode() {
+		step = s.stepTracker.ApplyHistoryStep(upserter, history)
 	}
 
-	if s.fileStream == nil {
-		return
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.HistoryUpdate{
+			Row: history,
+			// Record the cell count as a denominator for other cost metrics.
+			Cells: len(record.GetItem()),
+		})
 	}
 
-	// Record the cell count as a denominator for other cost metrics.
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{
-		Row:   history,
-		Cells: len(record.GetItem()),
-	})
-	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
+	if !s.settings.IsSharedMode() &&
+		!s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
 }
 
 func (s *Sender) updateSummaryStep(step int64) {
-	s.runSummary.Set(pathtree.PathOf("_step"), step)
-	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
-		Key:       "_step",
-		ValueJson: strconv.FormatInt(step, 10),
-	}}})
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	updates := runsummary.NoUpdates().Set(stepMetric, step)
+
+	updates.Apply(s.runSummary)
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
@@ -962,18 +955,17 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 		return
 	}
 
-	updates := runsummary.FromProto(summary)
-
-	// Summary should always use the step from history records.
-	updates.IgnoreStep()
-
-	if err := updates.Apply(s.runSummary); err != nil {
+	updates, err := runsummary.FromProto(summary)
+	if err != nil {
 		s.logger.CaptureError(
 			"stream",
-			fmt.Errorf("sender: error updating summary: %v", err),
+			fmt.Errorf("sender: error parsing summary: %v", err),
 		)
+		// Continue, partial success is possible.
 	}
+	updates.Ignore(stepMetric) // Always use the step from history records.
 
+	updates.Apply(s.runSummary)
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 	}
@@ -1009,21 +1001,12 @@ func (s *Sender) uploadSummaryFile() {
 	}
 }
 
-func (s *Sender) uploadConfigFile() {
+func (s *Sender) uploadConfigFile(upserter *runupserter.RunUpserter) {
 	if s.runfilesUploader == nil {
 		return
 	}
 
 	if !s.settings.IsPrimary() {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: uploadConfigFile: %v", err),
-		)
 		return
 	}
 
@@ -1088,12 +1071,8 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendConfig: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendConfig")
+	if !ok {
 		return
 	}
 
@@ -1111,12 +1090,8 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendSystemMetrics: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendSystemMetrics")
+	if !ok {
 		return
 	}
 
@@ -1171,12 +1146,8 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureFatalAndPanic(
-			"stream",
-			fmt.Errorf("sender: sendAlert: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendAlert")
+	if !ok {
 		return
 	}
 	runPath := upserter.RunPath()
@@ -1236,12 +1207,8 @@ func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendMetric: %v", err),
-		)
+	upserter, ok := s.mustInitialize("sendMetric")
+	if !ok {
 		return
 	}
 
@@ -1254,6 +1221,11 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 		return
 	}
 
+	// The file uploader will fail if the run has not been initialized.
+	if _, ok := s.mustInitialize("sendFiles"); !ok {
+		return
+	}
+
 	s.runfilesUploader.Process(filesRecord)
 }
 
@@ -1261,6 +1233,21 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 	if s.settings.IsOffline() {
 		return
 	}
+
+	upserter, ok := s.mustInitialize("sendArtifact")
+	if !ok {
+		return
+	}
+
+	// A run's artifacts go where the run is, as resolved by its upsert.
+	//
+	// An offline run's artifact records have no entity, and `wandb sync`
+	// options such as --entity change only the run record.
+	runPath := upserter.RunPath()
+	msg = proto.CloneOf(msg)
+	msg.Entity = runPath.Entity
+	msg.Project = runPath.Project
+	msg.RunId = runPath.RunID
 
 	op := s.operations.New(
 		fmt.Sprintf(
@@ -1402,6 +1389,33 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// mustInitialize asserts that run initialization has begun and waits for it
+// to complete successfully.
+//
+// Returns (nil, false) and logs an error using the method name on failure.
+func (s *Sender) mustInitialize(
+	method string,
+) (*runupserter.RunUpserter, bool) {
+	if !s.runHandle.BeganInit() {
+		s.logger.CaptureError("stream",
+			fmt.Errorf("sender: %s called before init", method))
+		return nil, false
+	}
+
+	select {
+	case <-s.runWork.BeforeEndCtx().Done():
+	case <-s.runHandle.ReadyOrFailed():
+	}
+
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("sender: %s: %v", method, err))
+		return nil, false
+	}
+
+	return upserter, true
 }
 
 // receivedExit returns true if an Exit record has been received.

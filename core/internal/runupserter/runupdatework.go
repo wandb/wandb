@@ -25,6 +25,12 @@ const (
 // RunHandle is the same as runhandle.RunHandle, created to avoid
 // a reference cycle.
 type RunHandle interface {
+	// WillInit promises that initialization will happen.
+	//
+	// It returns a callback that should be invoked in a defer call.
+	// If the callback runs before Init(), the initialization is considered failed.
+	WillInit() (finishInit func())
+
 	// Init is called when a new run is created successfully.
 	//
 	// It is called from the Sender goroutine and only if GetRunUpserter returns
@@ -35,6 +41,11 @@ type RunHandle interface {
 	//
 	// It is called from the Sender goroutine.
 	Upserter() (*RunUpserter, error)
+
+	// StartStopwatch begins tracking elapsed time.
+	//
+	// Does nothing if the stopwatch is already started.
+	StartStopwatch()
 }
 
 // RunUpdateWork implements Work to initialize or update a run.
@@ -62,6 +73,14 @@ func (w *RunUpdateWork) Accept(
 	_ *runwork.Request,
 	_ func(*spb.Record, *runwork.Request),
 ) bool {
+	// Measure the `_runtime` metric from the moment that the first RunRecord
+	// is received, before the Handler processes any history records.
+	w.RunHandle.StartStopwatch()
+
+	// Assign the segment ID. This will be stored in the transaction log,
+	// and the same value will be used when syncing.
+	w.Record.GetRun().SegmentId = w.ClientID
+
 	return true
 }
 
@@ -89,12 +108,14 @@ func (w *RunUpdateWork) updateRun(run *RunUpserter) {
 
 // initRun creates a run for the first time.
 func (w *RunUpdateWork) initRun(request *runwork.Request) {
+	finishInit := w.RunHandle.WillInit()
+	defer finishInit()
+
 	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
 		DebounceDelay: runUpsertDebounceSeconds * time.Second,
 
-		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,
 		Operations:         w.Operations,
 		FeatureProvider:    w.FeatureProvider,

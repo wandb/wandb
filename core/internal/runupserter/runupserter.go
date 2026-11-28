@@ -64,6 +64,9 @@ type RunUpserter struct {
 	// the Runtime field can be dropped from the RunRecord.
 	startRuntime time.Duration
 
+	// segmentID identifies the current run segment / transaction log.
+	segmentID string
+
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
@@ -74,7 +77,6 @@ type RunUpserter struct {
 type RunUpserterParams struct {
 	DebounceDelay time.Duration
 
-	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -116,7 +118,7 @@ func InitRun(
 	}
 
 	// Initialize run environment info.
-	environment := runenvironment.New(params.ClientID)
+	environment := runenvironment.New(runRecord.SegmentId)
 
 	// Initialize the run config.
 	config := runconfig.New()
@@ -172,6 +174,7 @@ func InitRun(
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
 
+		segmentID:   runRecord.SegmentId,
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
@@ -366,6 +369,12 @@ func (upserter *RunUpserter) FillRunRecord(record *spb.RunRecord) {
 	}
 }
 
+// SegmentID returns the ID for the current run segment / transaction log.
+func (upserter *RunUpserter) SegmentID() string {
+	// No mutex because this field is immutable.
+	return upserter.segmentID
+}
+
 // RunPath returns the run's entity, project and run ID.
 func (upserter *RunUpserter) RunPath() runbranch.RunPath {
 	upserter.mu.Lock()
@@ -396,6 +405,23 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.environment.ToJSON()
+}
+
+// GitInfo returns the git commit and remote URL for this run.
+//
+// Returns nil if neither the commit nor the URL are available.
+func (upserter *RunUpserter) GitInfo() *spb.GitRepoRecord {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+
+	if upserter.params.Commit == "" && upserter.params.RemoteURL == "" {
+		return nil
+	}
+
+	return &spb.GitRepoRecord{
+		Commit:    upserter.params.Commit,
+		RemoteUrl: upserter.params.RemoteURL,
+	}
 }
 
 func (upserter *RunUpserter) StartingStep() int64 {

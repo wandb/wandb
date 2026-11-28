@@ -9,7 +9,7 @@ import threading
 import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any, Concatenate, NamedTuple
+from typing import TYPE_CHECKING, Concatenate, NamedTuple
 
 from opentelemetry._logs import SeverityNumber
 from typing_extensions import Never, ParamSpec
@@ -20,10 +20,6 @@ from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import requests
-    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-        OTLPMetricExporter,
-    )
     from opentelemetry.metrics import Counter, Histogram
     from opentelemetry.sdk._logs import LoggerProvider
     from opentelemetry.sdk.metrics import MeterProvider
@@ -103,31 +99,6 @@ def _check_server_supports_open_telemetry_proxy(
         requests.codes.not_found,
         requests.codes.method_not_allowed,
     )
-
-
-class _ProbedExporter:
-    """Wraps an OTLP exporter so nothing is sent to a server without the proxy API.
-
-    The first export probes the server; batches bound for a server that does
-    not support the proxy API are dropped. Everything else is delegated to the
-    wrapped exporter.
-    """
-
-    def __init__(
-        self,
-        exporter: OTLPMetricExporter | OTLPLogExporter,
-        server_supports_proxy: Callable[[], bool],
-    ) -> None:
-        self._exporter = exporter
-        self._server_supports_proxy = server_supports_proxy
-
-    def export(self, *args: Any, **kwargs: Any) -> Any:
-        if not self._server_supports_proxy():
-            return None
-        return self._exporter.export(*args, **kwargs)
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._exporter, name)
 
 
 def disable() -> None:
@@ -600,7 +571,7 @@ class OpenTelemetryProxy:
     def _server_supported(self) -> bool:
         """Return whether the server supports the proxy API, probing on first use.
 
-        Called by the exporters, so this runs on the SDK's export threads or
+        Called by `_post`, so this runs on the SDK's export threads or
         inside `shutdown`, never on the thread recording telemetry.
         """
         if self._server_supports_proxy is None:
@@ -609,6 +580,27 @@ class OpenTelemetryProxy:
                 self._settings.base_url.rstrip("/") + _METRICS_PATH,
             )
         return self._server_supports_proxy
+
+    def _post(self, path: str, data: bytes) -> bool:
+        """Send one OTLP payload to the backend; return whether it was accepted.
+
+        Nothing is sent to a server that does not support the proxy API.
+        """
+        import requests
+
+        if not self._server_supported():
+            return False
+        try:
+            response = self._session.post(
+                self._settings.base_url.rstrip("/") + path,
+                data=data,
+                headers={"Content-Type": "application/x-protobuf"},
+                timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException:
+            return False
+        response.close()
+        return response.ok
 
     def _providers(self) -> tuple[MeterProvider, LoggerProvider] | None:
         """Return the providers, building them on first use.
@@ -622,81 +614,36 @@ class OpenTelemetryProxy:
                 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
                 resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
-                self._meter_provider = self._build_meter_provider(
-                    resource=resource,
-                    endpoint=self._settings.base_url,
-                    session=self._session,
-                )
-                self._logger_provider = self._build_logger_provider(
-                    resource=resource,
-                    endpoint=self._settings.base_url,
-                    session=self._session,
-                )
+                self._meter_provider = self._build_meter_provider(resource=resource)
+                self._logger_provider = self._build_logger_provider(resource=resource)
                 atexit.register(self.shutdown)
             return self._meter_provider, self._logger_provider
 
-    def _build_meter_provider(
-        self,
-        *,
-        resource: Resource,
-        endpoint: str,
-        session: requests.Session,
-    ) -> MeterProvider:
+    def _build_meter_provider(self, *, resource: Resource) -> MeterProvider:
         """Build a meter provider that exports metrics via OTLP/HTTP."""
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-            OTLPMetricExporter,
-        )
-        from opentelemetry.sdk.metrics import Counter as SdkCounter
-        from opentelemetry.sdk.metrics import Histogram as SdkHistogram
         from opentelemetry.sdk.metrics import MeterProvider
-        from opentelemetry.sdk.metrics.export import (
-            AggregationTemporality,
-            PeriodicExportingMetricReader,
-        )
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
-        exporter = _ProbedExporter(
-            OTLPMetricExporter(
-                endpoint=endpoint.rstrip("/") + _METRICS_PATH,
-                session=session,
-                timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
-                preferred_temporality={
-                    SdkCounter: AggregationTemporality.DELTA,
-                    SdkHistogram: AggregationTemporality.DELTA,
-                },
-            ),
-            self._server_supported,
-        )
+        from ._exporters import OnceMetricExporter
+
         reader = PeriodicExportingMetricReader(
-            exporter,
+            OnceMetricExporter(functools.partial(self._post, _METRICS_PATH)),
             export_interval_millis=_DEFAULT_EXPORT_INTERVAL_MILLIS,
             export_timeout_millis=_DEFAULT_EXPORT_TIMEOUT_MILLIS,
         )
         return MeterProvider(resource=resource, metric_readers=[reader])
 
-    def _build_logger_provider(
-        self,
-        *,
-        resource: Resource,
-        endpoint: str,
-        session: requests.Session,
-    ) -> LoggerProvider:
+    def _build_logger_provider(self, *, resource: Resource) -> LoggerProvider:
         """Build a logger provider that exports logs via OTLP/HTTP."""
-        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
         from opentelemetry.sdk._logs import LoggerProvider
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 
-        exporter = _ProbedExporter(
-            OTLPLogExporter(
-                endpoint=endpoint.rstrip("/") + _LOGS_PATH,
-                session=session,
-                timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
-            ),
-            self._server_supported,
-        )
+        from ._exporters import OnceLogExporter
+
         provider = LoggerProvider(resource=resource)
         provider.add_log_record_processor(
             BatchLogRecordProcessor(
-                exporter,
+                OnceLogExporter(functools.partial(self._post, _LOGS_PATH)),
                 schedule_delay_millis=_DEFAULT_EXPORT_INTERVAL_MILLIS,
                 export_timeout_millis=_DEFAULT_EXPORT_TIMEOUT_MILLIS,
             )

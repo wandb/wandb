@@ -44,8 +44,12 @@ VALIDATE:
 			if s[i] == '^' || s[i] == '!' {
 				i++
 			}
-			if i >= l || s[i] == ']' {
-				// class didn't end or empty character class
+			if i < l && s[i] == ']' {
+				// class begins with ] which matches a literal ]
+				i++
+			}
+			if i >= l {
+				// class didn't end
 				return false
 			}
 

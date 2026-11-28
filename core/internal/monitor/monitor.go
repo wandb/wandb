@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -47,8 +46,15 @@ type SystemMonitor struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// The state of the system monitor: stopped, running, or paused.
-	state atomic.Int32
+	// stateMu guards the two state booleans.
+	stateMu sync.Mutex
+
+	// Whether the monitor is paused and whether it's started.
+	//
+	// The monitor subscribes to wandb-symon only when it's running and not
+	// paused. It may be paused before it is started, in which case calling
+	// Start() does not create the subscription.
+	statePaused, stateStarted bool
 
 	// symon streams system metrics from the wandb-symon sidecar.
 	symon *Symon
@@ -79,9 +85,6 @@ type SystemMonitor struct {
 
 	// Unique identifier of the writer to the run.
 	writerID sharedmode.ClientID
-
-	// Information about the Git repository, if applicable.
-	git *spb.GitRepoRecord
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -189,13 +192,16 @@ func openMetricsFilters(filters *spb.OpenMetricsFilters) []*spb.OpenMetricsFilte
 	return result
 }
 
-// GetState returns the current state of the SystemMonitor.
-func (sm *SystemMonitor) GetState() int32 {
-	return sm.state.Load()
+// TestOnlyIsSubscribed reports whether the system monitor has a subscription
+// to the wandb-symon process.
+func (sm *SystemMonitor) TestOnlyIsSubscribed() bool {
+	return sm.symon.TestOnlyIsSubscribed()
 }
 
 // probeExecutionContext collects information about the compute environment.
-func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
+func (sm *SystemMonitor) probeExecutionContext(
+	git *spb.GitRepoRecord,
+) *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -213,7 +219,7 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Args:          sm.settings.GetArgs(),
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
-		Git:           sm.git,
+		Git:           git,
 		Slurm:         slurmEnvVars(),
 
 		WriterId: string(sm.writerID),
@@ -326,29 +332,22 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 // Start begins resource monitoring.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
-func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
+func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
 	}
 
-	if !sm.state.CompareAndSwap(StateStopped, StateRunning) {
-		return // Already started or paused
-	}
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
 
-	sm.git = git
-
-	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
-		return
-	}
-
-	sm.logger.Debug("monitor: starting")
-	sm.symon.Subscribe(sm.subscribeRequest(), sm.publish)
+	sm.stateStarted = true
+	sm.lockedUpdateSubscription()
 }
 
 // Probe collects environment and resource information.
 //
 // This operation may take some time, so we perform it on a best-effort basis.
-func (sm *SystemMonitor) Probe() {
+func (sm *SystemMonitor) Probe(git *spb.GitRepoRecord) {
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() &&
 		sm.settings.IsPrimary() {
 		go func() {
@@ -356,19 +355,54 @@ func (sm *SystemMonitor) Probe() {
 
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeExecutionContext()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(
+					sm.probeExecutionContext(git),
+				)),
 			)
 
+			resources := sm.probeResources()
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeResources()),
-				),
+				runwork.NoRequest(runwork.WorkFromRecord(resources)),
 			)
+
+			if telemetry := sm.telemetry(resources.GetEnvironment()); telemetry != nil {
+				sm.extraWork.AddWorkOrCancel(
+					sm.ctx.Done(),
+					runwork.NoRequest(runwork.WorkFromRecord(&spb.Record{
+						RecordType: &spb.Record_Telemetry{Telemetry: telemetry},
+					})),
+				)
+			}
 		}()
 	}
+}
+
+// telemetry reports the hardware the sidecar monitors and the metric sources
+// the run is configured with, or nil if there is nothing to report.
+func (sm *SystemMonitor) telemetry(e *spb.EnvironmentRecord) *spb.TelemetryRecord {
+	telemetry := &spb.TelemetryRecord{}
+	env := &spb.Env{
+		AppleGpu:  e.GetApple() != nil,
+		NvidiaGpu: len(e.GetGpuNvidia()) > 0,
+		AmdGpu:    len(e.GetGpuAmd()) > 0,
+		Tpu:       e.GetTpu() != nil,
+		Trainium:  e.GetTrainium() != nil,
+	}
+	if proto.Size(env) > 0 {
+		telemetry.Env = env
+	}
+	feature := &spb.Feature{
+		OpenMetrics:  len(sm.settings.GetStatsOpenMetricsEndpoints()) > 0,
+		DcgmExporter: sm.settings.GetStatsDcgmExporter() != "",
+	}
+	if proto.Size(feature) > 0 {
+		telemetry.Feature = feature
+	}
+	if proto.Size(telemetry) == 0 {
+		return nil
+	}
+	return telemetry
 }
 
 // Pause temporarily stops the monitoring process.
@@ -379,17 +413,35 @@ func (sm *SystemMonitor) Probe() {
 // metrics are only collected when a cell is running. We do it this way
 // to prevent the overhead of starting and stopping the monitor for each cell.
 func (sm *SystemMonitor) Pause() {
-	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
-		sm.logger.Debug("monitor: pausing")
-		sm.symon.Unsubscribe()
-	}
+	sm.logger.Debug("monitor: pausing")
+
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
+
+	sm.statePaused = true
+	sm.lockedUpdateSubscription()
 }
 
 // Resume restarts the monitoring process after it has been paused.
 func (sm *SystemMonitor) Resume() {
-	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
-		sm.logger.Debug("monitor: resuming")
+	sm.logger.Debug("monitor: resuming")
+
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
+
+	sm.statePaused = false
+	sm.lockedUpdateSubscription()
+}
+
+// lockedUpdateSubscription subscribes or unsubscribes from wandb-symon
+// based on the current state.
+//
+// The state mutex must be held.
+func (sm *SystemMonitor) lockedUpdateSubscription() {
+	if sm.stateStarted && !sm.statePaused {
 		sm.symon.Subscribe(sm.subscribeRequest(), sm.publish)
+	} else {
+		sm.symon.Unsubscribe()
 	}
 }
 
@@ -438,11 +490,8 @@ func (sm *SystemMonitor) GetBuffer() map[string][]Measurement {
 
 // Finish ends the subscription and releases the sidecar.
 func (sm *SystemMonitor) Finish() {
-	if sm == nil || sm.cancel == nil {
+	if sm == nil {
 		return
-	}
-	if sm.state.Swap(StateStopped) == StateStopped {
-		return // Already stopped
 	}
 
 	sm.logger.Debug("monitor: stopping")

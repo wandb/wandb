@@ -1,3 +1,55 @@
+# v0.5.11 (2026-11-19)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.10 (2026-11-18)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.9 (2026-11-17)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.8 (2026-11-16)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.7 (2026-11-10)
+
+* **Dependency Update**: Update to smithy-go v1.28.9.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.6 (2026-11-09)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.5 (2026-11-06)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.4 (2026-11-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.3 (2026-11-04)
+
+* **Dependency Update**: Update to smithy-go v1.28.8.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.2 (2026-10-30)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.1 (2026-10-27)
+
+* **Dependency Update**: Update to smithy-go v1.28.7.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.5.0 (2026-10-26)
+
+* **Feature**: Improve DownloadDirectory throughput and memory usage by downloading objects with DownloadObject, and only replace an existing file once its download succeeds.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v0.4.19 (2026-10-22)
 
 * **Bug Fix**: Update smithy-go to v1.28.6

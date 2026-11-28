@@ -23,15 +23,16 @@
   </a>
 
 
+
   <a href="https://codecov.io/gh/lrstanley/bubblezone">
     <img title="Code Coverage" src="https://img.shields.io/codecov/c/github/lrstanley/bubblezone/master?style=flat-square">
   </a>
 
-  <a href="https://pkg.go.dev/github.com/lrstanley/bubblezone">
-    <img title="Go Documentation" src="https://pkg.go.dev/badge/github.com/lrstanley/bubblezone?style=flat-square">
+  <a href="https://pkg.go.dev/github.com/lrstanley/bubblezone/v2">
+    <img title="Go Documentation" src="https://pkg.go.dev/badge/github.com/lrstanley/bubblezone/v2?style=flat-square">
   </a>
-  <a href="https://goreportcard.com/report/github.com/lrstanley/bubblezone">
-    <img title="Go Report Card" src="https://goreportcard.com/badge/github.com/lrstanley/bubblezone?style=flat-square">
+  <a href="https://goreportcard.com/report/github.com/lrstanley/bubblezone/v2">
+    <img title="Go Report Card" src="https://goreportcard.com/badge/github.com/lrstanley/bubblezone/v2?style=flat-square">
   </a>
 </p>
 <p align="center">
@@ -68,10 +69,25 @@
     - [MaxHeight and MaxWidth](#maxheight-and-maxwidth)
     - [Only scan at the root model](#only-scan-at-the-root-model)
     - [Organic shapes](#organic-shapes)
+  - [Changes in v2](#rocket-changes-in-v2)
   - [Support &amp; Assistance](#raising_hand_man-support--assistance)
   - [Contributing](#handshake-contributing)
   - [License](#balance_scale-license)
 <!-- template:end:toc -->
+
+> [!WARNING]
+> **Using Bubble Tea v2? Consider [bloom](https://bloomfx.dev) instead.** bloom
+> is the successor to bubblezone for Bubble Tea v2 programs. Rather than injecting
+> markers into the view string and scanning for them, it lays out a node tree, so
+> it already knows where every component is. Mouse handlers attach directly to
+> nodes (no `zone.Mark()` + `InBounds()` dance), there's no `zone.Scan()` step for
+> `MaxWidth()`/`MaxHeight()` trimming to break, and you also get hover, drag,
+> focus, layout, dialogs, and animation.
+>
+> See the [migration guide](https://bloomfx.dev/resources/migrating-from-bubblezone)
+> for moving an existing bubblezone app over. bubblezone v1 remains the option for
+> Bubble Tea v1, and bubblezone v2 will keep working for simpler Bubble Tea v2
+> programs.
 
 ## :x: Problem
 
@@ -287,6 +303,21 @@ Example:
 
 ---
 
+## :rocket: Changes in v2
+
+> [!CAUTION]
+> bubblezone v2 may not work when using the lipgloss v2 canvas/compositor. lipgloss/bubbletea
+> v2 have some more native features for mouse event tracking. For advanced
+> layouts/layering/etc with improved mouse event tracking, see [bloom](https://bloomfx.dev)
+> ([migration guide](https://bloomfx.dev/resources/migrating-from-bubblezone)).
+
+- Switch the following deps to v2 variants (breaking change):
+  - `charm.land/bubbletea/v2`
+  - `charm.land/lipgloss/v2`
+  - replaced `github.com/muesli/ansi` with `github.com/mattn/go-runewidth` to reduce dependency count.
+
+---
+
 <!-- template:begin:support -->
 <!-- do not edit anything in this "template" block, its auto-generated -->
 ## :raising_hand_man: Support & Assistance
@@ -298,21 +329,6 @@ Example:
      guidelines for tips on how to ask the right questions.
 * :lady_beetle: For all features/bugs/issues/questions/etc, [head over here](https://github.com/lrstanley/bubblezone/issues/new/choose).
 <!-- template:end:support -->
-
----
-
-## :rocket: Changes in v2
-
-> [!CAUTION]
-> bubblezone v2 may not work when using the lipgloss v2 canvas/compositor. lipgloss/bubbletea
-> v2 have some more native features for mouse event tracking. That said, I do plan
-> to release another library that covers advanced layouts/layering/etc with improved
-> mouse event tracking (that's even better than bubblezone).
-
-- Switch the following deps to v2 variants (breaking change):
-  - `charm.land/bubbletea/v2`
-  - `charm.land/lipgloss/v2`
-  - replaced `github.com/muesli/ansi` with `github.com/mattn/go-runewidth` to reduce dependency count.
 
 <!-- template:begin:contributing -->
 <!-- do not edit anything in this "template" block, its auto-generated -->
