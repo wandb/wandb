@@ -728,6 +728,11 @@ class Table(Media):
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
             )
+            # JSON object keys are strings, but column names may be integers.
+            type_map = column_types.params["type_map"]
+            column_types.params["type_map"] = {
+                col: type_map[str(col)] for col in json_obj["columns"]
+            }
             for col_name in column_types.params["type_map"]:
                 col_type = column_types.params["type_map"][col_name]
                 ndarray_type = None
@@ -788,7 +793,7 @@ class Table(Media):
         dtypes = None
         if column_types is not None:
             dtypes = [
-                column_types.params["type_map"][str(col)] for col in json_obj["columns"]
+                column_types.params["type_map"][col] for col in json_obj["columns"]
             ]
 
         new_obj = cls(
